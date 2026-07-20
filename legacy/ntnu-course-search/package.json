@@ -1,0 +1,13 @@
+{
+  "name": "ntnu-course-search",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy:temporary": "wrangler deploy --temporary"
+  },
+  "devDependencies": {
+    "wrangler": "^4.102.0"
+  }
+}

@@ -1,0 +1,352 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Course Data API",
+    "description": "A provenance-preserving API for comparable higher-education courses.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Service index",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "service",
+                    "version",
+                    "endpoints"
+                  ],
+                  "properties": {
+                    "service": {
+                      "const": "Course Data API",
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "endpoints": {
+                      "type": "object",
+                      "required": [
+                        "health",
+                        "courses",
+                        "openapi",
+                        "openapiJson"
+                      ],
+                      "properties": {
+                        "health": {
+                          "type": "string"
+                        },
+                        "courses": {
+                          "type": "string"
+                        },
+                        "openapi": {
+                          "type": "string"
+                        },
+                        "openapiJson": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getIndex"
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Service health",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "dataRevision"
+                  ],
+                  "properties": {
+                    "status": {
+                      "const": "ok",
+                      "type": "string"
+                    },
+                    "dataRevision": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getHealth"
+      }
+    },
+    "/v1/courses": {
+      "get": {
+        "summary": "List course versions",
+        "description": "Returns normalized course versions with source provenance.",
+        "tags": [
+          "Courses"
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "institutionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "academicYear",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "minimum": 2000,
+              "maximum": 2200,
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "minimum": 2000,
+                  "maximum": 2200,
+                  "type": "number"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "meta"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "courseId",
+                          "institutionId",
+                          "institutionShortName",
+                          "code",
+                          "title",
+                          "academicYear",
+                          "credits",
+                          "level",
+                          "teachingLanguage",
+                          "source"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "courseId": {
+                            "type": "string"
+                          },
+                          "institutionId": {
+                            "type": "string"
+                          },
+                          "institutionShortName": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "academicYear": {
+                            "minimum": 2000,
+                            "maximum": 2200,
+                            "anyOf": [
+                              {
+                                "format": "integer",
+                                "default": 0,
+                                "type": "string"
+                              },
+                              {
+                                "minimum": 2000,
+                                "maximum": 2200,
+                                "type": "integer"
+                              }
+                            ]
+                          },
+                          "credits": {
+                            "anyOf": [
+                              {
+                                "minimum": 0,
+                                "maximum": 60,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "bachelor",
+                              "master",
+                              "phd",
+                              "continuing-education",
+                              "unknown"
+                            ]
+                          },
+                          "teachingLanguage": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "source": {
+                            "type": "object",
+                            "required": [
+                              "provider",
+                              "recordId",
+                              "retrievedAt"
+                            ],
+                            "properties": {
+                              "provider": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "recordId": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "retrievedAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "count",
+                        "dataRevision"
+                      ],
+                      "properties": {
+                        "count": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "dataRevision": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Response for status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getV1Courses"
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}

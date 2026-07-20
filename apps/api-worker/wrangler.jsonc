@@ -1,0 +1,17 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "course-data-api",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-07-20",
+  "observability": {
+    "enabled": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "course-data-dev",
+      "database_id": "local-development-placeholder",
+      "migrations_dir": "../../migrations/d1",
+    },
+  ],
+}

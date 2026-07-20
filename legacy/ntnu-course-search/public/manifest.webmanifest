@@ -1,0 +1,13 @@
+{
+  "name": "NTNU emnesøk",
+  "short_name": "NTNU emner",
+  "description": "Søk, filtrer og bokmerk emner ved NTNU.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f7ff",
+  "theme_color": "#315da8",
+  "lang": "nb",
+  "icons": [
+    {"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}

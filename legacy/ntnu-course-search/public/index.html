@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#315da8">
+  <meta name="description" content="Søk, filtrer og bokmerk emner ved NTNU.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg">
+  <link rel="stylesheet" href="/app.css">
+  <title>NTNU emnesøk</title>
+</head>
+<body>
+  <a class="skip-link" href="#results">Hopp til resultater</a>
+  <header class="hero">
+    <div class="hero-inner">
+      <div>
+        <p class="eyebrow">NTNU · emnekatalog</p>
+        <h1 id="app-title">NTNU emnesøk</h1>
+        <p id="subtitle">Finn et emne som passer. <span id="bookmark-count">0 bokmerker</span>.</p>
+      </div>
+      <button id="language-toggle" class="tonal-button" type="button" aria-label="Switch to English">EN</button>
+    </div>
+    <details class="source-panel">
+      <summary id="sources-summary">Om datakildene</summary>
+      <div class="source-grid">
+        <section>
+          <h2 id="grade-source-heading">Karakterkilder</h2>
+          <div id="source-status-list"></div>
+        </section>
+        <section>
+          <h2 id="query-parameters-heading">Søkefelter</h2>
+          <p id="query-parameters-copy"></p>
+        </section>
+      </div>
+    </details>
+  </header>
+
+  <main>
+    <section class="panel controls" aria-labelledby="search-heading">
+      <div class="section-heading">
+        <div><p class="eyebrow" id="catalogue-label">Katalog</p><h2 id="search-heading">Søk og filtrer</h2></div>
+        <div id="loading" class="loading" hidden><span class="spinner" aria-hidden="true"></span><span id="loading-copy">Laster</span></div>
+      </div>
+
+      <div class="control-grid">
+        <label class="field span-2"><span id="search-label">Søk</span><input id="search-input" type="search" autocomplete="off" placeholder="For eksempel TDT eller algoritmer"></label>
+        <label class="field"><span id="semester-label">Studieår</span><select id="semester-select"><option>2026–2027</option><option>2025–2026</option><option>2024–2025</option></select></label>
+        <label class="field"><span id="catalog-sort-label">Sortering</span><select id="catalog-sort"><option value="az">Tittel A–Å</option><option value="za">Tittel Å–A</option></select></label>
+      </div>
+
+      <div class="filter-block"><span class="filter-label" id="term-label">Undervisningstermin</span><div id="term-chips" class="chips"></div></div>
+      <div class="filter-block"><span class="filter-label" id="campus-label">Campus</span><div id="campus-chips" class="chips"></div></div>
+
+      <div class="control-grid">
+        <label class="field"><span id="faculty-label">Fakultet</span><select id="faculty-select"></select></label>
+        <label class="field"><span id="department-label">Institutt</span><select id="department-select"></select></label>
+      </div>
+
+      <div class="filter-block"><span class="filter-label" id="level-label">Nivå og type</span><div id="level-chips" class="chips"></div></div>
+
+      <div class="details-row">
+        <label class="switch-row"><input id="details-toggle" type="checkbox"><span class="switch" aria-hidden="true"></span><span><strong id="details-label">Detaljer</strong><small id="details-help">Last vurdering, arbeidsform og karakterstatistikk.</small></span></label>
+        <label id="grade-source-wrap" class="field compact" hidden><span id="grade-source-label">Karakterkilde</span><select id="grade-source-select"><option value="recent">Karakterstatistikk · siste år</option><option value="history">Karakterstatistikk · hele historikken</option></select></label>
+      </div>
+
+      <div class="results-control-row">
+        <strong id="result-count">0 emner</strong>
+        <nav id="pagination" aria-label="Sider"><button id="prev-page" class="icon-button" type="button" aria-label="Forrige side">←</button><span id="page-label">1 / 1</span><button id="next-page" class="icon-button" type="button" aria-label="Neste side">→</button></nav>
+      </div>
+    </section>
+
+    <details class="panel lens-panel" id="lens-panel">
+      <summary><span><span class="eyebrow" id="preferences-label">Preferanser</span><strong id="lens-title">Mine filtre</strong></span><label class="switch-row summary-switch" onclick="event.stopPropagation()"><input id="lens-toggle" type="checkbox"><span class="switch" aria-hidden="true"></span><span id="lens-state">Av</span></label></summary>
+      <div id="lens-content" class="lens-content" aria-disabled="true">
+        <div class="control-grid">
+          <label class="field"><span id="lens-sort-label">Sorter etter</span><select id="lens-sort"></select></label>
+          <label class="field"><span id="bookmarks-filter-label">Bokmerker</span><select id="bookmark-filter"></select></label>
+        </div>
+        <div class="check-grid" id="always-filters"></div>
+        <fieldset id="detail-filter-group" class="detail-filters" disabled>
+          <legend id="detail-filter-title">Krever detaljer</legend>
+          <p id="detail-filter-hint">Slå på Detaljer for å låse opp disse filtrene.</p>
+          <div class="check-grid" id="detail-filters"></div>
+        </fieldset>
+      </div>
+    </details>
+
+    <section id="results" class="results-section" aria-labelledby="results-heading">
+      <div class="section-heading results-heading"><div><p class="eyebrow" id="results-label">Resultater</p><h2 id="results-heading">Emner</h2></div><span id="data-origin" class="status-badge"></span></div>
+      <div id="state-message" class="state-message" hidden></div>
+      <div id="table-wrap" class="table-wrap"><table><thead><tr id="table-head"></tr></thead><tbody id="course-table-body"></tbody></table></div>
+      <div id="card-list" class="card-list"></div>
+      <div id="infinite-status" class="infinite-status" hidden></div>
+      <div id="scroll-sentinel" aria-hidden="true"></div>
+    </section>
+  </main>
+
+  <dialog id="course-dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

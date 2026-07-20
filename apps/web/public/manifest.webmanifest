@@ -1,0 +1,12 @@
+{
+  "name": "Course data browser",
+  "short_name": "Courses",
+  "description": "Browse comparable higher-education course data.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5fbf7",
+  "theme_color": "#1f5f50",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

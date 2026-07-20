@@ -1,0 +1,9 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "course-data-ingest",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-07-20",
+  "observability": {
+    "enabled": true,
+  },
+}

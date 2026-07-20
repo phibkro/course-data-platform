@@ -1,0 +1,20 @@
+{
+  "name": "@course-data/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@course-data/application": "0.1.0",
+    "@course-data/domain": "0.1.0",
+    "effect": "3.22.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260719.1"
+  }
+}

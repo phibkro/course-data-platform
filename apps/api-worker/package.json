@@ -1,0 +1,30 @@
+{
+  "name": "@course-data/api-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./app": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "WRANGLER_SEND_METRICS=false CI=1 wrangler deploy --dry-run --outdir dist",
+    "openapi": "bun ./scripts/export-openapi.ts",
+    "test": "vitest run",
+    "db:migrate:local": "wrangler d1 migrations apply course-data-dev --local"
+  },
+  "dependencies": {
+    "@course-data/application": "0.1.0",
+    "@course-data/contracts": "0.1.0",
+    "@course-data/database": "0.1.0",
+    "@course-data/domain": "0.1.0",
+    "@elysiajs/cors": "^1.4.2",
+    "@elysiajs/openapi": "1.4.15",
+    "effect": "3.22.0",
+    "elysia": "1.4.29"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260719.1",
+    "wrangler": "4.112.0"
+  }
+}

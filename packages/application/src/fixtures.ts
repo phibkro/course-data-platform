@@ -1,0 +1,55 @@
+import { makeCourseSummary } from '@course-data/domain';
+
+export const fixtureCourses = [
+  makeCourseSummary({
+    id: 'no.ntnu:TDT4136:2026',
+    courseId: 'no.ntnu:TDT4136',
+    institutionId: 'no.ntnu',
+    institutionShortName: 'NTNU',
+    code: 'TDT4136',
+    title: 'Introduction to Artificial Intelligence',
+    academicYear: 2026,
+    credits: 7.5,
+    level: 'bachelor',
+    teachingLanguage: 'en',
+    source: {
+      provider: 'fixture',
+      recordId: 'fixture:TDT4136:2026',
+      retrievedAt: '2026-07-20T00:00:00.000Z',
+    },
+  }),
+  makeCourseSummary({
+    id: 'no.ntnu:TTM4215:2026',
+    courseId: 'no.ntnu:TTM4215',
+    institutionId: 'no.ntnu',
+    institutionShortName: 'NTNU',
+    code: 'TTM4215',
+    title: 'Societal Security and Resilience',
+    academicYear: 2026,
+    credits: 7.5,
+    level: 'master',
+    teachingLanguage: 'en',
+    source: {
+      provider: 'fixture',
+      recordId: 'fixture:TTM4215:2026',
+      retrievedAt: '2026-07-20T00:00:00.000Z',
+    },
+  }),
+  makeCourseSummary({
+    id: 'no.ntnu:TDT4258:2026',
+    courseId: 'no.ntnu:TDT4258',
+    institutionId: 'no.ntnu',
+    institutionShortName: 'NTNU',
+    code: 'TDT4258',
+    title: 'Low-Level Programming',
+    academicYear: 2026,
+    credits: 7.5,
+    level: 'bachelor',
+    teachingLanguage: 'en',
+    source: {
+      provider: 'fixture',
+      recordId: 'fixture:TDT4258:2026',
+      retrievedAt: '2026-07-20T00:00:00.000Z',
+    },
+  }),
+] as const;

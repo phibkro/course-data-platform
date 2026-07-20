@@ -1,0 +1,19 @@
+{
+  "name": "@course-data/ingest-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "WRANGLER_SEND_METRICS=false CI=1 wrangler deploy --dry-run --outdir dist"
+  },
+  "dependencies": {
+    "@course-data/application": "0.1.0",
+    "@course-data/domain": "0.1.0",
+    "effect": "3.22.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260719.1",
+    "wrangler": "4.112.0"
+  }
+}
