@@ -1,5 +1,5 @@
 {
-  "name": "@course-data/contracts",
+  "name": "@course-data/study-kernel",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,12 +7,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@course-data/domain": "0.1.0",
-    "@course-data/study-kernel": "0.1.0",
-    "elysia": "1.4.29"
+    "effect": "3.22.0"
   },
   "devDependencies": {}
 }

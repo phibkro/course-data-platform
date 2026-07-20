@@ -15,6 +15,7 @@ fi
 CONFIGS=(
   packages/domain/tsconfig.json
   packages/application/tsconfig.json
+  packages/study-kernel/tsconfig.json
   packages/contracts/tsconfig.json
   packages/database/tsconfig.json
   apps/api-worker/tsconfig.json

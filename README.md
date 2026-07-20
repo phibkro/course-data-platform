@@ -1,10 +1,10 @@
 # Course Data Platform
 
-A multi-institution, provenance-preserving course catalogue and public data API. The earlier NTNU course-search prototype is retained in `legacy/` while the platform is rebuilt as explicit vertical slices.
+A multi-institution, provenance-preserving study-planning platform. The system is built as a headless kernel with curated projections for course exploration, programme roadmaps, comparison, progress tracking, and full data inspection. The earlier NTNU course-search prototype is retained in `legacy/` while the platform is rebuilt as explicit vertical slices.
 
-## First vertical slice
+## Current vertical slices
 
-The current slice proves one complete request path:
+The catalogue slice proves one complete request path:
 
 ```text
 React PWA -> Eden client -> Elysia contract -> Effect use case -> repository -> D1
@@ -21,6 +21,8 @@ Implemented now:
 - React PWA shell with URL-owned search state and an explicit service worker;
 - Bun 1.3, native TypeScript 7, TS6 compatibility checking, Oxlint, Oxfmt, Vite 8, Vitest, and Wrangler validation;
 - Alchemy infrastructure composition kept isolated in `alchemy.run.ts`;
+- a pure study-planning kernel with programme requirements, baseline roadmaps, scenario operations, credit calculations, and structured findings;
+- illustrative Plan and Workbench projections served through the public API;
 - the previous prototype preserved under `legacy/` for behavioral reference.
 
 Not implemented in this slice:
@@ -28,8 +30,9 @@ Not implemented in this slice:
 - live DBH or institution ingestion;
 - immutable R2 source archiving;
 - Base UI / React Aria production components;
-- user preference persistence;
-- semantic course relations;
+- user preference and scenario persistence;
+- official programme ingestion and editable roadmap interactions;
+- semantic course relations or the deferred knowledge graph;
 - a verified Alchemy deployment.
 
 ## Commands
@@ -69,7 +72,7 @@ untrusted source
   -> independent preference lens
 ```
 
-See `docs/architecture/technical-implementation.md`, `docs/agent-context/next-slice.md`, `AGENTS.md`, and `docs/adr/`.
+See `docs/architecture/technical-implementation.md`, `docs/architecture/study-planning-kernel.md`, `docs/architecture/workbench-views.md`, `docs/product/study-planner-roadmap.md`, `docs/agent-context/next-slice.md`, `AGENTS.md`, and `docs/adr/`.
 
 ## Compiler policy
 

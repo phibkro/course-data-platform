@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,6 +6,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const API_DIRECTORY = resolve(ROOT, 'apps/api-worker');
 const WEB_DIRECTORY = resolve(ROOT, 'apps/web');
 const bun = process.execPath;
+
+const nodeCheck = spawnSync('node', ['--version'], { encoding: 'utf8' });
+if (nodeCheck.error || nodeCheck.status !== 0) {
+  console.error(
+    'Node.js is required to run Wrangler locally. Enter the Nix flake with direnv (`direnv allow`) or `nix develop` before starting the stack.',
+  );
+  process.exit(1);
+}
 
 type Mode = 'development' | 'preview';
 

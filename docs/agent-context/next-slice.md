@@ -1,61 +1,52 @@
-# Next vertical slice: DBH evidence ingestion
+# Next vertical slice: programme context and editable roadmap
 
 ## Goal
 
-Replace fixture catalogue records with a replayable ingestion path for one official DBH dataset while preserving raw evidence and explicit provenance.
-
-## Scope
-
-The slice covers one institution and a small bounded reporting period. It is a correctness spike, not a complete national import.
+Replace the illustrative roadmap fixture with one evidence-backed programme version and make the planning scenario editable and locally persistent.
 
 ## Required path
 
 ```text
-frozen DBH fixture
-  -> source decoder
-  -> validated source record
-  -> raw evidence archive capability
-  -> normalized course/course-version records
-  -> idempotent D1 reconciliation
-  -> existing GET /v1/courses endpoint
+bounded programme source fixture
+  -> source decoder and relation authority
+  -> programme version and requirement groups
+  -> baseline scenario generation
+  -> editable term placement
+  -> deterministic kernel evaluation
+  -> IndexedDB scenario persistence
+  -> Plan and Workbench projections
 ```
 
-## New package boundaries
+## Scope
 
-- `packages/source-dbh`: DBH-specific discovery, decoding, and normalization.
-- `packages/evidence`: content hashes, raw-record identity, and archive capability.
-- `packages/reconciliation`: deterministic comparison between observed and canonical records.
-- `fixtures/dbh`: frozen source payloads and expected normalized output.
-
-## Domain additions
-
-- Explicit semester/reporting-period values.
-- Source-record content hash.
-- Ingestion-run identity and parser version.
-- Data states for present, unavailable, suppressed, conflicting, and invalid source data.
-- Immutable course-version revision identity.
+1. Import one bounded NTNU programme and cohort from official programme material, with DBH programme metadata where useful.
+2. Preserve relation semantics: required, elective, recommended, administrative reporting relation, or inferred.
+3. Add programme-first onboarding and automatic institution selection.
+4. Add move-earlier, move-later, remove, restore, and clone operations to the Plan UI.
+5. Store scenarios locally with schema version and data revision.
+6. Re-evaluate immediately after every operation.
+7. Show whether findings come from formal rules, workload policy, or incomplete source capability.
+8. Expand Workbench from raw JSON to the first validated declarative-view specification.
 
 ## Acceptance criteria
 
-1. No network access is required by tests.
-2. The source fixture is archived before decoding.
-3. Every normalized field carries source provenance.
-4. Running the same input twice produces no duplicate canonical records.
-5. A changed parser can replay the archived evidence.
-6. Invalid records are quarantined with structured validation errors.
-7. The API returns DBH-backed records without changing its public response shape.
-8. Fixture, reconciliation, D1, transport, and migration tests pass.
-9. No source adapter calls D1 directly.
-10. No missing or suppressed value is represented as zero or false.
+- A user can select a programme and cohort without navigating faculty and department.
+- The roadmap shows at least six terms and distinguishes required from elective positions.
+- A course may be moved without being duplicated.
+- Required-course and choose-N findings update deterministically.
+- Refreshing the browser restores the scenario.
+- A scenario can be cloned and exported as JSON.
+- Every programme-course relation exposes authority and evidence.
+- The UI clearly marks incomplete or fixture-derived curricula.
+- TypeScript 7, TypeScript 6 compatibility, lint, format, tests, OpenAPI generation, and Worker/browser builds pass.
 
-## Explicit non-goals
+## Parallel research spike
 
-- Full historical grade import.
-- Course similarity or embeddings.
-- Multiple institution catalogue adapters.
-- User accounts or synchronized preferences.
-- Production scheduling.
+Verify Feide OIDC and `groups-edu` capabilities for programme, cohort, field, and current-course context. Authentication is not placed on the critical path until a real FS-backed test response is observed.
 
-## Decision gate after completion
+## Deferred
 
-Compare the DBH source shape against one institution-owned catalogue. Refine the canonical model only after both sources have exercised it.
+- Full NTNU and DBH replication scheduling.
+- FS GraphQL and academic results.
+- Constraint-solver roadmap generation.
+- Knowledge concepts, course-concept extraction, and personalized readiness.
