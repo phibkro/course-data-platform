@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./fixtures": "./src/fixtures.ts"
+    "./fixtures": "./src/fixtures.ts",
+    "./planner-fixtures": "./src/planner-fixtures.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -13,6 +14,7 @@
   },
   "dependencies": {
     "@course-data/domain": "0.1.0",
+    "@course-data/study-kernel": "0.1.0",
     "effect": "3.22.0"
   },
   "devDependencies": {}

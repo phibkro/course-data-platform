@@ -1,3 +1,7 @@
+import type {
+  ListCoursesResponseDtoType,
+  PlannerDemoResponseDtoType,
+} from '@course-data/contracts';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -14,7 +18,16 @@ const queryClient = new QueryClient({
   },
 });
 
-function App() {
+type View = 'explore' | 'plan' | 'workbench';
+
+const errorMessage = (value: unknown): string => {
+  if (typeof value !== 'object' || value === null) return 'Request failed';
+  if ('detail' in value && typeof value.detail === 'string') return value.detail;
+  if ('message' in value && typeof value.message === 'string') return value.message;
+  return 'Request failed';
+};
+
+function ExploreView() {
   const initialSearch = new URL(window.location.href).searchParams.get('q') ?? '';
   const [search, setSearch] = useState(initialSearch);
 
@@ -25,46 +38,22 @@ function App() {
     window.history.replaceState(null, '', url);
   }, [search]);
 
-  const courses = useQuery({
+  const courses = useQuery<ListCoursesResponseDtoType>({
     queryKey: ['courses', search],
     queryFn: async () => {
       const result = await api.v1.courses.get({
         query: search ? { search } : {},
       });
-      if (result.error) {
-        const value = result.error.value;
-        throw new Error(
-          'detail' in value ? value.detail : (value.message ?? 'Request validation failed'),
-        );
-      }
-      return result.data;
+      if (result.error) throw new Error(errorMessage(result.error.value));
+      return result.data as ListCoursesResponseDtoType;
     },
   });
 
   return (
-    <main className="page-shell">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Course Data Platform</p>
-          <h1>Browse courses as public, attributable data</h1>
-          <p className="lede">
-            This first vertical slice proves the API contract and application boundaries before
-            adding live DBH ingestion.
-          </p>
-        </div>
-        <a
-          className="api-link"
-          href={`${import.meta.env.VITE_API_URL ?? 'http://localhost:8787'}/openapi`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open API documentation
-        </a>
-      </header>
-
+    <>
       <section className="search-panel" aria-labelledby="search-heading">
         <div>
-          <p className="section-label">Catalogue</p>
+          <p className="section-label">Catalogue projection</p>
           <h2 id="search-heading">Find a course</h2>
         </div>
         <label className="search-field">
@@ -91,7 +80,7 @@ function App() {
         )}
 
         <div className="course-grid">
-          {courses.data?.items.map((course) => (
+          {courses.data?.items.map((course: ListCoursesResponseDtoType['items'][number]) => (
             <article className="course-card" key={course.id}>
               <div className="course-card__topline">
                 <span>{course.institutionShortName}</span>
@@ -117,6 +106,181 @@ function App() {
           ))}
         </div>
       </section>
+    </>
+  );
+}
+
+function PlannerView({ showWorkbench = false }: { readonly showWorkbench?: boolean }) {
+  const planner = useQuery<PlannerDemoResponseDtoType>({
+    queryKey: ['planner-demo'],
+    queryFn: async () => {
+      const result = await api.v1.planner.demo.get();
+      if (result.error) throw new Error(errorMessage(result.error.value));
+      return result.data as PlannerDemoResponseDtoType;
+    },
+  });
+
+  if (planner.isLoading) return <p className="state">Building the roadmap projection…</p>;
+  if (planner.isError) return <p className="state error">{planner.error.message}</p>;
+  if (!planner.data) return null;
+
+  const { programme, scenario, evaluation, meta } = planner.data;
+
+  if (showWorkbench) {
+    return (
+      <section className="workbench" aria-labelledby="workbench-heading">
+        <div className="projection-heading">
+          <div>
+            <p className="section-label">Kernel workbench</p>
+            <h2 id="workbench-heading">Inspect the planner projection</h2>
+          </div>
+          <span className="authority-badge">{programme.relationAuthority}</span>
+        </div>
+        <p className="state subtle">
+          This is the first declarative projection over the study kernel. Future workbench views
+          will expose filters, relation traversal, grouping, visualization, provenance, and query
+          export.
+        </p>
+        <details open>
+          <summary>Programme and scenario JSON</summary>
+          <pre>{JSON.stringify({ programme, scenario, evaluation, meta }, null, 2)}</pre>
+        </details>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-labelledby="planner-heading">
+      <div className="planner-intro">
+        <div>
+          <p className="section-label">Roadmap projection</p>
+          <h2 id="planner-heading">{programme.title}</h2>
+          <p>
+            Cohort {programme.cohortStartYear} · {programme.durationTerms} terms ·{' '}
+            {evaluation.totalPlannedCredits} illustrative credits
+          </p>
+        </div>
+        <span className="authority-badge">{programme.relationAuthority}</span>
+      </div>
+
+      <p className="notice">{meta.note}</p>
+
+      <div className="roadmap" aria-label="Term-by-term roadmap">
+        {scenario.terms.map(
+          ({ term, courses }: PlannerDemoResponseDtoType['scenario']['terms'][number]) => (
+            <article className="term-card" key={term.id}>
+              <div className="term-card__header">
+                <div>
+                  <span>Term {term.index + 1}</span>
+                  <h3>{term.label}</h3>
+                </div>
+                <strong>{evaluation.termCredits[term.id] ?? 0} credits</strong>
+              </div>
+              {courses.length === 0 ? (
+                <p className="empty-term">No course placed in this illustrative slice.</p>
+              ) : (
+                <ul className="planned-courses">
+                  {courses.map(
+                    (
+                      course: PlannerDemoResponseDtoType['scenario']['terms'][number]['courses'][number],
+                    ) => (
+                      <li key={course.courseVersionId}>
+                        <span>{course.code}</span>
+                        <div>
+                          <strong>{course.title}</strong>
+                          <small>{course.credits} credits</small>
+                        </div>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              )}
+            </article>
+          ),
+        )}
+      </div>
+
+      <div className="evaluation-panel">
+        <div>
+          <p className="section-label">Kernel evaluation</p>
+          <h2>{evaluation.isFeasible ? 'No blocking findings' : 'Roadmap needs attention'}</h2>
+        </div>
+        {evaluation.findings.length === 0 ? (
+          <p>The current fixture satisfies its partial requirement model.</p>
+        ) : (
+          <ul>
+            {evaluation.findings.map(
+              (finding: PlannerDemoResponseDtoType['evaluation']['findings'][number]) => (
+                <li
+                  key={`${finding.code}:${finding.courseVersionId ?? finding.termId ?? 'general'}`}
+                >
+                  <strong>{finding.title}</strong>
+                  <span>{finding.detail}</span>
+                </li>
+              ),
+            )}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function App() {
+  const initialView = new URL(window.location.href).searchParams.get('view');
+  const [view, setView] = useState<View>(
+    initialView === 'plan' || initialView === 'workbench' ? initialView : 'explore',
+  );
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', view);
+    window.history.replaceState(null, '', url);
+  }, [view]);
+
+  return (
+    <main className="page-shell">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">Course Data Platform</p>
+          <h1>Map what you can study and how it fits together</h1>
+          <p className="lede">
+            A study-planning kernel with curated projections for exploration, programme roadmaps,
+            and full data inspection.
+          </p>
+        </div>
+        <a
+          className="api-link"
+          href={`${import.meta.env.VITE_API_URL ?? 'http://localhost:8787'}/openapi`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open API documentation
+        </a>
+      </header>
+
+      <nav className="view-tabs" aria-label="Product views">
+        {(
+          [
+            ['explore', 'Explore'],
+            ['plan', 'Plan'],
+            ['workbench', 'Workbench'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={view === value}
+            onClick={() => setView(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {view === 'explore' && <ExploreView />}
+      {view === 'plan' && <PlannerView />}
+      {view === 'workbench' && <PlannerView showWorkbench />}
     </main>
   );
 }

@@ -2,7 +2,7 @@
 
 ## Mission
 
-Build a provenance-preserving, multi-institution course-data platform. The first vertical slice serves a small course catalogue through the same public API contract that the PWA consumes.
+Build a provenance-preserving, multi-institution study-planning platform. The system is a headless kernel with projections for explore, compare, plan, track, and workbench workflows.
 
 ## Architecture direction
 
@@ -11,6 +11,7 @@ Dependencies flow inward:
 `apps -> infrastructure packages -> application -> domain`
 
 - `packages/domain` contains domain values and invariants. It must not import React, Elysia, Cloudflare, Drizzle, or Alchemy.
+- `packages/study-kernel` contains pure, deterministic programme-roadmap operations and structured evaluation findings. It must not import React, Elysia, Cloudflare, Drizzle, or Alchemy.
 - `packages/application` contains use cases and capability interfaces expressed with Effect.
 - `packages/contracts` contains public HTTP DTOs and mappings. It must not expose database rows.
 - `packages/database` implements application capabilities with D1; Drizzle may be introduced behind the repository boundary.
@@ -39,7 +40,9 @@ Dependencies flow inward:
 - Each package declares its own ambient type context; do not repair missing declarations by adding globals to the shared base config.
 - Parse all untrusted data at the boundary.
 - Preserve unknown, unavailable, suppressed, and conflicting states; do not collapse them to zero or false.
-- Every public factual field must be attributable to a source.
+- Every public factual field and relation must be attributable to a source or explicitly marked as a fixture/inference.
+- Official curriculum, planned scenarios, and actual progress are separate objects.
+- Planner operations receive programme version and data revision explicitly; no hidden current programme or cohort.
 - Do not call `fetch`, clocks, randomness, D1, R2, or Cloudflare bindings from domain code.
 - Do not put SQL in Elysia handlers.
 - Do not use Elysia decorators or global state as the application dependency system.

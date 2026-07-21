@@ -1,9 +1,12 @@
 import { listCourses } from '@course-data/application';
+import { getDemoPlannerProjection } from '@course-data/application/planner-fixtures';
 import {
   ListCoursesQueryDto,
   ListCoursesResponseDto,
+  PlannerDemoResponseDto,
   ProblemDto,
   toCourseSummaryDto,
+  toPlannerDemoResponseDto,
 } from '@course-data/contracts';
 import { decodeInstitutionId } from '@course-data/domain';
 import { cors } from '@elysiajs/cors';
@@ -39,6 +42,7 @@ export const createApi = (runtime: CourseRuntime) =>
         endpoints: {
           health: '/health',
           courses: '/v1/courses',
+          plannerDemo: '/v1/planner/demo',
           openapi: '/openapi',
           openapiJson: '/openapi/json',
         },
@@ -50,6 +54,7 @@ export const createApi = (runtime: CourseRuntime) =>
           endpoints: t.Object({
             health: t.String(),
             courses: t.String(),
+            plannerDemo: t.String(),
             openapi: t.String(),
             openapiJson: t.String(),
           }),
@@ -68,6 +73,15 @@ export const createApi = (runtime: CourseRuntime) =>
       detail: {
         summary: 'Service health',
         tags: ['System'],
+      },
+    })
+    .get('/v1/planner/demo', () => toPlannerDemoResponseDto(getDemoPlannerProjection()), {
+      response: PlannerDemoResponseDto,
+      detail: {
+        summary: 'Get the illustrative study-roadmap projection',
+        description:
+          'Returns a fixture programme, baseline planning scenario, and structured evaluation findings. It proves the study-planning kernel contract and is not an official curriculum.',
+        tags: ['Planner'],
       },
     })
     .get(

@@ -1,0 +1,11 @@
+--- flake.nix	2026-07-20 14:11:39.000000000 +0000
++++ flake.nix	2026-07-20 21:21:22.667313434 +0000
+@@ -10,7 +10,7 @@
+     in {
+       devShells = forAllSystems (pkgs: {
+         default = pkgs.mkShell {
+-          packages = with pkgs; [ bun nodejs_22 just git ];
++          packages = with pkgs; [ bun nodejs_24 just git direnv ];
+         };
+       });
+     };
