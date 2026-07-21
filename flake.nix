@@ -10,7 +10,7 @@
     in {
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
-          packages = with pkgs; [ bun nodejs_24 just git ];
+          packages = with pkgs; [ bun nodejs_24 just git direnv ];
         };
       });
     };

@@ -3,5 +3,5 @@
   "semi": true,
   "printWidth": 100,
   "trailingComma": "all",
-  "ignorePatterns": ["legacy/**", "**/dist/**", "node_modules/**"]
+  "ignorePatterns": ["legacy/**", "**/dist/**", "node_modules/**", "docs/generated/**"]
 }

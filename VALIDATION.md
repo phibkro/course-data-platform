@@ -1,62 +1,26 @@
 # Validation report
 
-Validated in the build environment on 2026-07-20.
+Validated on 2026-07-20 after adding programme-first onboarding, editable local scenarios, and declarative Workbench views.
 
 ## Passed
 
-The fast validation suite and production builds are separate commands so failures remain easy to localize:
+- TypeScript 7.0.2 native compiler across domain, application, study kernel, contracts, database, Workers, web, and root tooling.
+- TypeScript 6.0.3 compatibility compiler across the same configurations.
+- Oxfmt across 71 files.
+- Oxlint with warnings denied: 0 warnings and 0 errors across 26 source files.
+- Vitest: 17 tests across domain, application, study kernel, scenario export, and API transport.
+- Runtime-schema OpenAPI generation includes `/v1/programmes`, `/v1/planner/baseline`, and `/v1/planner/demo`.
+- Vite 8 production web build: 237.69 kB / 74.75 kB gzip initial JavaScript, 210.15 kB / 63.92 kB gzip lazy planner chunk, and 9.64 kB / 2.65 kB gzip CSS.
+- API Worker Wrangler dry run: 1,592.47 KiB / 302.01 KiB gzip with the D1 binding.
+- Ingestion Worker Wrangler dry run: 0.30 KiB / 0.22 KiB gzip.
+- API tests verify programme onboarding metadata, selected-programme baseline generation, schema-versioned scenarios, and the declarative roadmap view.
+- Kernel tests verify baseline generation, movement, removal, elective replacement, structured findings, view-spec validation, and portable round-tripping.
+- Scenario export tests reject unrelated JSON and round-trip valid planning envelopes.
 
-- `bun run validate`
-- `bun run build`
+## Product status
 
-- Oxfmt formatting check
-- Oxlint with warnings denied
-- native TypeScript 7.0.2 checks across explicit package contexts
-- TypeScript 6 compatibility checks across the same contexts
-- domain, application, and Elysia transport tests
-- API Worker Wrangler dry-run build
-- ingestion Worker Wrangler dry-run build
-- React/Vite production build
-- OpenAPI generation from Elysia runtime schemas
-- local D1 migration from an empty database
-- local API smoke request through Wrangler/workerd
-- local web-server smoke request
-- Bun isolated-lockfile portability audit: no private registry, local `/tmp`, or `file:` dependencies
+The programme is still an explicitly marked illustrative fixture and not an official NTNU curriculum. The interaction model is now functional: users can choose a programme, edit and evaluate multiple scenarios, persist them in IndexedDB, import/export them, and inspect the complete kernel projection in Workbench.
 
-## Deliberately deferred
+## Bundle observation
 
-- DBH network ingestion and reconciliation
-- R2 evidence archive
-- Queue and Workflow execution
-- Base UI / React Aria component spike
-- Playwright browser suite
-- Alchemy package compilation and deployment
-- temporary public deployment
-
-Alchemy is pinned in `infra/versions.json`, but it is not included in the default dependency installation until its provider graph can be installed and validated reliably in the execution environment.
-
-## Compiler comparison
-
-Measured in this build environment over the eight package/tooling configurations:
-
-- TypeScript 7.0.2: 3.55 seconds, 265,644 KB peak RSS
-- TypeScript 6 compatibility compiler: 10.71 seconds, 452,612 KB peak RSS
-
-Both produced zero diagnostics. These figures are directional rather than a general benchmark; the repository is still small.
-
-## macOS development hotfix
-
-The July 20 follow-up fixes a Bash 3.2 portability bug in the TypeScript 6 compatibility lane, adds a discoverable API root and health route, and provides a combined `bun run dev` command that starts the API and PWA together. Pending local D1 migrations are applied before Wrangler starts.
-
-The original full validation and production builds passed on the preceding source revision. The hotfix was additionally checked with Bash syntax validation and JSON parsing in the packaging environment; the reporter's macOS run had already confirmed the unchanged TypeScript 7, test, Vite, and Wrangler build paths.
-
-## Development service-worker regression fix
-
-Validated after reproducing the Firefox failure caused by an older development service worker caching Vite module URLs from a previous checkout:
-
-- service-worker registration is production-only;
-- development startup unregisters prior Course Data Platform workers and removes their caches;
-- the production worker ignores cross-origin requests, including the local API Worker;
-- unavailable same-origin API requests return an explicit 503 Problem Details response rather than `Response.error()`;
-- local API CORS is covered by a regression test for `http://localhost:5173`;
-- TypeScript 7, TypeScript 6 compatibility, Oxlint, Oxfmt, Vitest, Vite, and both Worker dry-run builds pass.
+The planner executes the validation and study kernel in the browser, but it is route-split into a lazy chunk. The Explore projection remains close to the previous initial bundle size. A later performance slice should still consider separating pure kernel operations from Effect Schema decoders to reduce the planner chunk itself.

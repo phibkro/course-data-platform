@@ -1,9 +1,17 @@
 import { listCourses } from '@course-data/application';
 import {
+  getDemoPlannerProjection,
+  listDemoProgrammes,
+} from '@course-data/application/planner-fixtures';
+import {
   ListCoursesQueryDto,
   ListCoursesResponseDto,
+  ListProgrammesResponseDto,
+  PlannerBaselineQueryDto,
+  PlannerDemoResponseDto,
   ProblemDto,
   toCourseSummaryDto,
+  toPlannerDemoResponseDto,
 } from '@course-data/contracts';
 import { decodeInstitutionId } from '@course-data/domain';
 import { cors } from '@elysiajs/cors';
@@ -39,6 +47,9 @@ export const createApi = (runtime: CourseRuntime) =>
         endpoints: {
           health: '/health',
           courses: '/v1/courses',
+          programmes: '/v1/programmes',
+          plannerBaseline: '/v1/planner/baseline',
+          plannerDemo: '/v1/planner/demo',
           openapi: '/openapi',
           openapiJson: '/openapi/json',
         },
@@ -50,6 +61,9 @@ export const createApi = (runtime: CourseRuntime) =>
           endpoints: t.Object({
             health: t.String(),
             courses: t.String(),
+            programmes: t.String(),
+            plannerBaseline: t.String(),
+            plannerDemo: t.String(),
             openapi: t.String(),
             openapiJson: t.String(),
           }),
@@ -70,6 +84,74 @@ export const createApi = (runtime: CourseRuntime) =>
         tags: ['System'],
       },
     })
+    .get(
+      '/v1/programmes',
+      () => {
+        const items = listDemoProgrammes();
+        return {
+          items,
+          meta: {
+            count: items.length,
+            dataRevision: items[0]?.dataRevision ?? DATA_REVISION,
+          },
+        };
+      },
+      {
+        response: ListProgrammesResponseDto,
+        detail: {
+          summary: 'List programme versions available to the planner',
+          description:
+            'Returns programme versions with their institution, cohort, relation authority, and data revision.',
+          tags: ['Programmes'],
+        },
+      },
+    )
+    .get(
+      '/v1/planner/baseline',
+      ({ query, status }) => {
+        const projection = getDemoPlannerProjection(query.programmeVersionId);
+        if (!projection) {
+          return status(404, {
+            type: 'https://course-data.example/problems/programme-version-not-found',
+            title: 'Programme version not found',
+            status: 404,
+            detail: `No programme version exists for ${query.programmeVersionId}.`,
+            requestId: crypto.randomUUID(),
+          });
+        }
+        return toPlannerDemoResponseDto(projection);
+      },
+      {
+        query: PlannerBaselineQueryDto,
+        response: {
+          200: PlannerDemoResponseDto,
+          404: ProblemDto,
+        },
+        detail: {
+          summary: 'Generate a baseline planning scenario',
+          description:
+            'Returns the programme version, deterministic baseline scenario, evaluation, and declarative roadmap view specification.',
+          tags: ['Planner'],
+        },
+      },
+    )
+    .get(
+      '/v1/planner/demo',
+      () => {
+        const projection = getDemoPlannerProjection();
+        if (!projection) throw new Error('Missing demo programme fixture');
+        return toPlannerDemoResponseDto(projection);
+      },
+      {
+        response: PlannerDemoResponseDto,
+        detail: {
+          summary: 'Get the illustrative study-roadmap projection',
+          description:
+            'Returns a fixture programme, baseline planning scenario, and structured evaluation findings. It proves the study-planning kernel contract and is not an official curriculum.',
+          tags: ['Planner'],
+        },
+      },
+    )
     .get(
       '/v1/courses',
       async ({ query, request, set, status }) => {

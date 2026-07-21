@@ -1,61 +1,54 @@
-# Next vertical slice: DBH evidence ingestion
+# Next vertical slice: evidence-backed programme data
 
 ## Goal
 
-Replace fixture catalogue records with a replayable ingestion path for one official DBH dataset while preserving raw evidence and explicit provenance.
-
-## Scope
-
-The slice covers one institution and a small bounded reporting period. It is a correctness spike, not a complete national import.
+Replace the illustrative programme fixture without changing the programme-first onboarding, local scenario repository, planner operations, or declarative Workbench projection.
 
 ## Required path
 
 ```text
-frozen DBH fixture
-  -> source decoder
-  -> validated source record
-  -> raw evidence archive capability
-  -> normalized course/course-version records
-  -> idempotent D1 reconciliation
-  -> existing GET /v1/courses endpoint
+DBH programme metadata + official institution curriculum evidence
+  -> raw source fixtures
+  -> source-specific validation
+  -> programme/version normalization
+  -> requirement and relation authority mapping
+  -> public programme catalogue API
+  -> existing planner kernel and UI
 ```
 
-## New package boundaries
+## Scope
 
-- `packages/source-dbh`: DBH-specific discovery, decoding, and normalization.
-- `packages/evidence`: content hashes, raw-record identity, and archive capability.
-- `packages/reconciliation`: deterministic comparison between observed and canonical records.
-- `fixtures/dbh`: frozen source payloads and expected normalized output.
-
-## Domain additions
-
-- Explicit semester/reporting-period values.
-- Source-record content hash.
-- Ingestion-run identity and parser version.
-- Data states for present, unavailable, suppressed, conflicting, and invalid source data.
-- Immutable course-version revision identity.
+1. Add `packages/source-dbh` using the documented `dbh-data.dataporten-api.no/Tabeller/` host.
+2. Commit bounded real fixtures for DBH programme table 347 and course table 208.
+3. Add an NTNU programme adapter for one cohort's official curriculum structure.
+4. Preserve each relation as official, administrative, inferred, or unresolved.
+5. Add source-record, ingestion-run, rejection, and field-provenance tables.
+6. Reconcile programme versions and requirement groups idempotently into D1.
+7. Replace the planner fixture through the existing `/v1/programmes` and `/v1/planner/baseline` contracts.
+8. Surface observed-at, source period, data revision, and incomplete-capability warnings.
 
 ## Acceptance criteria
 
-1. No network access is required by tests.
-2. The source fixture is archived before decoding.
-3. Every normalized field carries source provenance.
-4. Running the same input twice produces no duplicate canonical records.
-5. A changed parser can replay the archived evidence.
-6. Invalid records are quarantined with structured validation errors.
-7. The API returns DBH-backed records without changing its public response shape.
-8. Fixture, reconciliation, D1, transport, and migration tests pass.
-9. No source adapter calls D1 directly.
-10. No missing or suppressed value is represented as zero or false.
+- The current programme selector is populated from validated source fixtures rather than source-code constants.
+- One NTNU programme version has an evidence-backed six-term roadmap.
+- Official curriculum relations are distinguished from DBH reporting associations.
+- Running ingestion twice produces no duplicate programme versions, courses, or relations.
+- Rejected source records are stored with structured reasons.
+- Existing saved scenarios continue to decode or receive an explicit data-revision warning.
+- Programme onboarding, editing, IndexedDB persistence, import/export, and Workbench require no architecture changes.
+- TypeScript 7, TypeScript 6 compatibility, lint, format, tests, OpenAPI generation, and Worker/browser builds pass.
 
-## Explicit non-goals
+## Parallel research spike
 
-- Full historical grade import.
-- Course similarity or embeddings.
-- Multiple institution catalogue adapters.
-- User accounts or synchronized preferences.
-- Production scheduling.
+Verify Feide OIDC and `groups-edu` with a real FS-backed test identity. Record exact programme, cohort, field-of-study, and current-course group representations before adding authentication to the product path.
 
-## Decision gate after completion
+## Deferred
 
-Compare the DBH source shape against one institution-owned catalogue. Refine the canonical model only after both sources have exercised it.
+- Full national history and scheduled replication.
+- FS GraphQL academic progress.
+- Constraint-solver roadmap generation.
+- Knowledge-concept extraction and personalized readiness.
+
+## Design-system constraint
+
+ADR-011 freezes discretionary theme work after the Theme Lab slice. The live appearance controls and shadcn preset commands are sufficient for experimentation. Continue with source-backed programme and course functionality unless an accessibility defect or concrete workflow gap requires a component change.

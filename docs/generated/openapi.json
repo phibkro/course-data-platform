@@ -37,6 +37,9 @@
                       "required": [
                         "health",
                         "courses",
+                        "programmes",
+                        "plannerBaseline",
+                        "plannerDemo",
                         "openapi",
                         "openapiJson"
                       ],
@@ -45,6 +48,15 @@
                           "type": "string"
                         },
                         "courses": {
+                          "type": "string"
+                        },
+                        "programmes": {
+                          "type": "string"
+                        },
+                        "plannerBaseline": {
+                          "type": "string"
+                        },
+                        "plannerDemo": {
                           "type": "string"
                         },
                         "openapi": {
@@ -96,6 +108,1706 @@
           }
         },
         "operationId": "getHealth"
+      }
+    },
+    "/v1/programmes": {
+      "get": {
+        "summary": "List programme versions available to the planner",
+        "description": "Returns programme versions with their institution, cohort, relation authority, and data revision.",
+        "tags": [
+          "Programmes"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "meta"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "programmeId",
+                          "programmeVersionId",
+                          "institutionId",
+                          "institutionShortName",
+                          "title",
+                          "cohortStartYear",
+                          "startSeason",
+                          "durationTerms",
+                          "relationAuthority",
+                          "dataRevision"
+                        ],
+                        "properties": {
+                          "programmeId": {
+                            "type": "string"
+                          },
+                          "programmeVersionId": {
+                            "type": "string"
+                          },
+                          "institutionId": {
+                            "type": "string"
+                          },
+                          "institutionShortName": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "cohortStartYear": {
+                            "minimum": 2000,
+                            "maximum": 2200,
+                            "anyOf": [
+                              {
+                                "format": "integer",
+                                "default": 0,
+                                "type": "string"
+                              },
+                              {
+                                "minimum": 2000,
+                                "maximum": 2200,
+                                "type": "integer"
+                              }
+                            ]
+                          },
+                          "startSeason": {
+                            "type": "string",
+                            "enum": [
+                              "autumn",
+                              "spring"
+                            ]
+                          },
+                          "durationTerms": {
+                            "minimum": 1,
+                            "maximum": 24,
+                            "anyOf": [
+                              {
+                                "format": "integer",
+                                "default": 0,
+                                "type": "string"
+                              },
+                              {
+                                "minimum": 1,
+                                "maximum": 24,
+                                "type": "integer"
+                              }
+                            ]
+                          },
+                          "relationAuthority": {
+                            "type": "string",
+                            "enum": [
+                              "official",
+                              "administrative",
+                              "inferred",
+                              "fixture"
+                            ]
+                          },
+                          "dataRevision": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "count",
+                        "dataRevision"
+                      ],
+                      "properties": {
+                        "count": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "dataRevision": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getV1Programmes"
+      }
+    },
+    "/v1/planner/baseline": {
+      "get": {
+        "summary": "Generate a baseline planning scenario",
+        "description": "Returns the programme version, deterministic baseline scenario, evaluation, and declarative roadmap view specification.",
+        "tags": [
+          "Planner"
+        ],
+        "parameters": [
+          {
+            "name": "programmeVersionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "programme",
+                    "scenario",
+                    "evaluation",
+                    "meta",
+                    "viewSpec"
+                  ],
+                  "properties": {
+                    "programme": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "programmeId",
+                        "institutionId",
+                        "institutionShortName",
+                        "title",
+                        "cohortStartYear",
+                        "startSeason",
+                        "durationTerms",
+                        "dataRevision",
+                        "relationAuthority",
+                        "requirements"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "programmeId": {
+                          "type": "string"
+                        },
+                        "institutionId": {
+                          "type": "string"
+                        },
+                        "institutionShortName": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "cohortStartYear": {
+                          "minimum": 2000,
+                          "maximum": 2200,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 2000,
+                              "maximum": 2200,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "startSeason": {
+                          "type": "string",
+                          "enum": [
+                            "autumn",
+                            "spring"
+                          ]
+                        },
+                        "durationTerms": {
+                          "minimum": 1,
+                          "maximum": 24,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 1,
+                              "maximum": 24,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "dataRevision": {
+                          "type": "string"
+                        },
+                        "relationAuthority": {
+                          "type": "string",
+                          "enum": [
+                            "official",
+                            "administrative",
+                            "inferred",
+                            "fixture"
+                          ]
+                        },
+                        "requirements": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "kind",
+                                  "id",
+                                  "title",
+                                  "course",
+                                  "evidenceRefs"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "const": "required-course",
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "course": {
+                                    "type": "object",
+                                    "required": [
+                                      "courseVersionId",
+                                      "code",
+                                      "title",
+                                      "credits",
+                                      "recommendedTermIndex"
+                                    ],
+                                    "properties": {
+                                      "courseVersionId": {
+                                        "type": "string"
+                                      },
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "credits": {
+                                        "minimum": 0,
+                                        "maximum": 60,
+                                        "type": "number"
+                                      },
+                                      "recommendedTermIndex": {
+                                        "anyOf": [
+                                          {
+                                            "minimum": 0,
+                                            "anyOf": [
+                                              {
+                                                "format": "integer",
+                                                "default": 0,
+                                                "type": "string"
+                                              },
+                                              {
+                                                "minimum": 0,
+                                                "type": "integer"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "evidenceRefs": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "kind",
+                                  "id",
+                                  "title",
+                                  "choose",
+                                  "options",
+                                  "defaultCourseVersionIds",
+                                  "evidenceRefs"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "const": "choose-n",
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "choose": {
+                                    "minimum": 1,
+                                    "anyOf": [
+                                      {
+                                        "format": "integer",
+                                        "default": 0,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "minimum": 1,
+                                        "type": "integer"
+                                      }
+                                    ]
+                                  },
+                                  "options": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "courseVersionId",
+                                        "code",
+                                        "title",
+                                        "credits",
+                                        "recommendedTermIndex"
+                                      ],
+                                      "properties": {
+                                        "courseVersionId": {
+                                          "type": "string"
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "title": {
+                                          "type": "string"
+                                        },
+                                        "credits": {
+                                          "minimum": 0,
+                                          "maximum": 60,
+                                          "type": "number"
+                                        },
+                                        "recommendedTermIndex": {
+                                          "anyOf": [
+                                            {
+                                              "minimum": 0,
+                                              "anyOf": [
+                                                {
+                                                  "format": "integer",
+                                                  "default": 0,
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "minimum": 0,
+                                                  "type": "integer"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "defaultCourseVersionIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "evidenceRefs": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "kind",
+                                  "id",
+                                  "title",
+                                  "minimumCredits",
+                                  "eligibleCourseVersionIds",
+                                  "evidenceRefs"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "const": "minimum-credits",
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "minimumCredits": {
+                                    "minimum": 0,
+                                    "maximum": 60,
+                                    "type": "number"
+                                  },
+                                  "eligibleCourseVersionIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "evidenceRefs": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "scenario": {
+                      "type": "object",
+                      "required": [
+                        "schemaVersion",
+                        "id",
+                        "title",
+                        "programmeVersionId",
+                        "dataRevision",
+                        "completedCourseVersionIds",
+                        "terms"
+                      ],
+                      "properties": {
+                        "schemaVersion": {
+                          "const": 1,
+                          "type": "number"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "programmeVersionId": {
+                          "type": "string"
+                        },
+                        "dataRevision": {
+                          "type": "string"
+                        },
+                        "completedCourseVersionIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "terms": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "term",
+                              "courses"
+                            ],
+                            "properties": {
+                              "term": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "index",
+                                  "academicYear",
+                                  "season",
+                                  "label"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "index": {
+                                    "minimum": 0,
+                                    "anyOf": [
+                                      {
+                                        "format": "integer",
+                                        "default": 0,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      }
+                                    ]
+                                  },
+                                  "academicYear": {
+                                    "minimum": 2000,
+                                    "maximum": 2200,
+                                    "anyOf": [
+                                      {
+                                        "format": "integer",
+                                        "default": 0,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "minimum": 2000,
+                                        "maximum": 2200,
+                                        "type": "integer"
+                                      }
+                                    ]
+                                  },
+                                  "season": {
+                                    "type": "string",
+                                    "enum": [
+                                      "autumn",
+                                      "spring",
+                                      "summer"
+                                    ]
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "courses": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "courseVersionId",
+                                    "code",
+                                    "title",
+                                    "credits",
+                                    "requirementGroupId",
+                                    "placementSource"
+                                  ],
+                                  "properties": {
+                                    "courseVersionId": {
+                                      "type": "string"
+                                    },
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "credits": {
+                                      "minimum": 0,
+                                      "maximum": 60,
+                                      "type": "number"
+                                    },
+                                    "requirementGroupId": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "placementSource": {
+                                      "type": "string",
+                                      "enum": [
+                                        "baseline",
+                                        "user"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "evaluation": {
+                      "type": "object",
+                      "required": [
+                        "totalPlannedCredits",
+                        "termCredits",
+                        "findings",
+                        "isFeasible"
+                      ],
+                      "properties": {
+                        "totalPlannedCredits": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "termCredits": {
+                          "type": "object",
+                          "patternProperties": {
+                            "^(.*)$": {
+                              "minimum": 0,
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "findings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "severity",
+                              "title",
+                              "detail",
+                              "requirementGroupId",
+                              "courseVersionId",
+                              "termId",
+                              "evidenceRefs"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "enum": [
+                                  "required-course-missing",
+                                  "choice-requirement-unmet",
+                                  "minimum-credits-unmet",
+                                  "term-credit-limit-exceeded",
+                                  "recommended-term-changed"
+                                ]
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "info",
+                                  "warning",
+                                  "error"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "detail": {
+                                "type": "string"
+                              },
+                              "requirementGroupId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "courseVersionId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "termId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "evidenceRefs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "isFeasible": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "note",
+                        "dataRevision"
+                      ],
+                      "properties": {
+                        "note": {
+                          "type": "string"
+                        },
+                        "dataRevision": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "viewSpec": {
+                      "type": "object",
+                      "required": [
+                        "schemaVersion",
+                        "id",
+                        "title",
+                        "entity",
+                        "filters",
+                        "relationTraversal",
+                        "groupBy",
+                        "sort",
+                        "fields",
+                        "presentation",
+                        "parameters"
+                      ],
+                      "properties": {
+                        "schemaVersion": {
+                          "const": 1,
+                          "type": "number"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "entity": {
+                          "type": "string",
+                          "enum": [
+                            "programme-version",
+                            "planning-scenario",
+                            "course-version"
+                          ]
+                        },
+                        "filters": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "field",
+                              "operator",
+                              "value"
+                            ],
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string",
+                                "enum": [
+                                  "equals",
+                                  "includes",
+                                  "in",
+                                  "greater-than-or-equal"
+                                ]
+                              },
+                              "value": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "relationTraversal": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "groupBy": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "sort": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "field",
+                              "direction"
+                            ],
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "direction": {
+                                "type": "string",
+                                "enum": [
+                                  "ascending",
+                                  "descending"
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "presentation": {
+                          "type": "string",
+                          "enum": [
+                            "table",
+                            "cards",
+                            "roadmap",
+                            "graph",
+                            "matrix"
+                          ]
+                        },
+                        "parameters": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "value"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getV1PlannerBaseline"
+      }
+    },
+    "/v1/planner/demo": {
+      "get": {
+        "summary": "Get the illustrative study-roadmap projection",
+        "description": "Returns a fixture programme, baseline planning scenario, and structured evaluation findings. It proves the study-planning kernel contract and is not an official curriculum.",
+        "tags": [
+          "Planner"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "programme",
+                    "scenario",
+                    "evaluation",
+                    "meta",
+                    "viewSpec"
+                  ],
+                  "properties": {
+                    "programme": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "programmeId",
+                        "institutionId",
+                        "institutionShortName",
+                        "title",
+                        "cohortStartYear",
+                        "startSeason",
+                        "durationTerms",
+                        "dataRevision",
+                        "relationAuthority",
+                        "requirements"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "programmeId": {
+                          "type": "string"
+                        },
+                        "institutionId": {
+                          "type": "string"
+                        },
+                        "institutionShortName": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "cohortStartYear": {
+                          "minimum": 2000,
+                          "maximum": 2200,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 2000,
+                              "maximum": 2200,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "startSeason": {
+                          "type": "string",
+                          "enum": [
+                            "autumn",
+                            "spring"
+                          ]
+                        },
+                        "durationTerms": {
+                          "minimum": 1,
+                          "maximum": 24,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 1,
+                              "maximum": 24,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "dataRevision": {
+                          "type": "string"
+                        },
+                        "relationAuthority": {
+                          "type": "string",
+                          "enum": [
+                            "official",
+                            "administrative",
+                            "inferred",
+                            "fixture"
+                          ]
+                        },
+                        "requirements": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "kind",
+                                  "id",
+                                  "title",
+                                  "course",
+                                  "evidenceRefs"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "const": "required-course",
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "course": {
+                                    "type": "object",
+                                    "required": [
+                                      "courseVersionId",
+                                      "code",
+                                      "title",
+                                      "credits",
+                                      "recommendedTermIndex"
+                                    ],
+                                    "properties": {
+                                      "courseVersionId": {
+                                        "type": "string"
+                                      },
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "credits": {
+                                        "minimum": 0,
+                                        "maximum": 60,
+                                        "type": "number"
+                                      },
+                                      "recommendedTermIndex": {
+                                        "anyOf": [
+                                          {
+                                            "minimum": 0,
+                                            "anyOf": [
+                                              {
+                                                "format": "integer",
+                                                "default": 0,
+                                                "type": "string"
+                                              },
+                                              {
+                                                "minimum": 0,
+                                                "type": "integer"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "evidenceRefs": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "kind",
+                                  "id",
+                                  "title",
+                                  "choose",
+                                  "options",
+                                  "defaultCourseVersionIds",
+                                  "evidenceRefs"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "const": "choose-n",
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "choose": {
+                                    "minimum": 1,
+                                    "anyOf": [
+                                      {
+                                        "format": "integer",
+                                        "default": 0,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "minimum": 1,
+                                        "type": "integer"
+                                      }
+                                    ]
+                                  },
+                                  "options": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "courseVersionId",
+                                        "code",
+                                        "title",
+                                        "credits",
+                                        "recommendedTermIndex"
+                                      ],
+                                      "properties": {
+                                        "courseVersionId": {
+                                          "type": "string"
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "title": {
+                                          "type": "string"
+                                        },
+                                        "credits": {
+                                          "minimum": 0,
+                                          "maximum": 60,
+                                          "type": "number"
+                                        },
+                                        "recommendedTermIndex": {
+                                          "anyOf": [
+                                            {
+                                              "minimum": 0,
+                                              "anyOf": [
+                                                {
+                                                  "format": "integer",
+                                                  "default": 0,
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "minimum": 0,
+                                                  "type": "integer"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "defaultCourseVersionIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "evidenceRefs": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "kind",
+                                  "id",
+                                  "title",
+                                  "minimumCredits",
+                                  "eligibleCourseVersionIds",
+                                  "evidenceRefs"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "const": "minimum-credits",
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "minimumCredits": {
+                                    "minimum": 0,
+                                    "maximum": 60,
+                                    "type": "number"
+                                  },
+                                  "eligibleCourseVersionIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "evidenceRefs": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "scenario": {
+                      "type": "object",
+                      "required": [
+                        "schemaVersion",
+                        "id",
+                        "title",
+                        "programmeVersionId",
+                        "dataRevision",
+                        "completedCourseVersionIds",
+                        "terms"
+                      ],
+                      "properties": {
+                        "schemaVersion": {
+                          "const": 1,
+                          "type": "number"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "programmeVersionId": {
+                          "type": "string"
+                        },
+                        "dataRevision": {
+                          "type": "string"
+                        },
+                        "completedCourseVersionIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "terms": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "term",
+                              "courses"
+                            ],
+                            "properties": {
+                              "term": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "index",
+                                  "academicYear",
+                                  "season",
+                                  "label"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "index": {
+                                    "minimum": 0,
+                                    "anyOf": [
+                                      {
+                                        "format": "integer",
+                                        "default": 0,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      }
+                                    ]
+                                  },
+                                  "academicYear": {
+                                    "minimum": 2000,
+                                    "maximum": 2200,
+                                    "anyOf": [
+                                      {
+                                        "format": "integer",
+                                        "default": 0,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "minimum": 2000,
+                                        "maximum": 2200,
+                                        "type": "integer"
+                                      }
+                                    ]
+                                  },
+                                  "season": {
+                                    "type": "string",
+                                    "enum": [
+                                      "autumn",
+                                      "spring",
+                                      "summer"
+                                    ]
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "courses": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "courseVersionId",
+                                    "code",
+                                    "title",
+                                    "credits",
+                                    "requirementGroupId",
+                                    "placementSource"
+                                  ],
+                                  "properties": {
+                                    "courseVersionId": {
+                                      "type": "string"
+                                    },
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "credits": {
+                                      "minimum": 0,
+                                      "maximum": 60,
+                                      "type": "number"
+                                    },
+                                    "requirementGroupId": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "placementSource": {
+                                      "type": "string",
+                                      "enum": [
+                                        "baseline",
+                                        "user"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "evaluation": {
+                      "type": "object",
+                      "required": [
+                        "totalPlannedCredits",
+                        "termCredits",
+                        "findings",
+                        "isFeasible"
+                      ],
+                      "properties": {
+                        "totalPlannedCredits": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "termCredits": {
+                          "type": "object",
+                          "patternProperties": {
+                            "^(.*)$": {
+                              "minimum": 0,
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "findings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "severity",
+                              "title",
+                              "detail",
+                              "requirementGroupId",
+                              "courseVersionId",
+                              "termId",
+                              "evidenceRefs"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "enum": [
+                                  "required-course-missing",
+                                  "choice-requirement-unmet",
+                                  "minimum-credits-unmet",
+                                  "term-credit-limit-exceeded",
+                                  "recommended-term-changed"
+                                ]
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "info",
+                                  "warning",
+                                  "error"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "detail": {
+                                "type": "string"
+                              },
+                              "requirementGroupId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "courseVersionId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "termId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "evidenceRefs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "isFeasible": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "note",
+                        "dataRevision"
+                      ],
+                      "properties": {
+                        "note": {
+                          "type": "string"
+                        },
+                        "dataRevision": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "viewSpec": {
+                      "type": "object",
+                      "required": [
+                        "schemaVersion",
+                        "id",
+                        "title",
+                        "entity",
+                        "filters",
+                        "relationTraversal",
+                        "groupBy",
+                        "sort",
+                        "fields",
+                        "presentation",
+                        "parameters"
+                      ],
+                      "properties": {
+                        "schemaVersion": {
+                          "const": 1,
+                          "type": "number"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "entity": {
+                          "type": "string",
+                          "enum": [
+                            "programme-version",
+                            "planning-scenario",
+                            "course-version"
+                          ]
+                        },
+                        "filters": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "field",
+                              "operator",
+                              "value"
+                            ],
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string",
+                                "enum": [
+                                  "equals",
+                                  "includes",
+                                  "in",
+                                  "greater-than-or-equal"
+                                ]
+                              },
+                              "value": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "relationTraversal": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "groupBy": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "sort": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "field",
+                              "direction"
+                            ],
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "direction": {
+                                "type": "string",
+                                "enum": [
+                                  "ascending",
+                                  "descending"
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "presentation": {
+                          "type": "string",
+                          "enum": [
+                            "table",
+                            "cards",
+                            "roadmap",
+                            "graph",
+                            "matrix"
+                          ]
+                        },
+                        "parameters": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "value"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getV1PlannerDemo"
       }
     },
     "/v1/courses": {

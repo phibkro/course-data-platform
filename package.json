@@ -24,7 +24,14 @@
     "fmt:check": "oxfmt . --check",
     "lint": "oxlint --deny-warnings .",
     "dev:preview": "bun scripts/dev.ts --preview",
-    "dev:stack": "bun scripts/dev.ts"
+    "dev:stack": "bun scripts/dev.ts",
+    "ui:info": "bunx shadcn@latest info -c apps/web",
+    "ui:add": "bunx shadcn@latest add -c apps/web",
+    "ui:diff": "bunx shadcn@latest diff -c apps/web",
+    "theme:resolve": "bun scripts/theme-preset.ts resolve",
+    "theme:decode": "bun scripts/theme-preset.ts decode",
+    "theme:open": "bun scripts/theme-preset.ts open",
+    "theme:apply": "bun scripts/theme-preset.ts apply"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260719.1",
