@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   cloneScenario,
   decodeProgrammeVersion,
+  decodeWorkbenchViewSpec,
   evaluateScenario,
   generateBaselineScenario,
   moveCourse,
   removeCourse,
+  selectCourseForRequirement,
   restoreScenario,
   serializeScenario,
   totalPlannedCredits,
@@ -122,6 +124,44 @@ describe('study planning kernel', () => {
     });
     expect(evaluation.isFeasible).toBe(false);
     expect(evaluation.findings.map((finding) => finding.code)).toContain('required-course-missing');
+  });
+
+  it('replaces an elective choice without duplicating its requirement group', () => {
+    const scenario = baseline();
+    const changed = selectCourseForRequirement(
+      programme,
+      scenario,
+      'choice:systems',
+      'no.ntnu:TDT4258:2026',
+      'term:2',
+    );
+
+    expect(changed.ok).toBe(true);
+    if (!changed.ok) return;
+    const matching = changed.value.terms.flatMap((term) =>
+      term.courses.filter((course) => course.requirementGroupId === 'choice:systems'),
+    );
+    expect(matching).toHaveLength(1);
+    expect(matching[0]?.courseVersionId).toBe('no.ntnu:TDT4258:2026');
+  });
+
+  it('validates a declarative roadmap workbench view', () => {
+    const view = decodeWorkbenchViewSpec({
+      schemaVersion: 1,
+      id: 'view:test-roadmap',
+      title: 'Test roadmap',
+      entity: 'planning-scenario',
+      filters: [],
+      relationTraversal: ['scenario.programmeVersion'],
+      groupBy: ['terms.term.index'],
+      sort: [{ field: 'terms.term.index', direction: 'ascending' }],
+      fields: ['terms.term.label', 'terms.courses.code'],
+      presentation: 'roadmap',
+      parameters: [],
+    });
+
+    expect(view.presentation).toBe('roadmap');
+    expect(view.groupBy).toEqual(['terms.term.index']);
   });
 
   it('round-trips a scenario through its portable representation', () => {

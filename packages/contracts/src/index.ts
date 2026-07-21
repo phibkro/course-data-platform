@@ -3,6 +3,7 @@ import type {
   PlanningScenario,
   ProgrammeVersion,
   ScenarioEvaluation,
+  WorkbenchViewSpec,
 } from '@course-data/study-kernel';
 import { t } from 'elysia';
 
@@ -165,6 +166,7 @@ export const PlannedTermDto = t.Object({
 });
 
 export const PlanningScenarioDto = t.Object({
+  schemaVersion: t.Literal(1),
   id: t.String(),
   title: t.String(),
   programmeVersionId: t.String(),
@@ -190,6 +192,97 @@ export const EvaluationFindingDto = t.Object({
   evidenceRefs: t.Array(t.String()),
 });
 
+export const ProgrammeSummaryDto = t.Object({
+  programmeId: t.String(),
+  programmeVersionId: t.String(),
+  institutionId: t.String(),
+  institutionShortName: t.String(),
+  title: t.String(),
+  cohortStartYear: t.Integer({ minimum: 2000, maximum: 2200 }),
+  startSeason: t.Union([t.Literal('autumn'), t.Literal('spring')]),
+  durationTerms: t.Integer({ minimum: 1, maximum: 24 }),
+  relationAuthority: t.Union([
+    t.Literal('official'),
+    t.Literal('administrative'),
+    t.Literal('inferred'),
+    t.Literal('fixture'),
+  ]),
+  dataRevision: t.String(),
+});
+
+export const ListProgrammesResponseDto = t.Object({
+  items: t.Array(ProgrammeSummaryDto),
+  meta: t.Object({
+    count: t.Integer({ minimum: 0 }),
+    dataRevision: t.String(),
+  }),
+});
+
+export const PlannerBaselineQueryDto = t.Object({
+  programmeVersionId: t.String({ minLength: 1 }),
+});
+
+export interface ProgrammeSummaryDtoType {
+  readonly programmeId: string;
+  readonly programmeVersionId: string;
+  readonly institutionId: string;
+  readonly institutionShortName: string;
+  readonly title: string;
+  readonly cohortStartYear: number;
+  readonly startSeason: 'autumn' | 'spring';
+  readonly durationTerms: number;
+  readonly relationAuthority: 'official' | 'administrative' | 'inferred' | 'fixture';
+  readonly dataRevision: string;
+}
+
+export interface ListProgrammesResponseDtoType {
+  readonly items: ReadonlyArray<ProgrammeSummaryDtoType>;
+  readonly meta: {
+    readonly count: number;
+    readonly dataRevision: string;
+  };
+}
+
+export const WorkbenchViewSpecDto = t.Object({
+  schemaVersion: t.Literal(1),
+  id: t.String(),
+  title: t.String(),
+  entity: t.Union([
+    t.Literal('programme-version'),
+    t.Literal('planning-scenario'),
+    t.Literal('course-version'),
+  ]),
+  filters: t.Array(
+    t.Object({
+      field: t.String(),
+      operator: t.Union([
+        t.Literal('equals'),
+        t.Literal('includes'),
+        t.Literal('in'),
+        t.Literal('greater-than-or-equal'),
+      ]),
+      value: t.Union([t.String(), t.Number(), t.Array(t.String())]),
+    }),
+  ),
+  relationTraversal: t.Array(t.String()),
+  groupBy: t.Array(t.String()),
+  sort: t.Array(
+    t.Object({
+      field: t.String(),
+      direction: t.Union([t.Literal('ascending'), t.Literal('descending')]),
+    }),
+  ),
+  fields: t.Array(t.String()),
+  presentation: t.Union([
+    t.Literal('table'),
+    t.Literal('cards'),
+    t.Literal('roadmap'),
+    t.Literal('graph'),
+    t.Literal('matrix'),
+  ]),
+  parameters: t.Array(t.Object({ name: t.String(), value: t.String() })),
+});
+
 export const PlannerDemoResponseDto = t.Object({
   programme: ProgrammeVersionDto,
   scenario: PlanningScenarioDto,
@@ -203,6 +296,7 @@ export const PlannerDemoResponseDto = t.Object({
     note: t.String(),
     dataRevision: t.String(),
   }),
+  viewSpec: WorkbenchViewSpecDto,
 });
 
 export interface PlannerDemoResponseDtoType {
@@ -245,6 +339,7 @@ export interface PlannerDemoResponseDtoType {
     >;
   };
   scenario: {
+    schemaVersion: 1;
     id: string;
     title: string;
     programmeVersionId: string;
@@ -292,7 +387,29 @@ export interface PlannerDemoResponseDtoType {
     note: string;
     dataRevision: string;
   };
+  viewSpec: {
+    schemaVersion: 1;
+    id: string;
+    title: string;
+    entity: 'programme-version' | 'planning-scenario' | 'course-version';
+    filters: Array<{
+      field: string;
+      operator: 'equals' | 'includes' | 'in' | 'greater-than-or-equal';
+      value: string | number | Array<string>;
+    }>;
+    relationTraversal: Array<string>;
+    groupBy: Array<string>;
+    sort: Array<{ field: string; direction: 'ascending' | 'descending' }>;
+    fields: Array<string>;
+    presentation: 'table' | 'cards' | 'roadmap' | 'graph' | 'matrix';
+    parameters: Array<{ name: string; value: string }>;
+  };
 }
+
+const toMutableViewFilterValue = (
+  value: WorkbenchViewSpec['filters'][number]['value'],
+): string | number | Array<string> =>
+  typeof value === 'string' || typeof value === 'number' ? value : [...value];
 
 interface CourseOptionDtoType {
   courseVersionId: string;
@@ -307,6 +424,7 @@ export const toPlannerDemoResponseDto = (projection: {
   readonly scenario: PlanningScenario;
   readonly evaluation: ScenarioEvaluation;
   readonly meta: { readonly note: string; readonly dataRevision: string };
+  readonly viewSpec: WorkbenchViewSpec;
 }): PlannerDemoResponseDtoType => ({
   programme: {
     ...projection.programme,
@@ -350,4 +468,16 @@ export const toPlannerDemoResponseDto = (projection: {
     isFeasible: projection.evaluation.isFeasible,
   },
   meta: { ...projection.meta },
+  viewSpec: {
+    ...projection.viewSpec,
+    filters: projection.viewSpec.filters.map((filter) => ({
+      ...filter,
+      value: toMutableViewFilterValue(filter.value),
+    })),
+    relationTraversal: [...projection.viewSpec.relationTraversal],
+    groupBy: [...projection.viewSpec.groupBy],
+    sort: projection.viewSpec.sort.map((sort) => ({ ...sort })),
+    fields: [...projection.viewSpec.fields],
+    parameters: projection.viewSpec.parameters.map((parameter) => ({ ...parameter })),
+  },
 });

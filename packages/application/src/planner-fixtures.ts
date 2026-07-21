@@ -1,5 +1,6 @@
 import {
   decodeProgrammeVersion,
+  decodeWorkbenchViewSpec,
   evaluateScenario,
   generateBaselineScenario,
   type PlanningScenarioId,
@@ -130,19 +131,64 @@ export const demoProgrammeVersion = decodeProgrammeVersion({
   ],
 });
 
+export const roadmapWorkbenchView = decodeWorkbenchViewSpec({
+  schemaVersion: 1,
+  id: 'view:programme-roadmap',
+  title: 'Programme roadmap',
+  entity: 'planning-scenario',
+  filters: [],
+  relationTraversal: ['scenario.programmeVersion', 'programme.requirements'],
+  groupBy: ['terms.term.index'],
+  sort: [{ field: 'terms.term.index', direction: 'ascending' }],
+  fields: [
+    'terms.term.label',
+    'terms.courses.code',
+    'terms.courses.title',
+    'terms.courses.credits',
+    'evaluation.findings',
+  ],
+  presentation: 'roadmap',
+  parameters: [{ name: 'maximumCreditsPerTerm', value: '30' }],
+});
+
+export const demoProgrammeVersions = [demoProgrammeVersion] as const;
+
+export const listDemoProgrammes = () =>
+  demoProgrammeVersions.map((programme) => ({
+    programmeId: programme.programmeId,
+    programmeVersionId: programme.id,
+    institutionId: programme.institutionId,
+    institutionShortName: programme.institutionShortName,
+    title: programme.title,
+    cohortStartYear: programme.cohortStartYear,
+    startSeason: programme.startSeason,
+    durationTerms: programme.durationTerms,
+    relationAuthority: programme.relationAuthority,
+    dataRevision: programme.dataRevision,
+  }));
+
 export const demoPlanningScenario = generateBaselineScenario(demoProgrammeVersion, {
   id: 'scenario:ntnu-informatics-baseline' as PlanningScenarioId,
   title: 'NTNU Informatics baseline',
 });
 
-export const getDemoPlannerProjection = () => ({
-  programme: demoProgrammeVersion,
-  scenario: demoPlanningScenario,
-  evaluation: evaluateScenario(demoProgrammeVersion, demoPlanningScenario, {
-    maximumCreditsPerTerm: 30,
-  }),
-  meta: {
-    note: 'Illustrative fixture only; it is not an official NTNU curriculum.',
-    dataRevision: demoProgrammeVersion.dataRevision,
-  },
-});
+export const getDemoPlannerProjection = (programmeVersionId: string = demoProgrammeVersion.id) => {
+  const programme = demoProgrammeVersions.find((candidate) => candidate.id === programmeVersionId);
+  if (!programme) return undefined;
+  const scenario = generateBaselineScenario(programme, {
+    id: `scenario:${programme.id}:baseline` as PlanningScenarioId,
+    title: `${programme.title} baseline`,
+  });
+  return {
+    programme,
+    scenario,
+    evaluation: evaluateScenario(programme, scenario, {
+      maximumCreditsPerTerm: 30,
+    }),
+    meta: {
+      note: 'Illustrative fixture only; it is not an official NTNU curriculum.',
+      dataRevision: programme.dataRevision,
+    },
+    viewSpec: roadmapWorkbenchView,
+  };
+};

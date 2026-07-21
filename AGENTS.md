@@ -50,6 +50,19 @@ Dependencies flow inward:
 - The first-party client may use Eden, but OpenAPI remains the public contract.
 - Generated artifacts are checked in and CI must fail when regeneration changes them.
 
+## Web interface boundaries
+
+- `apps/web/src/components/ui` owns shadcn-style source components and is the only layer that may import Base UI primitives.
+- `apps/web/src/components/icons` owns Phosphor and Material Symbols imports. Product code consumes semantic application icons only.
+- Prefer direct Phosphor icon imports from `dist/csr/*` so Vite does not process the full icon barrel during development.
+- Tailwind utilities consume repository-owned Material semantic tokens; do not introduce one-off hex values in product components.
+- Explore is the default public experience. Programme context and planning are optional, while Workbench and data status remain secondary advanced surfaces.
+- Mobile primary navigation is a bottom bar; desktop primary navigation is a sidebar. Do not add another equally prominent top-level tab strip.
+- One primitive library owns each overlay or collection interaction. Do not mix Base UI, React Aria, and custom focus management inside the same interaction tree.
+- Appearance is expressed through semantic tokens. The default is Mist + Emerald + Indigo; do not add direct palette values to product components.
+- Theme preference changes flow through `apps/web/src/theme`. Planning scenarios may later override the chart palette, but must not own the global application theme.
+- ADR-011 freezes discretionary design-system work. Continue visual work only for accessibility defects or concrete functional blockers.
+
 ## Adding a feature
 
 1. Write or refine the domain invariant.

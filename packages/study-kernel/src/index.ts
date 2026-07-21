@@ -117,6 +117,7 @@ export const PlannedTermSchema = Schema.Struct({
 export type PlannedTerm = Schema.Schema.Type<typeof PlannedTermSchema>;
 
 export const PlanningScenarioSchema = Schema.Struct({
+  schemaVersion: Schema.Literal(1),
   id: PlanningScenarioIdSchema,
   title: Schema.String.pipe(Schema.minLength(1)),
   programmeVersionId: ProgrammeVersionIdSchema,
@@ -125,6 +126,40 @@ export const PlanningScenarioSchema = Schema.Struct({
   terms: Schema.Array(PlannedTermSchema),
 });
 export type PlanningScenario = Schema.Schema.Type<typeof PlanningScenarioSchema>;
+
+export const ViewFilterSchema = Schema.Struct({
+  field: Schema.String.pipe(Schema.minLength(1)),
+  operator: Schema.Literal('equals', 'includes', 'in', 'greater-than-or-equal'),
+  value: Schema.Union(Schema.String, Schema.Number, Schema.Array(Schema.String)),
+});
+export type ViewFilter = Schema.Schema.Type<typeof ViewFilterSchema>;
+
+export const ViewSortSchema = Schema.Struct({
+  field: Schema.String.pipe(Schema.minLength(1)),
+  direction: Schema.Literal('ascending', 'descending'),
+});
+export type ViewSort = Schema.Schema.Type<typeof ViewSortSchema>;
+
+export const ViewParameterSchema = Schema.Struct({
+  name: Schema.String.pipe(Schema.minLength(1)),
+  value: Schema.String,
+});
+export type ViewParameter = Schema.Schema.Type<typeof ViewParameterSchema>;
+
+export const WorkbenchViewSpecSchema = Schema.Struct({
+  schemaVersion: Schema.Literal(1),
+  id: nonEmptyBrandedString('WorkbenchViewId'),
+  title: Schema.String.pipe(Schema.minLength(1)),
+  entity: Schema.Literal('programme-version', 'planning-scenario', 'course-version'),
+  filters: Schema.Array(ViewFilterSchema),
+  relationTraversal: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+  groupBy: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+  sort: Schema.Array(ViewSortSchema),
+  fields: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+  presentation: Schema.Literal('table', 'cards', 'roadmap', 'graph', 'matrix'),
+  parameters: Schema.Array(ViewParameterSchema),
+});
+export type WorkbenchViewSpec = Schema.Schema.Type<typeof WorkbenchViewSpecSchema>;
 
 export const FindingSeveritySchema = Schema.Literal('info', 'warning', 'error');
 export type FindingSeverity = Schema.Schema.Type<typeof FindingSeveritySchema>;
@@ -174,6 +209,15 @@ export type KernelError =
   | {
       readonly _tag: 'CourseNotPlaced';
       readonly courseVersionId: string;
+    }
+  | {
+      readonly _tag: 'UnknownRequirement';
+      readonly requirementGroupId: string;
+    }
+  | {
+      readonly _tag: 'InvalidRequirementOption';
+      readonly requirementGroupId: string;
+      readonly courseVersionId: string;
     };
 
 export type KernelResult<A> =
@@ -185,6 +229,7 @@ const fail = <A = never>(error: KernelError): KernelResult<A> => ({ ok: false, e
 
 export const decodeProgrammeVersion = Schema.decodeUnknownSync(ProgrammeVersionSchema);
 export const decodePlanningScenario = Schema.decodeUnknownSync(PlanningScenarioSchema);
+export const decodeWorkbenchViewSpec = Schema.decodeUnknownSync(WorkbenchViewSpecSchema);
 
 const termSeasonAt = (startSeason: 'autumn' | 'spring', index: number): 'autumn' | 'spring' => {
   if (startSeason === 'autumn') return index % 2 === 0 ? 'autumn' : 'spring';
@@ -230,6 +275,10 @@ const courseOptions = (programme: ProgrammeVersion): ReadonlyMap<string, CourseO
   }
   return new Map(entries);
 };
+
+export const listCourseOptions = (programme: ProgrammeVersion): ReadonlyArray<CourseOption> => [
+  ...courseOptions(programme).values(),
+];
 
 const requirementForCourse = (
   programme: ProgrammeVersion,
@@ -323,6 +372,7 @@ export const generateBaselineScenario = (
   }
 
   return decodePlanningScenario({
+    schemaVersion: 1,
     id: options.id,
     title: options.title,
     programmeVersionId: programme.id,
@@ -337,6 +387,9 @@ export const cloneScenario = (
   id: PlanningScenarioId,
   title: string,
 ): PlanningScenario => decodePlanningScenario({ ...scenario, id, title });
+
+export const renameScenario = (scenario: PlanningScenario, title: string): PlanningScenario =>
+  decodePlanningScenario({ ...scenario, title });
 
 export const placeCourse = (
   programme: ProgrammeVersion,
@@ -410,6 +463,50 @@ export const removeCourse = (
         ...term,
         courses: term.courses.filter((course) => course.courseVersionId !== courseVersionId),
       })),
+    }),
+  );
+};
+
+export const selectCourseForRequirement = (
+  programme: ProgrammeVersion,
+  scenario: PlanningScenario,
+  requirementGroupId: string,
+  courseVersionId: string,
+  targetTermId: string,
+): KernelResult<PlanningScenario> => {
+  const requirement = programme.requirements.find(
+    (candidate) => candidate.id === requirementGroupId,
+  );
+  if (!requirement || requirement.kind !== 'choose-n') {
+    return fail({ _tag: 'UnknownRequirement', requirementGroupId });
+  }
+
+  const option = requirement.options.find(
+    (candidate) => candidate.courseVersionId === courseVersionId,
+  );
+  if (!option) {
+    return fail({
+      _tag: 'InvalidRequirementOption',
+      requirementGroupId,
+      courseVersionId,
+    });
+  }
+  if (!scenario.terms.some((term) => term.term.id === targetTermId)) {
+    return fail({ _tag: 'UnknownTerm', termId: targetTermId });
+  }
+
+  const optionIds = new Set(requirement.options.map((candidate) => candidate.courseVersionId));
+  return ok(
+    decodePlanningScenario({
+      ...scenario,
+      terms: scenario.terms.map((term) => {
+        const courses = term.courses.filter((course) => !optionIds.has(course.courseVersionId));
+        if (term.term.id !== targetTermId) return { ...term, courses };
+        return {
+          ...term,
+          courses: [...courses, plannedCourseFrom(programme, option, 'user')],
+        };
+      }),
     }),
   );
 };
@@ -533,5 +630,10 @@ export const evaluateScenario = (
 export const serializeScenario = (scenario: PlanningScenario): string =>
   JSON.stringify(scenario, null, 2);
 
-export const restoreScenario = (serialized: string): PlanningScenario =>
-  decodePlanningScenario(JSON.parse(serialized) as unknown);
+export const restoreScenario = (serialized: string): PlanningScenario => {
+  const parsed = JSON.parse(serialized) as unknown;
+  if (typeof parsed === 'object' && parsed !== null && !('schemaVersion' in parsed)) {
+    return decodePlanningScenario({ ...parsed, schemaVersion: 1 });
+  }
+  return decodePlanningScenario(parsed);
+};

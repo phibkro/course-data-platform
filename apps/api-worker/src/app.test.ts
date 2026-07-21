@@ -17,6 +17,8 @@ describe('Course Data API', () => {
       endpoints: {
         health: '/health',
         courses: '/v1/courses',
+        programmes: '/v1/programmes',
+        plannerBaseline: '/v1/planner/baseline',
         plannerDemo: '/v1/planner/demo',
         openapi: '/openapi',
       },
@@ -48,6 +50,36 @@ describe('Course Data API', () => {
     });
   });
 
+  it('lists programme versions for programme-first onboarding', async () => {
+    const response = await app.handle(new Request('http://localhost/v1/programmes'));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      items: Array<{ programmeVersionId: string; title: string; relationAuthority: string }>;
+      meta: { count: number };
+    };
+
+    expect(body.meta.count).toBeGreaterThan(0);
+    expect(body.items[0]).toMatchObject({
+      programmeVersionId: 'no.ntnu:bit:2026',
+      title: 'Informatics — bachelor',
+      relationAuthority: 'fixture',
+    });
+  });
+
+  it('generates a baseline for a selected programme version', async () => {
+    const response = await app.handle(
+      new Request('http://localhost/v1/planner/baseline?programmeVersionId=no.ntnu%3Abit%3A2026'),
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      scenario: { schemaVersion: number; terms: unknown[] };
+      viewSpec: { presentation: string };
+    };
+    expect(body.scenario.schemaVersion).toBe(1);
+    expect(body.scenario.terms).toHaveLength(6);
+    expect(body.viewSpec.presentation).toBe('roadmap');
+  });
+
   it('returns the illustrative roadmap projection with structured findings', async () => {
     const response = await app.handle(new Request('http://localhost/v1/planner/demo'));
     expect(response.status).toBe(200);
@@ -73,6 +105,8 @@ describe('Course Data API', () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { paths: Record<string, unknown> };
     expect(body.paths).toHaveProperty('/v1/courses');
+    expect(body.paths).toHaveProperty('/v1/programmes');
+    expect(body.paths).toHaveProperty('/v1/planner/baseline');
     expect(body.paths).toHaveProperty('/v1/planner/demo');
   });
 });

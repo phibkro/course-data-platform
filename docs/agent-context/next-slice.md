@@ -1,52 +1,54 @@
-# Next vertical slice: programme context and editable roadmap
+# Next vertical slice: evidence-backed programme data
 
 ## Goal
 
-Replace the illustrative roadmap fixture with one evidence-backed programme version and make the planning scenario editable and locally persistent.
+Replace the illustrative programme fixture without changing the programme-first onboarding, local scenario repository, planner operations, or declarative Workbench projection.
 
 ## Required path
 
 ```text
-bounded programme source fixture
-  -> source decoder and relation authority
-  -> programme version and requirement groups
-  -> baseline scenario generation
-  -> editable term placement
-  -> deterministic kernel evaluation
-  -> IndexedDB scenario persistence
-  -> Plan and Workbench projections
+DBH programme metadata + official institution curriculum evidence
+  -> raw source fixtures
+  -> source-specific validation
+  -> programme/version normalization
+  -> requirement and relation authority mapping
+  -> public programme catalogue API
+  -> existing planner kernel and UI
 ```
 
 ## Scope
 
-1. Import one bounded NTNU programme and cohort from official programme material, with DBH programme metadata where useful.
-2. Preserve relation semantics: required, elective, recommended, administrative reporting relation, or inferred.
-3. Add programme-first onboarding and automatic institution selection.
-4. Add move-earlier, move-later, remove, restore, and clone operations to the Plan UI.
-5. Store scenarios locally with schema version and data revision.
-6. Re-evaluate immediately after every operation.
-7. Show whether findings come from formal rules, workload policy, or incomplete source capability.
-8. Expand Workbench from raw JSON to the first validated declarative-view specification.
+1. Add `packages/source-dbh` using the documented `dbh-data.dataporten-api.no/Tabeller/` host.
+2. Commit bounded real fixtures for DBH programme table 347 and course table 208.
+3. Add an NTNU programme adapter for one cohort's official curriculum structure.
+4. Preserve each relation as official, administrative, inferred, or unresolved.
+5. Add source-record, ingestion-run, rejection, and field-provenance tables.
+6. Reconcile programme versions and requirement groups idempotently into D1.
+7. Replace the planner fixture through the existing `/v1/programmes` and `/v1/planner/baseline` contracts.
+8. Surface observed-at, source period, data revision, and incomplete-capability warnings.
 
 ## Acceptance criteria
 
-- A user can select a programme and cohort without navigating faculty and department.
-- The roadmap shows at least six terms and distinguishes required from elective positions.
-- A course may be moved without being duplicated.
-- Required-course and choose-N findings update deterministically.
-- Refreshing the browser restores the scenario.
-- A scenario can be cloned and exported as JSON.
-- Every programme-course relation exposes authority and evidence.
-- The UI clearly marks incomplete or fixture-derived curricula.
+- The current programme selector is populated from validated source fixtures rather than source-code constants.
+- One NTNU programme version has an evidence-backed six-term roadmap.
+- Official curriculum relations are distinguished from DBH reporting associations.
+- Running ingestion twice produces no duplicate programme versions, courses, or relations.
+- Rejected source records are stored with structured reasons.
+- Existing saved scenarios continue to decode or receive an explicit data-revision warning.
+- Programme onboarding, editing, IndexedDB persistence, import/export, and Workbench require no architecture changes.
 - TypeScript 7, TypeScript 6 compatibility, lint, format, tests, OpenAPI generation, and Worker/browser builds pass.
 
 ## Parallel research spike
 
-Verify Feide OIDC and `groups-edu` capabilities for programme, cohort, field, and current-course context. Authentication is not placed on the critical path until a real FS-backed test response is observed.
+Verify Feide OIDC and `groups-edu` with a real FS-backed test identity. Record exact programme, cohort, field-of-study, and current-course group representations before adding authentication to the product path.
 
 ## Deferred
 
-- Full NTNU and DBH replication scheduling.
-- FS GraphQL and academic results.
+- Full national history and scheduled replication.
+- FS GraphQL academic progress.
 - Constraint-solver roadmap generation.
-- Knowledge concepts, course-concept extraction, and personalized readiness.
+- Knowledge-concept extraction and personalized readiness.
+
+## Design-system constraint
+
+ADR-011 freezes discretionary theme work after the Theme Lab slice. The live appearance controls and shadcn preset commands are sufficient for experimentation. Continue with source-backed programme and course functionality unless an accessibility defect or concrete workflow gap requires a component change.
