@@ -46,7 +46,8 @@ beforeAll(async () => {
     '0007_seed_ntnu_institution.sql',
   ]) {
     const sql = await readFile(resolve(root, 'migrations/d1', migration), 'utf8');
-    for (const statement of unstable_splitSqlQuery(sql)) await proxy.env.DB.prepare(statement).run();
+    for (const statement of unstable_splitSqlQuery(sql))
+      await proxy.env.DB.prepare(statement).run();
   }
 }, 30_000);
 

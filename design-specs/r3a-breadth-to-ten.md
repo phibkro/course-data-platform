@@ -1,6 +1,6 @@
 # Design-spec: R3a — breadth-to-ten live journey unlocks Compare@10 (pre-deploy proof)
 
-**Author:** wE:p1 (lead/advisor).  **Builds for:** `course-engineer`.  **Status:** frozen when its PR opens.
+**Author:** wE:p1 (lead/advisor). **Builds for:** `course-engineer`. **Status:** frozen when its PR opens.
 **Base:** stacked on the F3 tip `e64e427` (`agent/f3-catalogue-fixture-free`).
 **Repo location once committed:** `design-specs/r3a-breadth-to-ten.md` (base commit of the stacked branch).
 
@@ -60,7 +60,7 @@ fixture-free, live-provenanced programmes; Compare unlocks at exactly ten (9 →
 - **R3b: the real Cloudflare deploy** — operator-gated (cost-approved + advisor sign-off on the deployed
   artifact; deploy gates 4/5/6 = idempotency/rollback/credentials on the REAL remote). Do NOT deploy.
 - **F2 policy change** (strict vs publish-with-partial-rejections) — operator decision; this spec only
-  *measures* the impact, it does not change the gate.
+  _measures_ the impact, it does not change the gate.
 - F4 error-body archive namespace.
 
 ## PR (1:1 with this spec)
