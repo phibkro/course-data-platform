@@ -1,0 +1,13 @@
+{
+  "sourceProvider": "ntnu-studyplan",
+  "programmeCode": "BIT",
+  "cohortStartYear": 2024,
+  "requestUrl": "https://www.ntnu.no/web/studier/studieplan?p_p_id=studyprogrammeplannerportlet_WAR_studyprogrammeplannerportlet_INSTANCE_KzJMPh2hQuXL&p_p_lifecycle=2&p_p_state=normal&p_p_mode=view&p_p_resource_id=studyplan&p_p_cacheability=cacheLevelPage&code=BIT&year=2024",
+  "capturedAt": "2026-07-22T02:20:39Z",
+  "contentHash": {
+    "algorithm": "sha-256",
+    "rawBody": "1ec3714cdc3af3dd268804818bb70e098e62241107b908a541099eaf4f96505e"
+  },
+  "rawBodyByteLength": 10943,
+  "transformation": "JSON whitespace formatting only; the semantic response is unchanged and rawBody hashes the exact captured bytes"
+}

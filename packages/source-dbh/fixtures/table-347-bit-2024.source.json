@@ -1,0 +1,40 @@
+{
+  "sourceProvider": "dbh",
+  "tableId": 347,
+  "requestUrl": "https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData",
+  "requestMethod": "POST",
+  "requestBody": {
+    "tabell_id": 347,
+    "api_versjon": 1,
+    "statuslinje": "J",
+    "kodetekst": "N",
+    "desimal_separator": ".",
+    "variabler": ["*"],
+    "sortBy": ["Institusjonskode", "Avdelingskode"],
+    "filter": [
+      {
+        "variabel": "Institusjonskode",
+        "selection": { "filter": "item", "values": ["1150"] }
+      },
+      {
+        "variabel": "Årstall",
+        "selection": { "filter": "item", "values": ["2024"] }
+      },
+      {
+        "variabel": "Semester",
+        "selection": { "filter": "item", "values": ["3"] }
+      },
+      {
+        "variabel": "Studieprogramkode",
+        "selection": { "filter": "item", "values": ["BIT"] }
+      }
+    ]
+  },
+  "capturedAt": "2026-07-22T02:21:56Z",
+  "contentHash": {
+    "algorithm": "sha-256",
+    "rawBody": "ecf0e5b8f1751ec750f64de678f91ac1a7efc6747e0aa3230129b47a4d9a95b4"
+  },
+  "rawBodyByteLength": 758,
+  "transformation": "JSON whitespace formatting only; the single source row is unchanged"
+}

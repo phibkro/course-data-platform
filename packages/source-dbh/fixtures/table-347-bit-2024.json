@@ -1,0 +1,40 @@
+[
+  {
+    "status": {
+      "tabell_id": 347,
+      "api_versjon": 1,
+      "leveransenr": 8452831,
+      "leveringstid": "2026-07-22 04:21:56",
+      "antall": 1,
+      "returkode": 0,
+      "melding": "Data levert."
+    }
+  },
+  {
+    "Institusjonskode": "1150",
+    "Avdelingskode": "273824",
+    "Avdelingskode_SSB": "631000",
+    "Årstall": "2024",
+    "Semester": "3",
+    "Studieprogramkode": "BIT",
+    "Studiumkode": "REALFAG",
+    "Nivåkode": "B3",
+    "Andel av heltid": "1.00",
+    "Studiepoeng": "180.00",
+    "Prosent egenfinansiering": "100.00",
+    "NUS-kode": "654121",
+    "Organisering_kode": "1",
+    "Andel praksis": "0.00",
+    "Underv.språk": "NOR",
+    "Videreutd.": "0",
+    "Tilbys fra": "20033",
+    "Tilbys til": "99999",
+    "Nytt studietilbud": "0",
+    "Godkjenningsinstans": "0",
+    "Godkjenningsdato": null,
+    "Kvalifikasjonskode": "B.IT",
+    "Studiepoengkrav kvalifikasjon": "180.00",
+    "Finansierings-kategori": "2",
+    "Uttelling": null
+  }
+]

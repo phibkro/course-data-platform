@@ -40,6 +40,7 @@ export interface ValidatedDbhRecord {
   readonly tableId: DbhTableId;
   readonly sourceRecordId: string;
   readonly fields: Readonly<Record<string, AttributedSourceValue>>;
+  readonly raw: Readonly<Record<string, unknown>>;
 }
 
 export type RejectionCode =
@@ -58,6 +59,7 @@ export interface Rejection {
   readonly rowIdentity: string;
   readonly code: RejectionCode;
   readonly message: string;
+  readonly raw: unknown;
 }
 
 export interface ParseResult {
@@ -156,7 +158,8 @@ const rejection = (
   message: string,
   rowIndex: number | null = null,
   rowIdentity = 'response',
-): Rejection => ({ tableId, rowIndex, rowIdentity, code, message });
+  raw: unknown = null,
+): Rejection => ({ tableId, rowIndex, rowIdentity, code, message, raw });
 
 const decodeInput = (
   input: unknown | Uint8Array,
@@ -214,7 +217,14 @@ const parseTable = (
     return {
       accepted: [],
       rejected: [
-        rejection(tableId, 'invalid-capture-metadata', 'Capture metadata failed validation.'),
+        rejection(
+          tableId,
+          'invalid-capture-metadata',
+          'Capture metadata failed validation.',
+          null,
+          'response',
+          capture,
+        ),
       ],
     };
   }
@@ -223,7 +233,16 @@ const parseTable = (
   if (decodedInput.error !== undefined) {
     return {
       accepted: [],
-      rejected: [rejection(tableId, decodedInput.error, 'Response could not be decoded.')],
+      rejected: [
+        rejection(
+          tableId,
+          decodedInput.error,
+          'Response could not be decoded.',
+          null,
+          'response',
+          input,
+        ),
+      ],
     };
   }
 
@@ -231,7 +250,16 @@ const parseTable = (
   if (Either.isLeft(responseResult)) {
     return {
       accepted: [],
-      rejected: [rejection(tableId, 'invalid-response-shape', 'DBH response must be an array.')],
+      rejected: [
+        rejection(
+          tableId,
+          'invalid-response-shape',
+          'DBH response must be an array.',
+          null,
+          'response',
+          decodedInput.value,
+        ),
+      ],
     };
   }
 
@@ -241,7 +269,14 @@ const parseTable = (
     return {
       accepted: [],
       rejected: [
-        rejection(tableId, 'missing-response-status', 'DBH response status entry is missing.'),
+        rejection(
+          tableId,
+          'missing-response-status',
+          'DBH response status entry is missing.',
+          null,
+          'response',
+          statusCandidate,
+        ),
       ],
     };
   }
@@ -253,6 +288,9 @@ const parseTable = (
           tableId,
           'response-table-mismatch',
           `Expected table ${tableId}, received ${statusResult.right.status.tabell_id}.`,
+          null,
+          'response',
+          statusCandidate,
         ),
       ],
     };
@@ -271,6 +309,7 @@ const parseTable = (
           'Row contains an unsupported field shape.',
           rowIndex,
           partialIdentity(candidate, rowIndex),
+          candidate,
         ),
       );
       return;
@@ -288,6 +327,7 @@ const parseTable = (
           'Row is missing a required DBH identity field or contains an invalid period.',
           rowIndex,
           partialIdentity(rowResult.right, rowIndex),
+          rowResult.right,
         ),
       );
       return;
@@ -332,7 +372,7 @@ const parseTable = (
         attribution,
       };
     }
-    accepted.push({ tableId, sourceRecordId, fields });
+    accepted.push({ tableId, sourceRecordId, fields, raw: rowResult.right });
   });
 
   return { accepted, rejected };

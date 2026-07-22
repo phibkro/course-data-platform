@@ -3,6 +3,8 @@ import { RepositoryError } from '@course-data/application';
 import { decodeCourseSummary } from '@course-data/domain';
 import * as Effect from 'effect/Effect';
 
+export * from './curriculum';
+
 interface CourseRow {
   readonly id: string;
   readonly course_id: string;

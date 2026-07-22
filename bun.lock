@@ -22,6 +22,8 @@
         "@course-data/contracts": "0.1.0",
         "@course-data/database": "0.1.0",
         "@course-data/domain": "0.1.0",
+        "@course-data/source-dbh": "0.1.0",
+        "@course-data/source-ntnu": "0.1.0",
         "@elysiajs/cors": "^1.4.2",
         "@elysiajs/openapi": "1.4.15",
         "effect": "3.22.0",
@@ -95,6 +97,9 @@
       "dependencies": {
         "@course-data/application": "0.1.0",
         "@course-data/domain": "0.1.0",
+        "@course-data/source-dbh": "0.1.0",
+        "@course-data/source-ntnu": "0.1.0",
+        "@course-data/study-kernel": "0.1.0",
         "effect": "3.22.0",
       },
       "devDependencies": {
@@ -110,6 +115,13 @@
     },
     "packages/source-dbh": {
       "name": "@course-data/source-dbh",
+      "version": "0.1.0",
+      "dependencies": {
+        "effect": "3.22.0",
+      },
+    },
+    "packages/source-ntnu": {
+      "name": "@course-data/source-ntnu",
       "version": "0.1.0",
       "dependencies": {
         "effect": "3.22.0",
@@ -162,6 +174,8 @@
     "@course-data/ingest-worker": ["@course-data/ingest-worker@workspace:apps/ingest-worker"],
 
     "@course-data/source-dbh": ["@course-data/source-dbh@workspace:packages/source-dbh"],
+
+    "@course-data/source-ntnu": ["@course-data/source-ntnu@workspace:packages/source-ntnu"],
 
     "@course-data/study-kernel": ["@course-data/study-kernel@workspace:packages/study-kernel"],
 

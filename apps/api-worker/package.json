@@ -10,6 +10,7 @@
     "dev": "wrangler dev",
     "build": "WRANGLER_SEND_METRICS=false CI=1 wrangler deploy --dry-run --outdir dist",
     "openapi": "bun ./scripts/export-openapi.ts",
+    "ingest:official-curriculum": "bun ./scripts/ingest-official-curriculum.ts",
     "test": "vitest run",
     "db:migrate:local": "wrangler d1 migrations apply course-data-dev --local"
   },
@@ -18,6 +19,8 @@
     "@course-data/contracts": "0.1.0",
     "@course-data/database": "0.1.0",
     "@course-data/domain": "0.1.0",
+    "@course-data/source-dbh": "0.1.0",
+    "@course-data/source-ntnu": "0.1.0",
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/openapi": "1.4.15",
     "effect": "3.22.0",
