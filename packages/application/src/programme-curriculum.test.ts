@@ -115,13 +115,13 @@ describe('programme curriculum use cases', () => {
         Effect.either,
       ),
     );
-    expect(locked._tag).toBe('Left');
-    if (locked._tag === 'Left') {
-      expect(locked.left).toMatchObject({
+    expect(locked).toMatchObject({
+      _tag: 'Left',
+      left: {
         _tag: 'CompareUnavailableError',
         availableProgrammeCount: 9,
         requiredProgrammeCount: 10,
-      });
-    }
+      },
+    });
   });
 });
