@@ -98,7 +98,17 @@ describe('live DBH evidence replication', () => {
     });
     expect(repeated.bodyKey).toBe(result.bodyKey);
     expect(repeated.archivedNewBody).toBe(false);
-    expect([...evidence.objects.keys()].filter((key) => key.includes('/sha256/'))).toHaveLength(1);
+    const contentObjects = [...evidence.objects.entries()].filter(([key]) =>
+      key.includes('/sha256/'),
+    );
+    expect(contentObjects.length).toBeGreaterThanOrEqual(2);
+    const record = result.parseResult.accepted[0];
+    expect(record).toBeDefined();
+    const recordBytes = new TextEncoder().encode(JSON.stringify(record?.raw));
+    const recordHash = await hexSha256(recordBytes);
+    expect(evidence.objects.get(`evidence/dbh/table-347/sha256/${recordHash}.json`)?.bytes).toEqual(
+      recordBytes,
+    );
     expect(
       [...evidence.objects.keys()].filter((key) => key.includes('/observations/')),
     ).toHaveLength(2);
