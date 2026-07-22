@@ -23,6 +23,17 @@ export interface ReconciliationReport {
   readonly dataRevision: string;
 }
 
+export interface PublicationCandidate {
+  readonly revisionId: string;
+  readonly scope: string;
+  readonly programmeVersionId: string;
+  readonly dataRevision: string;
+}
+
+export interface ProgrammeCurriculumRepositoryOptions {
+  readonly beforePublish?: (candidate: PublicationCandidate) => Promise<void>;
+}
+
 export interface ProgrammeCurriculumRepository extends ProgrammeCurriculumRepositoryService {
   readonly reconcile: (
     input: NtnuCurriculumReconciliationInput,
@@ -88,6 +99,8 @@ interface ReconciliationModel {
   readonly programmeId: string;
   readonly programmeVersionId: string;
   readonly dataRevision: string;
+  readonly publicationScope: string;
+  readonly publicationRevisionId: string;
   readonly courses: ReadonlyArray<CourseModel>;
   readonly groups: ReadonlyArray<GroupModel>;
   readonly requirements: ReadonlyArray<RequirementModel>;
@@ -138,6 +151,8 @@ export const buildNtnuReconciliationModel = async (
   const programmeId = `no.ntnu:${curriculum.programmeCode}`;
   const dataRevision = `ntnu:${curriculum.attribution.contentHash}`;
   const programmeVersionId = `${programmeId}:${curriculum.cohortStartYear}:${curriculum.attribution.contentHash.slice(0, 16)}`;
+  const publicationScope = `programme:${programmeId}:${curriculum.cohortStartYear}`;
+  const publicationRevisionId = `revision:${publicationScope}:${dataRevision}`;
   const courses = new Map<string, CourseModel>();
   const groups = new Map<string, GroupModel>();
   const requirements: RequirementModel[] = [];
@@ -265,6 +280,8 @@ export const buildNtnuReconciliationModel = async (
     programmeId,
     programmeVersionId,
     dataRevision,
+    publicationScope,
+    publicationRevisionId,
     courses: [...courses.values()],
     groups: [...groups.values()],
     requirements,
@@ -364,6 +381,7 @@ interface RequirementRow {
 
 export const createD1ProgrammeCurriculumRepository = (
   database: D1Database,
+  options: ProgrammeCurriculumRepositoryOptions = {},
 ): ProgrammeCurriculumRepository => ({
   reconcile: (input) =>
     Effect.tryPromise({
@@ -388,6 +406,35 @@ export const createD1ProgrammeCurriculumRepository = (
             observedAt,
           )
           .run();
+        await database
+          .prepare(
+            `INSERT OR IGNORE INTO dataset_revision (
+              id, source_provider, scope, ingestion_run_id, content_hash, observed_at,
+              status, quality_report, rejection_reason, created_at, published_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'building', NULL, NULL, ?, NULL)`,
+          )
+          .bind(
+            model.publicationRevisionId,
+            input.curriculum.attribution.provider,
+            model.publicationScope,
+            runId,
+            input.curriculum.attribution.contentHash,
+            observedAt,
+            observedAt,
+          )
+          .run();
+        const candidateStatus = await database
+          .prepare(`SELECT status FROM dataset_revision WHERE id = ?`)
+          .bind(model.publicationRevisionId)
+          .first<{ readonly status: string }>();
+        if (candidateStatus === null) {
+          throw new Error('Candidate revision could not be created.');
+        }
+        if (candidateStatus.status === 'rejected') {
+          throw new Error(
+            'This content-identical candidate was already rejected by quality gates.',
+          );
+        }
 
         const statements: D1PreparedStatement[] = [];
         const acceptedDbh = [...input.dbhProgrammeRecords, ...input.dbhCourseRecords];
@@ -570,8 +617,9 @@ export const createD1ProgrammeCurriculumRepository = (
               `INSERT OR IGNORE INTO programme_version (
                 id, programme_id, cohort_start_year, start_season, duration_terms, title,
                 data_revision, relation_authority, source_provider, source_record_id,
-                dataset_revision, content_hash, observed_at, valid_from, valid_to
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?, ?, ?, NULL)`,
+                dataset_revision, content_hash, observed_at, valid_from, valid_to,
+                publication_revision_id
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?, ?, ?, NULL, ?)`,
             )
             .bind(
               model.programmeVersionId,
@@ -587,6 +635,7 @@ export const createD1ProgrammeCurriculumRepository = (
               curriculumRecordHash,
               observedAt,
               `${input.curriculum.cohortStartYear}-01-01`,
+              model.publicationRevisionId,
             ),
         );
 
@@ -620,6 +669,24 @@ export const createD1ProgrammeCurriculumRepository = (
                 course.id,
                 course.courseId,
                 course.academicYear,
+                course.title,
+                course.credits,
+                course.level,
+                course.teachingLanguage,
+                course.sourceProvider,
+                course.sourceRecordId,
+                course.observedAt,
+              ),
+            database
+              .prepare(
+                `INSERT OR IGNORE INTO dataset_revision_course_version (
+                  revision_id, course_version_id, title, credits, level, teaching_language,
+                  source_provider, source_record_id, source_retrieved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              )
+              .bind(
+                model.publicationRevisionId,
+                course.id,
                 course.title,
                 course.credits,
                 course.level,
@@ -714,14 +781,96 @@ export const createD1ProgrammeCurriculumRepository = (
         }
 
         await runBatches(database, statements);
+
+        const qualityReport = {
+          programmeVersions: 1,
+          courses: model.courses.length,
+          groups: model.groups.length,
+          requirements: model.requirements.length,
+          relations: model.relations.length,
+          curriculumRejections: input.curriculumRejections?.length ?? 0,
+          passed:
+            model.courses.length > 0 &&
+            model.groups.length > 0 &&
+            model.requirements.length > 0 &&
+            (input.curriculumRejections?.length ?? 0) === 0,
+        };
+        const qualityJson = stableJson(qualityReport);
+        if (!qualityReport.passed) {
+          const reason = 'Candidate failed the official-curriculum completeness gate.';
+          await database.batch([
+            database
+              .prepare(
+                `UPDATE dataset_revision
+                 SET status = 'rejected', quality_report = ?, rejection_reason = ?
+                 WHERE id = ? AND status <> 'published'`,
+              )
+              .bind(qualityJson, reason, model.publicationRevisionId),
+            database
+              .prepare(
+                `UPDATE ingestion_run
+                 SET status = 'rejected', completed_at = ?
+                 WHERE id = ? AND status <> 'completed'`,
+              )
+              .bind(observedAt, runId),
+          ]);
+          throw new Error(reason);
+        }
+
         await database
           .prepare(
-            `UPDATE ingestion_run
-             SET status = 'completed', completed_at = ?
-             WHERE id = ? AND status <> 'completed'`,
+            `UPDATE dataset_revision
+             SET status = 'validated', quality_report = ?, rejection_reason = NULL
+             WHERE id = ? AND status = 'building'`,
           )
-          .bind(observedAt, runId)
+          .bind(qualityJson, model.publicationRevisionId)
           .run();
+
+        await options.beforePublish?.({
+          revisionId: model.publicationRevisionId,
+          scope: model.publicationScope,
+          programmeVersionId: model.programmeVersionId,
+          dataRevision: model.dataRevision,
+        });
+
+        await database.batch([
+          database
+            .prepare(
+              `UPDATE dataset_revision
+               SET status = 'published', quality_report = ?, rejection_reason = NULL,
+                   published_at = COALESCE(published_at, ?)
+               WHERE id = ? AND status IN ('validated', 'published')`,
+            )
+            .bind(qualityJson, observedAt, model.publicationRevisionId),
+          database
+            .prepare(
+              `INSERT INTO dataset_publication (
+                 source_provider, scope, current_revision_id, published_at
+               )
+               SELECT ?, ?, ?, ?
+               WHERE EXISTS (
+                 SELECT 1 FROM dataset_revision
+                 WHERE id = ? AND status = 'published'
+               )
+               ON CONFLICT(source_provider, scope) DO UPDATE SET
+                 current_revision_id = excluded.current_revision_id,
+                 published_at = excluded.published_at`,
+            )
+            .bind(
+              input.curriculum.attribution.provider,
+              model.publicationScope,
+              model.publicationRevisionId,
+              observedAt,
+              model.publicationRevisionId,
+            ),
+          database
+            .prepare(
+              `UPDATE ingestion_run
+               SET status = 'completed', completed_at = ?
+               WHERE id = ? AND status <> 'completed'`,
+            )
+            .bind(observedAt, runId),
+        ]);
         return {
           ingestionRunId: runId,
           programmeVersionId: model.programmeVersionId,
@@ -745,6 +894,8 @@ export const createD1ProgrammeCurriculumRepository = (
                     pv.duration_terms, pv.relation_authority, pv.data_revision,
                     pv.observed_at, sr.source_period
              FROM programme_version pv
+             JOIN dataset_publication dp
+               ON dp.current_revision_id = pv.publication_revision_id
              JOIN programme p ON p.id = pv.programme_id
              JOIN institutions i ON i.id = p.institution_id
              LEFT JOIN source_record sr
@@ -772,6 +923,8 @@ export const createD1ProgrammeCurriculumRepository = (
                     pv.cohort_start_year, pv.start_season, pv.duration_terms,
                     pv.data_revision, pv.relation_authority
              FROM programme_version pv
+             JOIN dataset_publication dp
+               ON dp.current_revision_id = pv.publication_revision_id
              JOIN programme p ON p.id = pv.programme_id
              JOIN institutions i ON i.id = p.institution_id
              WHERE pv.id = ?`,
@@ -792,12 +945,18 @@ export const createD1ProgrammeCurriculumRepository = (
         const requirementRows = await database
           .prepare(
             `SELECT r.id, r.requirement_group_id, r.course_version_id,
-                    c.code, cv.title, cv.credits, r.recommended_term_index,
+                    c.code, COALESCE(snapshot.title, cv.title) AS title,
+                    COALESCE(snapshot.credits, cv.credits) AS credits,
+                    r.recommended_term_index,
                     r.is_default, r.evidence_ref
              FROM requirement r
              LEFT JOIN course_versions cv ON cv.id = r.course_version_id
              LEFT JOIN courses c ON c.id = cv.course_id
              JOIN requirement_group rg ON rg.id = r.requirement_group_id
+             JOIN programme_version pv ON pv.id = rg.programme_version_id
+             LEFT JOIN dataset_revision_course_version snapshot
+               ON snapshot.revision_id = pv.publication_revision_id
+              AND snapshot.course_version_id = r.course_version_id
              WHERE rg.programme_version_id = ?
              ORDER BY r.position, r.id`,
           )

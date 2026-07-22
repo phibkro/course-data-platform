@@ -1,6 +1,8 @@
 import {
   createD1CourseRepository,
   createD1ProgrammeCurriculumRepository,
+  type NtnuCurriculumReconciliationInput,
+  type PublicationCandidate,
 } from '@course-data/database';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -20,6 +22,8 @@ interface Counts {
   readonly relations: number;
   readonly rejections: number;
   readonly field_provenance: number;
+  readonly dataset_revisions: number;
+  readonly publications: number;
 }
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -33,7 +37,9 @@ const counts = async (): Promise<Counts> => {
       (SELECT COUNT(*) FROM courses) AS courses,
       (SELECT COUNT(*) FROM programme_course_relation) AS relations,
       (SELECT COUNT(*) FROM source_rejection) AS rejections,
-      (SELECT COUNT(*) FROM field_provenance) AS field_provenance`,
+      (SELECT COUNT(*) FROM field_provenance) AS field_provenance,
+      (SELECT COUNT(*) FROM dataset_revision) AS dataset_revisions,
+      (SELECT COUNT(*) FROM dataset_publication) AS publications`,
   ).first<Counts>();
   if (result === null) throw new Error('Count query returned no row.');
   return result;
@@ -65,6 +71,49 @@ const contentSnapshot = async () => ({
   ).results,
 });
 
+const withCurriculumRevision = (
+  input: NtnuCurriculumReconciliationInput,
+  hashCharacter: string,
+  retrievedAt: string,
+  options: { readonly emptyCurriculum?: boolean } = {},
+): NtnuCurriculumReconciliationInput => {
+  const contentHash = hashCharacter.repeat(64);
+  const attribution = {
+    ...input.curriculum.attribution,
+    contentHash,
+    datasetRevision: contentHash,
+    retrievedAt,
+  };
+  return {
+    ...input,
+    curriculum: {
+      ...input.curriculum,
+      attribution,
+      title: `${input.curriculum.title} revision ${hashCharacter}`,
+      fields: Object.fromEntries(
+        Object.entries(input.curriculum.fields).map(([key, field]) => [
+          key,
+          { ...field, attribution },
+        ]),
+      ),
+      periods:
+        options.emptyCurriculum === true
+          ? []
+          : input.curriculum.periods.map((period) => ({
+              ...period,
+              groups: period.groups.map((group) => ({
+                ...group,
+                courses: group.courses.map((course) => ({
+                  ...course,
+                  title: `${course.title} revision ${hashCharacter}`,
+                })),
+              })),
+            })),
+    },
+    ...(options.emptyCurriculum === true ? { dbhProgrammeRecords: [], dbhCourseRecords: [] } : {}),
+  };
+};
+
 beforeAll(async () => {
   statePath = await mkdtemp(resolve(tmpdir(), 'course-data-curriculum-test-'));
   proxy = await getPlatformProxy<{ DB: D1Database }>({
@@ -76,6 +125,7 @@ beforeAll(async () => {
     '0001_initial.sql',
     '0002_source_provenance.sql',
     '0003_programme_curriculum.sql',
+    '0004_dataset_publication.sql',
   ]) {
     const sql = await readFile(resolve(root, 'migrations/d1', migration), 'utf8');
     for (const statement of unstable_splitSqlQuery(sql)) {
@@ -105,6 +155,8 @@ describe('official NTNU curriculum reconciliation', () => {
     expect(secondCounts).toEqual(firstCounts);
     expect(secondContent).toEqual(firstContent);
     expect(firstCounts.programme_versions).toBe(1);
+    expect(firstCounts.dataset_revisions).toBe(1);
+    expect(firstCounts.publications).toBe(1);
     expect(firstCounts.rejections).toBe(1);
     expect(firstCounts.field_provenance).toBeGreaterThan(100);
 
@@ -198,5 +250,100 @@ describe('official NTNU curriculum reconciliation', () => {
       programme: { id: firstReport.programmeVersionId },
     });
     await runtime.dispose();
+  }, 30_000);
+
+  it('publishes atomically and keeps the last valid revision through failure and outage', async () => {
+    const original = makeOfficialCurriculumInput();
+    const before = await Effect.runPromise(
+      createD1ProgrammeCurriculumRepository(proxy.env.DB).listProgrammeVersions(),
+    );
+    expect(before).toHaveLength(1);
+    const previous = before[0];
+    expect(previous).toBeDefined();
+
+    let announceCandidate: (candidate: PublicationCandidate) => void = () => undefined;
+    const candidateReady = new Promise<PublicationCandidate>((resolveCandidate) => {
+      announceCandidate = resolveCandidate;
+    });
+    let releasePublication: () => void = () => undefined;
+    const publicationReleased = new Promise<void>((resolvePublication) => {
+      releasePublication = resolvePublication;
+    });
+    const concurrentRepository = createD1ProgrammeCurriculumRepository(proxy.env.DB, {
+      beforePublish: async (candidate) => {
+        announceCandidate(candidate);
+        await publicationReleased;
+      },
+    });
+    const nextInput = withCurriculumRevision(original, 'a', '2026-07-22T13:15:00.000Z');
+    const pendingPublication = Effect.runPromise(concurrentRepository.reconcile(nextInput));
+    const candidate = await candidateReady;
+
+    const during = await Effect.runPromise(concurrentRepository.listProgrammeVersions());
+    expect(during.map((row) => row.programmeVersionId)).toEqual([previous?.programmeVersionId]);
+    const hiddenCandidate = await Effect.runPromise(
+      Effect.either(concurrentRepository.getProgrammeVersion(candidate.programmeVersionId)),
+    );
+    expect(hiddenCandidate).toMatchObject({
+      _tag: 'Left',
+      left: { _tag: 'ProgrammeVersionNotFoundError' },
+    });
+    const storedDuring = await proxy.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM programme_version`,
+    ).first<{ count: number }>();
+    expect(storedDuring?.count).toBe(2);
+    const courseRepository = createD1CourseRepository(proxy.env.DB);
+    const candidateCoursesDuring = await Effect.runPromise(
+      courseRepository.list({ search: 'revision a' }),
+    );
+    expect(candidateCoursesDuring).toEqual([]);
+
+    releasePublication();
+    const published = await pendingPublication;
+    expect(published.programmeVersionId).toBe(candidate.programmeVersionId);
+    const after = await Effect.runPromise(concurrentRepository.listProgrammeVersions());
+    expect(after.map((row) => row.programmeVersionId)).toEqual([candidate.programmeVersionId]);
+    const candidateCoursesAfter = await Effect.runPromise(
+      courseRepository.list({ search: 'revision a' }),
+    );
+    expect(candidateCoursesAfter.length).toBeGreaterThan(0);
+
+    const failedInput = withCurriculumRevision(original, 'b', '2026-07-22T13:20:00.000Z', {
+      emptyCurriculum: true,
+    });
+    await expect(
+      Effect.runPromise(concurrentRepository.reconcile(failedInput)),
+    ).rejects.toMatchObject({
+      message: 'Candidate failed the official-curriculum completeness gate.',
+    });
+    const afterQualityFailure = await Effect.runPromise(
+      concurrentRepository.listProgrammeVersions(),
+    );
+    expect(afterQualityFailure.map((row) => row.programmeVersionId)).toEqual([
+      candidate.programmeVersionId,
+    ]);
+    const rejected = await proxy.env.DB.prepare(
+      `SELECT status, rejection_reason FROM dataset_revision WHERE content_hash = ?`,
+    )
+      .bind('b'.repeat(64))
+      .first<{ status: string; rejection_reason: string | null }>();
+    expect(rejected).toMatchObject({
+      status: 'rejected',
+      rejection_reason: 'Candidate failed the official-curriculum completeness gate.',
+    });
+
+    const outageRepository = createD1ProgrammeCurriculumRepository(proxy.env.DB, {
+      beforePublish: () => Promise.reject(new Error('forced upstream outage')),
+    });
+    const outageInput = withCurriculumRevision(original, 'c', '2026-07-22T13:25:00.000Z');
+    await expect(Effect.runPromise(outageRepository.reconcile(outageInput))).rejects.toMatchObject({
+      message: 'forced upstream outage',
+    });
+    const afterOutage = await Effect.runPromise(outageRepository.listProgrammeVersions());
+    expect(afterOutage.map((row) => row.programmeVersionId)).toEqual([
+      candidate.programmeVersionId,
+    ]);
+    const outageCourses = await Effect.runPromise(courseRepository.list({ search: 'revision c' }));
+    expect(outageCourses).toEqual([]);
   }, 30_000);
 });
