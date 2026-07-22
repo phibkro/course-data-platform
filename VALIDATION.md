@@ -1,26 +1,28 @@
 # Validation report
 
-Validated on 2026-07-20 after adding programme-first onboarding, editable local scenarios, and declarative Workbench views.
+Validated on 2026-07-22 after completing the provenance ingestion, NTNU curriculum reconciliation, and persisted-serving arc.
 
 ## Passed
 
 - TypeScript 7.0.2 native compiler across domain, application, study kernel, contracts, database, Workers, web, and root tooling.
 - TypeScript 6.0.3 compatibility compiler across the same configurations.
-- Oxfmt across 71 files.
-- Oxlint with warnings denied: 0 warnings and 0 errors across 26 source files.
-- Vitest: 17 tests across domain, application, study kernel, scenario export, and API transport.
-- Runtime-schema OpenAPI generation includes `/v1/programmes`, `/v1/planner/baseline`, and `/v1/planner/demo`.
-- Vite 8 production web build: 237.69 kB / 74.75 kB gzip initial JavaScript, 210.15 kB / 63.92 kB gzip lazy planner chunk, and 9.64 kB / 2.65 kB gzip CSS.
-- API Worker Wrangler dry run: 1,592.47 KiB / 302.01 KiB gzip with the D1 binding.
+- Oxfmt across 115 files.
+- Oxlint with warnings denied: 0 warnings and 0 errors.
+- Vitest: 31 tests across 11 files covering domain values, source adapters, application use cases, study kernel, D1 reconciliation, API transport, scenario compatibility, and export/import.
+- Runtime-schema OpenAPI generation includes D1-backed `/v1/programmes`, `/v1/planner/baseline`, and `/v1/planner/demo` responses with freshness metadata, capability warnings, and declared error responses.
+- Vite 8 production web build: 385.01 kB / 119.92 kB gzip initial JavaScript, 211.84 kB / 64.36 kB gzip lazy planner chunk, and 56.13 kB / 10.83 kB gzip CSS.
+- API Worker Wrangler dry run: 1,636.09 KiB / 308.23 KiB gzip with the D1 binding.
 - Ingestion Worker Wrangler dry run: 0.30 KiB / 0.22 KiB gzip.
-- API tests verify programme onboarding metadata, selected-programme baseline generation, schema-versioned scenarios, and the declarative roadmap view.
+- Source tests verify boundary parsing and provenance for real-captured DBH and machine-readable NTNU evidence.
+- D1 integration tests verify idempotent reconciliation, official versus administrative relation authority, structured rejection persistence, per-field provenance, and study-kernel round-tripping.
+- API tests verify that programme listing, baseline generation, and the default planner projection use the persisted NTNU programme version and fail explicitly when data is unavailable.
 - Kernel tests verify baseline generation, movement, removal, elective replacement, structured findings, view-spec validation, and portable round-tripping.
-- Scenario export tests reject unrelated JSON and round-trip valid planning envelopes.
+- Scenario tests verify export/import and explicit preservation warnings for saved scenarios whose programme version or data revision is absent from the current catalogue.
 
 ## Product status
 
-The programme is still an explicitly marked illustrative fixture and not an official NTNU curriculum. The interaction model is now functional: users can choose a programme, edit and evaluate multiple scenarios, persist them in IndexedDB, import/export them, and inspect the complete kernel projection in Workbench.
+The served planner now reads an evidence-backed NTNU BIT 2024 programme version from D1. Its official six-term curriculum came from a real machine-readable NTNU study-plan capture, while DBH course-to-programme associations remain distinguishable as administrative authority. Users can choose the programme, edit and evaluate multiple scenarios, persist them in IndexedDB, import/export them, and inspect the complete persisted projection in Workbench. Freshness metadata is real for the captured revision, but population remains a manual local reconcile: live upstream fetching, immutable R2 evidence archiving, atomic candidate publication, and scheduled orchestration are not implemented yet.
 
 ## Bundle observation
 
-The planner executes the validation and study kernel in the browser, but it is route-split into a lazy chunk. The Explore projection remains close to the previous initial bundle size. A later performance slice should still consider separating pure kernel operations from Effect Schema decoders to reduce the planner chunk itself.
+The planner executes validation and study-kernel operations in the browser and remains route-split into a lazy chunk. The initial application bundle has grown with the post-arc design-system and data-path work; a later performance slice should profile the current bundle and consider separating pure kernel operations from Effect Schema decoders.
