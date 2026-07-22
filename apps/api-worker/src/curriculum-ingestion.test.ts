@@ -254,6 +254,29 @@ describe('official NTNU curriculum reconciliation', () => {
     };
     expect(coursesBody.items.length).toBeGreaterThan(0);
     expect(coursesBody.items.every((course) => course.source.provider !== 'fixture')).toBe(true);
+
+    // Falsifier #2: the 0006 cleanup migration removes the fixture seed rows, and
+    // removing them must change NOTHING served — the published-snapshot gate never
+    // depended on them, and the migration must not touch a published course version.
+    const fixtureSeedsBefore = await proxy.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM course_versions WHERE source_provider = 'fixture'`,
+    ).first<{ count: number }>();
+    expect(fixtureSeedsBefore?.count).toBeGreaterThan(0);
+    const cleanupSql = await readFile(
+      resolve(root, 'migrations/d1', '0006_remove_fixture_course_seeds.sql'),
+      'utf8',
+    );
+    for (const statement of unstable_splitSqlQuery(cleanupSql)) {
+      await proxy.env.DB.prepare(statement).run();
+    }
+    const fixtureSeedsAfter = await proxy.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM course_versions WHERE source_provider = 'fixture'`,
+    ).first<{ count: number }>();
+    expect(fixtureSeedsAfter?.count).toBe(0);
+    const coursesAfterCleanup = await app.handle(new Request('http://localhost/v1/courses'));
+    expect(coursesAfterCleanup.status).toBe(200);
+    await expect(coursesAfterCleanup.json()).resolves.toEqual(coursesBody);
+
     const programmesResponse = await app.handle(new Request('http://localhost/v1/programmes'));
     expect(programmesResponse.status).toBe(200);
     await expect(programmesResponse.json()).resolves.toMatchObject({
