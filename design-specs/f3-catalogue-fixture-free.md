@@ -1,6 +1,6 @@
 # Design-spec: `/v1/courses` catalogue is fixture-free & publication-gated (F3)
 
-**Author:** wE:p1 (lead/advisor).  **Builds for:** `course-engineer`.  **Status:** frozen when its PR opens.
+**Author:** wE:p1 (lead/advisor). **Builds for:** `course-engineer`. **Status:** frozen when its PR opens.
 **Base:** stacked on the F1-close branch (dispatch this only once the F1 PR is open — 1:1 discipline).
 **Repo location once committed:** `design-specs/f3-catalogue-fixture-free.md` (base commit of its branch).
 
