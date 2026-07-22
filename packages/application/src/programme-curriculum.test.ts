@@ -92,4 +92,36 @@ describe('programme curriculum use cases', () => {
     expect(comparison.meta).toEqual({ programmeCount: 10, compareThreshold: 10 });
     expect(comparison.sharedCourses).toHaveLength(1);
   });
+
+  it('keeps Compare locked at nine distinct programmes', async () => {
+    const programmes = Array.from({ length: 9 }, (_, index) => ({
+      ...programme,
+      id: `no.ntnu:P${index}:2026:revision` as typeof programme.id,
+      programmeId: `no.ntnu:P${index}` as typeof programme.programmeId,
+      title: `Programme ${index}`,
+    }));
+    const nineLayer = programmeCurriculumRepositoryLayer(
+      createMemoryProgrammeCurriculumRepository(programmes),
+    );
+    const catalogue = await Effect.runPromise(listProgrammes().pipe(Effect.provide(nineLayer)));
+    expect(catalogue.meta).toMatchObject({
+      programmeCount: 9,
+      compareThreshold: 10,
+      compareEnabled: false,
+    });
+    const locked = await Effect.runPromise(
+      compareProgrammes(programmes[0]!.id, programmes[1]!.id).pipe(
+        Effect.provide(nineLayer),
+        Effect.either,
+      ),
+    );
+    expect(locked._tag).toBe('Left');
+    if (locked._tag === 'Left') {
+      expect(locked.left).toMatchObject({
+        _tag: 'CompareUnavailableError',
+        availableProgrammeCount: 9,
+        requiredProgrammeCount: 10,
+      });
+    }
+  });
 });
