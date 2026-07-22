@@ -38,6 +38,8 @@
                         "health",
                         "courses",
                         "programmes",
+                        "compare",
+                        "dataStatus",
                         "plannerBaseline",
                         "plannerDemo",
                         "openapi",
@@ -51,6 +53,12 @@
                           "type": "string"
                         },
                         "programmes": {
+                          "type": "string"
+                        },
+                        "compare": {
+                          "type": "string"
+                        },
+                        "dataStatus": {
                           "type": "string"
                         },
                         "plannerBaseline": {
@@ -242,6 +250,9 @@
                       "type": "object",
                       "required": [
                         "count",
+                        "programmeCount",
+                        "compareThreshold",
+                        "compareEnabled",
                         "dataRevision",
                         "observedAt",
                         "sourcePeriod",
@@ -261,6 +272,27 @@
                               "type": "integer"
                             }
                           ]
+                        },
+                        "programmeCount": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "compareThreshold": {
+                          "const": 10,
+                          "type": "number"
+                        },
+                        "compareEnabled": {
+                          "type": "boolean"
                         },
                         "dataRevision": {
                           "type": "string"
@@ -2372,6 +2404,629 @@
           }
         },
         "operationId": "getV1Courses"
+      }
+    },
+    "/v1/data-status": {
+      "get": {
+        "summary": "Read live source freshness",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "sources",
+                    "meta"
+                  ],
+                  "properties": {
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "sourceProvider",
+                          "scope",
+                          "targetSeconds",
+                          "lastAttemptAt",
+                          "lastSuccessfulPublishAt",
+                          "lastError",
+                          "stale"
+                        ],
+                        "properties": {
+                          "sourceProvider": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string"
+                          },
+                          "targetSeconds": {
+                            "minimum": 1,
+                            "anyOf": [
+                              {
+                                "format": "integer",
+                                "default": 0,
+                                "type": "string"
+                              },
+                              {
+                                "minimum": 1,
+                                "type": "integer"
+                              }
+                            ]
+                          },
+                          "lastAttemptAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastSuccessfulPublishAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastError": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "stale": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "sourceCount",
+                        "staleCount"
+                      ],
+                      "properties": {
+                        "sourceCount": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "staleCount": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Response for status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getV1Data-status"
+      }
+    },
+    "/v1/compare": {
+      "get": {
+        "summary": "Compare two published programme versions",
+        "tags": [
+          "Programmes"
+        ],
+        "parameters": [
+          {
+            "name": "leftProgrammeVersionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "rightProgrammeVersionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "left",
+                    "right",
+                    "sharedCourses",
+                    "meta"
+                  ],
+                  "properties": {
+                    "left": {
+                      "type": "object",
+                      "required": [
+                        "programmeVersionId",
+                        "programmeId",
+                        "title",
+                        "institutionShortName",
+                        "cohortStartYear",
+                        "durationTerms",
+                        "listedCourseCount",
+                        "listedCredits",
+                        "choiceGroupCount",
+                        "uniqueCourses"
+                      ],
+                      "properties": {
+                        "programmeVersionId": {
+                          "type": "string"
+                        },
+                        "programmeId": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "institutionShortName": {
+                          "type": "string"
+                        },
+                        "cohortStartYear": {
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "durationTerms": {
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "listedCourseCount": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "listedCredits": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "choiceGroupCount": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "uniqueCourses": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "title",
+                              "credits"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "credits": {
+                                "minimum": 0,
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "right": {
+                      "type": "object",
+                      "required": [
+                        "programmeVersionId",
+                        "programmeId",
+                        "title",
+                        "institutionShortName",
+                        "cohortStartYear",
+                        "durationTerms",
+                        "listedCourseCount",
+                        "listedCredits",
+                        "choiceGroupCount",
+                        "uniqueCourses"
+                      ],
+                      "properties": {
+                        "programmeVersionId": {
+                          "type": "string"
+                        },
+                        "programmeId": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "institutionShortName": {
+                          "type": "string"
+                        },
+                        "cohortStartYear": {
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "durationTerms": {
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "listedCourseCount": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "listedCredits": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "choiceGroupCount": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "uniqueCourses": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "title",
+                              "credits"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "credits": {
+                                "minimum": 0,
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "sharedCourses": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "code",
+                          "title",
+                          "credits"
+                        ],
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "credits": {
+                            "minimum": 0,
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "programmeCount",
+                        "compareThreshold"
+                      ],
+                      "properties": {
+                        "programmeCount": {
+                          "minimum": 10,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 10,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "compareThreshold": {
+                          "const": 10,
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response for status 404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Response for status 409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Response for status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getV1Compare"
       }
     }
   },

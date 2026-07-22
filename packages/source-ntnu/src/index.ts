@@ -24,12 +24,12 @@ export interface NtnuAttributedField {
 
 export interface NtnuCurriculumCourse {
   readonly code: string;
-  readonly version: string;
+  readonly version: string | null;
   readonly title: string;
-  readonly credits: number;
+  readonly credits: number | null;
   readonly choiceCode: string;
   readonly choiceName: string;
-  readonly choiceDescription: string;
+  readonly choiceDescription: string | null;
   readonly planelement: boolean;
 }
 
@@ -89,13 +89,13 @@ const CaptureSchema = Schema.Struct({
 const ChoiceSchema = Schema.Struct({
   code: Schema.String.pipe(Schema.minLength(1)),
   name: Schema.String.pipe(Schema.minLength(1)),
-  description: Schema.String.pipe(Schema.minLength(1)),
+  description: Schema.NullOr(Schema.String),
 });
 const CourseSchema = Schema.Struct({
   code: Schema.String.pipe(Schema.minLength(1)),
-  version: Schema.String.pipe(Schema.minLength(1)),
+  version: Schema.NullOr(Schema.String),
   name: Schema.String.pipe(Schema.minLength(1)),
-  credit: Schema.String.pipe(Schema.pattern(/^\d+(?:\.\d+)?$/)),
+  credit: Schema.NullOr(Schema.String.pipe(Schema.pattern(/^\d+(?:\.\d+)?$/))),
   planelement: Schema.Boolean,
   studyChoice: ChoiceSchema,
 });
@@ -268,7 +268,7 @@ export const parseNtnuCurriculum = (
               code: course.code,
               version: course.version,
               title: course.name,
-              credits: Number(course.credit),
+              credits: course.credit === null ? null : Number(course.credit),
               choiceCode: course.studyChoice.code,
               choiceName: course.studyChoice.name,
               choiceDescription: course.studyChoice.description,

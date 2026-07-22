@@ -1,4 +1,6 @@
 import type {
+  CompareProgrammesResponseDtoType,
+  DataStatusResponseDtoType,
   ListCoursesResponseDtoType,
   ListProgrammesResponseDtoType,
 } from '@course-data/contracts';
@@ -330,29 +332,173 @@ function SavedView({ onExplore }: { readonly onExplore: () => void }) {
 }
 
 function StatusView() {
+  const status = useQuery<DataStatusResponseDtoType>({
+    queryKey: ['data-status'],
+    queryFn: async () => {
+      const response = await fetch(`${apiUrl}/v1/data-status`);
+      const value = await response.json();
+      if (!response.ok) throw new Error(errorMessage(value));
+      return value as DataStatusResponseDtoType;
+    },
+    refetchInterval: 60_000,
+  });
   return (
     <section className="grid gap-5">
       <div>
         <Badge variant="source">Advanced</Badge>
         <h1 className="mt-3 text-3xl font-bold tracking-tight">Data status</h1>
         <p className="mt-2 max-w-2xl leading-7 text-muted-foreground">
-          This surface will report NTNU and DBH revisions, freshness targets, accepted records, and
-          source health. The current catalogue still uses bounded fixtures.
+          Live NTNU and DBH replication health, measured from the actual last successful
+          publication.
         </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Current development dataset</CardTitle>
-          <CardDescription>
-            Fixtures are intentionally small while the programme and planning kernels stabilise.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Badge>Local D1</Badge>
-          <Badge variant="secondary">Fixture revision</Badge>
-          <Badge variant="outline">Not production data</Badge>
-        </CardContent>
-      </Card>
+      {status.isLoading && <p className="state">Loading source status…</p>}
+      {status.error && <p className="state error">{status.error.message}</p>}
+      {status.data?.sources.map((source) => (
+        <Card key={`${source.sourceProvider}:${source.scope}`}>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>{source.sourceProvider}</CardTitle>
+              <Badge
+                variant={source.stale ? 'outline' : 'secondary'}
+                className={source.stale ? 'text-destructive' : undefined}
+              >
+                {source.stale ? 'Stale' : 'Current'}
+              </Badge>
+            </div>
+            <CardDescription>{source.scope}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
+            <p>
+              <span className="font-semibold">Last successful publish:</span>{' '}
+              {source.lastSuccessfulPublishAt ?? 'Never'}
+            </p>
+            <p>
+              <span className="font-semibold">Freshness target:</span>{' '}
+              {Math.round(source.targetSeconds / 60)} minutes
+            </p>
+            {source.lastError && (
+              <p className="text-destructive sm:col-span-2">
+                Latest attempt failed: {source.lastError}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </section>
+  );
+}
+
+function CompareView() {
+  const programmes = useQuery<ListProgrammesResponseDtoType>({
+    queryKey: ['programmes'],
+    queryFn: async () => {
+      const result = await api.v1.programmes.get();
+      if (result.error) throw new Error(errorMessage(result.error.value));
+      return result.data as ListProgrammesResponseDtoType;
+    },
+  });
+  const items = useMemo(() => programmes.data?.items ?? [], [programmes.data?.items]);
+  const [leftId, setLeftId] = useState('');
+  const [rightId, setRightId] = useState('');
+  useEffect(() => {
+    if (!leftId && items[0]) setLeftId(items[0].programmeVersionId);
+    if (!rightId && items[1]) setRightId(items[1].programmeVersionId);
+  }, [items, leftId, rightId]);
+  const comparison = useQuery<CompareProgrammesResponseDtoType>({
+    queryKey: ['compare', leftId, rightId],
+    enabled:
+      programmes.data?.meta.compareEnabled === true &&
+      Boolean(leftId && rightId && leftId !== rightId),
+    queryFn: async () => {
+      const url = new URL(`${apiUrl}/v1/compare`);
+      url.searchParams.set('leftProgrammeVersionId', leftId);
+      url.searchParams.set('rightProgrammeVersionId', rightId);
+      const response = await fetch(url);
+      const value = await response.json();
+      if (!response.ok) throw new Error(errorMessage(value));
+      return value as CompareProgrammesResponseDtoType;
+    },
+  });
+  const unlocked = programmes.data?.meta.compareEnabled === true;
+  return (
+    <section className="grid gap-5">
+      <div>
+        <Badge variant={unlocked ? 'secondary' : 'outline'}>
+          {unlocked ? 'Available' : 'Locked'}
+        </Badge>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight">Compare programmes</h1>
+        <p className="mt-2 max-w-2xl leading-7 text-muted-foreground">
+          Compare is enabled only when at least 10 distinct live programmes are published. Current
+          breadth: {programmes.data?.meta.programmeCount ?? 0}/10.
+        </p>
+      </div>
+      {unlocked && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Choose two curricula</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            {[
+              ['First programme', leftId, setLeftId],
+              ['Second programme', rightId, setRightId],
+            ].map(([label, value, setter]) => (
+              <label className="grid gap-2 text-sm font-semibold" key={label as string}>
+                {label as string}
+                <select
+                  className="h-11 rounded-[var(--radius-md)] border border-border bg-surface px-3"
+                  value={value as string}
+                  onChange={(event) => (setter as (value: string) => void)(event.target.value)}
+                >
+                  {items.map((item) => (
+                    <option key={item.programmeVersionId} value={item.programmeVersionId}>
+                      {item.title} ({item.cohortStartYear})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+      {comparison.error && <p className="state error">{comparison.error.message}</p>}
+      {comparison.data && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {[comparison.data.left, comparison.data.right].map((programme) => (
+            <Card key={programme.programmeVersionId}>
+              <CardHeader>
+                <CardTitle>{programme.title}</CardTitle>
+                <CardDescription>
+                  {programme.institutionShortName} · {programme.cohortStartYear}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-3 gap-3 text-sm">
+                <p>
+                  <span className="block text-muted-foreground">Courses</span>
+                  <strong>{programme.listedCourseCount}</strong>
+                </p>
+                <p>
+                  <span className="block text-muted-foreground">Listed credits</span>
+                  <strong>{programme.listedCredits}</strong>
+                </p>
+                <p>
+                  <span className="block text-muted-foreground">Choice groups</span>
+                  <strong>{programme.choiceGroupCount}</strong>
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle>Shared courses</CardTitle>
+              <CardDescription>
+                {comparison.data.sharedCourses.length} course codes occur in both published
+                curricula.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      )}
     </section>
   );
 }
@@ -361,6 +507,7 @@ function App() {
   const initialView = new URL(window.location.href).searchParams.get('view');
   const [view, setView] = useState<AppView>(
     initialView === 'plan' ||
+      initialView === 'compare' ||
       initialView === 'saved' ||
       initialView === 'workbench' ||
       initialView === 'status'
@@ -379,6 +526,7 @@ function App() {
     <AppShell view={view} onViewChange={setView} apiUrl={apiUrl}>
       {view === 'explore' && <ExploreView onStartPlanning={() => setView('plan')} />}
       {view === 'saved' && <SavedView onExplore={() => setView('explore')} />}
+      {view === 'compare' && <CompareView />}
       {view === 'status' && <StatusView />}
       <Suspense fallback={<p className="state">Loading the planning kernel…</p>}>
         {view === 'plan' && <PlannerWorkspace mode="plan" />}

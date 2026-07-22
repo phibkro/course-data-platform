@@ -83,6 +83,92 @@ export interface ListCoursesResponseDtoType {
   };
 }
 
+export const DataStatusResponseDto = t.Object({
+  sources: t.Array(
+    t.Object({
+      sourceProvider: t.String(),
+      scope: t.String(),
+      targetSeconds: t.Integer({ minimum: 1 }),
+      lastAttemptAt: t.Union([t.String({ format: 'date-time' }), t.Null()]),
+      lastSuccessfulPublishAt: t.Union([t.String({ format: 'date-time' }), t.Null()]),
+      lastError: t.Union([t.String(), t.Null()]),
+      stale: t.Boolean(),
+    }),
+  ),
+  meta: t.Object({
+    sourceCount: t.Integer({ minimum: 0 }),
+    staleCount: t.Integer({ minimum: 0 }),
+  }),
+});
+
+export interface DataStatusResponseDtoType {
+  readonly sources: ReadonlyArray<{
+    readonly sourceProvider: string;
+    readonly scope: string;
+    readonly targetSeconds: number;
+    readonly lastAttemptAt: string | null;
+    readonly lastSuccessfulPublishAt: string | null;
+    readonly lastError: string | null;
+    readonly stale: boolean;
+  }>;
+  readonly meta: { readonly sourceCount: number; readonly staleCount: number };
+}
+
+export const CompareProgrammesQueryDto = t.Object({
+  leftProgrammeVersionId: t.String({ minLength: 1 }),
+  rightProgrammeVersionId: t.String({ minLength: 1 }),
+});
+
+const ComparedCourseDto = t.Object({
+  code: t.String(),
+  title: t.String(),
+  credits: t.Number({ minimum: 0 }),
+});
+const ComparedProgrammeDto = t.Object({
+  programmeVersionId: t.String(),
+  programmeId: t.String(),
+  title: t.String(),
+  institutionShortName: t.String(),
+  cohortStartYear: t.Integer(),
+  durationTerms: t.Integer(),
+  listedCourseCount: t.Integer({ minimum: 0 }),
+  listedCredits: t.Number({ minimum: 0 }),
+  choiceGroupCount: t.Integer({ minimum: 0 }),
+  uniqueCourses: t.Array(ComparedCourseDto),
+});
+
+export const CompareProgrammesResponseDto = t.Object({
+  left: ComparedProgrammeDto,
+  right: ComparedProgrammeDto,
+  sharedCourses: t.Array(ComparedCourseDto),
+  meta: t.Object({ programmeCount: t.Integer({ minimum: 10 }), compareThreshold: t.Literal(10) }),
+});
+
+export interface CompareProgrammesResponseDtoType {
+  readonly left: ComparedProgrammeDtoType;
+  readonly right: ComparedProgrammeDtoType;
+  readonly sharedCourses: ReadonlyArray<ComparedCourseDtoType>;
+  readonly meta: { readonly programmeCount: number; readonly compareThreshold: 10 };
+}
+
+interface ComparedCourseDtoType {
+  readonly code: string;
+  readonly title: string;
+  readonly credits: number;
+}
+interface ComparedProgrammeDtoType {
+  readonly programmeVersionId: string;
+  readonly programmeId: string;
+  readonly title: string;
+  readonly institutionShortName: string;
+  readonly cohortStartYear: number;
+  readonly durationTerms: number;
+  readonly listedCourseCount: number;
+  readonly listedCredits: number;
+  readonly choiceGroupCount: number;
+  readonly uniqueCourses: ReadonlyArray<ComparedCourseDtoType>;
+}
+
 export const toCourseSummaryDto = (course: CourseSummary): CourseSummaryDtoType => ({
   ...course,
   source: {
@@ -223,6 +309,9 @@ export const ListProgrammesResponseDto = t.Object({
   items: t.Array(ProgrammeSummaryDto),
   meta: t.Object({
     count: t.Integer({ minimum: 0 }),
+    programmeCount: t.Integer({ minimum: 0 }),
+    compareThreshold: t.Literal(10),
+    compareEnabled: t.Boolean(),
     dataRevision: t.String(),
     observedAt: t.Union([t.String({ format: 'date-time' }), t.Null()]),
     sourcePeriod: t.Union([t.String(), t.Null()]),
@@ -253,6 +342,9 @@ export interface ListProgrammesResponseDtoType {
   readonly items: ReadonlyArray<ProgrammeSummaryDtoType>;
   readonly meta: {
     readonly count: number;
+    readonly programmeCount: number;
+    readonly compareThreshold: 10;
+    readonly compareEnabled: boolean;
     readonly dataRevision: string;
     readonly observedAt: string | null;
     readonly sourcePeriod: string | null;

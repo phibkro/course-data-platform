@@ -28,6 +28,11 @@ export class ProgrammeVersionNotFoundError extends Data.TaggedError(
   readonly programmeVersionId: string;
 }> {}
 
+export class CompareUnavailableError extends Data.TaggedError('CompareUnavailableError')<{
+  readonly availableProgrammeCount: number;
+  readonly requiredProgrammeCount: number;
+}> {}
+
 export interface CourseRepositoryService {
   readonly list: (
     query: CourseQuery,
@@ -60,6 +65,16 @@ export interface ProgrammeVersionListRow {
   readonly sourcePeriod: string | null;
 }
 
+export interface SourceFreshnessRow {
+  readonly sourceProvider: string;
+  readonly scope: string;
+  readonly targetSeconds: number;
+  readonly lastAttemptAt: string | null;
+  readonly lastSuccessfulPublishAt: string | null;
+  readonly lastError: string | null;
+  readonly stale: boolean;
+}
+
 export interface CapabilityWarning {
   readonly code: string;
   readonly severity: 'info' | 'warning' | 'error';
@@ -75,6 +90,10 @@ export interface ProgrammeCurriculumRepositoryService {
   readonly getProgrammeVersion: (
     programmeVersionId: string,
   ) => Effect.Effect<ProgrammeVersion, RepositoryError | ProgrammeVersionNotFoundError>;
+  readonly listSourceFreshness: () => Effect.Effect<
+    ReadonlyArray<SourceFreshnessRow>,
+    RepositoryError
+  >;
 }
 
 export class ProgrammeCurriculumRepository extends Context.Tag(
@@ -140,10 +159,14 @@ export const listProgrammes = () =>
       const observedAt = observedValues.length === 1 ? (observedValues[0] ?? null) : null;
       const sourcePeriod = sourcePeriods.length === 1 ? (sourcePeriods[0] ?? null) : null;
       const revisions = [...new Set(items.map((item) => item.dataRevision))];
+      const programmeCount = new Set(items.map((item) => item.programmeId)).size;
       return {
         items,
         meta: {
           count: items.length,
+          programmeCount,
+          compareThreshold: 10 as const,
+          compareEnabled: programmeCount >= 10,
           dataRevision:
             revisions.length === 0
               ? 'unknown'
@@ -154,6 +177,86 @@ export const listProgrammes = () =>
           sourcePeriod,
           warnings: freshnessWarnings(observedAt, sourcePeriod),
         },
+      };
+    }),
+  );
+
+export const getDataStatus = () =>
+  Effect.flatMap(ProgrammeCurriculumRepository, (repository) =>
+    Effect.map(repository.listSourceFreshness(), (sources) => ({
+      sources,
+      meta: {
+        sourceCount: sources.length,
+        staleCount: sources.filter((source) => source.stale).length,
+      },
+    })),
+  );
+
+const programmeCourses = (programme: ProgrammeVersion) => {
+  const courses = new Map<
+    string,
+    { readonly code: string; readonly title: string; readonly credits: number }
+  >();
+  for (const requirement of programme.requirements) {
+    if (requirement.kind === 'required-course') {
+      courses.set(requirement.course.code, requirement.course);
+    } else if (requirement.kind === 'choose-n') {
+      for (const option of requirement.options) courses.set(option.code, option);
+    }
+  }
+  return courses;
+};
+
+export const compareProgrammes = (
+  leftProgrammeVersionId: string,
+  rightProgrammeVersionId: string,
+) =>
+  Effect.flatMap(ProgrammeCurriculumRepository, (repository) =>
+    Effect.gen(function* () {
+      const rows = yield* repository.listProgrammeVersions();
+      const programmeCount = new Set(rows.map((row) => row.programmeId)).size;
+      if (programmeCount < 10) {
+        return yield* Effect.fail(
+          new CompareUnavailableError({
+            availableProgrammeCount: programmeCount,
+            requiredProgrammeCount: 10,
+          }),
+        );
+      }
+      const left = yield* repository.getProgrammeVersion(leftProgrammeVersionId);
+      const right = yield* repository.getProgrammeVersion(rightProgrammeVersionId);
+      const leftCourses = programmeCourses(left);
+      const rightCourses = programmeCourses(right);
+      const sharedCodes = [...leftCourses.keys()].filter((code) => rightCourses.has(code)).sort();
+      const summarize = (
+        programme: ProgrammeVersion,
+        courses: typeof leftCourses,
+        other: typeof rightCourses,
+      ) => ({
+        programmeVersionId: programme.id,
+        programmeId: programme.programmeId,
+        title: programme.title,
+        institutionShortName: programme.institutionShortName,
+        cohortStartYear: programme.cohortStartYear,
+        durationTerms: programme.durationTerms,
+        listedCourseCount: courses.size,
+        listedCredits: [...courses.values()].reduce((sum, course) => sum + course.credits, 0),
+        choiceGroupCount: programme.requirements.filter(
+          (requirement) => requirement.kind === 'choose-n',
+        ).length,
+        uniqueCourses: [...courses.values()]
+          .filter((course) => !other.has(course.code))
+          .map((course) => ({ code: course.code, title: course.title, credits: course.credits }))
+          .sort((a, b) => a.code.localeCompare(b.code)),
+      });
+      return {
+        left: summarize(left, leftCourses, rightCourses),
+        right: summarize(right, rightCourses, leftCourses),
+        sharedCourses: sharedCodes.map((code) => {
+          const course = leftCourses.get(code)!;
+          return { code, title: course.title, credits: course.credits };
+        }),
+        meta: { programmeCount, compareThreshold: 10 as const },
       };
     }),
   );
@@ -212,6 +315,7 @@ export const createMemoryProgrammeCurriculumRepository = (
       ? Effect.fail(new ProgrammeVersionNotFoundError({ programmeVersionId }))
       : Effect.succeed(programme);
   },
+  listSourceFreshness: () => Effect.succeed([]),
 });
 
 export const createMemoryCourseRepository = (

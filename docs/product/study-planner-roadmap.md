@@ -41,9 +41,9 @@ Inspect provenance, source capabilities, revision state, planner findings, and d
 2. Programme catalogue and programme-first onboarding.
 3. Evidence-backed NTNU programme fixture and relation authority.
 4. Local scenario editing and persistence.
-5. DBH/NTNU replication with revision and freshness status.
+5. DBH/NTNU replication with revision and freshness status. **Delivered.**
 6. Feide groups feasibility spike.
-7. Second-institution adapter and programme comparison.
+7. Second-institution adapter; the initial NTNU programme comparison projection unlocks at ten live programmes.
 8. Custom Workbench views.
 9. Course-level subject taxonomy.
 10. Deferred concept graph and personalized readiness.

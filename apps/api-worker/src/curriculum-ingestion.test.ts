@@ -126,6 +126,7 @@ beforeAll(async () => {
     '0002_source_provenance.sql',
     '0003_programme_curriculum.sql',
     '0004_dataset_publication.sql',
+    '0005_live_replication.sql',
   ]) {
     const sql = await readFile(resolve(root, 'migrations/d1', migration), 'utf8');
     for (const statement of unstable_splitSqlQuery(sql)) {
@@ -140,6 +141,37 @@ afterAll(async () => {
 });
 
 describe('official NTNU curriculum reconciliation', () => {
+  it('reports the exact last successful publish and turns failures into stale state', async () => {
+    const publishedAt = '2026-07-22T14:00:00.000Z';
+    await proxy.env.DB.prepare(
+      `INSERT INTO source_freshness
+         (source_provider, scope, target_seconds, last_attempt_at, last_successful_publish_at, last_error)
+       VALUES ('test-source', 'gate', 1200, ?, ?, NULL)`,
+    )
+      .bind(publishedAt, publishedAt)
+      .run();
+    const repository = createD1ProgrammeCurriculumRepository(proxy.env.DB);
+    let row = (await Effect.runPromise(repository.listSourceFreshness())).find(
+      (source) => source.sourceProvider === 'test-source',
+    );
+    expect(row).toMatchObject({ lastSuccessfulPublishAt: publishedAt, lastError: null });
+
+    await proxy.env.DB.prepare(
+      `UPDATE source_freshness SET last_attempt_at = ?, last_error = 'forced outage'
+       WHERE source_provider = 'test-source' AND scope = 'gate'`,
+    )
+      .bind('2026-07-22T14:05:00.000Z')
+      .run();
+    row = (await Effect.runPromise(repository.listSourceFreshness())).find(
+      (source) => source.sourceProvider === 'test-source',
+    );
+    expect(row).toMatchObject({
+      stale: true,
+      lastSuccessfulPublishAt: publishedAt,
+      lastError: 'forced outage',
+    });
+  });
+
   it('is idempotent, preserves authority and provenance, and round-trips', async () => {
     const repository = createD1ProgrammeCurriculumRepository(proxy.env.DB);
     const input = makeOfficialCurriculumInput();

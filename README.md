@@ -4,10 +4,11 @@ A multi-institution, provenance-preserving study-planning platform. The system i
 
 ## Current vertical slices
 
-The catalogue slice proves one complete request path:
+The live catalogue proves the complete replication and request paths:
 
 ```text
 React PWA -> Eden client -> Elysia contract -> Effect use case -> repository -> D1
+NTNU/DBH -> scheduled Worker -> Queue -> immutable R2 evidence -> atomic D1 publication
 ```
 
 Implemented now:
@@ -28,16 +29,16 @@ Implemented now:
 - a validated declarative Workbench view specification served with each planner projection;
 - the previous prototype preserved under `legacy/` for behavioral reference;
 - a persistent Theme Lab with Mist/Emerald/Indigo as the default and independent schedule/chart palettes.
+- scheduled NTNU and DBH replication with content-addressed R2 evidence, incremental cursors, nightly reconciliation, and last-good D1 publication;
+- per-source freshness and explicit outage state in the API and Data status surface;
+- a Compare projection and UI that unlock together at ten distinct published programmes.
 
 Not implemented in this slice:
 
-- live DBH or institution ingestion;
-- immutable R2 source archiving;
 - React Aria collection components beyond the current Base UI foundation;
 - optional account synchronization for preferences and scenarios;
-- official programme ingestion replacing the explicitly marked fixture;
 - semantic course relations or the deferred knowledge graph;
-- a verified Alchemy deployment.
+- a second-institution curriculum adapter.
 
 ## Commands
 

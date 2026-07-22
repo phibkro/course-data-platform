@@ -9,8 +9,10 @@
   },
   "dependencies": {
     "@course-data/application": "0.1.0",
+    "@course-data/database": "0.1.0",
     "@course-data/domain": "0.1.0",
     "@course-data/source-dbh": "0.1.0",
+    "@course-data/source-ntnu": "0.1.0",
     "effect": "3.22.0"
   },
   "devDependencies": {

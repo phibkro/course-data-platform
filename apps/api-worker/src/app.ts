@@ -1,5 +1,14 @@
-import { getPlannerBaseline, listCourses, listProgrammes } from '@course-data/application';
 import {
+  compareProgrammes,
+  getDataStatus,
+  getPlannerBaseline,
+  listCourses,
+  listProgrammes,
+} from '@course-data/application';
+import {
+  CompareProgrammesQueryDto,
+  CompareProgrammesResponseDto,
+  DataStatusResponseDto,
   ListCoursesQueryDto,
   ListCoursesResponseDto,
   ListProgrammesResponseDto,
@@ -19,6 +28,138 @@ import { Elysia, t } from 'elysia';
 import type { CourseRuntime } from './runtime';
 
 const DATA_REVISION = 'fixture-2026-07-20';
+
+const createCompareApi = (runtime: CourseRuntime) =>
+  new Elysia().get(
+    '/v1/compare',
+    async ({ query, request, set, status }) => {
+      const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
+      const result = await runtime.runPromise(
+        Effect.either(
+          compareProgrammes(query.leftProgrammeVersionId, query.rightProgrammeVersionId),
+        ),
+      );
+      set.headers['x-request-id'] = requestId;
+      if (Either.isLeft(result)) {
+        if (result.left._tag === 'CompareUnavailableError') {
+          return status(409, {
+            type: 'https://course-data.example/problems/compare-locked',
+            title: 'Compare is locked',
+            status: 409,
+            detail: `Compare requires ${result.left.requiredProgrammeCount} programmes; ${result.left.availableProgrammeCount} are available.`,
+            requestId,
+          });
+        }
+        if (result.left._tag === 'ProgrammeVersionNotFoundError') {
+          return status(404, {
+            type: 'https://course-data.example/problems/programme-version-not-found',
+            title: 'Programme version not found',
+            status: 404,
+            detail: `No programme version exists for ${result.left.programmeVersionId}.`,
+            requestId,
+          });
+        }
+        return status(503, {
+          type: 'https://course-data.example/problems/compare-unavailable',
+          title: 'Compare unavailable',
+          status: 503,
+          detail: result.left.message,
+          requestId,
+        });
+      }
+      return {
+        left: {
+          ...result.right.left,
+          uniqueCourses: result.right.left.uniqueCourses.map((course) => ({ ...course })),
+        },
+        right: {
+          ...result.right.right,
+          uniqueCourses: result.right.right.uniqueCourses.map((course) => ({ ...course })),
+        },
+        sharedCourses: result.right.sharedCourses.map((course) => ({ ...course })),
+        meta: { ...result.right.meta },
+      };
+    },
+    {
+      query: CompareProgrammesQueryDto,
+      response: {
+        200: CompareProgrammesResponseDto,
+        404: ProblemDto,
+        409: ProblemDto,
+        503: ProblemDto,
+      },
+      detail: { summary: 'Compare two published programme versions', tags: ['Programmes'] },
+    },
+  );
+
+const createDataStatusApi = (runtime: CourseRuntime) =>
+  new Elysia().get(
+    '/v1/data-status',
+    async ({ request, set, status }) => {
+      const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
+      const result = await runtime.runPromise(Effect.either(getDataStatus()));
+      set.headers['x-request-id'] = requestId;
+      set.headers['cache-control'] = 'public, max-age=30, stale-while-revalidate=60';
+      if (Either.isLeft(result)) {
+        return status(503, {
+          type: 'https://course-data.example/problems/data-status-unavailable',
+          title: 'Data status unavailable',
+          status: 503,
+          detail: result.left.message,
+          requestId,
+        });
+      }
+      return {
+        sources: result.right.sources.map((source) => ({ ...source })),
+        meta: { ...result.right.meta },
+      };
+    },
+    {
+      response: { 200: DataStatusResponseDto, 503: ProblemDto },
+      detail: { summary: 'Read live source freshness', tags: ['System'] },
+    },
+  );
+
+const createCoursesApi = (runtime: CourseRuntime) =>
+  new Elysia().get(
+    '/v1/courses',
+    async ({ query, request, set, status }) => {
+      const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
+      const result = await runtime.runPromise(
+        Effect.either(
+          listCourses({
+            ...(query.search ? { search: query.search } : {}),
+            ...(query.institutionId
+              ? { institutionId: decodeInstitutionId(query.institutionId) }
+              : {}),
+            ...(query.academicYear ? { academicYear: query.academicYear } : {}),
+          }),
+        ),
+      );
+      set.headers['cache-control'] = 'public, max-age=60, stale-while-revalidate=300';
+      set.headers['x-request-id'] = requestId;
+      if (Either.isLeft(result)) {
+        return status(503, {
+          type: 'https://course-data.example/problems/catalogue-unavailable',
+          title: 'Catalogue unavailable',
+          status: 503,
+          detail: result.left.message,
+          requestId,
+        });
+      }
+      const items = result.right.map(toCourseSummaryDto);
+      return { items, meta: { count: items.length, dataRevision: DATA_REVISION } };
+    },
+    {
+      query: ListCoursesQueryDto,
+      response: { 200: ListCoursesResponseDto, 503: ProblemDto },
+      detail: {
+        summary: 'List course versions',
+        description: 'Returns normalized course versions with source provenance.',
+        tags: ['Courses'],
+      },
+    },
+  );
 
 export const createApi = (runtime: CourseRuntime) =>
   new Elysia()
@@ -44,6 +185,8 @@ export const createApi = (runtime: CourseRuntime) =>
           health: '/health',
           courses: '/v1/courses',
           programmes: '/v1/programmes',
+          compare: '/v1/compare',
+          dataStatus: '/v1/data-status',
           plannerBaseline: '/v1/planner/baseline',
           plannerDemo: '/v1/planner/demo',
           openapi: '/openapi',
@@ -58,6 +201,8 @@ export const createApi = (runtime: CourseRuntime) =>
             health: t.String(),
             courses: t.String(),
             programmes: t.String(),
+            compare: t.String(),
+            dataStatus: t.String(),
             plannerBaseline: t.String(),
             plannerDemo: t.String(),
             openapi: t.String(),
@@ -200,56 +345,8 @@ export const createApi = (runtime: CourseRuntime) =>
         },
       },
     )
-    .get(
-      '/v1/courses',
-      async ({ query, request, set, status }) => {
-        const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
-        const result = await runtime.runPromise(
-          Effect.either(
-            listCourses({
-              ...(query.search ? { search: query.search } : {}),
-              ...(query.institutionId
-                ? { institutionId: decodeInstitutionId(query.institutionId) }
-                : {}),
-              ...(query.academicYear ? { academicYear: query.academicYear } : {}),
-            }),
-          ),
-        );
-
-        set.headers['cache-control'] = 'public, max-age=60, stale-while-revalidate=300';
-        set.headers['x-request-id'] = requestId;
-
-        if (Either.isLeft(result)) {
-          return status(503, {
-            type: 'https://course-data.example/problems/catalogue-unavailable',
-            title: 'Catalogue unavailable',
-            status: 503,
-            detail: result.left.message,
-            requestId,
-          });
-        }
-
-        const items = result.right.map(toCourseSummaryDto);
-        return {
-          items,
-          meta: {
-            count: items.length,
-            dataRevision: DATA_REVISION,
-          },
-        };
-      },
-      {
-        query: ListCoursesQueryDto,
-        response: {
-          200: ListCoursesResponseDto,
-          503: ProblemDto,
-        },
-        detail: {
-          summary: 'List course versions',
-          description: 'Returns normalized course versions with source provenance.',
-          tags: ['Courses'],
-        },
-      },
-    );
+    .use(createCoursesApi(runtime))
+    .use(createDataStatusApi(runtime))
+    .use(createCompareApi(runtime));
 
 export type Api = ReturnType<typeof createApi>;

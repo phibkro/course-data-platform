@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import {
   DataStatusIcon,
+  CompareIcon,
   ExploreIcon,
   ExternalLinkIcon,
   MoreIcon,
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
-export type AppView = 'explore' | 'plan' | 'saved' | 'workbench' | 'status';
+export type AppView = 'explore' | 'compare' | 'plan' | 'saved' | 'workbench' | 'status';
 
 type NavigationItem = {
   readonly value: AppView;
@@ -38,6 +39,7 @@ const primaryItems: ReadonlyArray<NavigationItem> = [
 ];
 
 const advancedItems: ReadonlyArray<NavigationItem> = [
+  { value: 'compare', label: 'Compare', icon: CompareIcon },
   { value: 'workbench', label: 'Workbench', icon: WorkbenchIcon },
   { value: 'status', label: 'Data status', icon: DataStatusIcon },
 ];
@@ -212,6 +214,7 @@ export function AppShell({
             <p className="text-sm font-semibold text-muted-foreground">
               {view === 'explore' && 'Browse courses, programmes, and institutions'}
               {view === 'plan' && 'Build a personal programme roadmap'}
+              {view === 'compare' && 'Compare published programme curricula'}
               {view === 'saved' && 'Return to saved study options'}
               {view === 'workbench' && 'Inspect the full planning kernel'}
               {view === 'status' && 'Review source freshness and provenance'}

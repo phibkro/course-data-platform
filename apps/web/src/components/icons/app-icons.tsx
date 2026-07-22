@@ -7,6 +7,7 @@ import { DotsThreeIcon } from '@phosphor-icons/react/dist/csr/DotsThree';
 import { GraduationCapIcon } from '@phosphor-icons/react/dist/csr/GraduationCap';
 import { MagnifyingGlassIcon } from '@phosphor-icons/react/dist/csr/MagnifyingGlass';
 import { MapTrifoldIcon } from '@phosphor-icons/react/dist/csr/MapTrifold';
+import { ScalesIcon } from '@phosphor-icons/react/dist/csr/Scales';
 import { SlidersHorizontalIcon } from '@phosphor-icons/react/dist/csr/SlidersHorizontal';
 import { WrenchIcon } from '@phosphor-icons/react/dist/csr/Wrench';
 import { XIcon as PhosphorXIcon } from '@phosphor-icons/react/dist/csr/X';
@@ -50,6 +51,10 @@ export function WorkbenchIcon({ active, ...props }: AppIconProps) {
 
 export function DataStatusIcon({ active, ...props }: AppIconProps) {
   return <DatabaseIcon {...iconDefaults} {...props} weight={props.weight ?? iconWeight(active)} />;
+}
+
+export function CompareIcon({ active, ...props }: AppIconProps) {
+  return <ScalesIcon {...iconDefaults} {...props} weight={props.weight ?? iconWeight(active)} />;
 }
 
 export function ProgrammeIcon(props: AppIconProps) {

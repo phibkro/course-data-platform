@@ -3,6 +3,7 @@ import {
   RepositoryError,
   type ProgrammeCurriculumRepositoryService,
   type ProgrammeVersionListRow,
+  type SourceFreshnessRow,
 } from '@course-data/application';
 import type { Rejection, ValidatedDbhRecord } from '@course-data/source-dbh';
 import type { NtnuRejection, ValidatedNtnuCurriculum } from '@course-data/source-ntnu';
@@ -220,7 +221,7 @@ export const buildNtnuReconciliationModel = async (
           contentHash: await sha256({ course, period: period.termIndex, group: group.code }),
           observedAt: curriculum.attribution.retrievedAt,
         });
-        if (groupKind !== null && course.choiceCode !== 'VA') {
+        if (groupKind !== null && course.choiceCode !== 'VA' && course.credits !== null) {
           requirements.push({
             id: `${groupId}:requirement:${courseVersionId}`,
             groupId,
@@ -377,6 +378,16 @@ interface RequirementRow {
   readonly recommended_term_index: number | null;
   readonly is_default: number;
   readonly evidence_ref: string;
+}
+
+interface SourceFreshnessDbRow {
+  readonly source_provider: string;
+  readonly scope: string;
+  readonly target_seconds: number;
+  readonly last_attempt_at: string | null;
+  readonly last_successful_publish_at: string | null;
+  readonly last_error: string | null;
+  readonly stale: number;
 }
 
 export const createD1ProgrammeCurriculumRepository = (
@@ -910,6 +921,41 @@ export const createD1ProgrammeCurriculumRepository = (
       catch: (cause) =>
         new RepositoryError({
           operation: 'list programme versions',
+          message: cause instanceof Error ? cause.message : String(cause),
+        }),
+    }),
+  listSourceFreshness: () =>
+    Effect.tryPromise({
+      try: async () => {
+        const rows = await database
+          .prepare(
+            `SELECT source_provider, scope, target_seconds, last_attempt_at,
+                  last_successful_publish_at, last_error,
+                  CASE
+                    WHEN last_error IS NOT NULL THEN 1
+                    WHEN last_successful_publish_at IS NULL THEN 1
+                    WHEN unixepoch('now') - unixepoch(last_successful_publish_at) > target_seconds THEN 1
+                    ELSE 0
+                  END AS stale
+           FROM source_freshness
+           ORDER BY source_provider, scope`,
+          )
+          .all<SourceFreshnessDbRow>();
+        return rows.results.map(
+          (row): SourceFreshnessRow => ({
+            sourceProvider: row.source_provider,
+            scope: row.scope,
+            targetSeconds: row.target_seconds,
+            lastAttemptAt: row.last_attempt_at,
+            lastSuccessfulPublishAt: row.last_successful_publish_at,
+            lastError: row.last_error,
+            stale: row.stale === 1,
+          }),
+        );
+      },
+      catch: (cause) =>
+        new RepositoryError({
+          operation: 'list source freshness',
           message: cause instanceof Error ? cause.message : String(cause),
         }),
     }),
