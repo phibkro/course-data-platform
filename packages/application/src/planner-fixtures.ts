@@ -1,10 +1,11 @@
 import {
   decodeProgrammeVersion,
-  decodeWorkbenchViewSpec,
   evaluateScenario,
   generateBaselineScenario,
   type PlanningScenarioId,
 } from '@course-data/study-kernel';
+
+import { roadmapWorkbenchView } from './index';
 
 export const demoProgrammeVersion = decodeProgrammeVersion({
   id: 'no.ntnu:bit:2026',
@@ -129,26 +130,6 @@ export const demoProgrammeVersion = decodeProgrammeVersion({
       evidenceRefs: ['fixture:programme-roadmap'],
     },
   ],
-});
-
-export const roadmapWorkbenchView = decodeWorkbenchViewSpec({
-  schemaVersion: 1,
-  id: 'view:programme-roadmap',
-  title: 'Programme roadmap',
-  entity: 'planning-scenario',
-  filters: [],
-  relationTraversal: ['scenario.programmeVersion', 'programme.requirements'],
-  groupBy: ['terms.term.index'],
-  sort: [{ field: 'terms.term.index', direction: 'ascending' }],
-  fields: [
-    'terms.term.label',
-    'terms.courses.code',
-    'terms.courses.title',
-    'terms.courses.credits',
-    'evaluation.findings',
-  ],
-  presentation: 'roadmap',
-  parameters: [{ name: 'maximumCreditsPerTerm', value: '30' }],
 });
 
 export const demoProgrammeVersions = [demoProgrammeVersion] as const;

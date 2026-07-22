@@ -143,7 +143,9 @@
                           "startSeason",
                           "durationTerms",
                           "relationAuthority",
-                          "dataRevision"
+                          "dataRevision",
+                          "observedAt",
+                          "sourcePeriod"
                         ],
                         "properties": {
                           "programmeId": {
@@ -211,6 +213,27 @@
                           },
                           "dataRevision": {
                             "type": "string"
+                          },
+                          "observedAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sourcePeriod": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         }
                       }
@@ -219,7 +242,10 @@
                       "type": "object",
                       "required": [
                         "count",
-                        "dataRevision"
+                        "dataRevision",
+                        "observedAt",
+                        "sourcePeriod",
+                        "warnings"
                       ],
                       "properties": {
                         "count": {
@@ -238,8 +264,103 @@
                         },
                         "dataRevision": {
                           "type": "string"
+                        },
+                        "observedAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sourcePeriod": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "severity",
+                              "title",
+                              "detail"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "info",
+                                  "warning",
+                                  "error"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "detail": {
+                                "type": "string"
+                              }
+                            }
+                          }
                         }
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Response for status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
                     }
                   }
                 }
@@ -849,7 +970,10 @@
                       "type": "object",
                       "required": [
                         "note",
-                        "dataRevision"
+                        "dataRevision",
+                        "observedAt",
+                        "sourcePeriod",
+                        "warnings"
                       ],
                       "properties": {
                         "note": {
@@ -857,6 +981,58 @@
                         },
                         "dataRevision": {
                           "type": "string"
+                        },
+                        "observedAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sourcePeriod": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "severity",
+                              "title",
+                              "detail"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "info",
+                                  "warning",
+                                  "error"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "detail": {
+                                "type": "string"
+                              }
+                            }
+                          }
                         }
                       }
                     },
@@ -1052,6 +1228,49 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Response for status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "operationId": "getV1PlannerBaseline"
@@ -1059,8 +1278,8 @@
     },
     "/v1/planner/demo": {
       "get": {
-        "summary": "Get the illustrative study-roadmap projection",
-        "description": "Returns a fixture programme, baseline planning scenario, and structured evaluation findings. It proves the study-planning kernel contract and is not an official curriculum.",
+        "summary": "Get the default persisted study-roadmap projection",
+        "description": "Returns the first persisted programme version with its baseline planning scenario and structured evaluation findings; it fails when no persisted curriculum is available.",
         "tags": [
           "Planner"
         ],
@@ -1645,7 +1864,10 @@
                       "type": "object",
                       "required": [
                         "note",
-                        "dataRevision"
+                        "dataRevision",
+                        "observedAt",
+                        "sourcePeriod",
+                        "warnings"
                       ],
                       "properties": {
                         "note": {
@@ -1653,6 +1875,58 @@
                         },
                         "dataRevision": {
                           "type": "string"
+                        },
+                        "observedAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sourcePeriod": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "severity",
+                              "title",
+                              "detail"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "info",
+                                  "warning",
+                                  "error"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "detail": {
+                                "type": "string"
+                              }
+                            }
+                          }
                         }
                       }
                     },
@@ -1800,6 +2074,49 @@
                           }
                         }
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Response for status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
                     }
                   }
                 }

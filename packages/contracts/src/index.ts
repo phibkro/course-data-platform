@@ -192,6 +192,13 @@ export const EvaluationFindingDto = t.Object({
   evidenceRefs: t.Array(t.String()),
 });
 
+export const CapabilityWarningDto = t.Object({
+  code: t.String(),
+  severity: t.Union([t.Literal('info'), t.Literal('warning'), t.Literal('error')]),
+  title: t.String(),
+  detail: t.String(),
+});
+
 export const ProgrammeSummaryDto = t.Object({
   programmeId: t.String(),
   programmeVersionId: t.String(),
@@ -208,6 +215,8 @@ export const ProgrammeSummaryDto = t.Object({
     t.Literal('fixture'),
   ]),
   dataRevision: t.String(),
+  observedAt: t.Union([t.String({ format: 'date-time' }), t.Null()]),
+  sourcePeriod: t.Union([t.String(), t.Null()]),
 });
 
 export const ListProgrammesResponseDto = t.Object({
@@ -215,6 +224,9 @@ export const ListProgrammesResponseDto = t.Object({
   meta: t.Object({
     count: t.Integer({ minimum: 0 }),
     dataRevision: t.String(),
+    observedAt: t.Union([t.String({ format: 'date-time' }), t.Null()]),
+    sourcePeriod: t.Union([t.String(), t.Null()]),
+    warnings: t.Array(CapabilityWarningDto),
   }),
 });
 
@@ -233,6 +245,8 @@ export interface ProgrammeSummaryDtoType {
   readonly durationTerms: number;
   readonly relationAuthority: 'official' | 'administrative' | 'inferred' | 'fixture';
   readonly dataRevision: string;
+  readonly observedAt: string | null;
+  readonly sourcePeriod: string | null;
 }
 
 export interface ListProgrammesResponseDtoType {
@@ -240,7 +254,17 @@ export interface ListProgrammesResponseDtoType {
   readonly meta: {
     readonly count: number;
     readonly dataRevision: string;
+    readonly observedAt: string | null;
+    readonly sourcePeriod: string | null;
+    readonly warnings: ReadonlyArray<CapabilityWarningDtoType>;
   };
+}
+
+export interface CapabilityWarningDtoType {
+  readonly code: string;
+  readonly severity: 'info' | 'warning' | 'error';
+  readonly title: string;
+  readonly detail: string;
 }
 
 export const WorkbenchViewSpecDto = t.Object({
@@ -295,6 +319,9 @@ export const PlannerDemoResponseDto = t.Object({
   meta: t.Object({
     note: t.String(),
     dataRevision: t.String(),
+    observedAt: t.Union([t.String({ format: 'date-time' }), t.Null()]),
+    sourcePeriod: t.Union([t.String(), t.Null()]),
+    warnings: t.Array(CapabilityWarningDto),
   }),
   viewSpec: WorkbenchViewSpecDto,
 });
@@ -386,6 +413,9 @@ export interface PlannerDemoResponseDtoType {
   meta: {
     note: string;
     dataRevision: string;
+    observedAt: string | null;
+    sourcePeriod: string | null;
+    warnings: Array<CapabilityWarningDtoType>;
   };
   viewSpec: {
     schemaVersion: 1;
@@ -423,7 +453,13 @@ export const toPlannerDemoResponseDto = (projection: {
   readonly programme: ProgrammeVersion;
   readonly scenario: PlanningScenario;
   readonly evaluation: ScenarioEvaluation;
-  readonly meta: { readonly note: string; readonly dataRevision: string };
+  readonly meta: {
+    readonly note: string;
+    readonly dataRevision: string;
+    readonly observedAt: string | null;
+    readonly sourcePeriod: string | null;
+    readonly warnings: ReadonlyArray<CapabilityWarningDtoType>;
+  };
   readonly viewSpec: WorkbenchViewSpec;
 }): PlannerDemoResponseDtoType => ({
   programme: {
@@ -467,7 +503,10 @@ export const toPlannerDemoResponseDto = (projection: {
     })),
     isFeasible: projection.evaluation.isFeasible,
   },
-  meta: { ...projection.meta },
+  meta: {
+    ...projection.meta,
+    warnings: projection.meta.warnings.map((warning) => ({ ...warning })),
+  },
   viewSpec: {
     ...projection.viewSpec,
     filters: projection.viewSpec.filters.map((filter) => ({

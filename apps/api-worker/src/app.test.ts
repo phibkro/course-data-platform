@@ -1,11 +1,18 @@
-import { createMemoryCourseRepository } from '@course-data/application';
+import {
+  createMemoryCourseRepository,
+  createMemoryProgrammeCurriculumRepository,
+} from '@course-data/application';
 import { fixtureCourses } from '@course-data/application/fixtures';
+import { demoProgrammeVersions } from '@course-data/application/planner-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { createApi } from './app';
 import { createCourseRuntime } from './runtime';
 
-const runtime = createCourseRuntime(createMemoryCourseRepository(fixtureCourses));
+const runtime = createCourseRuntime(
+  createMemoryCourseRepository(fixtureCourses),
+  createMemoryProgrammeCurriculumRepository(demoProgrammeVersions),
+);
 const app = createApi(runtime);
 
 describe('Course Data API', () => {
@@ -64,6 +71,15 @@ describe('Course Data API', () => {
       title: 'Informatics — bachelor',
       relationAuthority: 'fixture',
     });
+    expect(body).toMatchObject({
+      meta: {
+        observedAt: null,
+        sourcePeriod: null,
+        warnings: expect.arrayContaining([
+          expect.objectContaining({ code: 'freshness-unknown', severity: 'warning' }),
+        ]),
+      },
+    });
   });
 
   it('generates a baseline for a selected programme version', async () => {
@@ -97,7 +113,7 @@ describe('Course Data API', () => {
     expect(body.scenario.terms).toHaveLength(6);
     expect(body.evaluation.totalPlannedCredits).toBe(60);
     expect(body.evaluation.isFeasible).toBe(true);
-    expect(body.meta.note).toContain('not an official NTNU curriculum');
+    expect(body.meta.note).toContain('Evidence-backed official curriculum');
   });
 
   it('publishes a runtime-schema-derived OpenAPI document', async () => {

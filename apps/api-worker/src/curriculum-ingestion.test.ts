@@ -1,4 +1,7 @@
-import { createD1ProgrammeCurriculumRepository } from '@course-data/database';
+import {
+  createD1CourseRepository,
+  createD1ProgrammeCurriculumRepository,
+} from '@course-data/database';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -8,6 +11,8 @@ import { getPlatformProxy, type PlatformProxy, unstable_splitSqlQuery } from 'wr
 import * as Effect from 'effect/Effect';
 
 import { makeOfficialCurriculumInput } from '../scripts/official-curriculum-input';
+import { createApi } from './app';
+import { createCourseRuntime } from './runtime';
 
 interface Counts {
   readonly programme_versions: number;
@@ -139,5 +144,59 @@ describe('official NTNU curriculum reconciliation', () => {
         expect.objectContaining({ kind: 'choose-n', choose: 2 }),
       ]),
     );
+
+    const runtime = createCourseRuntime(
+      createD1CourseRepository(proxy.env.DB),
+      createD1ProgrammeCurriculumRepository(proxy.env.DB),
+    );
+    const app = createApi(runtime);
+    const programmesResponse = await app.handle(new Request('http://localhost/v1/programmes'));
+    expect(programmesResponse.status).toBe(200);
+    await expect(programmesResponse.json()).resolves.toMatchObject({
+      items: [
+        {
+          programmeVersionId: firstReport.programmeVersionId,
+          dataRevision: firstReport.dataRevision,
+          observedAt: '2026-07-22T02:20:39Z',
+          sourcePeriod: '2024',
+          relationAuthority: 'official',
+        },
+      ],
+      meta: {
+        dataRevision: firstReport.dataRevision,
+        observedAt: '2026-07-22T02:20:39Z',
+        sourcePeriod: '2024',
+        warnings: [expect.objectContaining({ severity: 'warning' })],
+      },
+    });
+
+    const baselineResponse = await app.handle(
+      new Request(
+        `http://localhost/v1/planner/baseline?programmeVersionId=${encodeURIComponent(firstReport.programmeVersionId)}`,
+      ),
+    );
+    expect(baselineResponse.status).toBe(200);
+    await expect(baselineResponse.json()).resolves.toMatchObject({
+      programme: { id: firstReport.programmeVersionId, durationTerms: 6 },
+      scenario: { programmeVersionId: firstReport.programmeVersionId },
+      meta: {
+        dataRevision: firstReport.dataRevision,
+        observedAt: '2026-07-22T02:20:39Z',
+        sourcePeriod: '2024',
+      },
+      viewSpec: { presentation: 'roadmap' },
+    });
+
+    const missingResponse = await app.handle(
+      new Request('http://localhost/v1/planner/baseline?programmeVersionId=no.ntnu%3Abit%3A2026'),
+    );
+    expect(missingResponse.status).toBe(404);
+
+    const demoResponse = await app.handle(new Request('http://localhost/v1/planner/demo'));
+    expect(demoResponse.status).toBe(200);
+    await expect(demoResponse.json()).resolves.toMatchObject({
+      programme: { id: firstReport.programmeVersionId },
+    });
+    await runtime.dispose();
   }, 30_000);
 });

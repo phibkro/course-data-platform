@@ -34,6 +34,10 @@ import {
   saveScenario,
   serializeScenarioEnvelope,
 } from './scenario-repository';
+import {
+  findScenarioCompatibilityIssues,
+  type ScenarioCompatibilityIssue,
+} from './scenario-compatibility';
 
 const evaluationPolicy = { maximumCreditsPerTerm: 30 } as const;
 type PlannerMode = 'plan' | 'workbench';
@@ -138,6 +142,38 @@ function ProgrammeOnboarding({
       </div>
       {visible.length === 0 && (
         <p className="state">No programme in the current bounded dataset matches that search.</p>
+      )}
+    </section>
+  );
+}
+
+function ScenarioCompatibilityWarning({
+  issues,
+  selectedProgrammeUnavailable,
+}: {
+  readonly issues: ReadonlyArray<ScenarioCompatibilityIssue>;
+  readonly selectedProgrammeUnavailable: boolean;
+}) {
+  if (issues.length === 0 && !selectedProgrammeUnavailable) return null;
+  return (
+    <section className="notice" role="alert" aria-labelledby="scenario-revision-warning-heading">
+      <strong id="scenario-revision-warning-heading">
+        Saved roadmap data revision unavailable
+      </strong>
+      <p>
+        {issues.length > 0
+          ? `${issues.length} saved scenario${issues.length === 1 ? '' : 's'} reference a programme version or data revision that is not in the current catalogue.`
+          : 'The previously selected programme version is not in the current catalogue.'}{' '}
+        The saved data has been kept unchanged; choose a current programme to continue planning.
+      </p>
+      {issues.length > 0 && (
+        <ul>
+          {issues.map((issue) => (
+            <li key={issue.scenarioId}>
+              {issue.scenarioTitle} — {issue.programmeVersionId} ({issue.dataRevision})
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );
@@ -437,6 +473,9 @@ export function PlannerWorkspace({ mode }: { readonly mode: PlannerMode }) {
   const [scenarios, setScenarios] = useState<ReadonlyArray<PlanningScenario>>([]);
   const [storageReady, setStorageReady] = useState(false);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
+  const [compatibilityIssues, setCompatibilityIssues] = useState<
+    ReadonlyArray<ScenarioCompatibilityIssue>
+  >([]);
   const loadedProgrammeRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -449,9 +488,25 @@ export function PlannerWorkspace({ mode }: { readonly mode: PlannerMode }) {
       .finally(() => setStorageReady(true));
   }, []);
 
+  useEffect(() => {
+    if (!storageReady || !programmes.data) return;
+    listScenarios()
+      .then((stored) =>
+        setCompatibilityIssues(findScenarioCompatibilityIssues(stored, programmes.data.items)),
+      )
+      .catch((error: unknown) => setOperationMessage(errorMessage(error)));
+  }, [programmes.data, storageReady]);
+
+  const selectedProgrammeAvailable =
+    selectedProgrammeVersionId === null ||
+    (programmes.data?.items.some(
+      (programme) => programme.programmeVersionId === selectedProgrammeVersionId,
+    ) ??
+      false);
+
   const baseline = useQuery<PlannerDemoResponseDtoType>({
     queryKey: ['planner-baseline', selectedProgrammeVersionId],
-    enabled: selectedProgrammeVersionId !== null,
+    enabled: selectedProgrammeVersionId !== null && selectedProgrammeAvailable,
     queryFn: async () => {
       const result = await api.v1.planner.baseline.get({
         query: { programmeVersionId: selectedProgrammeVersionId ?? '' },
@@ -650,56 +705,79 @@ export function PlannerWorkspace({ mode }: { readonly mode: PlannerMode }) {
   }
   if (programmes.isError) return <p className="state error">{programmes.error.message}</p>;
   if (!programmes.data) return null;
-  if (!selectedProgrammeVersionId) {
-    return <ProgrammeOnboarding programmes={programmes.data} onSelect={selectProgramme} />;
+  const compatibilityWarning = (
+    <ScenarioCompatibilityWarning
+      issues={compatibilityIssues}
+      selectedProgrammeUnavailable={!selectedProgrammeAvailable}
+    />
+  );
+  if (!selectedProgrammeAvailable) {
+    return (
+      <>
+        {compatibilityWarning}
+        <ProgrammeOnboarding programmes={programmes.data} onSelect={selectProgramme} />
+      </>
+    );
   }
+  if (!selectedProgrammeVersionId) {
+    return (
+      <>
+        {compatibilityWarning}
+        <ProgrammeOnboarding programmes={programmes.data} onSelect={selectProgramme} />
+      </>
+    );
+  }
+  if (baseline.isError) return <p className="state error">{baseline.error.message}</p>;
   if (baseline.isLoading || !projection || !activeScenario || !evaluation) {
     return <p className="state">Building the selected programme roadmap…</p>;
   }
-  if (baseline.isError) return <p className="state error">{baseline.error.message}</p>;
 
   if (mode === 'workbench') {
     return (
-      <section className="workbench" aria-labelledby="workbench-heading">
-        <div className="projection-heading">
-          <div>
-            <p className="section-label">Kernel workbench</p>
-            <h2 id="workbench-heading">Inspect the active roadmap projection</h2>
+      <>
+        {compatibilityWarning}
+        <section className="workbench" aria-labelledby="workbench-heading">
+          <div className="projection-heading">
+            <div>
+              <p className="section-label">Kernel workbench</p>
+              <h2 id="workbench-heading">Inspect the active roadmap projection</h2>
+            </div>
+            <button type="button" onClick={() => void clearContext()}>
+              Clear local planner data
+            </button>
           </div>
-          <button type="button" onClick={() => void clearContext()}>
-            Clear local planner data
-          </button>
-        </div>
-        <p className="state subtle">
-          This view is generated from a serializable view specification. It exposes the full input,
-          evaluation output, relation authority, and data revision without changing the curated Plan
-          interface.
-        </p>
-        <details open>
-          <summary>Declarative view specification</summary>
-          <pre>{JSON.stringify(projection.viewSpec, null, 2)}</pre>
-        </details>
-        <details>
-          <summary>Programme, scenario, and evaluation</summary>
-          <pre>
-            {JSON.stringify(
-              {
-                programme: projection.programme,
-                scenario: activeScenario,
-                evaluation,
-                dataRevision: projection.programme.dataRevision,
-              },
-              null,
-              2,
-            )}
-          </pre>
-        </details>
-      </section>
+          <p className="state subtle">
+            This view is generated from a serializable view specification. It exposes the full
+            input, evaluation output, relation authority, and data revision without changing the
+            curated Plan interface.
+          </p>
+          <details open>
+            <summary>Declarative view specification</summary>
+            <pre>{JSON.stringify(projection.viewSpec, null, 2)}</pre>
+          </details>
+          <details>
+            <summary>Programme, scenario, and evaluation</summary>
+            <pre>
+              {JSON.stringify(
+                {
+                  programme: projection.programme,
+                  scenario: activeScenario,
+                  evaluation,
+                  dataRevision: projection.programme.dataRevision,
+                },
+                null,
+                2,
+              )}
+            </pre>
+          </details>
+        </section>
+      </>
     );
   }
 
   return (
     <section aria-labelledby="planner-heading">
+      {compatibilityWarning}
       <div className="planner-intro">
         <div>
           <p className="section-label">Roadmap projection</p>

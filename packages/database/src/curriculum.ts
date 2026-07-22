@@ -1,7 +1,12 @@
-import { RepositoryError } from '@course-data/application';
+import {
+  ProgrammeVersionNotFoundError,
+  RepositoryError,
+  type ProgrammeCurriculumRepositoryService,
+  type ProgrammeVersionListRow,
+} from '@course-data/application';
 import type { Rejection, ValidatedDbhRecord } from '@course-data/source-dbh';
 import type { NtnuRejection, ValidatedNtnuCurriculum } from '@course-data/source-ntnu';
-import { decodeProgrammeVersion, type ProgrammeVersion } from '@course-data/study-kernel';
+import { decodeProgrammeVersion } from '@course-data/study-kernel';
 import * as Effect from 'effect/Effect';
 
 export interface NtnuCurriculumReconciliationInput {
@@ -18,13 +23,10 @@ export interface ReconciliationReport {
   readonly dataRevision: string;
 }
 
-export interface ProgrammeCurriculumRepository {
+export interface ProgrammeCurriculumRepository extends ProgrammeCurriculumRepositoryService {
   readonly reconcile: (
     input: NtnuCurriculumReconciliationInput,
   ) => Effect.Effect<ReconciliationReport, RepositoryError>;
-  readonly getProgrammeVersion: (
-    programmeVersionId: string,
-  ) => Effect.Effect<ProgrammeVersion, RepositoryError>;
 }
 
 type Authority = 'official' | 'administrative' | 'inferred' | 'unresolved';
@@ -299,6 +301,45 @@ interface ProgrammeVersionRow {
   readonly data_revision: string;
   readonly relation_authority: 'official' | 'administrative' | 'inferred';
 }
+
+interface ProgrammeVersionListDbRow {
+  readonly programme_id: string;
+  readonly programme_version_id: string;
+  readonly institution_id: string;
+  readonly institution_short_name: string;
+  readonly title: string;
+  readonly cohort_start_year: number;
+  readonly start_season: 'autumn' | 'spring';
+  readonly duration_terms: number;
+  readonly relation_authority: string;
+  readonly data_revision: string;
+  readonly observed_at: string | null;
+  readonly source_period: string | null;
+}
+
+const toProgrammeVersionListRow = (row: ProgrammeVersionListDbRow): ProgrammeVersionListRow => {
+  if (
+    row.relation_authority !== 'official' &&
+    row.relation_authority !== 'administrative' &&
+    row.relation_authority !== 'inferred'
+  ) {
+    throw new Error(`Unsupported programme relation authority: ${row.relation_authority}`);
+  }
+  return {
+    programmeId: row.programme_id,
+    programmeVersionId: row.programme_version_id,
+    institutionId: row.institution_id,
+    institutionShortName: row.institution_short_name,
+    title: row.title,
+    cohortStartYear: row.cohort_start_year,
+    startSeason: row.start_season,
+    durationTerms: row.duration_terms,
+    relationAuthority: row.relation_authority,
+    dataRevision: row.data_revision,
+    observedAt: row.observed_at,
+    sourcePeriod: row.source_period,
+  };
+};
 
 interface RequirementGroupRow {
   readonly id: string;
@@ -693,6 +734,34 @@ export const createD1ProgrammeCurriculumRepository = (
           message: cause instanceof Error ? cause.message : String(cause),
         }),
     }),
+  listProgrammeVersions: () =>
+    Effect.tryPromise({
+      try: async () => {
+        const rows = await database
+          .prepare(
+            `SELECT p.id AS programme_id, pv.id AS programme_version_id,
+                    p.institution_id, i.short_name AS institution_short_name,
+                    pv.title, pv.cohort_start_year, pv.start_season,
+                    pv.duration_terms, pv.relation_authority, pv.data_revision,
+                    pv.observed_at, sr.source_period
+             FROM programme_version pv
+             JOIN programme p ON p.id = pv.programme_id
+             JOIN institutions i ON i.id = p.institution_id
+             LEFT JOIN source_record sr
+               ON sr.source_provider = pv.source_provider
+              AND sr.source_record_id = pv.source_record_id
+              AND sr.dataset_revision = pv.dataset_revision
+             ORDER BY pv.cohort_start_year DESC, pv.id`,
+          )
+          .all<ProgrammeVersionListDbRow>();
+        return rows.results.map(toProgrammeVersionListRow);
+      },
+      catch: (cause) =>
+        new RepositoryError({
+          operation: 'list programme versions',
+          message: cause instanceof Error ? cause.message : String(cause),
+        }),
+    }),
   getProgrammeVersion: (programmeVersionId) =>
     Effect.tryPromise({
       try: async () => {
@@ -709,7 +778,7 @@ export const createD1ProgrammeCurriculumRepository = (
           )
           .bind(programmeVersionId)
           .first<ProgrammeVersionRow>();
-        if (version === null) throw new Error(`Unknown programme version: ${programmeVersionId}`);
+        if (version === null) throw new ProgrammeVersionNotFoundError({ programmeVersionId });
 
         const groupRows = await database
           .prepare(
@@ -805,9 +874,11 @@ export const createD1ProgrammeCurriculumRepository = (
         });
       },
       catch: (cause) =>
-        new RepositoryError({
-          operation: 'read programme curriculum',
-          message: cause instanceof Error ? cause.message : String(cause),
-        }),
+        cause instanceof ProgrammeVersionNotFoundError
+          ? cause
+          : new RepositoryError({
+              operation: 'read programme curriculum',
+              message: cause instanceof Error ? cause.message : String(cause),
+            }),
     }),
 });

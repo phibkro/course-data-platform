@@ -1,8 +1,4 @@
-import { listCourses } from '@course-data/application';
-import {
-  getDemoPlannerProjection,
-  listDemoProgrammes,
-} from '@course-data/application/planner-fixtures';
+import { getPlannerBaseline, listCourses, listProgrammes } from '@course-data/application';
 import {
   ListCoursesQueryDto,
   ListCoursesResponseDto,
@@ -86,18 +82,29 @@ export const createApi = (runtime: CourseRuntime) =>
     })
     .get(
       '/v1/programmes',
-      () => {
-        const items = listDemoProgrammes();
+      async ({ request, set, status }) => {
+        const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
+        const result = await runtime.runPromise(Effect.either(listProgrammes()));
+        set.headers['x-request-id'] = requestId;
+        if (Either.isLeft(result)) {
+          return status(503, {
+            type: 'https://course-data.example/problems/catalogue-unavailable',
+            title: 'Programme catalogue unavailable',
+            status: 503,
+            detail: result.left.message,
+            requestId,
+          });
+        }
         return {
-          items,
+          items: result.right.items.map((item) => ({ ...item })),
           meta: {
-            count: items.length,
-            dataRevision: items[0]?.dataRevision ?? DATA_REVISION,
+            ...result.right.meta,
+            warnings: result.right.meta.warnings.map((warning) => ({ ...warning })),
           },
         };
       },
       {
-        response: ListProgrammesResponseDto,
+        response: { 200: ListProgrammesResponseDto, 503: ProblemDto },
         detail: {
           summary: 'List programme versions available to the planner',
           description:
@@ -108,24 +115,38 @@ export const createApi = (runtime: CourseRuntime) =>
     )
     .get(
       '/v1/planner/baseline',
-      ({ query, status }) => {
-        const projection = getDemoPlannerProjection(query.programmeVersionId);
-        if (!projection) {
+      async ({ query, request, set, status }) => {
+        const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
+        const result = await runtime.runPromise(
+          Effect.either(getPlannerBaseline(query.programmeVersionId)),
+        );
+        set.headers['x-request-id'] = requestId;
+        if (Either.isLeft(result)) {
+          if (result.left._tag !== 'ProgrammeVersionNotFoundError') {
+            return status(503, {
+              type: 'https://course-data.example/problems/planner-unavailable',
+              title: 'Planner unavailable',
+              status: 503,
+              detail: result.left.message,
+              requestId,
+            });
+          }
           return status(404, {
             type: 'https://course-data.example/problems/programme-version-not-found',
             title: 'Programme version not found',
             status: 404,
             detail: `No programme version exists for ${query.programmeVersionId}.`,
-            requestId: crypto.randomUUID(),
+            requestId,
           });
         }
-        return toPlannerDemoResponseDto(projection);
+        return toPlannerDemoResponseDto(result.right);
       },
       {
         query: PlannerBaselineQueryDto,
         response: {
           200: PlannerDemoResponseDto,
           404: ProblemDto,
+          503: ProblemDto,
         },
         detail: {
           summary: 'Generate a baseline planning scenario',
@@ -137,17 +158,44 @@ export const createApi = (runtime: CourseRuntime) =>
     )
     .get(
       '/v1/planner/demo',
-      () => {
-        const projection = getDemoPlannerProjection();
-        if (!projection) throw new Error('Missing demo programme fixture');
-        return toPlannerDemoResponseDto(projection);
+      async ({ request, set, status }) => {
+        const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
+        const programmes = await runtime.runPromise(Effect.either(listProgrammes()));
+        set.headers['x-request-id'] = requestId;
+        if (Either.isLeft(programmes) || programmes.right.items[0] === undefined) {
+          return status(503, {
+            type: 'https://course-data.example/problems/planner-unavailable',
+            title: 'Planner unavailable',
+            status: 503,
+            detail: Either.isLeft(programmes)
+              ? programmes.left.message
+              : 'No persisted programme version is available.',
+            requestId,
+          });
+        }
+        const result = await runtime.runPromise(
+          Effect.either(getPlannerBaseline(programmes.right.items[0].programmeVersionId)),
+        );
+        if (Either.isLeft(result)) {
+          return status(503, {
+            type: 'https://course-data.example/problems/planner-unavailable',
+            title: 'Planner unavailable',
+            status: 503,
+            detail:
+              result.left._tag === 'ProgrammeVersionNotFoundError'
+                ? `Persisted programme ${result.left.programmeVersionId} disappeared during the read.`
+                : result.left.message,
+            requestId,
+          });
+        }
+        return toPlannerDemoResponseDto(result.right);
       },
       {
-        response: PlannerDemoResponseDto,
+        response: { 200: PlannerDemoResponseDto, 503: ProblemDto },
         detail: {
-          summary: 'Get the illustrative study-roadmap projection',
+          summary: 'Get the default persisted study-roadmap projection',
           description:
-            'Returns a fixture programme, baseline planning scenario, and structured evaluation findings. It proves the study-planning kernel contract and is not an official curriculum.',
+            'Returns the first persisted programme version with its baseline planning scenario and structured evaluation findings; it fails when no persisted curriculum is available.',
           tags: ['Planner'],
         },
       },
