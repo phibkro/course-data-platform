@@ -224,13 +224,35 @@ export const processNtnu = async (
           `NTNU ${code} was rejected: ${capture.parseResult.rejected.map((item) => item.code).join(', ') || 'no accepted curriculum'}.`,
         );
       }
+      const [dbhProgramme, dbhCourses] = await Promise.all([
+        replicateDbhEvidence(
+          {
+            tableId: 347,
+            institutionCode: '1150',
+            year: message.year,
+            semester: 1,
+            programmeCode: code,
+          },
+          dependencies(env),
+        ),
+        replicateDbhEvidence(
+          {
+            tableId: 208,
+            institutionCode: '1150',
+            year: message.year,
+            semester: 1,
+            programmeCode: code,
+          },
+          dependencies(env),
+        ),
+      ]);
       await Effect.runPromise(
         repository.reconcile({
           curriculum,
           curriculumRejections: capture.parseResult.rejected,
-          dbhProgrammeRecords: [],
-          dbhCourseRecords: [],
-          dbhRejections: [],
+          dbhProgrammeRecords: dbhProgramme.parseResult.accepted,
+          dbhCourseRecords: dbhCourses.parseResult.accepted,
+          dbhRejections: [...dbhProgramme.parseResult.rejected, ...dbhCourses.parseResult.rejected],
         }),
       );
       const completedAt = now().toISOString();

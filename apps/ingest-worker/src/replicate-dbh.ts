@@ -178,6 +178,25 @@ export const replicateDbhEvidence = async (
     request.tableId === 347
       ? parseTable347(bytes, { retrievedAt, contentHash })
       : parseTable208(bytes, { retrievedAt, contentHash });
+  // Preserve a byte-addressable evidence object for every parsed record. The
+  // serving repository stores JSON.stringify(record.raw) as raw_payload, so
+  // archive those exact bytes to make provenance independently verifiable.
+  for (const record of parseResult.accepted) {
+    const recordBytes = new TextEncoder().encode(JSON.stringify(record.raw));
+    const recordHash = await sha256(recordBytes);
+    const recordKey = bodyKeyFor(request.tableId, recordHash);
+    if ((await dependencies.evidence.head(recordKey)) === null) {
+      await dependencies.evidence.put(recordKey, recordBytes, {
+        httpMetadata: { contentType: 'application/json' },
+        customMetadata: {
+          provider: 'dbh',
+          tableId: String(request.tableId),
+          sha256: recordHash,
+          recordId: record.sourceRecordId,
+        },
+      });
+    }
+  }
   return {
     contentHash,
     bodyKey,

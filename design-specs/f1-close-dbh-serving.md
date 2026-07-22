@@ -1,9 +1,9 @@
 # Design-spec: Close F1 — DBH evidence reconciled into serving (fixtures removable)
 
-**Author:** wE:p1 (lead/advisor).  **Builds for:** `course-engineer`.  **Status:** frozen when its PR opens.
+**Author:** wE:p1 (lead/advisor). **Builds for:** `course-engineer`. **Status:** frozen when its PR opens.
 **Base:** stacked on `216a308` (current `agent/live-replication-r3` HEAD — the banked R3-breadth commit).
 **Repo location once committed:** `design-specs/f1-close-dbh-serving.md` (base commit of the stacked branch).
-**Supersedes:** `/tmp/course-data-platform-designspec-live-fetch-to-serving.md` (written for the pre-216a308 world; NTNU is now already live-reconciled — this spec targets the *remaining* DBH gap).
+**Supersedes:** `/tmp/course-data-platform-designspec-live-fetch-to-serving.md` (written for the pre-216a308 world; NTNU is now already live-reconciled — this spec targets the _remaining_ DBH gap).
 
 ---
 
@@ -19,6 +19,7 @@ served.**
 ## Why this spec exists (the true residual gap after 216a308)
 
 `216a308` banked R3 breadth, but the F1 seam is **still open on the DBH side**:
+
 - `replicateDbhEvidence` (`apps/ingest-worker/src/replicate-dbh.ts:126`) fetches → archives exact bytes to
   `evidence/dbh/table-<id>/sha256/<hash>.json` → **parses** via `parseTable347/208` → then **discards the
   parsed records**, returning only `acceptedCount` (line ~188).
@@ -75,8 +76,8 @@ returns a live DBH-provenanced programme.
 1. **Fixture-independence — the headline falsifier.** Rename/remove the committed fixtures
    (`packages/source-dbh/fixtures/*`, `packages/source-ntnu/fixtures/*`) and the fixture `import`s in
    `official-curriculum-input.ts`; trigger a replication run; `GET /v1/programmes` and `/v1/planner/baseline`
-   still return a programme carrying **live DBH-sourced** course/programme records. *If serving loses its DBH
-   provenance (or breaks) when fixtures are gone, F1 is not closed.*
+   still return a programme carrying **live DBH-sourced** course/programme records. _If serving loses its DBH
+   provenance (or breaks) when fixtures are gone, F1 is not closed._
 2. **DBH provenance trace.** For the served programme, a DBH `source_record.raw_payload` sha256 == an object
    under `evidence/dbh/table-<id>/sha256/<hash>` written by the run; `observed_at` == the run's `retrievedAt`.
    (Byte-verifiable — recompute the hash; do not trust a summary.)
@@ -91,7 +92,7 @@ returns a live DBH-provenanced programme.
    the loop.**
 7. `bun run validate` green; a new/updated test asserts the DBH records reach the served revision from
    archived evidence (the `fetch` seam may be injected with a captured response — that verifies the wiring;
-   the *experienceable* journey in falsifier 1, run against real DBH, is the proof; tests are
+   the _experienceable_ journey in falsifier 1, run against real DBH, is the proof; tests are
    necessary-not-sufficient).
 
 ## Out of scope (separate specs — 1:1 discipline)

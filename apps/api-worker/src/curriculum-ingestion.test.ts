@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getPlatformProxy, type PlatformProxy, unstable_splitSqlQuery } from 'wrangler';
 import * as Effect from 'effect/Effect';
 
-import { makeOfficialCurriculumInput } from '../scripts/official-curriculum-input';
+import { makeOfficialCurriculumInput } from './curriculum-fixture-input';
 import { createApi } from './app';
 import { createCourseRuntime } from './runtime';
 
@@ -228,6 +228,11 @@ describe('official NTNU curriculum reconciliation', () => {
         expect.objectContaining({ kind: 'choose-n', choose: 2 }),
       ]),
     );
+    const servedDbhRecord = await proxy.env.DB.prepare(
+      `SELECT raw_payload, observed_at FROM source_record WHERE source_provider = 'dbh' LIMIT 1`,
+    ).first<{ readonly raw_payload: string; readonly observed_at: string }>();
+    expect(servedDbhRecord?.observed_at).toMatch(/^2026-07-22T02:2[13]:\d{2}Z$/);
+    expect(servedDbhRecord?.raw_payload).toBeTruthy();
 
     const runtime = createCourseRuntime(
       createD1CourseRepository(proxy.env.DB),

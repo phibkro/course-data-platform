@@ -23,11 +23,10 @@ export const makeOfficialCurriculumInput = (): NtnuCurriculumReconciliationInput
     requestUrl: ntnuSource.requestUrl,
   });
   const acceptedCurriculum = curriculum.accepted[0];
-  if (acceptedCurriculum === undefined) {
+  if (acceptedCurriculum === undefined)
     throw new Error(
       `Official curriculum fixture was rejected: ${JSON.stringify(curriculum.rejected)}`,
     );
-  }
   return {
     curriculum: acceptedCurriculum,
     curriculumRejections: curriculum.rejected,

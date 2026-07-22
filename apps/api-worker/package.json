@@ -10,7 +10,6 @@
     "dev": "wrangler dev",
     "build": "WRANGLER_SEND_METRICS=false CI=1 wrangler deploy --dry-run --outdir dist",
     "openapi": "bun ./scripts/export-openapi.ts",
-    "ingest:official-curriculum": "bun ./scripts/ingest-official-curriculum.ts",
     "test": "vitest run",
     "db:migrate:local": "wrangler d1 migrations apply course-data-dev --local"
   },
