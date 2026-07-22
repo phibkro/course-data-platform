@@ -234,11 +234,26 @@ describe('official NTNU curriculum reconciliation', () => {
     expect(servedDbhRecord?.observed_at).toMatch(/^2026-07-22T02:2[13]:\d{2}Z$/);
     expect(servedDbhRecord?.raw_payload).toBeTruthy();
 
+    const catalogueRows = await proxy.env.DB.prepare(
+      `SELECT cv.source_provider
+       FROM course_versions cv
+       JOIN dataset_revision_course_version snapshot ON snapshot.course_version_id = cv.id
+       JOIN dataset_publication publication ON publication.current_revision_id = snapshot.revision_id`,
+    ).all<{ readonly source_provider: string }>();
+    expect(catalogueRows.results.every((row) => row.source_provider !== 'fixture')).toBe(true);
+
     const runtime = createCourseRuntime(
       createD1CourseRepository(proxy.env.DB),
       createD1ProgrammeCurriculumRepository(proxy.env.DB),
     );
     const app = createApi(runtime);
+    const coursesResponse = await app.handle(new Request('http://localhost/v1/courses'));
+    expect(coursesResponse.status).toBe(200);
+    const coursesBody = (await coursesResponse.json()) as {
+      items: Array<{ source: { provider: string } }>;
+    };
+    expect(coursesBody.items.length).toBeGreaterThan(0);
+    expect(coursesBody.items.every((course) => course.source.provider !== 'fixture')).toBe(true);
     const programmesResponse = await app.handle(new Request('http://localhost/v1/programmes'));
     expect(programmesResponse.status).toBe(200);
     await expect(programmesResponse.json()).resolves.toMatchObject({

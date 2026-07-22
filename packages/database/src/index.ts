@@ -84,19 +84,6 @@ export const createD1CourseRepository = (database: D1Database): CourseRepository
               teaching_language, source_provider, source_record_id, source_retrieved_at
             FROM ranked_published_course_versions
             WHERE visibility_rank = 1
-
-            UNION ALL
-
-            SELECT
-              cv.id, cv.course_id, cv.academic_year,
-              cv.title, cv.credits, cv.level, cv.teaching_language,
-              cv.source_provider, cv.source_record_id, cv.source_retrieved_at
-            FROM course_versions cv
-            WHERE NOT EXISTS (
-              SELECT 1
-              FROM dataset_revision_course_version snapshot
-              WHERE snapshot.course_version_id = cv.id
-            )
           )
           SELECT DISTINCT
             cv.id,
