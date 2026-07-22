@@ -18,6 +18,7 @@ CONFIGS=(
   packages/study-kernel/tsconfig.json
   packages/contracts/tsconfig.json
   packages/database/tsconfig.json
+  packages/source-dbh/tsconfig.json
   apps/api-worker/tsconfig.json
   apps/ingest-worker/tsconfig.json
   apps/web/tsconfig.json

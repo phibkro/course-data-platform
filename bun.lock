@@ -108,6 +108,13 @@
         "effect": "3.22.0",
       },
     },
+    "packages/source-dbh": {
+      "name": "@course-data/source-dbh",
+      "version": "0.1.0",
+      "dependencies": {
+        "effect": "3.22.0",
+      },
+    },
     "packages/study-kernel": {
       "name": "@course-data/study-kernel",
       "version": "0.1.0",
@@ -153,6 +160,8 @@
     "@course-data/domain": ["@course-data/domain@workspace:packages/domain"],
 
     "@course-data/ingest-worker": ["@course-data/ingest-worker@workspace:apps/ingest-worker"],
+
+    "@course-data/source-dbh": ["@course-data/source-dbh@workspace:packages/source-dbh"],
 
     "@course-data/study-kernel": ["@course-data/study-kernel@workspace:packages/study-kernel"],
 

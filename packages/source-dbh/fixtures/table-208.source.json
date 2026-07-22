@@ -1,0 +1,41 @@
+{
+  "sourceProvider": "dbh",
+  "tableId": 208,
+  "requestUrl": "https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData",
+  "requestMethod": "POST",
+  "requestBody": {
+    "tabell_id": 208,
+    "api_versjon": 1,
+    "statuslinje": "J",
+    "kodetekst": "N",
+    "desimal_separator": ".",
+    "variabler": ["*"],
+    "sortBy": ["Institusjonskode", "Avdelingskode"],
+    "filter": [
+      {
+        "variabel": "Institusjonskode",
+        "selection": { "filter": "item", "values": ["1150"] }
+      },
+      {
+        "variabel": "Årstall",
+        "selection": { "filter": "item", "values": ["2024"] }
+      },
+      {
+        "variabel": "Semester",
+        "selection": { "filter": "item", "values": ["3"] }
+      }
+    ]
+  },
+  "capturedAt": "2026-07-22T00:56:13Z",
+  "contentHash": {
+    "algorithm": "sha-256",
+    "rawBody": "dd6ae0eee8242a6f41fb329f18c7044b6f32b8c4ed66009bff216216eb289cd4"
+  },
+  "rawBodyByteLength": 2362704,
+  "boundedFixtureTransform": {
+    "sourceRows": 6106,
+    "selectedRows": 3,
+    "derivedRejectionRows": 1,
+    "description": "Three source rows were selected unchanged from the live response. The fixture appends a copy of TDT4258-1 with Emnekode omitted to exercise structured rejection; no replacement values were synthesized."
+  }
+}

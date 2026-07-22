@@ -1,0 +1,44 @@
+{
+  "sourceProvider": "dbh",
+  "tableId": 347,
+  "requestUrl": "https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData",
+  "requestMethod": "POST",
+  "requestBody": {
+    "tabell_id": 347,
+    "api_versjon": 1,
+    "statuslinje": "J",
+    "kodetekst": "N",
+    "desimal_separator": ".",
+    "variabler": ["*"],
+    "sortBy": ["Institusjonskode", "Avdelingskode"],
+    "filter": [
+      {
+        "variabel": "Institusjonskode",
+        "selection": { "filter": "item", "values": ["1150"] }
+      },
+      {
+        "variabel": "Årstall",
+        "selection": { "filter": "item", "values": ["2025"] }
+      },
+      {
+        "variabel": "Semester",
+        "selection": { "filter": "item", "values": ["3"] }
+      },
+      {
+        "variabel": "Studieprogramkode",
+        "selection": { "filter": "item", "values": ["DIDIV", "MORG", "MIXD"] }
+      }
+    ]
+  },
+  "capturedAt": "2026-07-22T00:51:48Z",
+  "contentHash": {
+    "algorithm": "sha-256",
+    "rawBody": "8a8341b585b1b16dfa9dd647f47b44301ba4bd67fac5d757115c0cb1fba9360e"
+  },
+  "rawBodyByteLength": 1974,
+  "boundedFixtureTransform": {
+    "untouchedRows": 3,
+    "derivedRejectionRows": 1,
+    "description": "The live response was already bounded to three rows. The fixture appends a copy of the MIXD row with Studieprogramkode omitted to exercise structured rejection; no replacement values were synthesized."
+  }
+}
