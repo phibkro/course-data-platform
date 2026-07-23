@@ -1,49 +1,96 @@
-# Product roadmap: from course browser to study planner
+# Product roadmap: course decisions first
 
 ## Product statement
 
-A transparent study-planning platform for prospective and enrolled students. It answers what a programme teaches, how its roadmap can be arranged, what alternatives exist, and how a student's actual or hypothetical profile changes the plan.
+Help NTNU students discover, understand, shortlist, and compare courses using
+trustworthy evidence.
 
-## User intents
+The former programme-first study-planning roadmap is deferred. It remains useful
+research and reusable domain code, but it no longer determines delivery order.
 
-- I am considering a programme.
-- I have selected a programme and want its roadmap.
-- I need to plan next semester.
-- I want to compare programmes or institutions.
-- I need an elective that fits my constraints.
-- I want to inspect every available source parameter and relation.
+## Initial audience and boundary
 
-## Product projections
+- Current and prospective NTNU students choosing courses.
+- Anonymous and local-first; no account is required.
+- NTNU course data plus grades.no and DBH/HK-dir grade evidence.
+- Current and recent course offerings rather than complete national history.
+- Programme context is optional and comes after course discovery proves useful.
 
-### Explore
+## Student jobs
 
-Programme-first discovery with course browsing and advanced institution controls.
+- Find a course by code, title, or topic.
+- Understand what work the course involves.
+- Learn how it is assessed and what activity is obligatory.
+- Determine whether collaboration, attendance, or location fits my situation.
+- Interpret grade outcomes, failure rate, and sample size.
+- Save promising courses and compare meaningful differences.
+- Know when information is missing, stale, inferred, or conflicting.
+
+## Product surfaces
+
+### Discover
+
+Fast course search with filters for teaching term, campus, level, language,
+assessment, collaboration, attendance, and online availability. The empty state
+offers useful example searches instead of programme onboarding.
+
+### Understand
+
+An evidence-backed course page covering content, learning outcomes, teaching,
+assessment, obligatory activity, collaboration, attendance, prerequisites,
+availability, and grade outcomes.
+
+### Shortlist
+
+Local bookmarks, notes, and student-owned preference lenses. Preferences change
+ranking and highlighting; they do not rewrite source facts.
 
 ### Compare
 
-Compare required courses, elective freedom, workload distribution, subject emphasis, and overlapping content.
+Compare two to four courses over the same decision dimensions. Missing data stays
+unknown rather than silently ranking as favourable.
 
-### Plan
+### Programme context
 
-Create, clone, and edit term-by-term scenarios. Evaluate requirements, prerequisites, offerings, credit load, and conflicts.
+After the preceding workflows demonstrate repeat use, optionally answer whether
+a shortlisted course fits a selected programme or scenario.
 
-### Track
+## Delivery order
 
-Optionally compare actual completion and current enrolment with the selected programme version.
+1. Exact-code walking skeleton for one evidence-rich course.
+2. Fast NTNU search plus progressive enrichment.
+3. Complete evidence-backed course detail.
+4. Local bookmarks, notes, and preferences.
+5. Course comparison.
+6. Optional programme compatibility.
 
-### Workbench
+## Architecture budget
 
-Inspect provenance, source capabilities, revision state, planner findings, and declarative custom views.
+- Foldkit owns the new student frontend and explicit UI state transitions.
+- Elysia remains a thin validated HTTP boundary.
+- Effect is used for real orchestration complexity: parallel sources, typed
+  failures, timeouts, retry policy, caching, and partial success.
+- Alchemy v2 initially provisions only the Worker and D1 resources used by the
+  delivered workflow.
+- Search uses upstream data directly. Exact matches, opened courses, bookmarks,
+  and comparisons are enriched and cached progressively.
 
-## Delivery sequence
+## Deferred
 
-1. Headless roadmap kernel and illustrative projection.
-2. Programme catalogue and programme-first onboarding.
-3. Evidence-backed NTNU programme fixture and relation authority.
-4. Local scenario editing and persistence.
-5. DBH/NTNU replication with revision and freshness status. **Delivered.**
-6. Feide groups feasibility spike.
-7. Second-institution adapter; the initial NTNU programme comparison projection unlocks at ten live programmes.
-8. Custom Workbench views.
-9. Course-level subject taxonomy.
-10. Deferred concept graph and personalized readiness.
+- mandatory programme onboarding;
+- roadmap editing and progress tracking;
+- Workbench and custom views;
+- authentication and cross-device synchronization;
+- second-institution support;
+- full national replication and evidence archives;
+- scheduled ingestion fleets, knowledge graphs, and constraint solvers.
+
+## Product gates
+
+- An exact course code produces a useful result in one interaction.
+- A visitor reaches evidence-backed course detail without configuration.
+- Assessment, obligatory work, collaboration, attendance, and grade outcomes are
+  either explained or explicitly unknown.
+- A source outage does not erase facts available from other sources.
+- A student can bookmark and compare courses in under two minutes.
+- Real students choose the product over manually opening several source sites.

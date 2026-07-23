@@ -1,54 +1,61 @@
-# Next vertical slice: evidence-backed programme data
+# Next vertical slice: one useful course
 
 ## Goal
 
-Replace the illustrative programme fixture without changing the programme-first onboarding, local scenario repository, planner operations, or declarative Workbench projection.
+Make an exact search for `TDT4136` produce a genuinely useful, evidence-backed
+course page in the browser.
 
 ## Required path
 
 ```text
-DBH programme metadata + official institution curriculum evidence
-  -> raw source fixtures
-  -> source-specific validation
-  -> programme/version normalization
-  -> requirement and relation authority mapping
-  -> public programme catalogue API
-  -> existing planner kernel and UI
+Foldkit search
+  -> explicit loading/partial/success/failure model
+  -> Elysia course endpoint
+  -> Effect course service
+  -> validated NTNU + grade-provider adapters
+  -> normalized CourseInsight with evidence
+  -> useful course detail
 ```
 
 ## Scope
 
-1. Add `packages/source-dbh` using the documented `dbh-data.dataporten-api.no/Tabeller/` host.
-2. Commit bounded real fixtures for DBH programme table 347 and course table 208.
-3. Add an NTNU programme adapter for one cohort's official curriculum structure.
-4. Preserve each relation as official, administrative, inferred, or unresolved.
-5. Add source-record, ingestion-run, rejection, and field-provenance tables.
-6. Reconcile programme versions and requirement groups idempotently into D1.
-7. Replace the planner fixture through the existing `/v1/programmes` and `/v1/planner/baseline` contracts.
-8. Surface observed-at, source period, data revision, and incomplete-capability warnings.
+1. Define the public course summary and CourseInsight DTOs.
+2. Preserve known, unknown, unavailable, suppressed, and conflicting facts.
+3. Add validated NTNU search and course-detail source adapters.
+4. Add validated grades.no and DBH/HK-dir grade mappings.
+5. Return partial success when one provider fails.
+6. Build the Foldkit exact-search and course-detail state machine.
+7. Style the required primitives with Material You semantic tokens.
+8. Add source-fixture, contract, Foldkit Story/Scene, and browser tests.
+9. Add D1 caching only after measuring the live request path.
+10. Express only the Worker and cache actually required in Alchemy v2.
 
 ## Acceptance criteria
 
-- The current programme selector is populated from validated source fixtures rather than source-code constants.
-- One NTNU programme version has an evidence-backed six-term roadmap.
-- Official curriculum relations are distinguished from DBH reporting associations.
-- Running ingestion twice produces no duplicate programme versions, courses, or relations.
-- Rejected source records are stored with structured reasons.
-- Existing saved scenarios continue to decode or receive an explicit data-revision warning.
-- Programme onboarding, editing, IndexedDB persistence, import/export, and Workbench require no architecture changes.
-- TypeScript 7, TypeScript 6 compatibility, lint, format, tests, OpenAPI generation, and Worker/browser builds pass.
-
-## Parallel research spike
-
-Verify Feide OIDC and `groups-edu` with a real FS-backed test identity. Record exact programme, cohort, field-of-study, and current-course group representations before adding authentication to the product path.
+- A fresh visitor can search `TDT4136` without choosing a programme.
+- The response identifies the course and its credits and availability.
+- The page explains content, teaching, assessment, obligatory activity,
+  collaboration, attendance, prerequisites, and grade outcomes where supported.
+- Grade statistics include period/source, sample size, distribution, failure
+  rate, and average or median only when supported.
+- Every displayed factual section links to evidence and exposes freshness.
+- Unknown and conflicting facts are visible and are not rendered as `false`.
+- One upstream failure produces a useful partial result and source warning.
+- The workflow passes its Foldkit Scene test and an agent-browser smoke test.
+- Type checks, lint, format, unit tests, OpenAPI generation, and builds pass.
 
 ## Deferred
 
-- Full national history and scheduled replication.
-- FS GraphQL academic progress.
-- Constraint-solver roadmap generation.
-- Knowledge-concept extraction and personalized readiness.
+- broad search result enrichment;
+- local bookmarks and comparison;
+- programme compatibility and planning;
+- authentication;
+- full catalogue replication and scheduled ingestion;
+- second-institution support.
 
 ## Design-system constraint
 
-ADR-011 freezes discretionary theme work after the Theme Lab slice. The live appearance controls and shadcn preset commands are sufficient for experimentation. Continue with source-backed programme and course functionality unless an accessibility defect or concrete workflow gap requires a component change.
+ADR-011 continues to freeze discretionary theme work. Implement only the
+Material You tokens and Foldkit primitives required by exact search and course
+detail. The React shadcn registry is not a component source for the Foldkit
+interaction tree.

@@ -1,10 +1,17 @@
 # Course Data Platform
 
-A multi-institution, provenance-preserving study-planning platform. The system is built as a headless kernel with curated projections for course exploration, programme roadmaps, comparison, progress tracking, and full data inspection. The earlier NTNU course-search prototype is retained in `legacy/` while the platform is rebuilt as explicit vertical slices.
+An evidence-backed NTNU course-decision product in transition. The active
+direction helps students discover, understand, shortlist, and compare courses
+before expanding into programme planning.
 
-## Current vertical slices
+The existing programme-first platform remains implemented while a smaller
+Foldkit and Elysia walking skeleton is built. Its provenance, validation, and
+pure-domain work is reusable; its previous delivery sequence is no longer the
+product roadmap. See `docs/adr/012-course-decisions-first.md`.
 
-The live catalogue proves the complete replication and request paths:
+## Existing platform baseline
+
+The repository currently proves these replication and request paths:
 
 ```text
 React PWA -> Eden client -> Elysia contract -> Effect use case -> repository -> D1
