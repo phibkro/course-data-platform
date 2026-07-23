@@ -5,9 +5,9 @@ import dbhFixture from '../fixtures/tdt4136-dbh-308.json';
 import dbhSource from '../fixtures/tdt4136-dbh-308.source.json';
 import gradesNoFixture from '../fixtures/tdt4136-grades-no.json';
 import gradesNoSource from '../fixtures/tdt4136-grades-no.source.json';
-import { parseDbhGrades } from './dbh-grades.ts';
-import { mapGradesToOutcomes } from './grade-outcomes.ts';
-import { parseGradesNoResponse } from './grades-no.ts';
+import { parseDbhGrades } from './dbh-grades';
+import { mapGradesToOutcomes } from './grade-outcomes';
+import { parseGradesNoResponse } from './grades-no';
 
 // The NTNU-side facts below mirror what packages/source-ntnu-course's own
 // mapper produces for the fixtures in that package (verified by its own
@@ -31,6 +31,7 @@ const gradesNoCapture = {
   contentHash: gradesNoSource.contentHash.rawBody,
   requestUrl: gradesNoSource.requestUrl,
   courseCode: gradesNoSource.courseCode,
+  evidenceKind: 'fixture' as const,
 };
 const dbhCapture = {
   retrievedAt: dbhSource.capturedAt,
@@ -38,6 +39,7 @@ const dbhCapture = {
   courseCode: dbhSource.courseCode,
   fromYear: dbhSource.fromYear,
   toYear: dbhSource.toYear,
+  evidenceKind: 'fixture' as const,
 };
 const gradesNo = parseGradesNoResponse(gradesNoFixture, gradesNoCapture).accepted;
 const dbh = parseDbhGrades(dbhFixture, dbhCapture).accepted;
@@ -85,18 +87,28 @@ const buildBase = (gradeOutcomesInput: { period: unknown; sampleSize: unknown; d
 
 describe('TDT4136 CourseInsight assembly (NTNU + grades)', () => {
   it('decodes a full CourseInsight combining NTNU content facts with agreeing grade evidence', () => {
-    const outcomes = mapGradesToOutcomes('TDT4136', gradesNo, dbh);
+    const outcomes = mapGradesToOutcomes('TDT4136', gradesNo, dbh, {
+      fromYear: 2023,
+      toYear: 2024,
+      semesters: ['AUTUMN', 'SPRING'],
+      minimumCohortSize: 4,
+    });
     const encoded = buildBase(outcomes);
 
     const insight = decodeCourseInsight(encoded);
 
-    expect(insight.gradeOutcomes.sampleSize).toMatchObject({ state: 'known', value: 414 });
+    expect(insight.gradeOutcomes.sampleSize).toMatchObject({ state: 'known', value: 408 });
     expect(insight.gradeOutcomes.averageGrade).toMatchObject({ state: 'known', value: 'C' });
     expect(validateEvidenceReferences(insight)).toEqual([]);
   });
 
   it('stays partially useful when both grade providers fail: NTNU facts known, grade facts unavailable', () => {
-    const outcomes = mapGradesToOutcomes('TDT4136', null, null);
+    const outcomes = mapGradesToOutcomes('TDT4136', null, null, {
+      fromYear: 2023,
+      toYear: 2024,
+      semesters: ['AUTUMN', 'SPRING'],
+      minimumCohortSize: 4,
+    });
     const encoded = buildBase(outcomes);
 
     const insight = decodeCourseInsight(encoded);

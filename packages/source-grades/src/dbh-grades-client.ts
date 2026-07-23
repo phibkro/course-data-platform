@@ -1,5 +1,5 @@
-import { parseDbhGrades, type DbhGradesParseResult } from './dbh-grades.ts';
-import type { FetchLike } from './grades-no-client.ts';
+import { parseDbhGrades, type DbhGradesParseResult } from './dbh-grades';
+import type { FetchLike } from './grades-no-client';
 
 const DBH_ENDPOINT = 'https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData';
 
@@ -37,6 +37,9 @@ export const fetchDbhGrades = async (
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body,
   });
+  if (!response.ok) {
+    throw new Error(`DBH table 308 returned HTTP ${response.status}.`);
+  }
   const rawBody = await response.text();
   const contentHash = await deps.sha256Hex(rawBody);
 
@@ -46,5 +49,6 @@ export const fetchDbhGrades = async (
     courseCode,
     fromYear,
     toYear,
+    evidenceKind: 'source-fact',
   });
 };

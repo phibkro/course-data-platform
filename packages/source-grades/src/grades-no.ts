@@ -6,6 +6,7 @@ export interface GradesNoCaptureMetadata {
   readonly contentHash: string;
   readonly requestUrl: string;
   readonly courseCode: string;
+  readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
 export interface GradesNoAttribution {
@@ -14,6 +15,7 @@ export interface GradesNoAttribution {
   readonly retrievedAt: string;
   readonly requestUrl: string;
   readonly contentHash: string;
+  readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
 export type GradesNoSemester = 'AUTUMN' | 'SPRING' | 'SUMMER';
@@ -55,6 +57,7 @@ const CaptureSchema = Schema.Struct({
   contentHash: Sha256Schema,
   requestUrl: Schema.String.pipe(Schema.startsWith('https://api.grades.no/')),
   courseCode: Schema.String.pipe(Schema.minLength(1)),
+  evidenceKind: Schema.Literal('source-fact', 'fixture'),
 });
 
 const NonNegativeInt = Schema.Number.pipe(Schema.int(), Schema.nonNegative());
@@ -137,6 +140,7 @@ export const parseGradesNoResponse = (
       retrievedAt: capturedFields.retrievedAt,
       requestUrl: capturedFields.requestUrl,
       contentHash: capturedFields.contentHash,
+      evidenceKind: capturedFields.evidenceKind,
     };
     return {
       year: record.year,

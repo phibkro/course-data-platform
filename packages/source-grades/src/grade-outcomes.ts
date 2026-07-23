@@ -1,7 +1,7 @@
 import { known, unavailable, unknown, type Fact } from '@course-data/course-model';
 
-import type { ValidatedDbhGrades } from './dbh-grades.ts';
-import type { ValidatedGradesNoPeriod } from './grades-no.ts';
+import type { ValidatedDbhGrades } from './dbh-grades';
+import type { ValidatedGradesNoPeriod } from './grades-no';
 
 export interface EncodedEvidence {
   readonly id: string;
@@ -42,6 +42,13 @@ export interface GradeOutcomesFields {
   readonly medianGrade: Fact<string>;
   readonly evidence: ReadonlyArray<EncodedEvidence>;
   readonly sourceStatuses: ReadonlyArray<EncodedSourceStatus>;
+}
+
+export interface GradeWindow {
+  readonly fromYear: number;
+  readonly toYear: number;
+  readonly semesters: ReadonlyArray<'AUTUMN' | 'SPRING'>;
+  readonly minimumCohortSize: number;
 }
 
 // Ordinal rank scale (F..A) used for the median, which is a rank statistic
@@ -90,7 +97,23 @@ interface Aggregate {
   readonly averageGrade: string | null;
 }
 
-const aggregateGradesNo = (periods: ReadonlyArray<ValidatedGradesNoPeriod>): Aggregate => {
+const aggregateGradesNo = (
+  periods: ReadonlyArray<ValidatedGradesNoPeriod>,
+  window: GradeWindow,
+): Aggregate | null => {
+  // SUMMER records represent resits/special examinations rather than the
+  // ordinary teaching term. Keep them validated at the boundary, but do not
+  // silently mix them into the primary-course outcome summary.
+  const primaryPeriods = periods.filter(
+    (period) =>
+      (period.semester === 'AUTUMN' || period.semester === 'SPRING') &&
+      window.semesters.includes(period.semester) &&
+      period.year >= window.fromYear &&
+      period.year <= window.toYear &&
+      period.attendeeCount >= window.minimumCohortSize,
+  );
+  if (primaryPeriods.length === 0) return null;
+
   const counts = new Map<string, number>([
     ['A', 0],
     ['B', 0],
@@ -100,28 +123,29 @@ const aggregateGradesNo = (periods: ReadonlyArray<ValidatedGradesNoPeriod>): Agg
     ['F', 0],
   ]);
   let passedOnly = 0;
+  let failedOnly = 0;
   let sampleSize = 0;
-  const weightedAverages: number[] = [];
-  const years = periods.map((period) => period.year);
+  const years = primaryPeriods.map((period) => period.year);
 
-  for (const period of periods) {
-    counts.set('A', (counts.get('A') ?? 0) + period.letterCounts.a);
-    counts.set('B', (counts.get('B') ?? 0) + period.letterCounts.b);
-    counts.set('C', (counts.get('C') ?? 0) + period.letterCounts.c);
-    counts.set('D', (counts.get('D') ?? 0) + period.letterCounts.d);
-    counts.set('E', (counts.get('E') ?? 0) + period.letterCounts.e);
-    counts.set('F', (counts.get('F') ?? 0) + period.letterCounts.f);
-    if (period.passedCount !== null) passedOnly += period.passedCount;
+  for (const period of primaryPeriods) {
+    if (period.passedCount !== null) {
+      passedOnly += period.passedCount;
+      failedOnly += period.letterCounts.f;
+    } else {
+      counts.set('A', (counts.get('A') ?? 0) + period.letterCounts.a);
+      counts.set('B', (counts.get('B') ?? 0) + period.letterCounts.b);
+      counts.set('C', (counts.get('C') ?? 0) + period.letterCounts.c);
+      counts.set('D', (counts.get('D') ?? 0) + period.letterCounts.d);
+      counts.set('E', (counts.get('E') ?? 0) + period.letterCounts.e);
+      counts.set('F', (counts.get('F') ?? 0) + period.letterCounts.f);
+    }
     sampleSize += period.attendeeCount;
-    if (period.averageGrade !== null) weightedAverages.push(period.averageGrade);
   }
-  if (passedOnly > 0) counts.set('Bestått', passedOnly);
+  if (passedOnly > 0) counts.set('G', passedOnly);
+  if (failedOnly > 0) counts.set('H', failedOnly);
 
-  const graded = [...counts.entries()]
-    .filter(([grade]) => grade !== 'Bestått')
-    .reduce((sum, [, count]) => sum + count, 0);
-  const fails = counts.get('F') ?? 0;
-  const failureDenominator = graded > 0 ? graded : sampleSize;
+  const fails = (counts.get('F') ?? 0) + (counts.get('H') ?? 0);
+  const failureDenominator = sampleSize;
   const failureRatePercent =
     failureDenominator > 0 ? Math.round((10000 * fails) / failureDenominator) / 100 : 0;
 
@@ -130,10 +154,17 @@ const aggregateGradesNo = (periods: ReadonlyArray<ValidatedGradesNoPeriod>): Agg
     sampleSize,
     distribution: bucketsToPercentaged(counts),
     failureRatePercent,
-    averageGrade:
-      weightedAverages.length > 0
-        ? numericToLetter(weightedAverages.reduce((a, b) => a + b, 0) / weightedAverages.length)
-        : null,
+    averageGrade: (() => {
+      const weightedSum = [...counts.entries()].reduce(
+        (sum, [grade, count]) => sum + (AVERAGE_SCALE[grade] ?? 0) * count,
+        0,
+      );
+      const weightedCount = [...counts.entries()].reduce(
+        (sum, [grade, count]) => sum + (AVERAGE_SCALE[grade] === undefined ? 0 : count),
+        0,
+      );
+      return weightedCount > 0 ? numericToLetter(weightedSum / weightedCount) : null;
+    })(),
   };
 };
 
@@ -185,28 +216,46 @@ export const mapGradesToOutcomes = (
   courseCode: string,
   gradesNo: ReadonlyArray<ValidatedGradesNoPeriod> | null,
   dbh: ValidatedDbhGrades | null,
+  window: GradeWindow,
 ): GradeOutcomesFields => {
   const evidence: EncodedEvidence[] = [];
   const sourceStatuses: EncodedSourceStatus[] = [];
 
   const gradesNoAggregate =
-    gradesNo !== null && gradesNo.length > 0 ? aggregateGradesNo(gradesNo) : null;
-  const dbhAggregate = dbh !== null && dbh.rows.length > 0 ? aggregateDbh(dbh) : null;
+    gradesNo !== null && gradesNo.length > 0 ? aggregateGradesNo(gradesNo, window) : null;
+  const dbhInWindow =
+    dbh !== null &&
+    dbh.attribution.period.fromYear === window.fromYear &&
+    dbh.attribution.period.toYear === window.toYear;
+  const dbhAggregate = dbhInWindow && dbh.rows.length > 0 ? aggregateDbh(dbh) : null;
 
   let gradesNoEvidenceId: string | null = null;
   if (gradesNo !== null) {
+    const excludedPeriods = gradesNo.filter(
+      (period) =>
+        period.semester === 'SUMMER' ||
+        !window.semesters.includes(period.semester) ||
+        period.year < window.fromYear ||
+        period.year > window.toYear ||
+        period.attendeeCount < window.minimumCohortSize,
+    ).length;
     sourceStatuses.push({
       provider: 'grades-no',
       status: gradesNoAggregate !== null ? 'available' : 'unavailable',
       observedAt: gradesNo[0]?.attribution.retrievedAt ?? null,
-      warning: gradesNoAggregate === null ? 'grades.no returned no grade periods for this course.' : null,
+      warning:
+        gradesNoAggregate === null
+          ? 'grades.no returned no ordinary autumn or spring grade periods for this course.'
+          : excludedPeriods > 0
+            ? `${excludedPeriods} period(s) outside the selected ordinary-term window or cohort threshold were excluded.`
+            : null,
     });
     if (gradesNoAggregate !== null && gradesNo[0]) {
       gradesNoEvidenceId = `evidence:grades-no:${courseCode}`;
       evidence.push({
         id: gradesNoEvidenceId,
         provider: 'grades-no',
-        kind: 'source-fact',
+        kind: gradesNo[0].attribution.evidenceKind,
         recordId: `grades-no:${courseCode}`,
         sourceUrl: gradesNo[0].attribution.requestUrl,
         sourcePeriod: `${gradesNoAggregate.period.fromYear}-${gradesNoAggregate.period.toYear}`,
@@ -230,14 +279,19 @@ export const mapGradesToOutcomes = (
       provider: 'dbh',
       status: dbhAggregate !== null ? 'available' : 'unavailable',
       observedAt: dbh.attribution.retrievedAt,
-      warning: dbhAggregate === null ? 'DBH table 308 returned no grade rows for this course.' : null,
+      warning:
+        dbhAggregate === null
+          ? dbhInWindow
+            ? 'DBH table 308 returned no grade rows for this course.'
+            : 'DBH table 308 did not cover the requested grade window.'
+          : null,
     });
     if (dbhAggregate !== null) {
       dbhEvidenceId = `evidence:${dbh.sourceRecordId}`;
       evidence.push({
         id: dbhEvidenceId,
         provider: 'dbh',
-        kind: 'source-fact',
+        kind: dbh.attribution.evidenceKind,
         recordId: dbh.sourceRecordId,
         sourceUrl: null,
         sourcePeriod: `${dbhAggregate.period.fromYear}-${dbhAggregate.period.toYear}`,
@@ -318,21 +372,25 @@ export const mapGradesToOutcomes = (
 
   const canonical = gradesNoAggregate ?? dbhAggregate;
   if (!canonical) throw new Error('unreachable: at least one aggregate is present');
+  const canonicalEvidenceId = gradesNoAggregate !== null ? gradesNoEvidenceId : dbhEvidenceId;
+  if (canonicalEvidenceId === null) {
+    throw new Error('unreachable: the canonical grade aggregate must have source evidence');
+  }
   const median = medianFromDistribution(canonical.distribution);
 
   return {
-    period: known(canonical.period, evidenceIdsUsed as [string, ...string[]]),
-    sampleSize: known(canonical.sampleSize, evidenceIdsUsed as [string, ...string[]]),
-    distribution: known(canonical.distribution, evidenceIdsUsed as [string, ...string[]]),
-    failureRatePercent: known(canonical.failureRatePercent, evidenceIdsUsed as [string, ...string[]]),
+    period: known(canonical.period, [canonicalEvidenceId]),
+    sampleSize: known(canonical.sampleSize, [canonicalEvidenceId]),
+    distribution: known(canonical.distribution, [canonicalEvidenceId]),
+    failureRatePercent: known(canonical.failureRatePercent, [canonicalEvidenceId]),
     averageGrade:
       canonical.averageGrade === null
         ? unavailable('The available provider(s) do not expose a numeric or letter grade average.')
-        : known(canonical.averageGrade, [inferenceEvidenceId]),
+        : known(canonical.averageGrade, [canonicalEvidenceId, inferenceEvidenceId]),
     medianGrade:
       median === null
         ? unavailable('The available provider(s) do not expose a letter-scale distribution to compute a median.')
-        : known(median, [inferenceEvidenceId]),
+        : known(median, [canonicalEvidenceId, inferenceEvidenceId]),
     evidence,
     sourceStatuses,
   };

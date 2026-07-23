@@ -9,6 +9,7 @@ export interface DbhGradesCaptureMetadata {
   readonly courseCode: string;
   readonly fromYear: number;
   readonly toYear: number;
+  readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
 export interface DbhGradesAttribution {
@@ -18,6 +19,7 @@ export interface DbhGradesAttribution {
   readonly retrievedAt: string;
   readonly contentHash: string;
   readonly period: { readonly fromYear: number; readonly toYear: number };
+  readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
 export interface ValidatedDbhGradeRow {
@@ -58,6 +60,7 @@ const CaptureSchema = Schema.Struct({
   courseCode: Schema.String.pipe(Schema.minLength(1)),
   fromYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
   toYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
+  evidenceKind: Schema.Literal('source-fact', 'fixture'),
 });
 const ResponseSchema = Schema.Array(Schema.Unknown);
 const RowSchema = Schema.Struct({
@@ -137,6 +140,7 @@ export const parseDbhGrades = (
     retrievedAt: capturedFields.retrievedAt,
     contentHash: capturedFields.contentHash,
     period: { fromYear: capturedFields.fromYear, toYear: capturedFields.toYear },
+    evidenceKind: capturedFields.evidenceKind,
   };
 
   return { accepted: { sourceRecordId, attribution, rows }, rejected: null };

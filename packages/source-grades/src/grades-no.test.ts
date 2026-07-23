@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import fixture from '../fixtures/tdt4136-grades-no.json';
 import source from '../fixtures/tdt4136-grades-no.source.json';
-import { parseGradesNoResponse } from './grades-no.ts';
+import { parseGradesNoResponse } from './grades-no';
 
 const capture = {
   retrievedAt: source.capturedAt,
   contentHash: source.contentHash.rawBody,
   requestUrl: source.requestUrl,
   courseCode: source.courseCode,
+  evidenceKind: 'fixture' as const,
 };
 
 describe('parseGradesNoResponse', () => {

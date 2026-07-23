@@ -36,8 +36,16 @@ export class CourseSourcesUnavailableError extends Data.TaggedError(
   readonly message: string;
 }> {}
 
-export type CourseSearchError = CourseSourcesUnavailableError;
-export type CourseInsightError = CourseNotFoundError | CourseSourcesUnavailableError;
+export class CourseInvalidTermError extends Data.TaggedError('CourseInvalidTermError')<{
+  readonly term: string;
+  readonly message: string;
+}> {}
+
+export type CourseSearchError = CourseInvalidTermError | CourseSourcesUnavailableError;
+export type CourseInsightError =
+  | CourseNotFoundError
+  | CourseInvalidTermError
+  | CourseSourcesUnavailableError;
 
 export interface CourseDecisionService {
   readonly search: (

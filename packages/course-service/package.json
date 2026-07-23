@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./fixture": "./src/fixture.ts"
+    "./fixture": "./src/fixture.ts",
+    "./live": "./src/live.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -13,6 +14,8 @@
   },
   "dependencies": {
     "@course-data/course-model": "0.1.0",
+    "@course-data/source-grades": "0.1.0",
+    "@course-data/source-ntnu-course": "0.1.0",
     "effect": "3.22.0"
   },
   "devDependencies": {}

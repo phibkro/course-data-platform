@@ -1,7 +1,7 @@
 import { known, unavailable, unknown, type Fact } from '@course-data/course-model';
 
-import type { ValidatedNtnuCourseDetail } from './detail.ts';
-import type { ValidatedNtnuSearchHit } from './search.ts';
+import type { ValidatedNtnuCourseDetail } from './detail';
+import type { ValidatedNtnuSearchHit } from './search';
 
 export interface EncodedEvidence {
   readonly id: string;
@@ -87,7 +87,7 @@ export const mapNtnuToCourseInsightFields = (
   const searchEvidence: EncodedEvidence = {
     id: searchEvidenceId,
     provider: search.attribution.provider,
-    kind: 'source-fact',
+    kind: search.attribution.evidenceKind,
     recordId: search.sourceRecordId,
     sourceUrl: search.courseUrl,
     sourcePeriod: `${search.season}-${search.academicYear}`,
@@ -111,10 +111,16 @@ export const mapNtnuToCourseInsightFields = (
       {
         academicYear: search.academicYear,
         season: search.season,
-        campuses: search.location ? [search.location] : [],
+        campuses: search.location
+          ? search.location
+              .split(',')
+              .map((campus) => campus.trim())
+              .filter((campus) => campus.length > 0)
+          : [],
         // hasMultimedia flags that lecture recordings exist, not that remote
-        // participation is possible; it is intentionally not used here.
-        deliveryModes: search.location ? ['in-person'] : [],
+        // participation is possible. A campus label also does not prove that
+        // every activity is in-person, so mode stays unclassified.
+        deliveryModes: [],
       },
     ],
     [searchEvidenceId],
@@ -162,7 +168,7 @@ export const mapNtnuToCourseInsightFields = (
     {
       id: factEvidenceId,
       provider: detail.attribution.provider,
-      kind: 'source-fact',
+      kind: detail.attribution.evidenceKind,
       recordId: detail.sourceRecordId,
       sourceUrl: detail.attribution.requestUrl,
       sourcePeriod: `${search.season}-${search.academicYear}`,

@@ -6,6 +6,7 @@ export interface NtnuDetailCaptureMetadata {
   readonly contentHash: string;
   readonly requestUrl: string;
   readonly courseCode: string;
+  readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
 export interface NtnuDetailAttribution {
@@ -14,6 +15,7 @@ export interface NtnuDetailAttribution {
   readonly retrievedAt: string;
   readonly requestUrl: string;
   readonly contentHash: string;
+  readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
 export type FieldState =
@@ -55,7 +57,8 @@ export interface ValidatedNtnuCourseDetail {
 export type NtnuDetailRejectionCode =
   | 'invalid-response-bytes'
   | 'invalid-capture-metadata'
-  | 'empty-response';
+  | 'empty-response'
+  | 'course-identity-mismatch';
 
 export interface NtnuDetailRejection {
   readonly code: NtnuDetailRejectionCode;
@@ -76,6 +79,7 @@ const CaptureSchema = Schema.Struct({
   contentHash: Sha256Schema,
   requestUrl: Schema.String.pipe(Schema.startsWith('https://www.ntnu.no/studier/emner/')),
   courseCode: Schema.String.pipe(Schema.minLength(1)),
+  evidenceKind: Schema.Literal('source-fact', 'fixture'),
 });
 
 const stripTags = (html: string): string =>
@@ -126,11 +130,12 @@ const extractSection = (text: string, label: RegExp, maxLength = 1200): string |
 const known = (value: string): FieldState => ({ state: 'known', value });
 const unavailableField = (reason: string): FieldState => ({ state: 'unavailable', reason });
 
-const GROUP_RE = /(gruppe\w*|group\s?(work|based|project)|in groups)/i;
+const GROUP_RE = /(gruppearbeid|gruppeprosjekt|gruppeoppgave|group\s?(work|project)|in groups)/i;
 const INDIVIDUAL_RE = /(individuell\w*|individual\w*|selvstendig\w*)/i;
 const REQUIRED_ATTENDANCE_RE = /obligatorisk (oppmøte|deltakelse|frammøte)|mandatory attendance/i;
 const NOT_REQUIRED_ATTENDANCE_RE = /ikke obligatorisk (oppmøte|deltakelse)|attendance is not (required|mandatory)/i;
-const REMOTE_RE = /nettbasert|nettstudent|remote participation|digitalt/i;
+const REMOTE_RE =
+  /(nettbasert undervisning|nettstudent|delta digitalt|fjernundervisning|remote participation|online participation)/i;
 const CAMPUS_ONLY_RE = /kun (på campus|fysisk oppmøte)|physical attendance is required/i;
 
 const ASSESSMENT_FORM_PATTERNS: ReadonlyArray<readonly [RegExp, AssessmentFormGuess]> = [
@@ -209,6 +214,16 @@ export const parseNtnuCourseDetail = (
   }
 
   const capturedFields = captureResult.right;
+  if (!new RegExp(`\\b${capturedFields.courseCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text)) {
+    return {
+      accepted: null,
+      rejected: {
+        code: 'course-identity-mismatch',
+        message: 'NTNU course-detail page did not contain the requested course code.',
+        raw: input,
+      },
+    };
+  }
   const sourceRecordId = `ntnu-course-page:${capturedFields.courseCode}`;
   const attribution: NtnuDetailAttribution = {
     provider: 'ntnu-course-page',
@@ -216,6 +231,7 @@ export const parseNtnuCourseDetail = (
     retrievedAt: capturedFields.retrievedAt,
     requestUrl: capturedFields.requestUrl,
     contentHash: capturedFields.contentHash,
+    evidenceKind: capturedFields.evidenceKind,
   };
 
   const creditsMatch = text.match(/Studiepoeng\s*(\d+(?:[.,]\d+)?)/);

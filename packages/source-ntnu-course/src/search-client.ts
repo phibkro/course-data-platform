@@ -1,4 +1,4 @@
-import { parseNtnuCourseSearch, type NtnuSearchParseResult } from './search.ts';
+import { parseNtnuCourseSearch, type NtnuSearchParseResult } from './search';
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -38,6 +38,9 @@ export const fetchNtnuCourseSearch = async (
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   });
+  if (!response.ok) {
+    throw new Error(`NTNU course search returned HTTP ${response.status}.`);
+  }
   const rawBody = await response.text();
   const contentHash = await deps.sha256Hex(rawBody);
 
@@ -48,5 +51,6 @@ export const fetchNtnuCourseSearch = async (
     queryString: query.queryString,
     academicYear: query.academicYear,
     season: query.season,
+    evidenceKind: 'source-fact',
   });
 };

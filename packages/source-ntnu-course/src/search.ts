@@ -8,6 +8,7 @@ export interface NtnuSearchCaptureMetadata {
   readonly queryString: string;
   readonly academicYear: number;
   readonly season: 'spring' | 'autumn';
+  readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
 export interface NtnuSearchAttribution {
@@ -16,6 +17,7 @@ export interface NtnuSearchAttribution {
   readonly retrievedAt: string;
   readonly requestUrl: string;
   readonly contentHash: string;
+  readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
 export interface ValidatedNtnuSearchHit {
@@ -64,6 +66,7 @@ const CaptureSchema = Schema.Struct({
   queryString: Schema.String,
   academicYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
   season: Schema.Literal('spring', 'autumn'),
+  evidenceKind: Schema.Literal('source-fact', 'fixture'),
 });
 
 const SearchCourseSchema = Schema.Struct({
@@ -151,6 +154,7 @@ export const parseNtnuCourseSearch = (
       retrievedAt: captureResult.right.retrievedAt,
       requestUrl: captureResult.right.requestUrl,
       contentHash: captureResult.right.contentHash,
+      evidenceKind: captureResult.right.evidenceKind,
     };
     return {
       courseCode: course.courseCode,

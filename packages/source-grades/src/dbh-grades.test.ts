@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import fixture from '../fixtures/tdt4136-dbh-308.json';
 import source from '../fixtures/tdt4136-dbh-308.source.json';
-import { parseDbhGrades } from './dbh-grades.ts';
+import { parseDbhGrades } from './dbh-grades';
 
 const capture = {
   retrievedAt: source.capturedAt,
@@ -10,6 +10,7 @@ const capture = {
   courseCode: source.courseCode,
   fromYear: source.fromYear,
   toYear: source.toYear,
+  evidenceKind: 'fixture' as const,
 };
 
 describe('parseDbhGrades', () => {

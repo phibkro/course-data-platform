@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest';
 import detailSource from '../fixtures/tdt4136-detail.source.json';
 import searchFixture from '../fixtures/tdt4136-search.json';
 import searchSource from '../fixtures/tdt4136-search.source.json';
-import { parseNtnuCourseDetail } from './detail.ts';
-import { mapNtnuToCourseInsightFields } from './map-course-insight.ts';
-import { parseNtnuCourseSearch } from './search.ts';
+import { parseNtnuCourseDetail } from './detail';
+import { mapNtnuToCourseInsightFields } from './map-course-insight';
+import { parseNtnuCourseSearch } from './search';
 
 const detailHtml = readFileSync(
   fileURLToPath(new URL('../fixtures/tdt4136-detail.html', import.meta.url)),
@@ -21,12 +21,14 @@ const searchCapture = {
   queryString: searchSource.queryString,
   academicYear: searchSource.academicYear,
   season: searchSource.season as 'autumn',
+  evidenceKind: 'fixture' as const,
 };
 const detailCapture = {
   retrievedAt: detailSource.capturedAt,
   contentHash: detailSource.contentHash.rawBody,
   requestUrl: detailSource.requestUrl,
   courseCode: detailSource.courseCode,
+  evidenceKind: 'fixture' as const,
 };
 
 const search = parseNtnuCourseSearch(searchFixture, searchCapture).accepted.find(

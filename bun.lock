@@ -41,6 +41,8 @@
       "dependencies": {
         "@course-data/contracts": "0.1.0",
         "@course-data/course-service": "0.1.0",
+        "@course-data/source-grades": "0.1.0",
+        "@course-data/source-ntnu-course": "0.1.0",
         "@elysiajs/cors": "1.4.2",
         "@elysiajs/openapi": "1.4.15",
         "effect": "3.22.0",
@@ -144,6 +146,8 @@
       "version": "0.1.0",
       "dependencies": {
         "@course-data/course-model": "0.1.0",
+        "@course-data/source-grades": "0.1.0",
+        "@course-data/source-ntnu-course": "0.1.0",
         "effect": "3.22.0",
       },
     },
@@ -176,10 +180,26 @@
         "effect": "3.22.0",
       },
     },
+    "packages/source-grades": {
+      "name": "@course-data/source-grades",
+      "version": "0.1.0",
+      "dependencies": {
+        "@course-data/course-model": "0.1.0",
+        "effect": "3.22.0",
+      },
+    },
     "packages/source-ntnu": {
       "name": "@course-data/source-ntnu",
       "version": "0.1.0",
       "dependencies": {
+        "effect": "3.22.0",
+      },
+    },
+    "packages/source-ntnu-course": {
+      "name": "@course-data/source-ntnu-course",
+      "version": "0.1.0",
+      "dependencies": {
+        "@course-data/course-model": "0.1.0",
         "effect": "3.22.0",
       },
     },
@@ -278,7 +298,11 @@
 
     "@course-data/source-dbh": ["@course-data/source-dbh@workspace:packages/source-dbh"],
 
+    "@course-data/source-grades": ["@course-data/source-grades@workspace:packages/source-grades"],
+
     "@course-data/source-ntnu": ["@course-data/source-ntnu@workspace:packages/source-ntnu"],
+
+    "@course-data/source-ntnu-course": ["@course-data/source-ntnu-course@workspace:packages/source-ntnu-course"],
 
     "@course-data/student-web": ["@course-data/student-web@workspace:apps/student-web"],
 

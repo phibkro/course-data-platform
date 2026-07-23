@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import source from '../fixtures/tdt4136-detail.source.json';
-import { parseNtnuCourseDetail } from './detail.ts';
+import { parseNtnuCourseDetail } from './detail';
 
 const fixturePath = fileURLToPath(new URL('../fixtures/tdt4136-detail.html', import.meta.url));
 const fixtureHtml = readFileSync(fixturePath, 'utf-8');
@@ -13,6 +13,7 @@ const capture = {
   contentHash: source.contentHash.rawBody,
   requestUrl: source.requestUrl,
   courseCode: source.courseCode,
+  evidenceKind: 'fixture' as const,
 };
 
 describe('parseNtnuCourseDetail', () => {
@@ -34,7 +35,8 @@ describe('parseNtnuCourseDetail', () => {
   });
 
   it('marks a section as unavailable rather than throwing when the page omits it', () => {
-    const minimal = '<html><body><h2>Studiepoeng</h2><p>7.5</p></body></html>';
+    const minimal =
+      '<html><body><h1>TDT4136</h1><h2>Studiepoeng</h2><p>7.5</p></body></html>';
     const result = parseNtnuCourseDetail(minimal, capture);
 
     expect(result.rejected).toBeNull();
@@ -47,5 +49,15 @@ describe('parseNtnuCourseDetail', () => {
 
     expect(result.accepted).toBeNull();
     expect(result.rejected?.code).toBe('empty-response');
+  });
+
+  it('rejects a non-empty error page that does not identify the requested course', () => {
+    const result = parseNtnuCourseDetail(
+      '<html><body><h1>Page not found</h1></body></html>',
+      capture,
+    );
+
+    expect(result.accepted).toBeNull();
+    expect(result.rejected?.code).toBe('course-identity-mismatch');
   });
 });

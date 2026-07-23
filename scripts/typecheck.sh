@@ -21,7 +21,9 @@ CONFIGS=(
   packages/contracts/tsconfig.json
   packages/database/tsconfig.json
   packages/source-dbh/tsconfig.json
+  packages/source-grades/tsconfig.json
   packages/source-ntnu/tsconfig.json
+  packages/source-ntnu-course/tsconfig.json
   apps/api-worker/tsconfig.json
   apps/course-api/tsconfig.json
   apps/ingest-worker/tsconfig.json

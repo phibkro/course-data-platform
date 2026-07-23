@@ -1,4 +1,4 @@
-import { parseGradesNoResponse, type GradesNoParseResult } from './grades-no.ts';
+import { parseGradesNoResponse, type GradesNoParseResult } from './grades-no';
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -19,6 +19,9 @@ export const fetchGradesNoGrades = async (
 ): Promise<GradesNoParseResult> => {
   const requestUrl = `https://api.grades.no/api/v2/courses/${encodeURIComponent(courseCode)}/grades/`;
   const response = await deps.fetch(requestUrl, { headers: { Accept: 'application/json' } });
+  if (!response.ok) {
+    throw new Error(`grades.no returned HTTP ${response.status}.`);
+  }
   const rawBody = await response.text();
   const contentHash = await deps.sha256Hex(rawBody);
 
@@ -27,5 +30,6 @@ export const fetchGradesNoGrades = async (
     contentHash,
     requestUrl,
     courseCode,
+    evidenceKind: 'source-fact',
   });
 };

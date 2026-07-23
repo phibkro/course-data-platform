@@ -1,5 +1,5 @@
-import { parseNtnuCourseDetail, type NtnuDetailParseResult } from './detail.ts';
-import type { FetchLike } from './search-client.ts';
+import { parseNtnuCourseDetail, type NtnuDetailParseResult } from './detail';
+import type { FetchLike } from './search-client';
 
 export interface FetchNtnuCourseDetailDeps {
   readonly fetch: FetchLike;
@@ -19,6 +19,9 @@ export const fetchNtnuCourseDetail = async (
 ): Promise<NtnuDetailParseResult> => {
   const requestUrl = `https://www.ntnu.no/studier/emner/${encodeURIComponent(courseCode)}/${encodeURIComponent(term)}`;
   const response = await deps.fetch(requestUrl);
+  if (!response.ok) {
+    throw new Error(`NTNU course detail returned HTTP ${response.status}.`);
+  }
   const rawBody = await response.text();
   const contentHash = await deps.sha256Hex(rawBody);
 
@@ -27,5 +30,6 @@ export const fetchNtnuCourseDetail = async (
     contentHash,
     requestUrl,
     courseCode,
+    evidenceKind: 'source-fact',
   });
 };

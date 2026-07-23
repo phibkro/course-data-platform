@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import fixture from '../fixtures/tdt4136-search.json';
 import source from '../fixtures/tdt4136-search.source.json';
-import { parseNtnuCourseSearch } from './search.ts';
+import { parseNtnuCourseSearch } from './search';
 
 const capture = {
   retrievedAt: source.capturedAt,
@@ -11,6 +11,7 @@ const capture = {
   queryString: source.queryString,
   academicYear: source.academicYear,
   season: source.season as 'autumn',
+  evidenceKind: 'fixture' as const,
 };
 
 describe('parseNtnuCourseSearch', () => {

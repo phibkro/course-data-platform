@@ -96,6 +96,12 @@ export const createCourseApi = (
         set.headers['cache-control'] = 'public, max-age=30, stale-while-revalidate=300';
 
         if (Either.isLeft(result)) {
+          if (result.left._tag === 'CourseInvalidTermError') {
+            return status(
+              400,
+              problem(requestId, 400, 'invalid-course-term', 'Invalid course term', result.left.message),
+            );
+          }
           return status(
             503,
             problem(
@@ -122,7 +128,7 @@ export const createCourseApi = (
       },
       {
         query: CourseSearchQueryDto,
-        response: { 200: CourseSearchResponseDto, 503: ProblemDto },
+        response: { 200: CourseSearchResponseDto, 400: ProblemDto, 503: ProblemDto },
         detail: {
           summary: 'Search NTNU courses',
           description: 'Returns fast course summaries with explicit enrichment and source status.',
@@ -147,6 +153,12 @@ export const createCourseApi = (
         set.headers['cache-control'] = 'public, max-age=60, stale-while-revalidate=900';
 
         if (Either.isLeft(result)) {
+          if (result.left._tag === 'CourseInvalidTermError') {
+            return status(
+              400,
+              problem(requestId, 400, 'invalid-course-term', 'Invalid course term', result.left.message),
+            );
+          }
           if (result.left._tag === 'CourseNotFoundError') {
             return status(
               404,
@@ -181,6 +193,7 @@ export const createCourseApi = (
         query: CourseInsightQueryDto,
         response: {
           200: CourseInsightResponseDto,
+          400: ProblemDto,
           404: ProblemDto,
           503: ProblemDto,
         },
