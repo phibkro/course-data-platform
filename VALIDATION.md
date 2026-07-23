@@ -19,6 +19,10 @@ exercised the student application on desktop and mobile:
   and ranked the exact course first;
 - filtering the search to Trondheim and master level returned 10 courses;
 - open-admission filtering returned 898 courses;
+- a spring 2027 catalogue request returned 2,099 offerings; a direct
+  `PD6020` provider request returned the `/PD6020/2026` course page, whose
+  official detail identifies study year 2026/2027 and teaching start spring
+  2027, confirming the academic-year/season mapping;
 - opening `TDT4136` returned a live NTNU course insight backed by NTNU course
   search/detail, grades.no, and DBH/HK-dir table 308;
 - the result exposed content, learning outcomes, work forms, assessment,
@@ -34,11 +38,27 @@ exercised the student application on desktop and mobile:
   intended sidebar and bottom navigation respectively.
 - the accessibility tree exposed one correctly named checkbox per boolean
   filter, without hidden-input duplication.
+- keyboard focus reached the custom Foldkit checkbox and Space toggled its
+  `aria-checked` state plus URL-backed filter.
 
 The first clean run exposed two local-environment defects, both fixed before
 the successful journey: the pinned Workerd build required compatibility date
 `2026-07-21`, and Nix-launched Workerd needed the system CA bundle passed
 explicitly.
+
+## Independent launch review
+
+Fable 5 reviewed the validated catalogue commit in an isolated read-only
+worktree and found no P0. Its three P1 honesty checks were closed before the
+final gate:
+
+- spring academic-year semantics were verified live and autumn 2027 was added
+  to keep the term sequence complete;
+- inference-only facts now carry a visible `Inferred` state, and
+  attendance/online keyword scans are limited to assessment and teaching
+  sections;
+- source sections cut at the display limit now end with an explicit
+  “Truncated; continue at source” marker.
 
 ## Automated checks
 
@@ -46,8 +66,8 @@ The canonical `bun run validate` gate regenerates OpenAPI and runs formatting,
 lint, both TypeScript compilers, and the full Vitest suite. `bun run build`
 performs the Worker dry run and production web build.
 
-The final gate passed 29 test files / 107 tests. The production build emitted a
-308.84 KiB gzip Worker upload and a 123.57 KiB gzip main browser bundle.
+The final gate passed 29 test files / 109 tests. The production build emitted a
+308.89 KiB gzip Worker upload and a 123.72 KiB gzip main browser bundle.
 
 The suite covers boundary rejection, ordinary-term grade windows, cohort
 thresholds, pass/fail separation, weighted averages, per-field source

@@ -1,5 +1,8 @@
 # Design-spec: Close F1 — DBH evidence reconciled into serving (fixtures removable)
 
+> **Historical design spec — superseded by ADR-012.** Retain this as platform
+> context; it is not the active product backlog.
+
 **Author:** wE:p1 (lead/advisor). **Builds for:** `course-engineer`. **Status:** frozen when its PR opens.
 **Base:** stacked on `216a308` (current `agent/live-replication-r3` HEAD — the banked R3-breadth commit).
 **Repo location once committed:** `design-specs/f1-close-dbh-serving.md` (base commit of the stacked branch).

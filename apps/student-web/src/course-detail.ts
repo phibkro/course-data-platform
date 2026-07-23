@@ -362,6 +362,16 @@ export const courseInsightView = (response: CourseInsightResponse, partial: bool
   const h = html<Message>();
   const course = response.item;
   const title = course.title.state === 'known' ? course.title.value : 'Course title unavailable';
+  const inferenceEvidenceIds = new Set(
+    course.evidence
+      .filter((evidence) => evidence.kind === 'inference')
+      .map((evidence) => evidence.id),
+  );
+  const decisionFact = <A>(
+    label: string,
+    fact: ProtocolFact<A>,
+    renderKnown: (value: A) => Html,
+  ): Html => factView(label, fact, renderKnown, inferenceEvidenceIds);
 
   return h.article(
     [h.Class('course-detail'), h.AriaLabel(`${course.code} course details`)],
@@ -399,23 +409,25 @@ export const courseInsightView = (response: CourseInsightResponse, partial: bool
         ],
       ),
       decisionSection('Availability', 'When and where the course is offered.', [
-        factView('Teaching term and location', course.offerings, (offerings) =>
+        decisionFact('Teaching term and location', course.offerings, (offerings) =>
           offeringList(offerings),
         ),
       ]),
       decisionSection('What you will learn', 'Course content and intended learning outcomes.', [
-        factView('Content', course.content, paragraph),
-        factView('Learning outcomes', course.learningOutcomes, paragraph),
+        decisionFact('Content', course.content, paragraph),
+        decisionFact('Learning outcomes', course.learningOutcomes, paragraph),
       ]),
       decisionSection(
         'How the course works',
         'Teaching, collaboration, attendance, and participation evidence.',
         [
-          factView('Teaching methods', course.teachingMethods, paragraph),
-          factView('Work forms', course.workForms, (forms) => chipList(forms.map(formatToken))),
-          factView('Collaboration', course.collaboration, (value) => paragraph(formatToken(value))),
-          factView('Attendance', course.attendance, (value) => paragraph(formatToken(value))),
-          factView('Online participation', course.onlineParticipation, (value) =>
+          decisionFact('Teaching methods', course.teachingMethods, paragraph),
+          decisionFact('Work forms', course.workForms, (forms) => chipList(forms.map(formatToken))),
+          decisionFact('Collaboration', course.collaboration, (value) =>
+            paragraph(formatToken(value)),
+          ),
+          decisionFact('Attendance', course.attendance, (value) => paragraph(formatToken(value))),
+          decisionFact('Online participation', course.onlineParticipation, (value) =>
             paragraph(formatToken(value)),
           ),
         ],
@@ -424,15 +436,15 @@ export const courseInsightView = (response: CourseInsightResponse, partial: bool
         'Assessment and obligatory work',
         'What counts toward the grade and what must be approved first.',
         [
-          factView('Assessment', course.assessment, assessmentList),
-          factView('Obligatory activities', course.obligatoryActivities, (items) =>
+          decisionFact('Assessment', course.assessment, assessmentList),
+          decisionFact('Obligatory activities', course.obligatoryActivities, (items) =>
             stringList(items),
           ),
         ],
       ),
       decisionSection('Requirements', 'Recommended background and access constraints.', [
-        factView('Prerequisites', course.prerequisites, paragraph),
-        factView('Access restrictions', course.accessRestrictions, paragraph),
+        decisionFact('Prerequisites', course.prerequisites, paragraph),
+        decisionFact('Access restrictions', course.accessRestrictions, paragraph),
       ]),
       gradeSection(course),
       sourceSection(course),
@@ -479,13 +491,27 @@ const factView = <A>(
   label: string,
   fact: ProtocolFact<A>,
   renderKnown: (value: A) => Html,
+  inferenceEvidenceIds: ReadonlySet<string> = new Set(),
 ): Html => {
   const h = html<Message>();
 
   if (fact.state === 'known') {
+    const inferred =
+      fact.evidenceIds.length > 0 &&
+      fact.evidenceIds.every((evidenceId) => inferenceEvidenceIds.has(evidenceId));
     return h.div(
       [h.Class('fact-card')],
-      [h.h3([], [label]), renderKnown(fact.value), evidenceLinks(fact.evidenceIds)],
+      [
+        h.div(
+          [h.Class('fact-card__heading')],
+          [
+            h.h3([], [label]),
+            inferred ? h.span([h.Class('fact-state fact-state--inferred')], ['Inferred']) : h.empty,
+          ],
+        ),
+        renderKnown(fact.value),
+        evidenceLinks(fact.evidenceIds),
+      ],
     );
   }
 

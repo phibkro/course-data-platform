@@ -388,6 +388,7 @@ export const update = (
       UpdatedQuery: ({ value }) => [evo(model, { query: () => value }), []],
       SubmittedSearch: () =>
         startCatalogue(model, {
+          query: model.query.trim(),
           sort: model.query.trim().length === 0 ? DEFAULT_SORT : 'relevance',
         }),
       ChangedTerm: ({ value }) => startCatalogue(model, { term: value }),
@@ -694,6 +695,7 @@ const catalogueControls = (model: Model): Html => {
           selectControl('term', 'Term', model.term, ChangedTerm, [
             ['2026-autumn', 'Autumn 2026 · 2026/27'],
             ['2026-spring', 'Spring 2027 · 2026/27'],
+            ['2027-autumn', 'Autumn 2027 · 2027/28'],
             ['2027-spring', 'Spring 2028 · 2027/28'],
           ]),
           selectControl('campus', 'Campus', model.campus, ChangedCampus, [
@@ -835,7 +837,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
         ? h.div(
             [h.Class('partial-banner'), h.Role('status')],
             [
-              'Some catalogue sources are unavailable. Official results that did respond remain visible.',
+              'Some catalogue data could not be used. Official results that were validated remain visible.',
             ],
           )
         : h.empty,

@@ -1,5 +1,10 @@
 # Handoff — course-data-platform LEAD/ADVISOR (wE:p1)
 
+> **Historical handoff — superseded by ADR-012.** The active product is the
+> browse-first course decision experience described in `README.md` and
+> `docs/agent-context/next-slice.md`. Do not resume this replication epic as
+> the default product path.
+
 **Rewritten:** 2026-07-22 by the fresh relaunch-lead, AFTER reconciling the ground with reality.
 **Supersedes** the prior handoff (which described a pre-`216a308` world and told you to re-send a now-dead
 F1 spec — do NOT do that). **Your role:** LEAD + ADVISOR + operator-interface. You do **not** implement —

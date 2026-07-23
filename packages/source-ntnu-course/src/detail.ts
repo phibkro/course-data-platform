@@ -132,11 +132,13 @@ const extractSection = (text: string, label: RegExp, maxLength = 1200): string |
       cut = stopMatch.index;
     }
   }
+  const truncated = cut > maxLength;
   const value = rest
     .slice(0, Math.min(cut, maxLength))
     .replace(/^[:\s]+/, '')
     .trim();
-  return value.length > 0 ? value : null;
+  if (value.length === 0) return null;
+  return truncated ? `${value} … [Truncated; continue at source]` : value;
 };
 
 const known = (value: string): FieldState => ({ state: 'known', value });
@@ -302,15 +304,15 @@ export const parseNtnuCourseDetail = (
   const collaborationSignal =
     hasGroup && hasIndividual ? 'mixed' : hasGroup ? 'group' : hasIndividual ? 'individual' : null;
 
-  const attendanceSignal = NOT_REQUIRED_ATTENDANCE_RE.test(text)
+  const attendanceSignal = NOT_REQUIRED_ATTENDANCE_RE.test(collaborationScan)
     ? 'not-required'
-    : REQUIRED_ATTENDANCE_RE.test(text)
+    : REQUIRED_ATTENDANCE_RE.test(collaborationScan)
       ? 'required'
       : null;
 
-  const onlineParticipationSignal = CAMPUS_ONLY_RE.test(text)
+  const onlineParticipationSignal = CAMPUS_ONLY_RE.test(collaborationScan)
     ? 'not-available'
-    : REMOTE_RE.test(text)
+    : REMOTE_RE.test(collaborationScan)
       ? 'available'
       : null;
 

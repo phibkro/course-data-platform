@@ -59,4 +59,27 @@ describe('parseNtnuCourseDetail', () => {
     expect(result.accepted).toBeNull();
     expect(result.rejected?.code).toBe('course-identity-mismatch');
   });
+
+  it('marks extracted section text when the source continues beyond the display limit', () => {
+    const longContent = 'Long course content. '.repeat(100);
+    const result = parseNtnuCourseDetail(
+      `<html><body><h1>TDT4136</h1><h2>Faglig innhold</h2><p>${longContent}</p><h2>Læringsutbytte</h2><p>Outcome</p></body></html>`,
+      capture,
+    );
+
+    expect(result.accepted?.content).toMatchObject({ state: 'known' });
+    expect(result.accepted?.content.state === 'known' ? result.accepted.content.value : '').toMatch(
+      /… \[Truncated; continue at source\]$/,
+    );
+  });
+
+  it('does not infer attendance or remote participation from unrelated page sections', () => {
+    const result = parseNtnuCourseDetail(
+      '<html><body><h1>TDT4136</h1><h2>Faglig innhold</h2><p>Mandatory attendance and online participation are research topics.</p><h2>Læringsformer og aktiviteter</h2><p>Forelesninger.</p></body></html>',
+      capture,
+    );
+
+    expect(result.accepted?.attendanceSignal).toBeNull();
+    expect(result.accepted?.onlineParticipationSignal).toBeNull();
+  });
 });

@@ -43,7 +43,7 @@ test('submitting a title or course-code query starts a fresh URL-backed search',
   Story.story(
     update,
     Story.with(initialModel()),
-    Story.message(UpdatedQuery({ value: 'algoritmer' })),
+    Story.message(UpdatedQuery({ value: '  algoritmer  ' })),
     Story.message(SubmittedSearch()),
     Story.Command.expectHas(Navigate),
     Story.Command.expectHas(FetchCourseSearch),

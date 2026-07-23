@@ -1,5 +1,8 @@
 # Design-spec: R3a — breadth-to-ten live journey unlocks Compare@10 (pre-deploy proof)
 
+> **Historical design spec — superseded by ADR-012.** Retain this as platform
+> context; it is not the active product backlog.
+
 **Author:** wE:p1 (lead/advisor). **Builds for:** `course-engineer`. **Status:** frozen when its PR opens.
 **Base:** stacked on the F3 tip `e64e427` (`agent/f3-catalogue-fixture-free`).
 **Repo location once committed:** `design-specs/r3a-breadth-to-ten.md` (base commit of the stacked branch).

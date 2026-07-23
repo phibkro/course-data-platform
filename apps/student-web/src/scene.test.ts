@@ -62,6 +62,17 @@ describe('browse-first catalogue scene', () => {
   });
 
   test('selected partial detail reuses the evidence-backed course view', () => {
+    const responseWithInference = {
+      ...partialCourseInsightFixture,
+      item: {
+        ...partialCourseInsightFixture.item,
+        evidence: partialCourseInsightFixture.item.evidence.map((evidence) =>
+          evidence.id === 'ntnu-teaching'
+            ? { ...evidence, kind: 'inference' as const, inferenceRule: 'Keyword classification.' }
+            : evidence,
+        ),
+      },
+    };
     Scene.scene(
       { update, view },
       Scene.with({
@@ -69,11 +80,12 @@ describe('browse-first catalogue scene', () => {
         catalogue: CatalogueInitialLoading(),
         nextPage: NextPageIdle(),
         selectedCode: 'TDT4136',
-        detail: DetailPartial({ response: partialCourseInsightFixture }),
+        detail: DetailPartial({ response: responseWithInference }),
       }),
       Scene.expect(Scene.role('button', { name: '← Back to course results' })).toExist(),
       Scene.expect(Scene.role('article', { name: 'TDT4136 course details' })).toExist(),
       Scene.expect(Scene.text('Partial result')).toExist(),
+      Scene.expect(Scene.text('Inferred')).toExist(),
     );
   });
 
