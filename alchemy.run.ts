@@ -24,7 +24,7 @@ export const evidence = await R2Bucket('evidence', {
 export const syncQueue = await Queue('sync-queue', {
   name: 'course-data-platform-sync',
   adopt: true,
-  settings: { messageRetentionPeriod: 345_600 },
+  settings: { messageRetentionPeriod: 86_400 },
 });
 
 export const api = await Worker('api', {

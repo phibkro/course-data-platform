@@ -234,11 +234,49 @@ describe('official NTNU curriculum reconciliation', () => {
     expect(servedDbhRecord?.observed_at).toMatch(/^2026-07-22T02:2[13]:\d{2}Z$/);
     expect(servedDbhRecord?.raw_payload).toBeTruthy();
 
+    const catalogueRows = await proxy.env.DB.prepare(
+      `SELECT cv.source_provider
+       FROM course_versions cv
+       JOIN dataset_revision_course_version snapshot ON snapshot.course_version_id = cv.id
+       JOIN dataset_publication publication ON publication.current_revision_id = snapshot.revision_id`,
+    ).all<{ readonly source_provider: string }>();
+    expect(catalogueRows.results.every((row) => row.source_provider !== 'fixture')).toBe(true);
+
     const runtime = createCourseRuntime(
       createD1CourseRepository(proxy.env.DB),
       createD1ProgrammeCurriculumRepository(proxy.env.DB),
     );
     const app = createApi(runtime);
+    const coursesResponse = await app.handle(new Request('http://localhost/v1/courses'));
+    expect(coursesResponse.status).toBe(200);
+    const coursesBody = (await coursesResponse.json()) as {
+      items: Array<{ source: { provider: string } }>;
+    };
+    expect(coursesBody.items.length).toBeGreaterThan(0);
+    expect(coursesBody.items.every((course) => course.source.provider !== 'fixture')).toBe(true);
+
+    // Falsifier #2: the 0006 cleanup migration removes the fixture seed rows, and
+    // removing them must change NOTHING served — the published-snapshot gate never
+    // depended on them, and the migration must not touch a published course version.
+    const fixtureSeedsBefore = await proxy.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM course_versions WHERE source_provider = 'fixture'`,
+    ).first<{ count: number }>();
+    expect(fixtureSeedsBefore?.count).toBeGreaterThan(0);
+    const cleanupSql = await readFile(
+      resolve(root, 'migrations/d1', '0006_remove_fixture_course_seeds.sql'),
+      'utf8',
+    );
+    for (const statement of unstable_splitSqlQuery(cleanupSql)) {
+      await proxy.env.DB.prepare(statement).run();
+    }
+    const fixtureSeedsAfter = await proxy.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM course_versions WHERE source_provider = 'fixture'`,
+    ).first<{ count: number }>();
+    expect(fixtureSeedsAfter?.count).toBe(0);
+    const coursesAfterCleanup = await app.handle(new Request('http://localhost/v1/courses'));
+    expect(coursesAfterCleanup.status).toBe(200);
+    await expect(coursesAfterCleanup.json()).resolves.toEqual(coursesBody);
+
     const programmesResponse = await app.handle(new Request('http://localhost/v1/programmes'));
     expect(programmesResponse.status).toBe(200);
     await expect(programmesResponse.json()).resolves.toMatchObject({
