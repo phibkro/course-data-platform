@@ -181,8 +181,18 @@ export const replicateNtnuCatalogue = async (
   } catch {
     throw new NtnuReplicationError('NTNU catalogue was not valid JSON.');
   }
-  if (!Array.isArray(raw)) throw new NtnuReplicationError('NTNU catalogue was not an array.');
-  const entries = raw.flatMap((entry): NtnuCatalogueEntry[] => {
+  // The live all-studies endpoint wraps its programme list in `{ docs: [...] }`;
+  // tolerate a bare top-level array too. Fail loud on any other shape.
+  const documents = Array.isArray(raw)
+    ? raw
+    : raw !== null &&
+        typeof raw === 'object' &&
+        Array.isArray((raw as { readonly docs?: unknown }).docs)
+      ? (raw as { readonly docs: readonly unknown[] }).docs
+      : undefined;
+  if (documents === undefined)
+    throw new NtnuReplicationError('NTNU catalogue was not a documents array.');
+  const entries = documents.flatMap((entry): NtnuCatalogueEntry[] => {
     if (entry === null || typeof entry !== 'object') return [];
     const value = entry as Record<string, unknown>;
     if (typeof value.studyprogCode !== 'string') return [];

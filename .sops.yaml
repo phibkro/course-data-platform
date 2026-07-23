@@ -1,0 +1,13 @@
+# Deploy secrets for course-data-platform's Cloudflare (Alchemy) deploys.
+# Recipients: operator Mac + workstation (host + user). Add hosts via updatekeys.
+keys:
+  - &mac age1nxq07zper943wz4eredgt82e5jghx7d0sfldzqngn2kfdnwyhuhsl3h0r4
+  - &workstation age1d893pv2w42vtharqse3e3yd7rpc8nst7mlw2csssy7e9ql3lcd2q7vw4s0
+  - &workstation-user age1lezvx39h43ua5r3zlk34fmfs0wqzz7g3ltfmkg9gm350fw7fq5jsrefr78
+creation_rules:
+  - path_regex: secrets/.*\.env$
+    key_groups:
+      - age:
+          - *mac
+          - *workstation
+          - *workstation-user
