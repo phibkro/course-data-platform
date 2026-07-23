@@ -14,6 +14,7 @@ fi
 
 CONFIGS=(
   packages/domain/tsconfig.json
+  packages/course-model/tsconfig.json
   packages/application/tsconfig.json
   packages/study-kernel/tsconfig.json
   packages/contracts/tsconfig.json

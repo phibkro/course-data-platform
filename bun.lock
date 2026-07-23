@@ -90,9 +90,18 @@
       "name": "@course-data/contracts",
       "version": "0.1.0",
       "dependencies": {
+        "@course-data/course-model": "0.1.0",
         "@course-data/domain": "0.1.0",
         "@course-data/study-kernel": "0.1.0",
+        "@sinclair/typebox": "0.34.52",
         "elysia": "1.4.29",
+      },
+    },
+    "packages/course-model": {
+      "name": "@course-data/course-model",
+      "version": "0.1.0",
+      "dependencies": {
+        "effect": "3.22.0",
       },
     },
     "packages/database": {
@@ -211,6 +220,8 @@
     "@course-data/application": ["@course-data/application@workspace:packages/application"],
 
     "@course-data/contracts": ["@course-data/contracts@workspace:packages/contracts"],
+
+    "@course-data/course-model": ["@course-data/course-model@workspace:packages/course-model"],
 
     "@course-data/database": ["@course-data/database@workspace:packages/database"],
 

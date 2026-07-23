@@ -7,6 +7,8 @@ import type {
 } from '@course-data/study-kernel';
 import { t } from 'elysia';
 
+export * from './course-insight';
+
 export const CourseLevelDto = t.Union([
   t.Literal('bachelor'),
   t.Literal('master'),
