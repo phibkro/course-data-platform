@@ -35,6 +35,22 @@
         "wrangler": "4.112.0",
       },
     },
+    "apps/course-api": {
+      "name": "@course-data/course-api",
+      "version": "0.1.0",
+      "dependencies": {
+        "@course-data/contracts": "0.1.0",
+        "@course-data/course-service": "0.1.0",
+        "@elysiajs/cors": "1.4.2",
+        "@elysiajs/openapi": "1.4.15",
+        "effect": "3.22.0",
+        "elysia": "1.4.29",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "5.20260719.1",
+        "wrangler": "4.112.0",
+      },
+    },
     "apps/ingest-worker": {
       "name": "@course-data/ingest-worker",
       "version": "0.1.0",
@@ -101,6 +117,14 @@
       "name": "@course-data/course-model",
       "version": "0.1.0",
       "dependencies": {
+        "effect": "3.22.0",
+      },
+    },
+    "packages/course-service": {
+      "name": "@course-data/course-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@course-data/course-model": "0.1.0",
         "effect": "3.22.0",
       },
     },
@@ -221,7 +245,11 @@
 
     "@course-data/contracts": ["@course-data/contracts@workspace:packages/contracts"],
 
+    "@course-data/course-api": ["@course-data/course-api@workspace:apps/course-api"],
+
     "@course-data/course-model": ["@course-data/course-model@workspace:packages/course-model"],
+
+    "@course-data/course-service": ["@course-data/course-service@workspace:packages/course-service"],
 
     "@course-data/database": ["@course-data/database@workspace:packages/database"],
 

@@ -15,6 +15,7 @@ fi
 CONFIGS=(
   packages/domain/tsconfig.json
   packages/course-model/tsconfig.json
+  packages/course-service/tsconfig.json
   packages/application/tsconfig.json
   packages/study-kernel/tsconfig.json
   packages/contracts/tsconfig.json
@@ -22,6 +23,7 @@ CONFIGS=(
   packages/source-dbh/tsconfig.json
   packages/source-ntnu/tsconfig.json
   apps/api-worker/tsconfig.json
+  apps/course-api/tsconfig.json
   apps/ingest-worker/tsconfig.json
   apps/web/tsconfig.json
   tsconfig.json
