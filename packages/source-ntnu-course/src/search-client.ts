@@ -21,7 +21,29 @@ export interface NtnuCourseSearchQuery {
   readonly queryString: string;
   readonly academicYear: number;
   readonly season: 'spring' | 'autumn';
+  readonly page: number;
+  readonly sort: 'relevance' | 'title-asc' | 'title-desc' | 'code-asc' | 'code-desc';
+  readonly campuses: ReadonlyArray<'trondheim' | 'gjovik' | 'alesund'>;
+  readonly levels: ReadonlyArray<'bachelor' | 'master' | 'phd' | 'other'>;
+  readonly continuingEducation: boolean;
+  readonly open: boolean;
+  readonly english: boolean;
 }
+
+const providerSort = (sort: NtnuCourseSearchQuery['sort']): string => {
+  switch (sort) {
+    case 'relevance':
+      return 'relevancy';
+    case 'title-asc':
+      return '+title';
+    case 'title-desc':
+      return '-title';
+    case 'code-asc':
+      return '+ntnucoursecode';
+    case 'code-desc':
+      return '-ntnucoursecode';
+  }
+};
 
 export const fetchNtnuCourseSearch = async (
   deps: FetchNtnuCourseSearchDeps,
@@ -31,7 +53,24 @@ export const fetchNtnuCourseSearch = async (
     searchQueryString: query.queryString,
     semester: String(query.academicYear),
     season: query.season,
-    pageNo: '1',
+    pageNo: String(query.page),
+    sortOrder: providerSort(query.sort),
+    courseAutumn: String(query.season === 'autumn'),
+    courseSpring: String(query.season === 'spring'),
+    courseSummer: 'false',
+    trondheim: String(query.campuses.includes('trondheim')),
+    gjovik: String(query.campuses.includes('gjovik')),
+    alesund: String(query.campuses.includes('alesund')),
+    faculty: '-1',
+    institute: '-1',
+    bachelor: String(query.levels.includes('bachelor')),
+    master: String(query.levels.includes('master')),
+    phd: String(query.levels.includes('phd')),
+    other: String(query.levels.includes('other')),
+    continuingEducation: String(query.continuingEducation),
+    open: String(query.open),
+    english: String(query.english),
+    multimedia: 'false',
   });
   const response = await deps.fetch(SEARCH_ENDPOINT, {
     method: 'POST',

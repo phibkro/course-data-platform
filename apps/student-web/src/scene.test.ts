@@ -2,99 +2,86 @@
 import { Scene } from 'foldkit';
 import { describe, test } from 'vitest';
 
+import { fixtureSearchResponse } from './course-client';
+import { partialCourseInsightFixture } from './course-insight.fixture';
 import {
-  FailedCourseInsight,
-  FetchCourseInsight,
-  SearchIdle,
-  SearchSuccess,
-  SyncedCourseUrl,
-  SyncCourseUrl,
-  SucceededCourseInsight,
+  CatalogueEmpty,
+  CatalogueInitialLoading,
+  CataloguePartial,
+  DetailClosed,
+  DetailPartial,
+  NextPageIdle,
   type Model,
+  initForHref,
   update,
   view,
 } from './main';
-import { fullCourseInsightFixture, partialCourseInsightFixture } from './course-insight.fixture';
 
-const emptyModel: Model = {
-  query: '',
-  result: SearchIdle(),
-};
+const baseModel = (): Model => initForHref('http://course-lens.local/')[0];
 
-describe('exact course search scene', () => {
-  test('fresh visitor sees an accessible course-code search', () => {
+describe('browse-first catalogue scene', () => {
+  test('fresh visitors see an accessible browse and filter experience', () => {
     Scene.scene(
       { update, view },
-      Scene.with(emptyModel),
-      Scene.expect(Scene.label('Course code')).toExist(),
-      Scene.expect(Scene.role('button', { name: 'Find course' })).toExist(),
-      Scene.expect(Scene.text('Start with one course')).toExist(),
-      Scene.expect(Scene.role('article')).toBeAbsent(),
+      Scene.with(baseModel()),
+      Scene.expect(Scene.role('heading', { name: 'Browse courses before you choose.' })).toExist(),
+      Scene.expect(Scene.label('Search courses')).toExist(),
+      Scene.expect(Scene.label('Campus')).toExist(),
+      Scene.expect(Scene.label('Study level')).toExist(),
+      Scene.expect(Scene.text('Loading the NTNU catalogue')).toExist(),
     );
   });
 
-  test('TDT4136 flows through loading to a useful partial detail page', () => {
-    Scene.scene(
-      { update, view },
-      Scene.with(emptyModel),
-      Scene.type(Scene.label('Course code'), 'tdt4136'),
-      Scene.click(Scene.role('button', { name: 'Find course' })),
-      Scene.expect(Scene.role('button', { name: 'Looking up course…' })).toBeDisabled(),
-      Scene.expect(Scene.text('Gathering course evidence')).toExist(),
-      Scene.Command.expectExact(
-        FetchCourseInsight({ courseCode: 'TDT4136' }),
-        SyncCourseUrl({ courseCode: 'TDT4136' }),
-      ),
-      Scene.Command.resolve(SyncCourseUrl, SyncedCourseUrl()),
-      Scene.Command.resolve(
-        FetchCourseInsight,
-        SucceededCourseInsight({ response: partialCourseInsightFixture }),
-      ),
-      Scene.inside(
-        Scene.role('article', { name: 'TDT4136 course details' }),
-        Scene.expect(
-          Scene.role('heading', {
-            name: 'Introduction to Artificial Intelligence',
-          }),
-        ).toExist(),
-        Scene.expect(Scene.text('Partial result')).toExist(),
-        Scene.expect(Scene.text('7.5')).toExist(),
-        Scene.expect(Scene.text('Individual written school exam', { exact: false })).toExist(),
-        Scene.expect(Scene.text('The grade source did not respond.', { exact: false })).toExist(),
-        Scene.expect(Scene.text('No explicit attendance requirement', { exact: false })).toExist(),
-        Scene.expect(Scene.first(Scene.all.role('link', { name: 'Open source ↗' }))).toExist(),
-      ),
-    );
-  });
-
-  test('complete data renders a distinct success state', () => {
+  test('official results are semantic links into existing course detail', () => {
     Scene.scene(
       { update, view },
       Scene.with({
-        query: 'TDT4136',
-        result: SearchSuccess({ response: fullCourseInsightFixture }),
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        visibleCount: 1,
       }),
-      Scene.expect(Scene.text('All configured sources responded.')).toExist(),
-      Scene.expect(Scene.text('640 results')).toExist(),
-      Scene.expect(Scene.text('8.3%')).toExist(),
-      Scene.expect(Scene.text('Partial result')).toBeAbsent(),
+      Scene.expect(Scene.role('region', { name: 'Course results' })).toExist(),
+      Scene.expect(
+        Scene.role('link', {
+          name: 'Open TDT4136: Introduction to Artificial Intelligence',
+        }),
+      ).toExist(),
+      Scene.expect(Scene.text('Showing 1 of 1 courses')).toExist(),
+      Scene.expect(Scene.text('Campus', { exact: true })).toExist(),
+      Scene.expect(Scene.text('Load when opened')).toBeAbsent(),
     );
   });
 
-  test('failed request preserves the query and offers a retryable form', () => {
+  test('an empty response is not rendered as a source failure', () => {
     Scene.scene(
       { update, view },
-      Scene.with({ query: 'TDT4136', result: SearchIdle() }),
-      Scene.submit(Scene.role('form')),
-      Scene.Command.resolve(SyncCourseUrl, SyncedCourseUrl()),
-      Scene.Command.resolve(
-        FetchCourseInsight,
-        FailedCourseInsight({ error: 'Course API unavailable' }),
-      ),
-      Scene.expect(Scene.role('alert')).toExist(),
-      Scene.expect(Scene.text('Course API unavailable')).toExist(),
-      Scene.expect(Scene.label('Course code')).toHaveValue('TDT4136'),
-      Scene.expect(Scene.role('button', { name: 'Find course' })).toBeEnabled(),
+      Scene.with({ ...baseModel(), catalogue: CatalogueEmpty() }),
+      Scene.expect(Scene.text('No courses match these filters')).toExist(),
+      Scene.expect(Scene.role('alert')).toBeAbsent(),
+    );
+  });
+
+  test('selected partial detail reuses the evidence-backed course view', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CatalogueInitialLoading(),
+        nextPage: NextPageIdle(),
+        selectedCode: 'TDT4136',
+        detail: DetailPartial({ response: partialCourseInsightFixture }),
+      }),
+      Scene.expect(Scene.role('button', { name: '← Back to course results' })).toExist(),
+      Scene.expect(Scene.role('article', { name: 'TDT4136 course details' })).toExist(),
+      Scene.expect(Scene.text('Partial result')).toExist(),
+    );
+  });
+
+  test('closed detail remains a valid explicit state', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({ ...baseModel(), selectedCode: null, detail: DetailClosed() }),
+      Scene.expect(Scene.role('button', { name: '← Back to course results' })).toBeAbsent(),
     );
   });
 });

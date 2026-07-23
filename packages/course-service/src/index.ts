@@ -2,22 +2,35 @@ import type { CourseInsight, CourseSearchItem, SourceStatus } from '@course-data
 import * as Data from 'effect/Data';
 import type * as Effect from 'effect/Effect';
 
+export type CourseSearchSort = 'relevance' | 'title-asc' | 'title-desc' | 'code-asc' | 'code-desc';
+export type CourseSearchCampus = 'trondheim' | 'gjovik' | 'alesund';
+export type CourseSearchLevel = 'bachelor' | 'master' | 'phd' | 'other';
+
 export interface CourseSearchInput {
-  readonly query: string;
+  readonly query?: string;
   readonly term?: string;
-  readonly language?: 'en' | 'nb';
+  readonly page?: number;
+  readonly sort?: CourseSearchSort;
+  readonly campuses?: ReadonlyArray<CourseSearchCampus>;
+  readonly levels?: ReadonlyArray<CourseSearchLevel>;
+  readonly continuingEducation?: boolean;
+  readonly open?: boolean;
+  readonly english?: boolean;
 }
 
 export interface CourseInsightInput {
   readonly courseCode: string;
   readonly term?: string;
-  readonly language?: 'en' | 'nb';
 }
 
 export interface CourseSearchResult {
   readonly items: ReadonlyArray<CourseSearchItem>;
   readonly sourceStatuses: ReadonlyArray<SourceStatus>;
   readonly exactMatchCode: string | null;
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+  readonly hasMore: boolean;
 }
 
 export interface CourseInsightResult {

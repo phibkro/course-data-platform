@@ -1,60 +1,65 @@
-# Next vertical slice: discover a useful course
+# Next vertical slice: decision signals while browsing
 
 ## Goal
 
-Let a student who does not already know an NTNU course code search by code,
-title, or topic, understand the first useful signals quickly, and open the
-existing evidence-backed course insight.
+Let a student scan a broad NTNU catalogue and see the first decision-relevant
+signals without opening every result.
 
-The exact-code TDT4136 walking skeleton is complete. Preserve it as the detail
-path; do not replace it with a new architecture.
+The browse-first catalogue and evidence-backed detail are complete. Preserve
+both as the product path; enrich the list without making it wait for every
+upstream.
 
 ## Required path
 
 ```text
-Foldkit search with URL state
-  -> fast NTNU result summaries
-  -> progressive per-result enrichment
+Foldkit catalogue with URL state
+  -> fast official NTNU result summaries
+  -> batched grade summaries for loaded course codes
+  -> bounded detail enrichment for visible or shortlisted courses
   -> select a course
   -> existing CourseInsight detail and evidence
 ```
 
 ## Scope
 
-1. Consume the existing `/v1/course-search` contract from the student web.
-2. Support code, Norwegian/English title, and topic-text queries.
-3. Put the query in the URL so discovery survives reload and is shareable.
-4. Render fast official identity fields first: code, title, credits, term, and
-   campus where known.
-5. Enrich visible results progressively with compact assessment, obligatory
-   work, and grade-risk signals without blocking the initial list.
-6. Preserve explicit idle, searching, partial, empty, failed, and selected
-   states in the Foldkit model.
-7. Keep unavailable/conflicting facts honest; never turn missing enrichment
-   into a negative claim.
-8. Add a 10–20 course golden corpus spanning old/new courses, pass/fail,
+1. Add one batched DBH/HK-dir grade-summary capability for the course codes
+   already loaded in the catalogue.
+2. Show sample size, covered period, and failure-rate availability on result
+   cards; preserve pass/fail-only and absent-grade cases explicitly.
+3. Fetch NTNU detail only for visible, opened, or shortlisted courses, with a
+   concurrency limit and cancellation for filters that change.
+4. Derive compact assessment and obligatory-work signals through the existing
+   evidence model; do not interpret catalogue multimedia as remote teaching or
+   `examOnly` as an assessment claim.
+5. Keep initial official catalogue rows interactive while enrichments load or
+   fail independently.
+6. Preserve explicit unchecked, loading, known, inferred, conflicting,
+   unavailable, and failed states in the Foldkit model.
+7. Add a 10–20 course golden corpus spanning old/new courses, pass/fail,
    multiple campuses, missing grades, source failure, and conflicting windows.
-9. Measure the live search/enrichment path before introducing D1 caching.
+8. Measure visible-card enrichment before introducing D1 caching or a full
+   catalogue replication pipeline.
 
 ## Acceptance criteria
 
-- A fresh visitor can find `TDT4136` using “algoritmer”, its title, or its code.
-- Initial results appear without waiting for every grade/detail provider.
-- Each result makes clear which facts are official, inferred, unavailable, or
-  still enriching.
-- Selecting a result opens the current decision-oriented detail without losing
-  the search query.
-- Back/forward navigation and reload preserve query and selection.
-- Source failure leaves useful official result summaries visible.
+- Initial official rows still appear without waiting for grade/detail
+  providers.
+- Loaded cards receive grade availability in a bounded number of requests,
+  rather than one DBH request per card.
+- Each signal makes clear whether it is checked, known, inferred, conflicting,
+  unavailable, or failed.
+- Changing filters cancels or ignores stale enrichment and never attaches
+  evidence to the wrong course.
+- Source failure leaves useful official result summaries visible and usable.
 - Desktop keyboard and 375 px mobile journeys pass Agent Browser smoke tests.
 - Type checks, lint, format, tests, OpenAPI generation, and builds remain green.
 
 ## Immediately after
 
 Add a local, account-free shortlist and comparison view for two to four
-courses. Compare workload, assessment, obligatory work, collaboration,
-attendance, remote feasibility, and grade outcomes using the same Fact and
-evidence semantics.
+enriched courses. Compare workload, assessment, obligatory work,
+collaboration, attendance, remote feasibility, and grade outcomes using the
+same Fact and evidence semantics.
 
 ## Still deferred
 

@@ -3,6 +3,9 @@ import { known, unavailable, unknown, type Fact } from '@course-data/course-mode
 import type { ValidatedNtnuCourseDetail } from './detail';
 import type { ValidatedNtnuSearchHit } from './search';
 
+const academicPeriod = (academicYear: number, season: 'spring' | 'autumn'): string =>
+  `${academicYear}/${academicYear + 1} · ${season}`;
+
 export interface EncodedEvidence {
   readonly id: string;
   readonly provider: string;
@@ -92,7 +95,7 @@ export const mapNtnuToCourseInsightFields = (
     kind: search.attribution.evidenceKind,
     recordId: search.sourceRecordId,
     sourceUrl: search.courseUrl,
-    sourcePeriod: `${search.season}-${search.academicYear}`,
+    sourcePeriod: academicPeriod(search.academicYear, search.season),
     observedAt: search.attribution.retrievedAt,
     excerpt: search.courseName,
     inferenceRule: null,
@@ -108,25 +111,30 @@ export const mapNtnuToCourseInsightFields = (
     },
   ];
 
-  const offerings = known<ReadonlyArray<NtnuOffering>>(
-    [
-      {
-        academicYear: search.academicYear,
-        season: search.season,
-        campuses: search.location
-          ? search.location
-              .split(',')
-              .map((campus) => campus.trim())
-              .filter((campus) => campus.length > 0)
-          : [],
-        // hasMultimedia flags that lecture recordings exist, not that remote
-        // participation is possible. A campus label also does not prove that
-        // every activity is in-person, so mode stays unclassified.
-        deliveryModes: [],
-      },
-    ],
-    [searchEvidenceId],
-  );
+  const campusValues =
+    search.location === null
+      ? []
+      : search.location
+          .split(',')
+          .map((campus) => campus.trim())
+          .filter((campus) => campus.length > 0);
+  const offerings: Fact<ReadonlyArray<NtnuOffering>> =
+    campusValues.length === 0
+      ? unknown('The NTNU catalogue did not identify a campus for this offering.')
+      : known(
+          [
+            {
+              academicYear: search.academicYear,
+              season: search.season,
+              campuses: campusValues,
+              // hasMultimedia flags that lecture recordings exist, not that remote
+              // participation is possible. A campus label also does not prove that
+              // every activity is in-person, so mode stays unclassified.
+              deliveryModes: [],
+            },
+          ],
+          [searchEvidenceId],
+        );
 
   if (detail === null) {
     sourceStatuses.push({
@@ -173,7 +181,7 @@ export const mapNtnuToCourseInsightFields = (
       kind: detail.attribution.evidenceKind,
       recordId: detail.sourceRecordId,
       sourceUrl: detail.attribution.requestUrl,
-      sourcePeriod: `${search.season}-${search.academicYear}`,
+      sourcePeriod: academicPeriod(search.academicYear, search.season),
       observedAt: detail.attribution.retrievedAt,
       excerpt: null,
       inferenceRule: null,
@@ -184,7 +192,7 @@ export const mapNtnuToCourseInsightFields = (
       kind: 'inference',
       recordId: detail.sourceRecordId,
       sourceUrl: detail.attribution.requestUrl,
-      sourcePeriod: `${search.season}-${search.academicYear}`,
+      sourcePeriod: academicPeriod(search.academicYear, search.season),
       observedAt: detail.attribution.retrievedAt,
       excerpt: null,
       inferenceRule:

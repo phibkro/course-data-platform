@@ -17,6 +17,8 @@ const searchPayload = {
     },
   ],
   numFound: 1,
+  pageNr: 1,
+  pageSize: 500,
   hasMoreResults: false,
 };
 
@@ -132,6 +134,75 @@ describe('live course decision service', () => {
           },
         ],
       },
+    });
+    expect(result).toMatchObject({
+      total: 1,
+      page: 1,
+      pageSize: 500,
+      hasMore: false,
+    });
+  });
+
+  it('supports a blank default catalogue with explicit provider filters', async () => {
+    let submitted = new URLSearchParams();
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url, init) => {
+          if (url.includes('fetch-courselist-as-json')) {
+            submitted = new URLSearchParams(String(init?.body ?? ''));
+            return Response.json(searchPayload);
+          }
+          return makeFetch()(url);
+        },
+        now: () => new Date('2026-07-23T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(service.search({}));
+
+    expect(result.items).toHaveLength(1);
+    expect(Object.fromEntries(submitted)).toMatchObject({
+      searchQueryString: '',
+      pageNo: '1',
+      sortOrder: '+title',
+      courseAutumn: 'true',
+      courseSpring: 'false',
+      trondheim: 'true',
+      gjovik: 'true',
+      alesund: 'true',
+      bachelor: 'true',
+      master: 'true',
+      phd: 'true',
+      other: 'true',
+      continuingEducation: 'true',
+      open: 'false',
+      english: 'false',
+    });
+  });
+
+  it('preserves a missing catalogue campus as unknown', async () => {
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url) =>
+          url.includes('fetch-courselist-as-json')
+            ? Response.json({
+                ...searchPayload,
+                courses: [{ ...searchPayload.courses[0], location: null }],
+              })
+            : makeFetch()(url),
+        now: () => new Date('2026-07-23T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(service.search({ query: 'TDT4136' }));
+
+    expect(result.items[0]?.offerings).toMatchObject({
+      state: 'unknown',
+      reason: 'The NTNU catalogue did not identify a campus for this offering.',
     });
   });
 

@@ -50,8 +50,10 @@ export interface NtnuSearchRejection {
 export interface NtnuSearchParseResult {
   readonly accepted: ReadonlyArray<ValidatedNtnuSearchHit>;
   readonly rejected: ReadonlyArray<NtnuSearchRejection>;
-  readonly numFound: number;
-  readonly hasMoreResults: boolean;
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+  readonly hasMore: boolean;
 }
 
 const IsoTimestampSchema = Schema.String.pipe(
@@ -75,13 +77,15 @@ const SearchCourseSchema = Schema.Struct({
   courseName: Schema.String.pipe(Schema.minLength(1)),
   examOnly: Schema.Boolean,
   hasMultimedia: Schema.Boolean,
-  courseUrl: Schema.String.pipe(Schema.minLength(1)),
+  courseUrl: Schema.String.pipe(Schema.startsWith('https://www.ntnu.no/studier/emner/')),
   location: Schema.NullOr(Schema.String),
 });
 
 const SearchResponseSchema = Schema.Struct({
-  courses: Schema.Array(SearchCourseSchema),
+  courses: Schema.Array(Schema.Unknown),
   numFound: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+  pageNr: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1)),
+  pageSize: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1)),
   hasMoreResults: Schema.Boolean,
 });
 
@@ -112,8 +116,10 @@ const rejectOne = (
 ): NtnuSearchParseResult => ({
   accepted: [],
   rejected: [{ code, message, raw }],
-  numFound: 0,
-  hasMoreResults: false,
+  total: 0,
+  page: 1,
+  pageSize: 1,
+  hasMore: false,
 });
 
 export const parseNtnuCourseSearch = (
@@ -146,8 +152,26 @@ export const parseNtnuCourseSearch = (
   const response = responseResult.right;
   const query = captureResult.right.queryString.trim().toUpperCase();
 
-  const accepted = response.courses.map((course): ValidatedNtnuSearchHit => {
-    const sourceRecordId = `ntnu-course-search:${course.courseCode}`;
+  const accepted: ValidatedNtnuSearchHit[] = [];
+  const rejected: NtnuSearchRejection[] = [];
+  for (const rawCourse of response.courses) {
+    const courseResult = Schema.decodeUnknownEither(SearchCourseSchema)(rawCourse);
+    if (Either.isLeft(courseResult)) {
+      rejected.push({
+        code: 'invalid-response-shape',
+        message: 'An NTNU search result row failed boundary validation.',
+        raw: rawCourse,
+      });
+      continue;
+    }
+
+    const course = courseResult.right;
+    const sourceRecordId = [
+      'ntnu-course-search',
+      course.courseCode,
+      course.courseVersion ?? 'unknown-version',
+      `${captureResult.right.academicYear}-${captureResult.right.season}`,
+    ].join(':');
     const attribution: NtnuSearchAttribution = {
       provider: 'ntnu-course-search',
       sourceRecordId,
@@ -156,7 +180,7 @@ export const parseNtnuCourseSearch = (
       contentHash: captureResult.right.contentHash,
       evidenceKind: captureResult.right.evidenceKind,
     };
-    return {
+    accepted.push({
       courseCode: course.courseCode,
       courseVersion: course.courseVersion,
       courseName: course.courseName,
@@ -169,13 +193,15 @@ export const parseNtnuCourseSearch = (
       season: captureResult.right.season,
       sourceRecordId,
       attribution,
-    };
-  });
+    });
+  }
 
   return {
     accepted,
-    rejected: [],
-    numFound: response.numFound,
-    hasMoreResults: response.hasMoreResults,
+    rejected,
+    total: response.numFound,
+    page: response.pageNr,
+    pageSize: response.pageSize,
+    hasMore: response.hasMoreResults,
   };
 };

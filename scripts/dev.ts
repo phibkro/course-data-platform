@@ -10,8 +10,23 @@ const bun = process.execPath;
 
 const nodeCheck = spawnSync('node', ['--version'], { encoding: 'utf8' });
 if (nodeCheck.error || nodeCheck.status !== 0) {
+  const reenteredFromNix = process.env.COURSE_DATA_NIX_REENTRY === '1';
+  const nixCheck = spawnSync('nix', ['--version'], { encoding: 'utf8' });
+  if (!reenteredFromNix && nixCheck.status === 0) {
+    console.log('Node.js is not on PATH; entering the repository Nix development shell…');
+    const result = spawnSync(
+      'nix',
+      ['develop', '--command', 'bun', 'scripts/dev.ts', ...process.argv.slice(2)],
+      {
+        cwd: root,
+        env: { ...process.env, COURSE_DATA_NIX_REENTRY: '1' },
+        stdio: 'inherit',
+      },
+    );
+    process.exit(result.status ?? 1);
+  }
   console.error(
-    'Node.js is required to run Wrangler locally. Enter the Nix development shell first.',
+    'Node.js is required to run Wrangler locally. Install Node.js 22+ or run `nix develop --command bun run dev`.',
   );
   process.exit(1);
 }
@@ -69,8 +84,8 @@ const web = spawnService(
   'student-web',
   localBinary(webDirectory, 'vite'),
   preview
-    ? ['preview', '--host', '127.0.0.1', '--port', '4173']
-    : ['--host', '127.0.0.1', '--port', '5173'],
+    ? ['preview', '--host', '127.0.0.1', '--port', '4173', '--strictPort']
+    : ['--host', '127.0.0.1', '--port', '5173', '--strictPort'],
   webDirectory,
   {
     ...process.env,

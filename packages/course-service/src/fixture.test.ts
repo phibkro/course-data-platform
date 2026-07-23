@@ -11,10 +11,23 @@ describe('fixtureCourseDecisionService', () => {
 
     expect(result.exactMatchCode).toBe('TDT4136');
     expect(result.items).toHaveLength(1);
+    expect(result).toMatchObject({
+      total: 1,
+      page: 1,
+      pageSize: 500,
+      hasMore: false,
+    });
     expect(result.items[0]?.title).toMatchObject({
       state: 'known',
       value: 'Introduction to Artificial Intelligence',
     });
+  });
+
+  it('returns the first catalogue page for a blank query', async () => {
+    const result = await Effect.runPromise(fixtureCourseDecisionService.search({}));
+
+    expect(result.items).toHaveLength(1);
+    expect(result.exactMatchCode).toBeNull();
   });
 
   it('returns a partial evidence-backed course insight', async () => {

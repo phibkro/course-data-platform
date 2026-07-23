@@ -31,7 +31,9 @@ import {
   CourseSourcesUnavailableError,
   type CourseDecisionService,
   type CourseInsightInput,
+  type CourseSearchCampus,
   type CourseSearchInput,
+  type CourseSearchLevel,
 } from './index';
 
 export interface LiveCourseDecisionDependencies {
@@ -85,26 +87,36 @@ const resolveTerm = (
 const errorMessage = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
+const defaultCampuses: ReadonlyArray<CourseSearchCampus> = ['trondheim', 'gjovik', 'alesund'];
+const defaultLevels: ReadonlyArray<CourseSearchLevel> = ['bachelor', 'master', 'phd', 'other'];
+
 const sourceStatusForSearch = (
   hit: ValidatedNtnuSearchHit | undefined,
   observedAt: Date,
+  rejectedRows: number,
 ): SourceStatus => ({
   provider: 'ntnu-course-search',
   status: 'available',
   observedAt: hit === undefined ? observedAt : new Date(hit.attribution.retrievedAt),
-  warning: null,
+  warning:
+    rejectedRows === 0 ? null : `${rejectedRows} malformed NTNU catalogue row(s) were excluded.`,
 });
 
-const campuses = (location: string | null): ReadonlyArray<string> =>
-  location === null
-    ? []
-    : location
-        .split(',')
-        .map((campus) => campus.trim())
-        .filter((campus) => campus.length > 0);
+const campuses = (location: string | null): ReadonlyArray<string> | null => {
+  if (location === null) return null;
+  const values = location
+    .split(',')
+    .map((campus) => campus.trim())
+    .filter((campus) => campus.length > 0);
+  return values.length === 0 ? null : values;
+};
+
+const academicPeriod = (academicYear: number, season: 'spring' | 'autumn'): string =>
+  `${academicYear}/${academicYear + 1} · ${season}`;
 
 const toSearchItem = (hit: ValidatedNtnuSearchHit): CourseSearchItem => {
   const evidenceId = `evidence:${hit.sourceRecordId}`;
+  const knownCampuses = campuses(hit.location);
   return decodeCourseSearchItem({
     courseKey: `ntnu:${hit.courseCode}:${hit.academicYear}-${hit.season}`,
     institutionCode: 'NTNU',
@@ -112,17 +124,20 @@ const toSearchItem = (hit: ValidatedNtnuSearchHit): CourseSearchItem => {
     title: known(hit.courseName, [evidenceId]),
     credits: unknown('Course credits require the NTNU detail page.'),
     level: unknown('The NTNU search response does not expose course level.'),
-    offerings: known(
-      [
-        {
-          academicYear: hit.academicYear,
-          season: hit.season,
-          campuses: campuses(hit.location),
-          deliveryModes: [],
-        },
-      ],
-      [evidenceId],
-    ),
+    offerings:
+      knownCampuses === null
+        ? unknown('The NTNU catalogue did not identify a campus for this offering.')
+        : known(
+            [
+              {
+                academicYear: hit.academicYear,
+                season: hit.season,
+                campuses: knownCampuses,
+                deliveryModes: [],
+              },
+            ],
+            [evidenceId],
+          ),
     assessmentSignals: unknown('Assessment forms require the NTNU detail page.'),
     workFormSignals: unknown('Work forms require the NTNU detail page.'),
     enrichment: 'basic',
@@ -133,7 +148,7 @@ const toSearchItem = (hit: ValidatedNtnuSearchHit): CourseSearchItem => {
         kind: 'source-fact',
         recordId: hit.sourceRecordId,
         sourceUrl: hit.courseUrl,
-        sourcePeriod: `${hit.season}-${hit.academicYear}`,
+        sourcePeriod: academicPeriod(hit.academicYear, hit.season),
         observedAt: hit.attribution.retrievedAt,
         excerpt: hit.courseName,
         inferenceRule: null,
@@ -184,10 +199,18 @@ export const makeLiveCourseDecisionService = (
     Effect.tryPromise({
       try: async () => {
         const term = resolveTerm(input.term, defaults);
+        const queryString = input.query?.trim() ?? '';
         const result = await fetchNtnuCourseSearch(deps, {
-          queryString: input.query.trim(),
+          queryString,
           academicYear: term.academicYear,
           season: term.season,
+          page: input.page ?? 1,
+          sort: input.sort ?? (queryString.length === 0 ? 'title-asc' : 'relevance'),
+          campuses: input.campuses ?? defaultCampuses,
+          levels: input.levels ?? defaultLevels,
+          continuingEducation: input.continuingEducation ?? true,
+          open: input.open ?? false,
+          english: input.english ?? false,
         });
         if (result.rejected.length > 0 && result.accepted.length === 0) {
           throw new Error(result.rejected[0]?.message ?? 'NTNU course search was rejected.');
@@ -196,8 +219,14 @@ export const makeLiveCourseDecisionService = (
         const observedAt = deps.now();
         return {
           items: result.accepted.map(toSearchItem),
-          sourceStatuses: [sourceStatusForSearch(result.accepted[0], observedAt)],
+          sourceStatuses: [
+            sourceStatusForSearch(result.accepted[0], observedAt, result.rejected.length),
+          ],
           exactMatchCode: result.accepted.find((hit) => hit.exactMatch)?.courseCode ?? null,
+          total: result.total,
+          page: result.page,
+          pageSize: result.pageSize,
+          hasMore: result.hasMore,
         };
       },
       catch: (cause) =>
@@ -218,6 +247,13 @@ export const makeLiveCourseDecisionService = (
           queryString: courseCode,
           academicYear: term.academicYear,
           season: term.season,
+          page: 1,
+          sort: 'relevance',
+          campuses: defaultCampuses,
+          levels: defaultLevels,
+          continuingEducation: true,
+          open: false,
+          english: false,
         });
         if (searchResult.rejected.length > 0 && searchResult.accepted.length === 0) {
           throw new Error(searchResult.rejected[0]?.message ?? 'NTNU course search was rejected.');

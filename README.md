@@ -20,7 +20,10 @@ Foldkit web -> Elysia/OpenAPI -> Effect service
 
 Implemented now:
 
-- exact course-code search and a decision-oriented course detail;
+- a browse-first live NTNU catalogue with code/title search, teaching-term,
+  campus, study-level, open-admission, and English-language filters;
+- relevance, title, and course-code sorting plus incremental pagination;
+- URL-backed catalogue state and a decision-oriented course detail;
 - explicit evidence and per-source status for every factual result;
 - independent partial success when detail or grade providers fail;
 - ordinary-term, bounded grade aggregation with pass/fail outcomes kept
@@ -57,6 +60,10 @@ does need outbound access to the public source APIs. `bun run dev:api` and
 `VITE_API_URL=http://localhost:8787 bun run dev:web` are available for separate
 terminals. Override that origin when needed; use `VITE_USE_FIXTURE=true` only
 for explicit offline UI work.
+
+If the host shell does not expose Node directly but Nix is available,
+`bun run dev` automatically re-enters the repository development shell. This
+keeps the default onboarding path to one command on the workstation.
 
 Run the previous platform deliberately with `bun run legacy:dev:platform`.
 

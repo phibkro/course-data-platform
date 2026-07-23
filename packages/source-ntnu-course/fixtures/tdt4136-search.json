@@ -20,5 +20,7 @@
     }
   ],
   "numFound": 2,
+  "pageNr": 1,
+  "pageSize": 500,
   "hasMoreResults": false
 }

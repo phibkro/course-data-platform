@@ -28,9 +28,64 @@ describe('course decision API', () => {
     expect(response.headers.get('x-request-id')).toBe('request-test');
     expect(await response.json()).toMatchObject({
       items: [{ code: 'TDT4136', enrichment: 'enriched' }],
-      meta: { count: 1, exactMatchCode: 'TDT4136' },
+      meta: {
+        count: 1,
+        total: 1,
+        page: 1,
+        pageSize: 500,
+        hasMore: false,
+        exactMatchCode: 'TDT4136',
+      },
     });
   });
+
+  it('returns a default catalogue page when query is omitted', async () => {
+    const response = await app.handle(new Request('http://localhost/v1/course-search'));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      items: [{ code: 'TDT4136' }],
+      meta: {
+        count: 1,
+        total: 1,
+        page: 1,
+        pageSize: 500,
+        hasMore: false,
+        exactMatchCode: null,
+      },
+    });
+  });
+
+  it('accepts validated paging, sorting, and official filter parameters', async () => {
+    const response = await app.handle(
+      new Request(
+        'http://localhost/v1/course-search?page=2&sort=code-desc&campuses=trondheim,alesund&levels=bachelor,phd&continuingEducation=true&open=false&english=true',
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      items: [],
+      meta: { total: 1, page: 2, pageSize: 500, hasMore: false },
+    });
+  });
+
+  it.each(['page=1.5', 'page=0', 'page=101', 'campuses=oslo', 'open=maybe'])(
+    'returns a declared problem for invalid catalogue query %s',
+    async (query) => {
+      const response = await app.handle(new Request(`http://localhost/v1/course-search?${query}`));
+
+      expect(response.status).toBe(400);
+      expect(response.headers.get('x-request-id')).toBe('request-test');
+      expect(await response.json()).toEqual({
+        type: 'https://course-data.example/problems/invalid-request',
+        title: 'Invalid request',
+        status: 400,
+        detail: 'The request parameters did not match the published schema.',
+        requestId: 'request-test',
+      });
+    },
+  );
 
   it('returns partial course insight without collapsing unavailable grades', async () => {
     const response = await app.handle(new Request('http://localhost/v1/courses/TDT4136/insight'));

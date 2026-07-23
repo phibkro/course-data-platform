@@ -131,9 +131,31 @@ const SourceStatusDto = t.Object({
 });
 
 export const CourseSearchQueryDto = t.Object({
-  query: t.String({ minLength: 1, maxLength: 200 }),
+  query: t.Optional(t.String({ maxLength: 200 })),
   term: t.Optional(t.String({ minLength: 1, maxLength: 40 })),
-  language: t.Optional(t.Union([t.Literal('en'), t.Literal('nb')])),
+  page: t.Optional(t.Numeric({ minimum: 1, maximum: 100, multipleOf: 1 })),
+  sort: t.Optional(
+    t.Union([
+      t.Literal('relevance'),
+      t.Literal('title-asc'),
+      t.Literal('title-desc'),
+      t.Literal('code-asc'),
+      t.Literal('code-desc'),
+    ]),
+  ),
+  campuses: t.Optional(
+    t.String({
+      pattern: '^(trondheim|gjovik|alesund)(,(trondheim|gjovik|alesund))*$',
+    }),
+  ),
+  levels: t.Optional(
+    t.String({
+      pattern: '^(bachelor|master|phd|other)(,(bachelor|master|phd|other))*$',
+    }),
+  ),
+  continuingEducation: t.Optional(t.Union([t.Literal('true'), t.Literal('false')])),
+  open: t.Optional(t.Union([t.Literal('true'), t.Literal('false')])),
+  english: t.Optional(t.Union([t.Literal('true'), t.Literal('false')])),
 });
 
 export const CourseSearchItemDto = t.Object({
@@ -160,6 +182,10 @@ export const CourseSearchResponseDto = t.Object({
   sourceStatuses: t.Array(SourceStatusDto),
   meta: t.Object({
     count: t.Integer({ minimum: 0 }),
+    total: t.Integer({ minimum: 0 }),
+    page: t.Integer({ minimum: 1 }),
+    pageSize: t.Integer({ minimum: 1 }),
+    hasMore: t.Boolean(),
     exactMatchCode: t.Union([t.String({ minLength: 1 }), t.Null()]),
   }),
 });
@@ -170,7 +196,6 @@ export const CourseInsightParamsDto = t.Object({
 
 export const CourseInsightQueryDto = t.Object({
   term: t.Optional(t.String({ minLength: 1, maxLength: 40 })),
-  language: t.Optional(t.Union([t.Literal('en'), t.Literal('nb')])),
 });
 
 export const CourseInsightDto = t.Object({

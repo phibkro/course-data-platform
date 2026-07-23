@@ -109,9 +109,8 @@
           {
             "name": "query",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "minLength": 1,
               "maxLength": 200,
               "type": "string"
             }
@@ -127,14 +126,94 @@
             }
           },
           {
-            "name": "language",
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "multipleOf": 1,
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 100,
+                  "multipleOf": 1,
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          {
+            "name": "sort",
             "in": "query",
             "required": false,
             "schema": {
               "type": "string",
               "enum": [
-                "en",
-                "nb"
+                "relevance",
+                "title-asc",
+                "title-desc",
+                "code-asc",
+                "code-desc"
+              ]
+            }
+          },
+          {
+            "name": "campuses",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "pattern": "^(trondheim|gjovik|alesund)(,(trondheim|gjovik|alesund))*$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "levels",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "pattern": "^(bachelor|master|phd|other)(,(bachelor|master|phd|other))*$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "continuingEducation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "open",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "english",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
               ]
             }
           }
@@ -1587,6 +1666,10 @@
                       "type": "object",
                       "required": [
                         "count",
+                        "total",
+                        "page",
+                        "pageSize",
+                        "hasMore",
                         "exactMatchCode"
                       ],
                       "properties": {
@@ -1603,6 +1686,51 @@
                               "type": "integer"
                             }
                           ]
+                        },
+                        "total": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "page": {
+                          "minimum": 1,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 1,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "pageSize": {
+                          "minimum": 1,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 1,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "hasMore": {
+                          "type": "boolean"
                         },
                         "exactMatchCode": {
                           "anyOf": [
@@ -1738,18 +1866,6 @@
               "minLength": 1,
               "maxLength": 40,
               "type": "string"
-            }
-          },
-          {
-            "name": "language",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "en",
-                "nb"
-              ]
             }
           }
         ],

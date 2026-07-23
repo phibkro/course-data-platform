@@ -8,7 +8,11 @@ import {
   toCourseInsightDto,
   toCourseSearchItemDto,
 } from '@course-data/contracts';
-import type { CourseDecisionService } from '@course-data/course-service';
+import type {
+  CourseDecisionService,
+  CourseSearchCampus,
+  CourseSearchLevel,
+} from '@course-data/course-service';
 import { cors } from '@elysiajs/cors';
 import { openapi } from '@elysiajs/openapi';
 import * as Either from 'effect/Either';
@@ -29,12 +33,28 @@ const problem = (
   requestId,
 });
 
+const csv = <Value extends string>(value: string): ReadonlyArray<Value> =>
+  value.split(',') as unknown as ReadonlyArray<Value>;
+
 export const createCourseApi = (
   service: CourseDecisionService,
   makeRequestId: () => string = () => crypto.randomUUID(),
 ) =>
   new Elysia()
     .use(cors({ origin: true }))
+    .onError(({ code, request, set }) => {
+      if (code !== 'VALIDATION') return;
+      const requestId = request.headers.get('cf-ray') ?? makeRequestId();
+      set.status = 400;
+      set.headers['x-request-id'] = requestId;
+      return problem(
+        requestId,
+        400,
+        'invalid-request',
+        'Invalid request',
+        'The request parameters did not match the published schema.',
+      );
+    })
     .use(
       openapi({
         path: '/openapi',
@@ -86,9 +106,21 @@ export const createCourseApi = (
         const result = await Effect.runPromise(
           Effect.either(
             service.search({
-              query: query.query,
+              ...(query.query === undefined ? {} : { query: query.query }),
               ...(query.term === undefined ? {} : { term: query.term }),
-              ...(query.language === undefined ? {} : { language: query.language }),
+              ...(query.page === undefined ? {} : { page: query.page }),
+              ...(query.sort === undefined ? {} : { sort: query.sort }),
+              ...(query.campuses === undefined
+                ? {}
+                : { campuses: csv<CourseSearchCampus>(query.campuses) }),
+              ...(query.levels === undefined
+                ? {}
+                : { levels: csv<CourseSearchLevel>(query.levels) }),
+              ...(query.continuingEducation === undefined
+                ? {}
+                : { continuingEducation: query.continuingEducation === 'true' }),
+              ...(query.open === undefined ? {} : { open: query.open === 'true' }),
+              ...(query.english === undefined ? {} : { english: query.english === 'true' }),
             }),
           ),
         );
@@ -128,6 +160,10 @@ export const createCourseApi = (
           })),
           meta: {
             count: result.right.items.length,
+            total: result.right.total,
+            page: result.right.page,
+            pageSize: result.right.pageSize,
+            hasMore: result.right.hasMore,
             exactMatchCode: result.right.exactMatchCode,
           },
         };
@@ -151,7 +187,6 @@ export const createCourseApi = (
             service.getInsight({
               courseCode: params.courseCode,
               ...(query.term === undefined ? {} : { term: query.term }),
-              ...(query.language === undefined ? {} : { language: query.language }),
             }),
           ),
         );

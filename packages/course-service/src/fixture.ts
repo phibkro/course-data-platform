@@ -154,18 +154,23 @@ export const fixtureCourseSearchItem: CourseSearchItem = decodeCourseSearchItem(
 });
 
 export const fixtureCourseDecisionService: CourseDecisionService = {
-  search: ({ query }) =>
-    Effect.succeed({
-      items:
-        query.trim().length === 0 ||
-        !['TDT4136', 'ARTIFICIAL INTELLIGENCE'].some((candidate) =>
-          candidate.includes(query.trim().toUpperCase()),
-        )
-          ? []
-          : [fixtureCourseSearchItem],
+  search: ({ query, page = 1 }) => {
+    const normalizedQuery = query?.trim().toUpperCase() ?? '';
+    const matches =
+      normalizedQuery.length === 0 ||
+      ['TDT4136', 'ARTIFICIAL INTELLIGENCE'].some((candidate) =>
+        candidate.includes(normalizedQuery),
+      );
+    return Effect.succeed({
+      items: matches && page === 1 ? [fixtureCourseSearchItem] : [],
       sourceStatuses: fixtureCourseInsight.sourceStatuses,
-      exactMatchCode: query.trim().toUpperCase() === 'TDT4136' ? 'TDT4136' : null,
-    }),
+      exactMatchCode: normalizedQuery === 'TDT4136' ? 'TDT4136' : null,
+      total: matches ? 1 : 0,
+      page,
+      pageSize: 500,
+      hasMore: false,
+    });
+  },
   getInsight: ({ courseCode }) =>
     courseCode.trim().toUpperCase() === 'TDT4136'
       ? Effect.succeed({ item: fixtureCourseInsight, partial: true })
