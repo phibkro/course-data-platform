@@ -1,0 +1,143 @@
+import * as Either from 'effect/Either';
+import * as Schema from 'effect/Schema';
+
+const DBH_TABLE_ID = 308;
+
+export interface DbhGradesCaptureMetadata {
+  readonly retrievedAt: string;
+  readonly contentHash: string;
+  readonly courseCode: string;
+  readonly fromYear: number;
+  readonly toYear: number;
+}
+
+export interface DbhGradesAttribution {
+  readonly provider: 'dbh';
+  readonly tableId: 308;
+  readonly sourceRecordId: string;
+  readonly retrievedAt: string;
+  readonly contentHash: string;
+  readonly period: { readonly fromYear: number; readonly toYear: number };
+}
+
+export interface ValidatedDbhGradeRow {
+  readonly grade: string;
+  readonly candidateCount: number;
+}
+
+export interface ValidatedDbhGrades {
+  readonly sourceRecordId: string;
+  readonly attribution: DbhGradesAttribution;
+  readonly rows: ReadonlyArray<ValidatedDbhGradeRow>;
+}
+
+export type DbhGradesRejectionCode =
+  | 'invalid-response-bytes'
+  | 'invalid-response-json'
+  | 'invalid-response-shape'
+  | 'invalid-capture-metadata'
+  | 'row-schema-invalid';
+
+export interface DbhGradesRejection {
+  readonly code: DbhGradesRejectionCode;
+  readonly message: string;
+  readonly raw: unknown;
+}
+
+export type DbhGradesParseResult =
+  | { readonly accepted: ValidatedDbhGrades; readonly rejected: null }
+  | { readonly accepted: null; readonly rejected: DbhGradesRejection };
+
+const IsoTimestampSchema = Schema.String.pipe(
+  Schema.pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/),
+);
+const Sha256Schema = Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/));
+const CaptureSchema = Schema.Struct({
+  retrievedAt: IsoTimestampSchema,
+  contentHash: Sha256Schema,
+  courseCode: Schema.String.pipe(Schema.minLength(1)),
+  fromYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
+  toYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
+});
+const ResponseSchema = Schema.Array(Schema.Unknown);
+const RowSchema = Schema.Struct({
+  Karakter: Schema.String.pipe(Schema.minLength(1)),
+  'Antall kandidater totalt': Schema.String.pipe(Schema.pattern(/^\d+$/)),
+});
+
+const decodeInput = (
+  input: unknown | Uint8Array,
+): { readonly value?: unknown; readonly code?: DbhGradesRejectionCode } => {
+  if (input instanceof Uint8Array) {
+    try {
+      input = new TextDecoder('utf-8', { fatal: true }).decode(input);
+    } catch {
+      return { code: 'invalid-response-bytes' };
+    }
+  }
+  if (typeof input === 'string') {
+    try {
+      return { value: JSON.parse(input) as unknown };
+    } catch {
+      return { code: 'invalid-response-json' };
+    }
+  }
+  return { value: input };
+};
+
+const reject = (code: DbhGradesRejectionCode, message: string, raw: unknown): DbhGradesParseResult => ({
+  accepted: null,
+  rejected: { code, message, raw },
+});
+
+/**
+ * Boundary parser for DBH/HK-dir table 308 ("Karakterer"), grouped by
+ * `Karakter` and pre-filtered to one course by the caller's request body.
+ * Pure: capture metadata (including the requested year window) is injected.
+ */
+export const parseDbhGrades = (
+  input: unknown | Uint8Array,
+  capture: DbhGradesCaptureMetadata,
+): DbhGradesParseResult => {
+  const captureResult = Schema.decodeUnknownEither(CaptureSchema)(capture);
+  if (Either.isLeft(captureResult)) {
+    return reject('invalid-capture-metadata', 'DBH capture metadata failed validation.', capture);
+  }
+
+  const decoded = decodeInput(input);
+  if (decoded.code !== undefined) {
+    return reject(decoded.code, 'DBH response could not be decoded.', input);
+  }
+
+  const responseResult = Schema.decodeUnknownEither(ResponseSchema)(decoded.value);
+  if (Either.isLeft(responseResult)) {
+    return reject('invalid-response-shape', 'DBH response must be an array.', decoded.value);
+  }
+
+  // The live table-308 response is a plain row array (unlike tables 208/347,
+  // which prefix a status entry): no status/table-id header to validate here.
+  const rows: ValidatedDbhGradeRow[] = [];
+  for (const candidate of responseResult.right) {
+    const rowResult = Schema.decodeUnknownEither(RowSchema)(candidate);
+    if (Either.isLeft(rowResult)) {
+      return reject('row-schema-invalid', 'A DBH grade row failed boundary validation.', candidate);
+    }
+    rows.push({
+      grade: rowResult.right.Karakter.trim().toUpperCase(),
+      candidateCount: Number(rowResult.right['Antall kandidater totalt']),
+    });
+  }
+
+  const capturedFields = captureResult.right;
+  const sourceRecordId = `dbh:${DBH_TABLE_ID}:${capturedFields.courseCode}:${capturedFields.fromYear}-${capturedFields.toYear}`;
+  const attribution: DbhGradesAttribution = {
+    provider: 'dbh',
+    tableId: DBH_TABLE_ID,
+    sourceRecordId,
+    retrievedAt: capturedFields.retrievedAt,
+    contentHash: capturedFields.contentHash,
+    period: { fromYear: capturedFields.fromYear, toYear: capturedFields.toYear },
+  };
+
+  return { accepted: { sourceRecordId, attribution, rows }, rejected: null };
+};

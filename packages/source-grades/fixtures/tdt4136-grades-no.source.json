@@ -1,0 +1,13 @@
+{
+  "sourceProvider": "grades-no",
+  "requestUrl": "https://api.grades.no/api/v2/courses/TDT4136/grades/",
+  "requestMethod": "GET",
+  "courseCode": "TDT4136",
+  "capturedAt": "2026-07-20T09:10:00Z",
+  "contentHash": {
+    "algorithm": "sha-256",
+    "rawBody": "abbe2c3cb8a6b6dd1d41a55f6f6160ac5987f3014967ffdb8e18d32ae6b5ceb5"
+  },
+  "isRepresentativeFixture": true,
+  "note": "Synthetic fixture shaped to match the live grades.no v2 course-grades response documented in the prototype reference, including a SUMMER-semester row alongside AUTUMN; not a captured live response (live egress was unavailable to this adapter build)."
+}

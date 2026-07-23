@@ -1,0 +1,13 @@
+{
+  "sourceProvider": "ntnu-course-page",
+  "requestUrl": "https://www.ntnu.no/studier/emner/TDT4136/2026",
+  "requestMethod": "GET",
+  "courseCode": "TDT4136",
+  "capturedAt": "2026-07-20T09:00:05Z",
+  "contentHash": {
+    "algorithm": "sha-256",
+    "rawBody": "31b1935fc3e369d488524ca81438cc64cf35e14110efad52707b9ceaa370642a"
+  },
+  "isRepresentativeFixture": true,
+  "note": "Synthetic fixture shaped to match the live NTNU course-detail page structure documented in the prototype reference; not a captured live response (live egress was unavailable to this adapter build)."
+}

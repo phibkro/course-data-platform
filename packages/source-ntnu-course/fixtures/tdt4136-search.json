@@ -1,0 +1,24 @@
+{
+  "courses": [
+    {
+      "courseCode": "TDT4136",
+      "courseVersion": "1",
+      "courseName": "Introduction to Artificial Intelligence",
+      "examOnly": false,
+      "hasMultimedia": false,
+      "courseUrl": "https://www.ntnu.no/studier/emner/TDT4136",
+      "location": "Trondheim"
+    },
+    {
+      "courseCode": "TDT4171",
+      "courseVersion": "1",
+      "courseName": "Methods in Artificial Intelligence",
+      "examOnly": false,
+      "hasMultimedia": false,
+      "courseUrl": "https://www.ntnu.no/studier/emner/TDT4171",
+      "location": "Trondheim"
+    }
+  ],
+  "numFound": 2,
+  "hasMoreResults": false
+}
