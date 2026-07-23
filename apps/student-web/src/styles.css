@@ -723,6 +723,7 @@ thead th {
   }
 
   .main-content {
+    width: min(calc(100% - 16.5rem), 76rem);
     padding: 1rem 2.5rem 5rem;
     margin-left: 16.5rem;
   }

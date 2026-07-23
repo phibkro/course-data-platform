@@ -25,6 +25,7 @@ CONFIGS=(
   apps/api-worker/tsconfig.json
   apps/course-api/tsconfig.json
   apps/ingest-worker/tsconfig.json
+  apps/student-web/tsconfig.json
   apps/web/tsconfig.json
   tsconfig.json
 )

@@ -59,7 +59,10 @@ export const makeCourseClient = (apiBaseUrl?: string, useFixture = false): Cours
   },
 });
 
+const apiBaseUrl = import.meta.env.VITE_API_URL as string | undefined;
+
 export const courseClient = makeCourseClient(
-  import.meta.env.VITE_API_URL as string | undefined,
-  import.meta.env.DEV || import.meta.env.VITE_USE_FIXTURE === 'true',
+  apiBaseUrl,
+  import.meta.env.VITE_USE_FIXTURE === 'true' ||
+    (import.meta.env.DEV && (apiBaseUrl === undefined || apiBaseUrl.length === 0)),
 );
