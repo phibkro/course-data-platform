@@ -7,9 +7,7 @@ import { createCourseApi } from './app';
 const sha256Hex = async (input: string): Promise<string> => {
   const bytes = new TextEncoder().encode(input);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
 const service = makeLiveCourseDecisionService(
@@ -26,6 +24,4 @@ const service = makeLiveCourseDecisionService(
   },
 );
 
-export default new Elysia({ adapter: CloudflareAdapter })
-  .use(createCourseApi(service))
-  .compile();
+export default new Elysia({ adapter: CloudflareAdapter }).use(createCourseApi(service)).compile();

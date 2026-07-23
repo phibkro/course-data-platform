@@ -43,7 +43,10 @@ describe('mapNtnuToCourseInsightFields', () => {
 
     const fields = mapNtnuToCourseInsightFields('ntnu:TDT4136:2026-autumn', search, detail, null);
 
-    expect(fields.title).toMatchObject({ state: 'known', value: 'Introduction to Artificial Intelligence' });
+    expect(fields.title).toMatchObject({
+      state: 'known',
+      value: 'Introduction to Artificial Intelligence',
+    });
     expect(fields.credits).toMatchObject({ state: 'known', value: 7.5 });
     expect(fields.teachingLanguage).toMatchObject({ state: 'known', value: 'English' });
     expect(fields.collaboration).toMatchObject({ state: 'known', value: 'mixed' });
@@ -66,7 +69,10 @@ describe('mapNtnuToCourseInsightFields', () => {
       'NTNU course-detail page returned HTTP 503.',
     );
 
-    expect(fields.title).toMatchObject({ state: 'known', value: 'Introduction to Artificial Intelligence' });
+    expect(fields.title).toMatchObject({
+      state: 'known',
+      value: 'Introduction to Artificial Intelligence',
+    });
     expect(fields.offerings.state).toBe('known');
     expect(fields.content).toMatchObject({ state: 'unavailable' });
     expect(fields.credits).toMatchObject({ state: 'unavailable' });

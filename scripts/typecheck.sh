@@ -29,6 +29,7 @@ CONFIGS=(
   apps/ingest-worker/tsconfig.json
   apps/student-web/tsconfig.json
   apps/web/tsconfig.json
+  tsconfig.alchemy.json
   tsconfig.json
 )
 

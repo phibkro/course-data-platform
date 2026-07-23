@@ -43,7 +43,9 @@ export interface ValidatedNtnuCourseDetail {
   readonly teachingMethods: FieldState;
   readonly assessmentText: FieldState;
   readonly assessmentFormGuesses: ReadonlyArray<AssessmentFormGuess>;
-  readonly obligatoryActivities: { readonly state: 'known'; readonly items: ReadonlyArray<string> } | { readonly state: 'unavailable'; readonly reason: string };
+  readonly obligatoryActivities:
+    | { readonly state: 'known'; readonly items: ReadonlyArray<string> }
+    | { readonly state: 'unavailable'; readonly reason: string };
   readonly prerequisites: FieldState;
   readonly accessRestrictions: FieldState;
   readonly collaborationSignal: 'individual' | 'group' | 'mixed' | null;
@@ -107,6 +109,8 @@ const SECTION_LABELS = [
   /Mer om vurdering/,
   /Obligatoriske aktiviteter/,
   /Forkunnskapskrav/,
+  /Anbefalte forkunnskaper/,
+  /Kursmateriell/,
   /Krever opptak til studieprogram/,
   /Studiepoeng/,
   /Undervisningsspråk/,
@@ -119,11 +123,19 @@ const extractSection = (text: string, label: RegExp, maxLength = 1200): string |
   let cut = rest.length;
   for (const stop of SECTION_LABELS) {
     const stopMatch = rest.match(stop);
-    if (stopMatch && stopMatch.index !== undefined && stopMatch.index < cut && stopMatch.index > 0) {
+    if (
+      stopMatch &&
+      stopMatch.index !== undefined &&
+      stopMatch.index < cut &&
+      stopMatch.index > 0
+    ) {
       cut = stopMatch.index;
     }
   }
-  const value = rest.slice(0, Math.min(cut, maxLength)).replace(/^[:\s]+/, '').trim();
+  const value = rest
+    .slice(0, Math.min(cut, maxLength))
+    .replace(/^[:\s]+/, '')
+    .trim();
   return value.length > 0 ? value : null;
 };
 
@@ -133,7 +145,8 @@ const unavailableField = (reason: string): FieldState => ({ state: 'unavailable'
 const GROUP_RE = /(gruppearbeid|gruppeprosjekt|gruppeoppgave|group\s?(work|project)|in groups)/i;
 const INDIVIDUAL_RE = /(individuell\w*|individual\w*|selvstendig\w*)/i;
 const REQUIRED_ATTENDANCE_RE = /obligatorisk (oppmøte|deltakelse|frammøte)|mandatory attendance/i;
-const NOT_REQUIRED_ATTENDANCE_RE = /ikke obligatorisk (oppmøte|deltakelse)|attendance is not (required|mandatory)/i;
+const NOT_REQUIRED_ATTENDANCE_RE =
+  /ikke obligatorisk (oppmøte|deltakelse)|attendance is not (required|mandatory)/i;
 const REMOTE_RE =
   /(nettbasert undervisning|nettstudent|delta digitalt|fjernundervisning|remote participation|online participation)/i;
 const CAMPUS_ONLY_RE = /kun (på campus|fysisk oppmøte)|physical attendance is required/i;
@@ -214,7 +227,12 @@ export const parseNtnuCourseDetail = (
   }
 
   const capturedFields = captureResult.right;
-  if (!new RegExp(`\\b${capturedFields.courseCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text)) {
+  if (
+    !new RegExp(
+      `\\b${capturedFields.courseCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+      'i',
+    ).test(text)
+  ) {
     return {
       accepted: null,
       rejected: {
@@ -239,16 +257,22 @@ export const parseNtnuCourseDetail = (
 
   const languageMatch = text.match(/Undervisningsspråk\s*(Norsk|Engelsk|Norwegian|English)/i);
   const teachingLanguage = languageMatch
-    ? { norsk: 'Norwegian', engelsk: 'English', norwegian: 'Norwegian', english: 'English' }[
+    ? ({ norsk: 'Norwegian', engelsk: 'English', norwegian: 'Norwegian', english: 'English' }[
         languageMatch[1]?.toLowerCase() ?? ''
-      ] ?? (languageMatch[1] ?? null)
+      ] ??
+      languageMatch[1] ??
+      null)
     : null;
 
   const content = extractSection(text, /Faglig innhold/);
   const learningOutcomes = extractSection(text, /Læringsutbytte/);
   const teachingMethods = extractSection(text, /Læringsformer og aktiviteter/);
+  const assessmentSummary = extractSection(text, /Vurderingsordning/);
+  const assessmentDetails = extractSection(text, /Mer om vurdering/);
   const assessmentText =
-    extractSection(text, /Mer om vurdering/) ?? extractSection(text, /Vurderingsordning/);
+    [assessmentSummary, assessmentDetails]
+      .filter((value): value is string => value !== null)
+      .join(' ') || null;
   const obligatoryRaw = extractSection(text, /Obligatoriske aktiviteter/);
   const prerequisitesRaw = extractSection(text, /Forkunnskapskrav/);
   const accessRaw = extractSection(text, /Krever opptak til studieprogram/);
@@ -303,7 +327,9 @@ export const parseNtnuCourseDetail = (
       attribution,
       credits,
       teachingLanguage,
-      content: content ? known(content) : unavailableField('Faglig innhold section not present on page.'),
+      content: content
+        ? known(content)
+        : unavailableField('Faglig innhold section not present on page.'),
       learningOutcomes: learningOutcomes
         ? known(learningOutcomes)
         : unavailableField('Læringsutbytte section not present on page.'),

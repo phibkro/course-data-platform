@@ -142,11 +142,6 @@ const toSearchItem = (hit: ValidatedNtnuSearchHit): CourseSearchItem => {
   });
 };
 
-const parseFailure = (
-  source: string,
-  rejection: { readonly message: string } | null | undefined,
-): string => rejection?.message ?? `${source} returned no usable records.`;
-
 const assembleInsight = (
   hit: ValidatedNtnuSearchHit,
   detail: ValidatedNtnuCourseDetail | null,
@@ -202,8 +197,7 @@ export const makeLiveCourseDecisionService = (
         return {
           items: result.accepted.map(toSearchItem),
           sourceStatuses: [sourceStatusForSearch(result.accepted[0], observedAt)],
-          exactMatchCode:
-            result.accepted.find((hit) => hit.exactMatch)?.courseCode ?? null,
+          exactMatchCode: result.accepted.find((hit) => hit.exactMatch)?.courseCode ?? null,
         };
       },
       catch: (cause) =>
@@ -254,13 +248,12 @@ export const makeLiveCourseDecisionService = (
           dbhRequest,
         ]);
 
-        const detailResult =
-          detailSettled.status === 'fulfilled' ? detailSettled.value : null;
+        const detailResult = detailSettled.status === 'fulfilled' ? detailSettled.value : null;
         const detail = detailResult?.accepted ?? null;
         const detailWarning =
           detailSettled.status === 'rejected'
             ? errorMessage(detailSettled.reason)
-            : detailResult?.rejected?.message ?? null;
+            : (detailResult?.rejected?.message ?? null);
 
         const gradesNoResult =
           gradesNoSettled.status === 'fulfilled' ? gradesNoSettled.value : null;
@@ -268,8 +261,7 @@ export const makeLiveCourseDecisionService = (
           gradesNoResult !== null && gradesNoResult.rejected.length === 0
             ? gradesNoResult.accepted.filter(
                 (period) =>
-                  period.year >= defaults.gradeFromYear &&
-                  period.year <= defaults.gradeToYear,
+                  period.year >= defaults.gradeFromYear && period.year <= defaults.gradeToYear,
               )
             : null;
 

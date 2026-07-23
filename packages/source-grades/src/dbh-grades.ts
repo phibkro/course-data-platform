@@ -88,7 +88,11 @@ const decodeInput = (
   return { value: input };
 };
 
-const reject = (code: DbhGradesRejectionCode, message: string, raw: unknown): DbhGradesParseResult => ({
+const reject = (
+  code: DbhGradesRejectionCode,
+  message: string,
+  raw: unknown,
+): DbhGradesParseResult => ({
   accepted: null,
   rejected: { code, message, raw },
 });

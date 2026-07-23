@@ -1,3 +1,4 @@
+/* oxlint-disable vitest/expect-expect -- Foldkit Scene.expect performs the assertions. */
 import { Scene } from 'foldkit';
 import { describe, test } from 'vitest';
 
@@ -6,6 +7,8 @@ import {
   FetchCourseInsight,
   SearchIdle,
   SearchSuccess,
+  SyncedCourseUrl,
+  SyncCourseUrl,
   SucceededCourseInsight,
   type Model,
   update,
@@ -38,7 +41,11 @@ describe('exact course search scene', () => {
       Scene.click(Scene.role('button', { name: 'Find course' })),
       Scene.expect(Scene.role('button', { name: 'Looking up course…' })).toBeDisabled(),
       Scene.expect(Scene.text('Gathering course evidence')).toExist(),
-      Scene.Command.expectExact(FetchCourseInsight({ courseCode: 'TDT4136' })),
+      Scene.Command.expectExact(
+        FetchCourseInsight({ courseCode: 'TDT4136' }),
+        SyncCourseUrl({ courseCode: 'TDT4136' }),
+      ),
+      Scene.Command.resolve(SyncCourseUrl, SyncedCourseUrl()),
       Scene.Command.resolve(
         FetchCourseInsight,
         SucceededCourseInsight({ response: partialCourseInsightFixture }),
@@ -79,6 +86,7 @@ describe('exact course search scene', () => {
       { update, view },
       Scene.with({ query: 'TDT4136', result: SearchIdle() }),
       Scene.submit(Scene.role('form')),
+      Scene.Command.resolve(SyncCourseUrl, SyncedCourseUrl()),
       Scene.Command.resolve(
         FetchCourseInsight,
         FailedCourseInsight({ error: 'Course API unavailable' }),

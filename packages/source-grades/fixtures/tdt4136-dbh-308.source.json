@@ -12,7 +12,7 @@
     "filter": [
       { "variabel": "Institusjonskode", "selection": { "filter": "item", "values": ["1150"] } },
       { "variabel": "Emnekode", "selection": { "filter": "like", "values": ["TDT4136%"] } },
-      { "variabel": "Årstall", "selection": { "filter": "range", "values": ["2023", "2024"] } }
+      { "variabel": "Årstall", "selection": { "filter": "between", "values": ["2023", "2024"] } }
     ]
   },
   "courseCode": "TDT4136",

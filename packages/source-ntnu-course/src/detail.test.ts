@@ -35,8 +35,7 @@ describe('parseNtnuCourseDetail', () => {
   });
 
   it('marks a section as unavailable rather than throwing when the page omits it', () => {
-    const minimal =
-      '<html><body><h1>TDT4136</h1><h2>Studiepoeng</h2><p>7.5</p></body></html>';
+    const minimal = '<html><body><h1>TDT4136</h1><h2>Studiepoeng</h2><p>7.5</p></body></html>';
     const result = parseNtnuCourseDetail(minimal, capture);
 
     expect(result.rejected).toBeNull();

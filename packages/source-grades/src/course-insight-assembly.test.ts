@@ -1,4 +1,9 @@
-import { decodeCourseInsight, known, unknown, validateEvidenceReferences } from '@course-data/course-model';
+import {
+  decodeCourseInsight,
+  known,
+  unknown,
+  validateEvidenceReferences,
+} from '@course-data/course-model';
 import { describe, expect, it } from 'vitest';
 
 import dbhFixture from '../fixtures/tdt4136-dbh-308.json';
@@ -46,7 +51,16 @@ const dbh = parseDbhGrades(dbhFixture, dbhCapture).accepted;
 
 const missing = <A>() => unknown<A>('Not exercised by this bounded slice.');
 
-const buildBase = (gradeOutcomesInput: { period: unknown; sampleSize: unknown; distribution: unknown; failureRatePercent: unknown; averageGrade: unknown; medianGrade: unknown; evidence: ReadonlyArray<unknown>; sourceStatuses: ReadonlyArray<unknown> }) => ({
+const buildBase = (gradeOutcomesInput: {
+  period: unknown;
+  sampleSize: unknown;
+  distribution: unknown;
+  failureRatePercent: unknown;
+  averageGrade: unknown;
+  medianGrade: unknown;
+  evidence: ReadonlyArray<unknown>;
+  sourceStatuses: ReadonlyArray<unknown>;
+}) => ({
   courseKey: 'ntnu:TDT4136:2026-autumn',
   institutionCode: 'NTNU' as const,
   code: 'TDT4136',
@@ -55,15 +69,38 @@ const buildBase = (gradeOutcomesInput: { period: unknown; sampleSize: unknown; d
   level: missing<'bachelor' | 'master' | 'phd' | 'continuing-education' | 'unknown'>(),
   teachingLanguage: known('English', [ntnuEvidenceId]),
   offerings: known(
-    [{ academicYear: 2026, season: 'autumn' as const, campuses: ['Trondheim'], deliveryModes: ['in-person' as const] }],
+    [
+      {
+        academicYear: 2026,
+        season: 'autumn' as const,
+        campuses: ['Trondheim'],
+        deliveryModes: ['in-person' as const],
+      },
+    ],
     [ntnuEvidenceId],
   ),
-  content: known('Search and knowledge representation, planning, and reasoning under uncertainty.', [ntnuEvidenceId]),
+  content: known(
+    'Search and knowledge representation, planning, and reasoning under uncertainty.',
+    [ntnuEvidenceId],
+  ),
   learningOutcomes: known('Apply foundational AI methods.', [ntnuEvidenceId]),
   teachingMethods: known('Lectures and exercises.', [ntnuEvidenceId]),
   workForms: known(['lectures' as const, 'exercises' as const], [ntnuEvidenceId]),
-  assessment: known([{ form: 'written-exam' as const, description: 'Skoleeksamen', weightPercent: 100, duration: null }], [ntnuEvidenceId]),
-  obligatoryActivities: known(['Øvinger må være godkjent for å kunne gå opp til eksamen.'], [ntnuEvidenceId]),
+  assessment: known(
+    [
+      {
+        form: 'written-exam' as const,
+        description: 'Skoleeksamen',
+        weightPercent: 100,
+        duration: null,
+      },
+    ],
+    [ntnuEvidenceId],
+  ),
+  obligatoryActivities: known(
+    ['Øvinger må være godkjent for å kunne gå opp til eksamen.'],
+    [ntnuEvidenceId],
+  ),
   collaboration: known('mixed' as const, [ntnuEvidenceId]),
   attendance: known('not-required' as const, [ntnuEvidenceId]),
   onlineParticipation: missing<'available' | 'not-available'>(),
@@ -78,8 +115,18 @@ const buildBase = (gradeOutcomesInput: { period: unknown; sampleSize: unknown; d
     medianGrade: gradeOutcomesInput.medianGrade,
   },
   sourceStatuses: [
-    { provider: 'ntnu-course-search', status: 'available' as const, observedAt: '2026-07-20T09:00:00Z', warning: null },
-    { provider: 'ntnu-course-page', status: 'available' as const, observedAt: '2026-07-20T09:00:05Z', warning: null },
+    {
+      provider: 'ntnu-course-search',
+      status: 'available' as const,
+      observedAt: '2026-07-20T09:00:00Z',
+      warning: null,
+    },
+    {
+      provider: 'ntnu-course-page',
+      status: 'available' as const,
+      observedAt: '2026-07-20T09:00:05Z',
+      warning: null,
+    },
     ...gradeOutcomesInput.sourceStatuses,
   ],
   evidence: [ntnuEvidence, ...gradeOutcomesInput.evidence],

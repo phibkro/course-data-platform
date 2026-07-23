@@ -116,7 +116,7 @@ describe('CourseInsight', () => {
           evidenceIds: [],
         },
       }),
-    ).toThrow();
+    ).toThrow(/evidenceIds/);
   });
 
   it('distinguishes a known false-like value from an unknown fact', () => {

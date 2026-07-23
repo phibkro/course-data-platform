@@ -41,7 +41,10 @@ describe('parseNtnuCourseSearch', () => {
   });
 
   it('rejects capture metadata that fails validation without touching the response', () => {
-    const result = parseNtnuCourseSearch(fixture, { ...capture, requestUrl: 'https://evil.example/' });
+    const result = parseNtnuCourseSearch(fixture, {
+      ...capture,
+      requestUrl: 'https://evil.example/',
+    });
 
     expect(result.accepted).toEqual([]);
     expect(result.rejected[0]?.code).toBe('invalid-capture-metadata');

@@ -1,9 +1,7 @@
 import { validateEvidenceReferences } from '@course-data/course-model';
-import * as Either from 'effect/Either';
 import * as Effect from 'effect/Effect';
 import { describe, expect, it } from 'vitest';
 
-import { CourseInvalidTermError } from './index';
 import { makeLiveCourseDecisionService } from './live';
 
 const searchPayload = {
@@ -84,7 +82,8 @@ const defaults = {
   gradeToYear: 2024,
 };
 
-const makeFetch = (failedSources: ReadonlySet<'detail' | 'grades-no' | 'dbh'> = new Set()) =>
+const makeFetch =
+  (failedSources: ReadonlySet<'detail' | 'grades-no' | 'dbh'> = new Set()) =>
   async (url: string): Promise<Response> => {
     if (url.includes('fetch-courselist-as-json')) {
       return Response.json(searchPayload);
@@ -107,9 +106,7 @@ const makeFetch = (failedSources: ReadonlySet<'detail' | 'grades-no' | 'dbh'> = 
     return new Response('not found', { status: 404 });
   };
 
-const makeService = (
-  failedSources: ReadonlySet<'detail' | 'grades-no' | 'dbh'> = new Set(),
-) =>
+const makeService = (failedSources: ReadonlySet<'detail' | 'grades-no' | 'dbh'> = new Set()) =>
   makeLiveCourseDecisionService(
     {
       fetch: makeFetch(failedSources),
@@ -139,9 +136,7 @@ describe('live course decision service', () => {
   });
 
   it('assembles independently fetched course and grade evidence', async () => {
-    const result = await Effect.runPromise(
-      makeService().getInsight({ courseCode: 'tdt4136' }),
-    );
+    const result = await Effect.runPromise(makeService().getInsight({ courseCode: 'tdt4136' }));
 
     expect(result.partial).toBe(false);
     expect(result.item.credits).toMatchObject({ state: 'known', value: 7.5 });
@@ -182,9 +177,9 @@ describe('live course decision service', () => {
       Effect.either(makeService().getInsight({ courseCode: 'TDT4136', term: 'autumn' })),
     );
 
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left).toBeInstanceOf(CourseInvalidTermError);
-    }
+    expect(result).toMatchObject({
+      _tag: 'Left',
+      left: { _tag: 'CourseInvalidTermError' },
+    });
   });
 });

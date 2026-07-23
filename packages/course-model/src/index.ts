@@ -153,7 +153,6 @@ export const GradePeriodSchema = Schema.Struct({
 export type GradePeriod = Schema.Schema.Type<typeof GradePeriodSchema>;
 
 const StringFactSchema = makeFactSchema(NonEmptyString);
-const NumberFactSchema = makeFactSchema(Schema.Number);
 const PercentageFactSchema = makeFactSchema(Schema.Number.pipe(Schema.between(0, 100)));
 
 export const GradeOutcomesSchema = Schema.Struct({

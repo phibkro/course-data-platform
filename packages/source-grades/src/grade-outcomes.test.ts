@@ -38,7 +38,10 @@ describe('mapGradesToOutcomes', () => {
   it('combines agreeing grades.no and DBH evidence into known facts for TDT4136', () => {
     const outcomes = mapGradesToOutcomes('TDT4136', gradesNo, dbh, window);
 
-    expect(outcomes.period).toMatchObject({ state: 'known', value: { fromYear: 2023, toYear: 2024 } });
+    expect(outcomes.period).toMatchObject({
+      state: 'known',
+      value: { fromYear: 2023, toYear: 2024 },
+    });
     expect(outcomes.sampleSize).toMatchObject({ state: 'known', value: 408 });
     expect(outcomes.failureRatePercent).toMatchObject({ state: 'known', value: 5.64 });
     expect(outcomes.averageGrade).toMatchObject({ state: 'known', value: 'C' });
@@ -71,7 +74,7 @@ describe('mapGradesToOutcomes', () => {
     expect(outcomes.averageGrade.state).toBe('unavailable');
   });
 
-  it('reports conflicting facts instead of silently picking one provider when they materially disagree', () => {
+  it('conflicts only the facts that materially disagree between providers', () => {
     const inflatedDbh = {
       ...dbh,
       rows: dbh.rows.map((row) => ({ ...row, candidateCount: row.candidateCount * 5 })),
@@ -80,11 +83,9 @@ describe('mapGradesToOutcomes', () => {
     const outcomes = mapGradesToOutcomes('TDT4136', gradesNo, inflatedDbh, window);
 
     expect(outcomes.sampleSize.state).toBe('conflicting');
-    expect(outcomes.distribution.state).toBe('conflicting');
-    expect(outcomes.averageGrade).toMatchObject({
-      state: 'unknown',
-      reason: expect.stringContaining('conflicts'),
-    });
+    expect(outcomes.distribution.state).toBe('known');
+    expect(outcomes.failureRatePercent.state).toBe('known');
+    expect(outcomes.averageGrade).toMatchObject({ state: 'known', value: 'C' });
   });
 
   it('keeps pass/fail outcomes out of the ordinal letter median', () => {

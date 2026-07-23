@@ -74,12 +74,16 @@ export const SucceededCourseInsight = m('SucceededCourseInsight', {
 export const FailedCourseInsight = m('FailedCourseInsight', {
   error: S.String,
 });
+export const SyncedCourseUrl = m('SyncedCourseUrl');
+export const FailedCourseUrlSync = m('FailedCourseUrlSync');
 
 export const Message = S.Union([
   UpdatedQuery,
   SubmittedSearch,
   SucceededCourseInsight,
   FailedCourseInsight,
+  SyncedCourseUrl,
+  FailedCourseUrlSync,
 ]);
 export type Message = typeof Message.Type;
 
@@ -93,6 +97,20 @@ export const FetchCourseInsight = Command.define(
     Effect.map((response) => SucceededCourseInsight({ response })),
     Effect.catch((error) => Effect.succeed(FailedCourseInsight({ error: error.message }))),
   ),
+);
+
+export const SyncCourseUrl = Command.define(
+  'SyncCourseUrl',
+  { courseCode: S.String },
+  SyncedCourseUrl,
+  FailedCourseUrlSync,
+)(({ courseCode }) =>
+  Effect.sync(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('course', courseCode);
+    window.history.replaceState(null, '', url);
+    return SyncedCourseUrl();
+  }),
 );
 
 export const update = (
@@ -128,7 +146,7 @@ export const update = (
             query: () => courseCode,
             result: () => SearchLoading(),
           }),
-          [FetchCourseInsight({ courseCode })],
+          [SyncCourseUrl({ courseCode }), FetchCourseInsight({ courseCode })],
         ];
       },
       SucceededCourseInsight: ({ response: unsafeResponse }) => {
@@ -147,16 +165,25 @@ export const update = (
         }),
         [],
       ],
+      SyncedCourseUrl: () => [model, []],
+      FailedCourseUrlSync: () => [model, []],
     }),
   );
 
-export const init: Runtime.ApplicationInit<Model, Message> = () => [
-  {
-    query: '',
-    result: SearchIdle(),
-  },
-  [],
-];
+export const init: Runtime.ApplicationInit<Model, Message> = () => {
+  const courseCode =
+    typeof window === 'undefined'
+      ? ''
+      : (new URL(window.location.href).searchParams.get('course') ?? '').trim().toUpperCase();
+
+  return [
+    {
+      query: courseCode,
+      result: courseCode.length === 0 ? SearchIdle() : SearchLoading(),
+    },
+    courseCode.length === 0 ? [] : [FetchCourseInsight({ courseCode })],
+  ];
+};
 
 export const view = (model: Model): Document => {
   const h = html<Message>();
@@ -186,10 +213,7 @@ export const view = (model: Model): Document => {
                   ],
                 ),
                 searchForm(model.query, loading),
-                h.p(
-                  [h.Class('search-hint'), h.Id('search-hint')],
-                  ['Try the walking-skeleton course: TDT4136'],
-                ),
+                h.p([h.Class('search-hint'), h.Id('search-hint')], ['Try a real course: TDT4136']),
               ],
             ),
             resultView(model.result),
@@ -324,7 +348,7 @@ const resultView = (result: SearchResult): Html => {
           h.p([h.Class('status-label status-label--error')], ['Lookup failed']),
           h.h2([], ['We could not load that course']),
           h.p([], [result.error]),
-          h.p([], ['Check the code and try again. The current local fixture is TDT4136.']),
+          h.p([], ['Check the course code and try again.']),
         ],
       );
     case 'SearchPartial':
@@ -597,7 +621,7 @@ const sourceSection = (course: CourseInsight): Html => {
           h.p(
             [],
             [
-              'This walking skeleton uses explicit fixtures. Live adapters can replace the client without changing the view contract.',
+              'Each fact links to the live source capture or derivation used for this response. Fixture data is labelled explicitly.',
             ],
           ),
         ],
@@ -669,7 +693,11 @@ const evidenceLinks = (evidenceIds: ReadonlyArray<string>): Html => {
   }
   return h.div(
     [h.Class('evidence-links'), h.AriaLabel('Supporting evidence')],
-    [...evidenceIds.map((id) => h.a([h.Href(`#evidence-${id}`)], [`Evidence ${id}`]))],
+    [
+      ...evidenceIds.map((id) =>
+        h.a([h.Href(`#evidence-${id}`), h.AriaLabel(`View evidence ${id}`)], ['View evidence']),
+      ),
+    ],
   );
 };
 
@@ -677,10 +705,15 @@ const offeringList = (
   offerings: CourseInsight['offerings'] extends ProtocolFact<infer A> ? A : never,
 ): Html =>
   stringList(
-    offerings.map(
-      (offering) =>
-        `${formatToken(offering.season)} ${offering.academicYear} · ${offering.campuses.join(', ')} · ${offering.deliveryModes.map(formatToken).join(', ')}`,
-    ),
+    offerings.map((offering) => {
+      const location =
+        offering.campuses.length === 0 ? 'Campus not reported' : offering.campuses.join(', ');
+      const delivery =
+        offering.deliveryModes.length === 0
+          ? 'Delivery mode unknown'
+          : offering.deliveryModes.map(formatToken).join(', ');
+      return `${formatToken(offering.season)} ${offering.academicYear} · ${location} · ${delivery}`;
+    }),
   );
 
 const assessmentList = (

@@ -24,7 +24,14 @@ export interface ValidatedGradesNoPeriod {
   readonly year: number;
   readonly semester: GradesNoSemester;
   readonly attendeeCount: number;
-  readonly letterCounts: { readonly a: number; readonly b: number; readonly c: number; readonly d: number; readonly e: number; readonly f: number };
+  readonly letterCounts: {
+    readonly a: number;
+    readonly b: number;
+    readonly c: number;
+    readonly d: number;
+    readonly e: number;
+    readonly f: number;
+  };
   readonly passedCount: number | null;
   readonly averageGrade: number | null;
   readonly sourceRecordId: string;
@@ -114,7 +121,11 @@ export const parseGradesNoResponse = (
 ): GradesNoParseResult => {
   const captureResult = Schema.decodeUnknownEither(CaptureSchema)(capture);
   if (Either.isLeft(captureResult)) {
-    return rejectOne('invalid-capture-metadata', 'grades.no capture metadata failed validation.', capture);
+    return rejectOne(
+      'invalid-capture-metadata',
+      'grades.no capture metadata failed validation.',
+      capture,
+    );
   }
 
   const decoded = decodeInput(input);
@@ -146,9 +157,20 @@ export const parseGradesNoResponse = (
       year: record.year,
       semester: record.semester,
       attendeeCount: record.attendee_count,
-      letterCounts: { a: record.a, b: record.b, c: record.c, d: record.d, e: record.e, f: record.f },
-      passedCount: record.passed,
-      averageGrade: record.average_grade !== null && record.average_grade > 0 ? record.average_grade : null,
+      letterCounts: {
+        a: record.a,
+        b: record.b,
+        c: record.c,
+        d: record.d,
+        e: record.e,
+        f: record.f,
+      },
+      // grades.no uses 0 for ordinary A-F periods and a positive count for
+      // pass/fail periods. Treating zero as a pass/fail marker would erase
+      // every letter distribution in the live payload.
+      passedCount: record.passed !== null && record.passed > 0 ? record.passed : null,
+      averageGrade:
+        record.average_grade !== null && record.average_grade > 0 ? record.average_grade : null,
       sourceRecordId,
       attribution,
     };

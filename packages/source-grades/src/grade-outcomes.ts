@@ -1,4 +1,4 @@
-import { known, unavailable, unknown, type Fact } from '@course-data/course-model';
+import { known, unavailable, type Fact } from '@course-data/course-model';
 
 import type { ValidatedDbhGrades } from './dbh-grades';
 import type { ValidatedGradesNoPeriod } from './grades-no';
@@ -179,7 +179,8 @@ const aggregateDbh = (dbh: ValidatedDbhGrades): Aggregate => {
     sampleSize += row.candidateCount;
     if (FAIL_CODES.has(row.grade)) fails += row.candidateCount;
     const scaleValue = AVERAGE_SCALE[row.grade];
-    if (scaleValue !== undefined) numericValues.push({ value: scaleValue, count: row.candidateCount });
+    if (scaleValue !== undefined)
+      numericValues.push({ value: scaleValue, count: row.candidateCount });
   }
 
   const weightedSum = numericValues.reduce((sum, entry) => sum + entry.value * entry.count, 0);
@@ -194,13 +195,13 @@ const aggregateDbh = (dbh: ValidatedDbhGrades): Aggregate => {
   };
 };
 
-const materiallyDisagree = (a: Aggregate, b: Aggregate): boolean => {
-  const failureDelta = Math.abs(a.failureRatePercent - b.failureRatePercent);
-  const sampleDelta =
-    Math.max(a.sampleSize, b.sampleSize) > 0
-      ? Math.abs(a.sampleSize - b.sampleSize) / Math.max(a.sampleSize, b.sampleSize)
-      : 0;
-  return failureDelta > 5 || sampleDelta > 0.1;
+const distributionsMateriallyDisagree = (a: Aggregate, b: Aggregate): boolean => {
+  const aPercentages = new Map(a.distribution.map((bucket) => [bucket.grade, bucket.percentage]));
+  const bPercentages = new Map(b.distribution.map((bucket) => [bucket.grade, bucket.percentage]));
+  const grades = new Set([...aPercentages.keys(), ...bPercentages.keys()]);
+  return [...grades].some(
+    (grade) => Math.abs((aPercentages.get(grade) ?? 0) - (bPercentages.get(grade) ?? 0)) > 5,
+  );
 };
 
 /**
@@ -324,7 +325,6 @@ export const mapGradesToOutcomes = (
   }
 
   const inferenceEvidenceId = `evidence:grade-outcomes-inference:${courseCode}`;
-  const evidenceIdsUsed = [gradesNoEvidenceId, dbhEvidenceId].filter((id): id is string => id !== null);
   evidence.push({
     id: inferenceEvidenceId,
     provider: 'course-data-grades',
@@ -335,40 +335,8 @@ export const mapGradesToOutcomes = (
     observedAt: dbh?.attribution.retrievedAt ?? gradesNo?.[0]?.attribution.retrievedAt ?? '',
     excerpt: null,
     inferenceRule:
-      'Average/median letter grade rounded from the numeric scale (F=0..A=5) over the chosen distribution.',
+      'Average uses A=5 through E=1 and excludes F/G/H; median uses the ordinal F-through-A distribution and excludes G/H.',
   });
-
-  if (gradesNoAggregate !== null && dbhAggregate !== null) {
-    if (materiallyDisagree(gradesNoAggregate, dbhAggregate)) {
-      const conflicting = <A>(
-        reason: string,
-        candidates: ReadonlyArray<{ readonly value: A; readonly evidenceIds: readonly [string, ...string[]] }>,
-      ): Fact<A> => ({ state: 'conflicting', reason, candidates, evidenceIds: evidenceIdsUsed });
-
-      return {
-        period: conflicting('grades.no and DBH cover different or non-overlapping year windows.', [
-          { value: gradesNoAggregate.period, evidenceIds: [gradesNoEvidenceId as string] },
-          { value: dbhAggregate.period, evidenceIds: [dbhEvidenceId as string] },
-        ]),
-        sampleSize: conflicting('grades.no and DBH report materially different candidate counts.', [
-          { value: gradesNoAggregate.sampleSize, evidenceIds: [gradesNoEvidenceId as string] },
-          { value: dbhAggregate.sampleSize, evidenceIds: [dbhEvidenceId as string] },
-        ]),
-        distribution: conflicting('grades.no and DBH report materially different grade distributions.', [
-          { value: gradesNoAggregate.distribution, evidenceIds: [gradesNoEvidenceId as string] },
-          { value: dbhAggregate.distribution, evidenceIds: [dbhEvidenceId as string] },
-        ]),
-        failureRatePercent: conflicting('grades.no and DBH report materially different failure rates.', [
-          { value: gradesNoAggregate.failureRatePercent, evidenceIds: [gradesNoEvidenceId as string] },
-          { value: dbhAggregate.failureRatePercent, evidenceIds: [dbhEvidenceId as string] },
-        ]),
-        averageGrade: unknown('Average grade is not computed while the underlying distribution conflicts.'),
-        medianGrade: unknown('Median grade is not computed while the underlying distribution conflicts.'),
-        evidence,
-        sourceStatuses,
-      };
-    }
-  }
 
   const canonical = gradesNoAggregate ?? dbhAggregate;
   if (!canonical) throw new Error('unreachable: at least one aggregate is present');
@@ -377,6 +345,106 @@ export const mapGradesToOutcomes = (
     throw new Error('unreachable: the canonical grade aggregate must have source evidence');
   }
   const median = medianFromDistribution(canonical.distribution);
+
+  if (
+    gradesNoAggregate !== null &&
+    gradesNoEvidenceId !== null &&
+    dbhAggregate !== null &&
+    dbhEvidenceId !== null
+  ) {
+    const conflicting = <A>(
+      reason: string,
+      gradesNoValue: A,
+      dbhValue: A,
+      derived = false,
+    ): Fact<A> => {
+      const gradesNoIds = derived
+        ? ([gradesNoEvidenceId, inferenceEvidenceId] as const)
+        : ([gradesNoEvidenceId] as const);
+      const dbhIds = derived
+        ? ([dbhEvidenceId, inferenceEvidenceId] as const)
+        : ([dbhEvidenceId] as const);
+      return {
+        state: 'conflicting',
+        reason,
+        candidates: [
+          { value: gradesNoValue, evidenceIds: gradesNoIds },
+          { value: dbhValue, evidenceIds: dbhIds },
+        ],
+        evidenceIds: [gradesNoEvidenceId, dbhEvidenceId],
+      };
+    };
+    const samePeriod =
+      gradesNoAggregate.period.fromYear === dbhAggregate.period.fromYear &&
+      gradesNoAggregate.period.toYear === dbhAggregate.period.toYear;
+    const sampleDelta =
+      Math.max(gradesNoAggregate.sampleSize, dbhAggregate.sampleSize) > 0
+        ? Math.abs(gradesNoAggregate.sampleSize - dbhAggregate.sampleSize) /
+          Math.max(gradesNoAggregate.sampleSize, dbhAggregate.sampleSize)
+        : 0;
+    const dbhMedian = medianFromDistribution(dbhAggregate.distribution);
+
+    return {
+      period: samePeriod
+        ? known(gradesNoAggregate.period, [gradesNoEvidenceId])
+        : conflicting(
+            'grades.no and DBH cover different year windows.',
+            gradesNoAggregate.period,
+            dbhAggregate.period,
+          ),
+      sampleSize:
+        samePeriod && sampleDelta <= 0.1
+          ? known(gradesNoAggregate.sampleSize, [gradesNoEvidenceId])
+          : conflicting(
+              'grades.no and DBH report candidate counts for different windows or materially different samples.',
+              gradesNoAggregate.sampleSize,
+              dbhAggregate.sampleSize,
+            ),
+      distribution: distributionsMateriallyDisagree(gradesNoAggregate, dbhAggregate)
+        ? conflicting(
+            'grades.no and DBH report materially different grade distributions.',
+            gradesNoAggregate.distribution,
+            dbhAggregate.distribution,
+          )
+        : known(gradesNoAggregate.distribution, [gradesNoEvidenceId]),
+      failureRatePercent:
+        Math.abs(gradesNoAggregate.failureRatePercent - dbhAggregate.failureRatePercent) > 5
+          ? conflicting(
+              'grades.no and DBH report materially different failure rates.',
+              gradesNoAggregate.failureRatePercent,
+              dbhAggregate.failureRatePercent,
+            )
+          : known(gradesNoAggregate.failureRatePercent, [gradesNoEvidenceId]),
+      averageGrade:
+        gradesNoAggregate.averageGrade !== null &&
+        dbhAggregate.averageGrade !== null &&
+        gradesNoAggregate.averageGrade !== dbhAggregate.averageGrade
+          ? conflicting(
+              'grades.no and DBH imply different average letter grades.',
+              gradesNoAggregate.averageGrade,
+              dbhAggregate.averageGrade,
+              true,
+            )
+          : gradesNoAggregate.averageGrade === null
+            ? unavailable('The available provider(s) do not expose a supported average grade.')
+            : known(gradesNoAggregate.averageGrade, [gradesNoEvidenceId, inferenceEvidenceId]),
+      medianGrade:
+        median !== null && dbhMedian !== null && median !== dbhMedian
+          ? conflicting(
+              'grades.no and DBH imply different median letter grades.',
+              median,
+              dbhMedian,
+              true,
+            )
+          : median === null
+            ? unavailable(
+                'The available provider(s) do not expose a letter-scale distribution to compute a median.',
+              )
+            : known(median, [gradesNoEvidenceId, inferenceEvidenceId]),
+      evidence,
+      sourceStatuses,
+    };
+  }
 
   return {
     period: known(canonical.period, [canonicalEvidenceId]),
@@ -389,7 +457,9 @@ export const mapGradesToOutcomes = (
         : known(canonical.averageGrade, [canonicalEvidenceId, inferenceEvidenceId]),
     medianGrade:
       median === null
-        ? unavailable('The available provider(s) do not expose a letter-scale distribution to compute a median.')
+        ? unavailable(
+            'The available provider(s) do not expose a letter-scale distribution to compute a median.',
+          )
         : known(median, [canonicalEvidenceId, inferenceEvidenceId]),
     evidence,
     sourceStatuses,

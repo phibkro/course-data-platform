@@ -25,11 +25,17 @@ describe('parseGradesNoResponse', () => {
     expect(summer).toMatchObject({ year: 2023, attendeeCount: 6 });
   });
 
-  it('rejects a response whose semester value is not a known literal', () => {
+  it('treats passed=0 as an ordinary letter-graded period', () => {
     const result = parseGradesNoResponse(
-      [{ ...fixture[0], semester: 'WINTER' }],
+      [{ ...fixture[0], semester: 'AUTUMN', passed: 0 }],
       capture,
     );
+
+    expect(result.accepted[0]?.passedCount).toBeNull();
+  });
+
+  it('rejects a response whose semester value is not a known literal', () => {
+    const result = parseGradesNoResponse([{ ...fixture[0], semester: 'WINTER' }], capture);
 
     expect(result.accepted).toEqual([]);
     expect(result.rejected[0]?.code).toBe('invalid-response-shape');

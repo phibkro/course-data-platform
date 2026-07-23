@@ -29,7 +29,10 @@ export const fetchDbhGrades = async (
     filter: [
       { variabel: 'Institusjonskode', selection: { filter: 'item', values: ['1150'] } },
       { variabel: 'Emnekode', selection: { filter: 'like', values: [`${courseCode}%`] } },
-      { variabel: 'Årstall', selection: { filter: 'range', values: [String(fromYear), String(toYear)] } },
+      {
+        variabel: 'Årstall',
+        selection: { filter: 'between', values: [String(fromYear), String(toYear)] },
+      },
     ],
   });
   const response = await deps.fetch(DBH_ENDPOINT, {

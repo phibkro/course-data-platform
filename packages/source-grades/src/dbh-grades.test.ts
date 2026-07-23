@@ -30,7 +30,10 @@ describe('parseDbhGrades', () => {
   });
 
   it('rejects a row with a non-numeric candidate count instead of coercing it', () => {
-    const result = parseDbhGrades([{ Karakter: 'A', 'Antall kandidater totalt': 'mange' }], capture);
+    const result = parseDbhGrades(
+      [{ Karakter: 'A', 'Antall kandidater totalt': 'mange' }],
+      capture,
+    );
 
     expect(result.accepted).toBeNull();
     expect(result.rejected?.code).toBe('row-schema-invalid');

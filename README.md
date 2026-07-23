@@ -1,51 +1,41 @@
-# Course Data Platform
+# Course Decision Product
 
-An evidence-backed NTNU course-decision product in transition. The active
-direction helps students discover, understand, shortlist, and compare courses
-before expanding into programme planning.
+An evidence-backed NTNU course browser for answering the questions students
+actually have before choosing a subject: what it covers, how teaching works,
+what work is obligatory, how it is assessed, whether collaboration or
+attendance is explicit, and what historical grade outcomes look like.
 
-The existing programme-first platform remains implemented while a smaller
-Foldkit and Elysia walking skeleton is built. Its provenance, validation, and
-pure-domain work is reusable; its previous delivery sequence is no longer the
-product roadmap. See `docs/adr/012-course-decisions-first.md`.
+The active product is a Foldkit web application backed by a small Elysia API.
+It fetches NTNU course data plus grades.no and DBH grade evidence, validates
+every source at the boundary, and preserves unavailable, conflicting, inferred,
+and fixture states instead of presenting guesses as facts.
 
-## Existing platform baseline
-
-The repository currently proves these replication and request paths:
+## Active slice
 
 ```text
-React PWA -> Eden client -> Elysia contract -> Effect use case -> repository -> D1
-NTNU/DBH -> scheduled Worker -> Queue -> immutable R2 evidence -> atomic D1 publication
+Foldkit web -> Elysia/OpenAPI -> Effect service
+                              -> NTNU course search/detail
+                              -> grades.no + DBH/HK-dir outcomes
 ```
 
 Implemented now:
 
-- strict TypeScript monorepo boundaries;
-- Effect domain values, capabilities, typed repository failure, and runtime composition;
-- Elysia request and response validation;
-- runtime-generated OpenAPI and an Eden first-party client;
-- a D1 repository implementation and reviewed SQL migration;
-- Cloudflare API and ingestion Worker entry points;
-- React PWA shell with URL-owned search state and an explicit service worker;
-- Bun 1.3, native TypeScript 7, TS6 compatibility checking, Oxlint, Oxfmt, Vite 8, Vitest, and Wrangler validation;
-- Alchemy infrastructure composition kept isolated in `alchemy.run.ts`;
-- a pure study-planning kernel with programme requirements, baseline roadmaps, scenario operations, credit calculations, and structured findings;
-- programme-first onboarding backed by a versioned programme catalogue contract;
-- editable planning scenarios with move, remove, restore, elective replacement, clone, rename, import, and export operations;
-- IndexedDB-backed local scenario and programme-context persistence;
-- a validated declarative Workbench view specification served with each planner projection;
-- the previous prototype preserved under `legacy/` for behavioral reference;
-- a persistent Theme Lab with Mist/Emerald/Indigo as the default and independent schedule/chart palettes.
-- scheduled NTNU and DBH replication with content-addressed R2 evidence, incremental cursors, nightly reconciliation, and last-good D1 publication;
-- per-source freshness and explicit outage state in the API and Data status surface;
-- a Compare projection and UI that unlock together at ten distinct published programmes.
+- exact course-code search and a decision-oriented course detail;
+- explicit evidence and per-source status for every factual result;
+- independent partial success when detail or grade providers fail;
+- ordinary-term, bounded grade aggregation with pass/fail outcomes kept
+  separate from ordinal letter grades;
+- Foldkit loading, success, partial, empty, and error scenes;
+- responsive Material You styling with desktop sidebar and mobile bottom bar;
+- TypeBox boundary contracts, public OpenAPI, and browser-facing response
+  validation;
+- TypeScript 7 authority plus TypeScript 6 compatibility;
+- a minimal, parallel Alchemy v2 stack containing only the course API and
+  student web application.
 
-Not implemented in this slice:
-
-- React Aria collection components beyond the current Base UI foundation;
-- optional account synchronization for preferences and scenarios;
-- semantic course relations or the deferred knowledge graph;
-- a second-institution curriculum adapter.
+The earlier programme planner, replication pipeline, D1/R2/Queue stack, and
+Workbench remain in the repository as a legacy platform baseline. They are not
+part of the default development, build, or deployment path.
 
 ## Commands
 
@@ -56,15 +46,19 @@ bun run build
 bun run dev
 ```
 
-The combined development command starts both services:
+The combined development command starts the active product:
 
-- PWA: `http://localhost:5173`
+- Student web: `http://localhost:5173`
 - API service index: `http://localhost:8787`
 - OpenAPI UI: `http://localhost:8787/openapi`
 
-`bun run dev:api` and `bun run dev:web` remain available when separate terminals are preferable. The API command applies pending local D1 migrations before starting Wrangler. Override the web app's API origin with `VITE_API_URL`.
+There is no database migration or account setup in the active slice. The API
+does need outbound access to the public source APIs. `bun run dev:api` and
+`bun run dev:web` are available for separate terminals. Override the web
+origin with `VITE_API_URL`; use `VITE_USE_FIXTURE=true` only for explicit
+offline UI work.
 
-The service worker is registered only in production builds. Development startup removes earlier Course Data Platform service workers and caches so Vite modules and HMR connections are never served from stale PWA caches. After upgrading from an older checkout that registered the service worker during development, one browser reload may be required while the old worker is removed.
+Run the previous platform deliberately with `bun run legacy:dev:platform`.
 
 Generate the checked-in public API document with:
 
@@ -72,38 +66,34 @@ Generate the checked-in public API document with:
 bun run openapi
 ```
 
-## Interface foundation
+## Infrastructure
 
-The web application uses shadcn-style source-owned components backed by Base UI, Tailwind CSS 4, Material 3 semantic tokens, and a semantic Phosphor icon layer. Material Symbols load lazily only when a Phosphor fallback is required. Explore is the default public catalogue. Desktop uses a sidebar; mobile uses bottom navigation for Explore, Plan, and Saved. Workbench and data status are secondary advanced surfaces.
-
-Use `bun run ui:info` to inspect the shadcn configuration, `bun run ui:add -- <component>` to add a source-owned component, and `bun run ui:diff` to review registry drift before accepting generated updates.
-
-Open **Appearance** in the app shell to use the live Theme Lab. Theme preferences are validated, stored locally, and exportable as JSON. The checked-in product default is Mist surfaces, an Emerald theme, and an Indigo chart palette.
-
-Developer preset commands:
+Alchemy v2 uses the new stack ID `CourseDecisionProduct` and new resource IDs,
+so it does not adopt, mutate, or destroy the earlier v1-managed resources.
+Inspect the two-resource change before a first deployment:
 
 ```sh
-bun run theme:resolve
-bun run theme:decode -- <preset-code>
-bun run theme:open -- <preset-code>
-bun run theme:apply -- <preset-code>
+bun run infra:plan
+bun run deploy
 ```
 
-`theme:apply` uses shadcn's theme-only preset application. Review the source diff before committing. ADR-011 freezes further design-system expansion unless accessibility or a functional requirement exposes a concrete gap.
+Deployment is intentionally not part of onboarding and requires separate
+Cloudflare authentication.
 
 ## Architecture
 
 ```text
-untrusted source
+untrusted HTTP source
   -> validated evidence
-  -> temporal domain model
-  -> Effect application use cases
+  -> course decision model
+  -> Effect service
   -> Elysia/OpenAPI transport
-  -> Eden first-party client
-  -> independent preference lens
+  -> validated Foldkit client
 ```
 
-See `docs/architecture/technical-implementation.md`, `docs/architecture/study-planning-kernel.md`, `docs/architecture/workbench-views.md`, `docs/architecture/local-planning-state.md`, `docs/product/study-planner-roadmap.md`, `docs/agent-context/next-slice.md`, `AGENTS.md`, and `docs/adr/`.
+See `docs/product/course-decision-contract.md`,
+`docs/adr/012-course-decisions-first.md`, `docs/agent-context/next-slice.md`,
+and `AGENTS.md`.
 
 ## Compiler policy
 

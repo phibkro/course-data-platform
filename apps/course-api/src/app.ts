@@ -99,7 +99,13 @@ export const createCourseApi = (
           if (result.left._tag === 'CourseInvalidTermError') {
             return status(
               400,
-              problem(requestId, 400, 'invalid-course-term', 'Invalid course term', result.left.message),
+              problem(
+                requestId,
+                400,
+                'invalid-course-term',
+                'Invalid course term',
+                result.left.message,
+              ),
             );
           }
           return status(
@@ -156,7 +162,13 @@ export const createCourseApi = (
           if (result.left._tag === 'CourseInvalidTermError') {
             return status(
               400,
-              problem(requestId, 400, 'invalid-course-term', 'Invalid course term', result.left.message),
+              problem(
+                requestId,
+                400,
+                'invalid-course-term',
+                'Invalid course term',
+                result.left.message,
+              ),
             );
           }
           if (result.left._tag === 'CourseNotFoundError') {

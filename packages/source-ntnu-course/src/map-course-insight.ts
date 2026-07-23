@@ -57,7 +57,9 @@ export interface NtnuCourseInsightFields {
   readonly learningOutcomes: Fact<string>;
   readonly teachingMethods: Fact<string>;
   readonly workForms: Fact<
-    ReadonlyArray<'lectures' | 'exercises' | 'laboratory' | 'seminar' | 'project' | 'self-study' | 'other'>
+    ReadonlyArray<
+      'lectures' | 'exercises' | 'laboratory' | 'seminar' | 'project' | 'self-study' | 'other'
+    >
   >;
   readonly assessment: Fact<ReadonlyArray<NtnuAssessmentPart>>;
   readonly obligatoryActivities: Fact<ReadonlyArray<string>>;
@@ -222,7 +224,9 @@ export const mapNtnuToCourseInsightFields = (
 
   const collaboration: Fact<'individual' | 'group' | 'mixed'> =
     detail.collaborationSignal === null
-      ? unknown('No individual/group keywords were found in the assessment or teaching-methods text.')
+      ? unknown(
+          'No individual/group keywords were found in the assessment or teaching-methods text.',
+        )
       : known(detail.collaborationSignal, [inferenceEvidenceId]);
 
   const attendance: Fact<'required' | 'not-required'> =
@@ -236,7 +240,9 @@ export const mapNtnuToCourseInsightFields = (
       : known(detail.onlineParticipationSignal, [inferenceEvidenceId]);
 
   const workForms: Fact<
-    ReadonlyArray<'lectures' | 'exercises' | 'laboratory' | 'seminar' | 'project' | 'self-study' | 'other'>
+    ReadonlyArray<
+      'lectures' | 'exercises' | 'laboratory' | 'seminar' | 'project' | 'self-study' | 'other'
+    >
   > =
     detail.teachingMethods.state !== 'known'
       ? unavailable(detail.teachingMethods.reason)
