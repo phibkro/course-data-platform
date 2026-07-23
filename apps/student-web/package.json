@@ -1,0 +1,27 @@
+{
+  "name": "@course-data/student-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@course-data/contracts": "0.1.0",
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/ui": "0.131.0",
+    "@sinclair/typebox": "0.34.52",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "0.131.0"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "0.11.0",
+    "happy-dom": "20.10.4",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
+  }
+}
