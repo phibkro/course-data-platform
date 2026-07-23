@@ -383,6 +383,42 @@ export const mapGradesToOutcomes = (
           Math.max(gradesNoAggregate.sampleSize, dbhAggregate.sampleSize)
         : 0;
     const dbhMedian = medianFromDistribution(dbhAggregate.distribution);
+    const averageGrade: Fact<string> =
+      gradesNoAggregate.averageGrade === null
+        ? dbhAggregate.averageGrade === null
+          ? unavailable('The available provider(s) do not expose a supported average grade.')
+          : known(dbhAggregate.averageGrade, [dbhEvidenceId, inferenceEvidenceId])
+        : dbhAggregate.averageGrade === null
+          ? known(gradesNoAggregate.averageGrade, [gradesNoEvidenceId, inferenceEvidenceId])
+          : gradesNoAggregate.averageGrade !== dbhAggregate.averageGrade
+            ? conflicting(
+                'grades.no and DBH imply different average letter grades.',
+                gradesNoAggregate.averageGrade,
+                dbhAggregate.averageGrade,
+                true,
+              )
+            : known(gradesNoAggregate.averageGrade, [
+                gradesNoEvidenceId,
+                dbhEvidenceId,
+                inferenceEvidenceId,
+              ]);
+    const medianGrade: Fact<string> =
+      median === null
+        ? dbhMedian === null
+          ? unavailable(
+              'The available provider(s) do not expose a letter-scale distribution to compute a median.',
+            )
+          : known(dbhMedian, [dbhEvidenceId, inferenceEvidenceId])
+        : dbhMedian === null
+          ? known(median, [gradesNoEvidenceId, inferenceEvidenceId])
+          : median !== dbhMedian
+            ? conflicting(
+                'grades.no and DBH imply different median letter grades.',
+                median,
+                dbhMedian,
+                true,
+              )
+            : known(median, [gradesNoEvidenceId, dbhEvidenceId, inferenceEvidenceId]);
 
     return {
       period: samePeriod
@@ -415,32 +451,8 @@ export const mapGradesToOutcomes = (
               dbhAggregate.failureRatePercent,
             )
           : known(gradesNoAggregate.failureRatePercent, [gradesNoEvidenceId]),
-      averageGrade:
-        gradesNoAggregate.averageGrade !== null &&
-        dbhAggregate.averageGrade !== null &&
-        gradesNoAggregate.averageGrade !== dbhAggregate.averageGrade
-          ? conflicting(
-              'grades.no and DBH imply different average letter grades.',
-              gradesNoAggregate.averageGrade,
-              dbhAggregate.averageGrade,
-              true,
-            )
-          : gradesNoAggregate.averageGrade === null
-            ? unavailable('The available provider(s) do not expose a supported average grade.')
-            : known(gradesNoAggregate.averageGrade, [gradesNoEvidenceId, inferenceEvidenceId]),
-      medianGrade:
-        median !== null && dbhMedian !== null && median !== dbhMedian
-          ? conflicting(
-              'grades.no and DBH imply different median letter grades.',
-              median,
-              dbhMedian,
-              true,
-            )
-          : median === null
-            ? unavailable(
-                'The available provider(s) do not expose a letter-scale distribution to compute a median.',
-              )
-            : known(median, [gradesNoEvidenceId, inferenceEvidenceId]),
+      averageGrade,
+      medianGrade,
       evidence,
       sourceStatuses,
     };

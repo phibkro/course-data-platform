@@ -1,32 +1,60 @@
 # Validation report
 
-Validated on 2026-07-22 for the Live Replication & Freshness R3 release candidate.
+Validated on 2026-07-23 for the course-decisions-first vertical slice.
 
-## Passed
+## Product journey
 
-- TypeScript 7.0.2 native compiler across domain, application, study kernel, contracts, database, Workers, web, and root tooling.
-- TypeScript 6.0.3 compatibility compiler across the same configurations.
-- Oxfmt across the changed R3 source and configuration files.
-- Oxlint with warnings denied: 0 warnings and 0 errors.
-- Vitest: 36 tests across 13 files covering domain values, source adapters, application use cases, study kernel, D1 reconciliation, API transport, scenario compatibility, freshness failure state, and export/import.
-- Runtime-schema OpenAPI generation includes D1-backed `/v1/programmes`, `/v1/compare`, `/v1/data-status`, and planner responses with declared success and error schemas.
-- Vite 8 production web build: 393.04 kB / 121.84 kB gzip initial JavaScript, 211.84 kB / 64.36 kB gzip lazy planner chunk, and 56.21 kB / 10.85 kB gzip CSS.
-- API Worker Wrangler dry run: 1,652.32 KiB / 310.17 KiB gzip with the D1 binding.
-- Ingestion Worker Wrangler dry run: 543.07 KiB / 105.99 KiB gzip with D1, R2, Queue, and cron bindings.
-- Source tests verify exact-byte archiving, boundary parsing, unavailable-credit preservation, and provenance for DBH and machine-readable NTNU evidence.
-- D1 integration tests verify idempotent reconciliation, official versus administrative relation authority, structured rejection persistence, per-field provenance, and study-kernel round-tripping.
-- API tests verify that programme listing, baseline generation, and the default planner projection use the persisted NTNU programme version and fail explicitly when data is unavailable.
-- Kernel tests verify baseline generation, movement, removal, elective replacement, structured findings, view-spec validation, and portable round-tripping.
-- Scenario tests verify export/import and explicit preservation warnings for saved scenarios whose programme version or data revision is absent from the current catalogue.
+The active `bun run dev` command was started from a clean shell without a
+database, account, programme, or migration step. Agent Browser exercised the
+student application on desktop and mobile:
 
-## R3 live-capture gate
+- the initial page offered exact course-code search immediately;
+- searching `TDT4136` returned a live NTNU course insight backed by NTNU course
+  search/detail, grades.no, and DBH/HK-dir table 308;
+- the result exposed content, learning outcomes, work forms, assessment,
+  obligatory activities, prerequisites, grade distribution, failure rate,
+  average, median, source status, and evidence;
+- unsupported collaboration, attendance, and online-delivery claims remained
+  explicitly unknown;
+- grades.no and DBH period/sample disagreement rendered as conflicting rather
+  than being silently reconciled;
+- `?course=TDT4136` persisted the selection across reload;
+- desktop and 375 px mobile layouts had no horizontal overflow, with the
+  intended sidebar and bottom navigation respectively.
 
-Ten official NTNU 2026 responses were captured from the machine-readable study-plan endpoint on 2026-07-22 and parsed without rejection: BIT, BPROG, BFY, BLOG, BØAT, BBEV, BERGO, HSGSOB, HSGBVB, and LTARKIV. Each response has six terms; together they contain 280 curriculum course entries. Exact byte lengths and SHA-256 values were observed in the release transcript. Wrangler-emulated D1/R2/Queue bindings accepted the scheduled workflow and preserved explicit stale state through forced upstream failure. Live egress from local `workerd` could not be used because the execution sandbox's TLS interception certificate is not trusted by `workerd`; the approved real Cloudflare deployment is the authoritative live-network gate.
+The first clean run exposed two local-environment defects, both fixed before
+the successful journey: the pinned Workerd build required compatibility date
+`2026-07-21`, and Nix-launched Workerd needed the system CA bundle passed
+explicitly.
 
-## Product status
+## Automated checks
 
-The release candidate archives exact NTNU/DBH evidence in R2, atomically publishes normalized curriculum revisions to D1, runs incremental/full/periodic work through Queue and cron, and serves last-valid data with honest per-source freshness. Compare is enforced at ten distinct published programmes in both application and UI. Deployment and public-endpoint evidence are recorded after the required correctness review.
+The canonical `bun run validate` gate regenerates OpenAPI and runs formatting,
+lint, both TypeScript compilers, and the full Vitest suite. `bun run build`
+performs the Worker dry run and production web build.
 
-## Bundle observation
+The suite covers boundary rejection, ordinary-term grade windows, cohort
+thresholds, pass/fail separation, weighted averages, per-field source
+reconciliation, partial upstream failures, evidence integrity, transport
+responses, Foldkit scenes/stories, and student-client error handling.
 
-The planner executes validation and study-kernel operations in the browser and remains route-split into a lazy chunk. The initial application bundle has grown with the post-arc design-system and data-path work; a later performance slice should profile the current bundle and consider separating pure kernel operations from Effect Schema decoders.
+## Live-source qualification
+
+The live journey confirms the currently implemented request and parsing paths
+against all four upstream endpoints. DBH table 308 was additionally queried
+grouped by `Emnekode`, confirming that NTNU versions use the
+`TDT4136-1`-style suffix; the adapter therefore filters `TDT4136-%` so it keeps
+course versions without absorbing longer prefix-matching course codes.
+
+Checked-in source fixtures remain deliberately labelled `fixture` and are not
+presented as captured source facts. Expanding the live golden corpus beyond
+TDT4136 and preserving provider-approved response captures remains a
+pre-public-launch task rather than a hidden claim of this slice.
+
+## Current product boundary
+
+This release candidate makes one known course code genuinely understandable.
+It does not yet solve discovery for students who know a topic or title but not
+the code, and it does not yet offer shortlist comparison. Those are the next
+student-value slices; programme planning, authentication, full replication,
+and multi-institution support remain deliberately later.

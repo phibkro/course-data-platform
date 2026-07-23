@@ -1,4 +1,4 @@
 {
-  "alchemy": "0.93.12",
-  "note": "Kept outside the default install because the execution sandbox's npm proxy stalls while resolving Alchemy's broad provider graph. Install before planning or deploying infrastructure."
+  "alchemy": "2.0.0-beta.63",
+  "note": "Pinned in the root package manifest for the isolated CourseDecisionProduct stack."
 }

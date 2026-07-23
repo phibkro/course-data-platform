@@ -54,9 +54,9 @@ The combined development command starts the active product:
 
 There is no database migration or account setup in the active slice. The API
 does need outbound access to the public source APIs. `bun run dev:api` and
-`bun run dev:web` are available for separate terminals. Override the web
-origin with `VITE_API_URL`; use `VITE_USE_FIXTURE=true` only for explicit
-offline UI work.
+`VITE_API_URL=http://localhost:8787 bun run dev:web` are available for separate
+terminals. Override that origin when needed; use `VITE_USE_FIXTURE=true` only
+for explicit offline UI work.
 
 Run the previous platform deliberately with `bun run legacy:dev:platform`.
 

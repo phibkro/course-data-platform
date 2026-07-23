@@ -1,5 +1,6 @@
 import {
   CourseInsightResponseDto,
+  ProblemDto,
   type CourseInsightResponseDtoType,
 } from '@course-data/contracts';
 import { Value } from '@sinclair/typebox/value';
@@ -49,6 +50,10 @@ export const makeCourseClient = (apiBaseUrl?: string, useFixture = false): Cours
           },
         );
         if (!response.ok) {
+          const problem: unknown = await response.json().catch(() => null);
+          if (Value.Check(ProblemDto, problem)) {
+            throw new Error(problem.detail);
+          }
           throw new Error(`Course API request failed with status ${response.status}.`);
         }
         return parseCourseInsight(await response.json());
@@ -63,6 +68,5 @@ const apiBaseUrl = import.meta.env.VITE_API_URL as string | undefined;
 
 export const courseClient = makeCourseClient(
   apiBaseUrl,
-  import.meta.env.VITE_USE_FIXTURE === 'true' ||
-    (import.meta.env.DEV && (apiBaseUrl === undefined || apiBaseUrl.length === 0)),
+  import.meta.env.VITE_USE_FIXTURE === 'true',
 );

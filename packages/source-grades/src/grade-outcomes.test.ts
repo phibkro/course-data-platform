@@ -113,4 +113,28 @@ describe('mapGradesToOutcomes', () => {
     });
     expect(outcomes.medianGrade.state).toBe('unavailable');
   });
+
+  it('preserves DBH average and median when grades.no has only pass/fail outcomes', () => {
+    const template = gradesNo[0];
+    if (!template) throw new Error('fixture setup: grades.no period missing');
+    const passFail = [
+      {
+        ...template,
+        attendeeCount: 40,
+        letterCounts: { a: 0, b: 0, c: 0, d: 0, e: 0, f: 5 },
+        passedCount: 35,
+        averageGrade: null,
+      },
+    ];
+
+    const outcomes = mapGradesToOutcomes('TDT4136', passFail, dbh, window);
+
+    expect(outcomes.averageGrade).toMatchObject({ state: 'known', value: 'C' });
+    expect(outcomes.medianGrade).toMatchObject({ state: 'known', value: 'C' });
+    if (outcomes.averageGrade.state !== 'known' || outcomes.medianGrade.state !== 'known') {
+      throw new Error('expected known DBH-derived ordinal facts');
+    }
+    expect(outcomes.averageGrade.evidenceIds).toContain('evidence:dbh:308:TDT4136:2023-2024');
+    expect(outcomes.medianGrade.evidenceIds).toContain('evidence:dbh:308:TDT4136:2023-2024');
+  });
 });

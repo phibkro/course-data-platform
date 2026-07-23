@@ -28,7 +28,10 @@ export const fetchDbhGrades = async (
     groupBy: ['Karakter'],
     filter: [
       { variabel: 'Institusjonskode', selection: { filter: 'item', values: ['1150'] } },
-      { variabel: 'Emnekode', selection: { filter: 'like', values: [`${courseCode}%`] } },
+      // DBH stores the official course code with a version suffix such as
+      // TDT4136-1. Requiring the separator keeps those versions while avoiding
+      // accidental prefix matches such as TDT41360 or TDT4136A.
+      { variabel: 'Emnekode', selection: { filter: 'like', values: [`${courseCode}-%`] } },
       {
         variabel: 'Årstall',
         selection: { filter: 'between', values: [String(fromYear), String(toYear)] },
