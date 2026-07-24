@@ -1705,6 +1705,7 @@ const catalogueControls = (
                     termSeasonIconName('spring'),
                   ],
                 ],
+                { portal: false },
               ),
               selectControl(
                 model.selectFields,
@@ -1717,6 +1718,7 @@ const catalogueControls = (
                   ['gjovik', translate(model.locale, 'catalogue.gjovik')],
                   ['alesund', translate(model.locale, 'catalogue.alesund')],
                 ],
+                { portal: false },
               ),
               selectControl(
                 model.selectFields,
@@ -1729,6 +1731,7 @@ const catalogueControls = (
                   ['master', translate(model.locale, 'catalogue.master')],
                   ['phd', translate(model.locale, 'catalogue.phd')],
                 ],
+                { portal: false },
               ),
               selectControl(
                 model.selectFields,
@@ -1742,6 +1745,7 @@ const catalogueControls = (
                   ['code-asc', translate(model.locale, 'catalogue.codeAsc')],
                   ['code-desc', translate(model.locale, 'catalogue.codeDesc')],
                 ],
+                { portal: false },
               ),
             ]
           : [
@@ -2306,7 +2310,7 @@ const selectControl = (
   label: string,
   value: string,
   options: ReadonlyArray<readonly [string, string, AppIcon?]>,
-  compact = false,
+  config: Readonly<{ compact?: boolean; portal?: boolean }> = {},
 ): Html =>
   selectField<Message>({
     model: selectFieldModel(fields, id),
@@ -2319,7 +2323,8 @@ const selectControl = (
         ...(optionIcon === undefined ? {} : { icon: optionIcon }),
       }),
     ),
-    compact,
+    ...(config.compact === undefined ? {} : { compact: config.compact }),
+    ...(config.portal === undefined ? {} : { portal: config.portal }),
     toParentMessage: (message) => GotSelectFieldMessage({ id, message }),
   });
 
@@ -2338,7 +2343,7 @@ const languageSelectControl = (
       ['en', compact ? 'EN' : translate(locale, 'locale.en')],
       ['nb', compact ? 'NO' : translate(locale, 'locale.nb')],
     ],
-    compact,
+    { compact },
   );
 
 const checkboxControl = (

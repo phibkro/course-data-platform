@@ -39,6 +39,7 @@ interface SelectFieldViewOptions<Message> {
   readonly options: ReadonlyArray<SelectOption>;
   readonly toParentMessage: (message: SelectFieldMessage) => Message;
   readonly compact?: boolean;
+  readonly portal?: boolean;
 }
 
 export const selectField = <Message>({
@@ -48,6 +49,7 @@ export const selectField = <Message>({
   options,
   toParentMessage,
   compact = false,
+  portal = true,
 }: SelectFieldViewOptions<Message>): Html => {
   const h = html<Message>();
   const selected = options.find((option) => option.value === value) ?? { value, label: value };
@@ -73,7 +75,7 @@ export const selectField = <Message>({
           itemToSearchText: (item) => item.label,
           maybeSelectedValue: Option.some(value),
           ariaLabelledBy: labelId,
-          anchor: { placement: 'bottom-start', gap: 6, padding: 8 },
+          anchor: { placement: 'bottom-start', gap: 6, padding: 8, portal },
           className: 'relative min-w-0',
           buttonClassName: `flex min-h-12 w-full items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface px-3 text-left text-on-surface [font:inherit] cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 data-[open]:border-primary ${
             compact ? 'min-h-11 px-2 text-xs font-[800]' : ''
@@ -97,7 +99,7 @@ export const selectField = <Message>({
           itemsClassName:
             'z-50 min-w-48 max-w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-m3-medium border border-outline-variant bg-surface-container-high shadow-m3-2 outline-none opacity-100 [transition:opacity_120ms_ease,transform_120ms_ease] data-[closed]:opacity-0 data-[closed]:-translate-y-1',
           itemsScrollClassName: 'grid max-h-72 gap-0.5 overflow-y-auto p-1.5',
-          backdropClassName: 'fixed inset-0 z-40 bg-transparent',
+          backdropClassName: 'fixed inset-0 z-0 bg-transparent',
           itemToConfig: (item, { isActive, isSelected }) => ({
             className: `flex min-h-11 items-center justify-between gap-3 rounded-m3-small px-3 text-sm cursor-pointer ${
               isActive ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'

@@ -55,6 +55,18 @@ test('custom course filter listbox has no detectable WCAG A/AA violations', asyn
   await expectNoAxeViolations(page);
 });
 
+test('Refine listboxes remain interactive above the dialog', async ({ page }) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Refine' }).click();
+  const dialog = page.getByRole('dialog');
+  const term = dialog.getByRole('button', { name: 'Term' });
+
+  await term.click();
+  await page.getByRole('option', { name: 'Spring 2027 · 2026/27' }).click();
+
+  await expect(term).toContainText('Spring 2027');
+});
+
 test('Theme Lab has no detectable WCAG A/AA violations', async ({ page }) => {
   await waitForEnrichedCatalogue(page);
   await page.getByRole('button', { name: 'Open appearance settings' }).click();
