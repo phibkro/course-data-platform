@@ -1,0 +1,78 @@
+[
+  {
+    "status": {
+      "tabell_id": 208,
+      "api_versjon": 1,
+      "leveransenr": 8452720,
+      "leveringstid": "2026-07-22 02:56:13",
+      "antall": 6106,
+      "returkode": 0,
+      "melding": "Data levert."
+    }
+  },
+  {
+    "Institusjonskode": "1150",
+    "Avdelingskode": "120010",
+    "Avdelingskode_SSB": "140000",
+    "Årstall": "2024",
+    "Semester": "3",
+    "Studieprogramkode": "DIDIV",
+    "Emnekode": "DIXIL-01-1",
+    "Emnenavn": "Individuelt lesepensum 1 for dr.grad-studenter",
+    "Nivåkode": "FU",
+    "Studiepoeng": "0.00",
+    "NUS-kode": "859902",
+    "Status": "4",
+    "Underv.språk": "NOR",
+    "Fagkode": null,
+    "Fagnavn": null,
+    "Oppgave (ny fra h2012)": "0"
+  },
+  {
+    "Institusjonskode": "1150",
+    "Avdelingskode": "273824",
+    "Avdelingskode_SSB": "631000",
+    "Årstall": "2024",
+    "Semester": "3",
+    "Studieprogramkode": "MTDT",
+    "Emnekode": "TDT4136-1",
+    "Emnenavn": "Introduksjon til kunstig intelligens",
+    "Nivåkode": "LN",
+    "Studiepoeng": "7.50",
+    "NUS-kode": "654999",
+    "Status": "1",
+    "Underv.språk": "ENG",
+    "Fagkode": "9985",
+    "Fagnavn": "Datateknikk",
+    "Oppgave (ny fra h2012)": "0"
+  },
+  {
+    "Institusjonskode": "1150",
+    "Avdelingskode": "273824",
+    "Avdelingskode_SSB": "631000",
+    "Årstall": "2024",
+    "Semester": "3",
+    "Studieprogramkode": "MTDT",
+    "Emnekode": "TDT4258-1",
+    "Emnenavn": "Maskinnær programmering",
+    "Nivåkode": "LN",
+    "Studiepoeng": "7.50",
+    "NUS-kode": "654999",
+    "Status": "1",
+    "Underv.språk": "ENG",
+    "Fagkode": "TEKNOLOGI",
+    "Fagnavn": "Teknologiske fag",
+    "Oppgave (ny fra h2012)": "0"
+  },
+  {
+    "Institusjonskode": "1150",
+    "Avdelingskode": "273824",
+    "Avdelingskode_SSB": "631000",
+    "Årstall": "2024",
+    "Semester": "3",
+    "Studieprogramkode": "MTDT",
+    "Emnenavn": "Maskinnær programmering",
+    "Nivåkode": "LN",
+    "Studiepoeng": "7.50"
+  }
+]

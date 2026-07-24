@@ -2,6 +2,7 @@
   "name": "@course-data/contracts",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -10,7 +11,10 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@course-data/course-model": "0.1.0",
     "@course-data/domain": "0.1.0",
+    "@course-data/study-kernel": "0.1.0",
+    "@sinclair/typebox": "0.34.52",
     "elysia": "1.4.29"
   },
   "devDependencies": {}

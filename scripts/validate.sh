@@ -7,7 +7,7 @@ cd "$ROOT"
 bun run openapi
 bun run fmt:check
 bun run lint
-bun run check:types:compat
+bun run check:types
 bun run test
 
-printf '\nValidation completed successfully with TypeScript 7 and TypeScript 6 compatibility.\n'
+printf '\nValidation completed successfully with TypeScript 7.\n'

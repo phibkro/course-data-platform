@@ -3,6 +3,8 @@ import { RepositoryError } from '@course-data/application';
 import { decodeCourseSummary } from '@course-data/domain';
 import * as Effect from 'effect/Effect';
 
+export * from './curriculum';
+
 interface CourseRow {
   readonly id: string;
   readonly course_id: string;
@@ -61,7 +63,29 @@ export const createD1CourseRepository = (database: D1Database): CourseRepository
 
         const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
         const statement = database.prepare(`
-          SELECT
+          WITH ranked_published_course_versions AS (
+            SELECT
+              cv.id, cv.course_id, cv.academic_year,
+              snapshot.title, snapshot.credits, snapshot.level,
+              snapshot.teaching_language, snapshot.source_provider,
+              snapshot.source_record_id, snapshot.source_retrieved_at,
+              ROW_NUMBER() OVER (
+                PARTITION BY cv.id
+                ORDER BY publication.published_at DESC, snapshot.revision_id DESC
+              ) AS visibility_rank
+            FROM dataset_revision_course_version snapshot
+            JOIN dataset_publication publication
+              ON publication.current_revision_id = snapshot.revision_id
+            JOIN course_versions cv ON cv.id = snapshot.course_version_id
+          ),
+          visible_course_versions AS (
+            SELECT
+              id, course_id, academic_year, title, credits, level,
+              teaching_language, source_provider, source_record_id, source_retrieved_at
+            FROM ranked_published_course_versions
+            WHERE visibility_rank = 1
+          )
+          SELECT DISTINCT
             cv.id,
             cv.course_id,
             c.institution_id,
@@ -75,7 +99,7 @@ export const createD1CourseRepository = (database: D1Database): CourseRepository
             cv.source_provider,
             cv.source_record_id,
             cv.source_retrieved_at
-          FROM course_versions cv
+          FROM visible_course_versions cv
           JOIN courses c ON c.id = cv.course_id
           JOIN institutions i ON i.id = c.institution_id
           ${where}

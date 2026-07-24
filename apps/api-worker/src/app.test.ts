@@ -1,11 +1,18 @@
-import { createMemoryCourseRepository } from '@course-data/application';
+import {
+  createMemoryCourseRepository,
+  createMemoryProgrammeCurriculumRepository,
+} from '@course-data/application';
 import { fixtureCourses } from '@course-data/application/fixtures';
+import { demoProgrammeVersions } from '@course-data/application/planner-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { createApi } from './app';
 import { createCourseRuntime } from './runtime';
 
-const runtime = createCourseRuntime(createMemoryCourseRepository(fixtureCourses));
+const runtime = createCourseRuntime(
+  createMemoryCourseRepository(fixtureCourses),
+  createMemoryProgrammeCurriculumRepository(demoProgrammeVersions),
+);
 const app = createApi(runtime);
 
 describe('Course Data API', () => {
@@ -17,6 +24,9 @@ describe('Course Data API', () => {
       endpoints: {
         health: '/health',
         courses: '/v1/courses',
+        programmes: '/v1/programmes',
+        plannerBaseline: '/v1/planner/baseline',
+        plannerDemo: '/v1/planner/demo',
         openapi: '/openapi',
       },
     });
@@ -47,10 +57,72 @@ describe('Course Data API', () => {
     });
   });
 
+  it('lists programme versions for programme-first onboarding', async () => {
+    const response = await app.handle(new Request('http://localhost/v1/programmes'));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      items: Array<{ programmeVersionId: string; title: string; relationAuthority: string }>;
+      meta: { count: number };
+    };
+
+    expect(body.meta.count).toBeGreaterThan(0);
+    expect(body.items[0]).toMatchObject({
+      programmeVersionId: 'no.ntnu:bit:2026',
+      title: 'Informatics — bachelor',
+      relationAuthority: 'fixture',
+    });
+    expect(body).toMatchObject({
+      meta: {
+        observedAt: null,
+        sourcePeriod: null,
+        warnings: expect.arrayContaining([
+          expect.objectContaining({ code: 'freshness-unknown', severity: 'warning' }),
+        ]),
+      },
+    });
+  });
+
+  it('generates a baseline for a selected programme version', async () => {
+    const response = await app.handle(
+      new Request('http://localhost/v1/planner/baseline?programmeVersionId=no.ntnu%3Abit%3A2026'),
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      scenario: { schemaVersion: number; terms: unknown[] };
+      viewSpec: { presentation: string };
+    };
+    expect(body.scenario.schemaVersion).toBe(1);
+    expect(body.scenario.terms).toHaveLength(6);
+    expect(body.viewSpec.presentation).toBe('roadmap');
+  });
+
+  it('returns the illustrative roadmap projection with structured findings', async () => {
+    const response = await app.handle(new Request('http://localhost/v1/planner/demo'));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      programme: { title: string; relationAuthority: string };
+      scenario: { terms: Array<{ courses: unknown[] }> };
+      evaluation: { totalPlannedCredits: number; isFeasible: boolean };
+      meta: { note: string };
+    };
+
+    expect(body.programme).toMatchObject({
+      title: 'Informatics — bachelor',
+      relationAuthority: 'fixture',
+    });
+    expect(body.scenario.terms).toHaveLength(6);
+    expect(body.evaluation.totalPlannedCredits).toBe(60);
+    expect(body.evaluation.isFeasible).toBe(true);
+    expect(body.meta.note).toContain('Evidence-backed official curriculum');
+  });
+
   it('publishes a runtime-schema-derived OpenAPI document', async () => {
     const response = await app.handle(new Request('http://localhost/openapi/json'));
     expect(response.status).toBe(200);
     const body = (await response.json()) as { paths: Record<string, unknown> };
     expect(body.paths).toHaveProperty('/v1/courses');
+    expect(body.paths).toHaveProperty('/v1/programmes');
+    expect(body.paths).toHaveProperty('/v1/planner/baseline');
+    expect(body.paths).toHaveProperty('/v1/planner/demo');
   });
 });

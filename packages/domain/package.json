@@ -2,6 +2,7 @@
   "name": "@course-data/domain",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -11,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "effect": "3.22.0"
+    "effect": "4.0.0-beta.97"
   },
   "devDependencies": {}
 }

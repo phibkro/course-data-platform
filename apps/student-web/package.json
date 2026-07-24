@@ -1,0 +1,32 @@
+{
+  "name": "@course-data/student-web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "i18n:check": "bun scripts/validate-i18n.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@course-data/contracts": "0.1.0",
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/ui": "0.131.0",
+    "@phosphor-icons/core": "2.1.1",
+    "@sinclair/typebox": "0.34.52",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "0.131.0"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "0.11.0",
+    "@tailwindcss/vite": "4.3.3",
+    "happy-dom": "20.10.4",
+    "tailwindcss": "4.3.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
+  }
+}

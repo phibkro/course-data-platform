@@ -2,10 +2,12 @@
   "name": "@course-data/application",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./fixtures": "./src/fixtures.ts"
+    "./fixtures": "./src/fixtures.ts",
+    "./planner-fixtures": "./src/planner-fixtures.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -13,7 +15,8 @@
   },
   "dependencies": {
     "@course-data/domain": "0.1.0",
-    "effect": "3.22.0"
+    "@course-data/study-kernel": "0.1.0",
+    "effect": "4.0.0-beta.97"
   },
   "devDependencies": {}
 }

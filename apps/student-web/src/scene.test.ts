@@ -1,0 +1,157 @@
+/* oxlint-disable vitest/expect-expect -- Foldkit Scene.expect performs the assertions. */
+import { Scene } from 'foldkit';
+import { describe, test } from 'vitest';
+
+import { fixtureGradeSummariesResponse, fixtureSearchResponse } from './course-client';
+import { partialCourseInsightFixture } from './course-insight.fixture';
+import {
+  CatalogueEmpty,
+  CatalogueInitialLoading,
+  CataloguePartial,
+  DetailClosed,
+  DetailPartial,
+  GradeSignalsSuccess,
+  NextPageIdle,
+  type Model,
+  initForHref,
+  update,
+  view,
+} from './main';
+
+const baseModel = (): Model => initForHref('http://course-lens.local/')[0];
+
+describe('browse-first catalogue scene', () => {
+  test('fresh visitors see an accessible browse and filter experience', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(baseModel()),
+      Scene.expect(Scene.role('heading', { name: 'Browse courses before you choose.' })).toExist(),
+      Scene.expect(Scene.label('Search courses')).toExist(),
+      Scene.expect(Scene.label('Campus')).toExist(),
+      Scene.expect(Scene.label('Study level')).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Explore' })).toExist(),
+      Scene.expect(Scene.text('List')).toExist(),
+      Scene.expect(Scene.text('Schedule')).toExist(),
+      Scene.expect(Scene.text('Degree')).toExist(),
+      Scene.expect(Scene.text('Loading the NTNU catalogue')).toExist(),
+    );
+  });
+
+  test('Norwegian Bokmål localizes interface chrome while retaining the same catalogue state', () => {
+    const norwegian = initForHref('http://course-lens.local/?lang=nb')[0];
+    Scene.scene(
+      { update, view },
+      Scene.with(norwegian),
+      Scene.expect(Scene.role('heading', { name: 'Utforsk emner før du velger.' })).toExist(),
+      Scene.expect(Scene.label('Søk i emner')).toExist(),
+      Scene.expect(Scene.label('Studiested')).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Utforsk' })).toExist(),
+      Scene.expect(Scene.text('Laster NTNUs emnekatalog')).toExist(),
+      Scene.expect(Scene.label('Språk')).toExist(),
+    );
+  });
+
+  test('official results are semantic links into existing course detail', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        visibleCount: 1,
+      }),
+      Scene.expect(Scene.role('region', { name: 'Course results' })).toExist(),
+      Scene.expect(
+        Scene.role('link', {
+          name: 'Open TDT4136: Introduction to Artificial Intelligence',
+        }),
+      ).toExist(),
+      Scene.expect(Scene.text('Showing 1 of 1 courses')).toExist(),
+      Scene.expect(Scene.text('Campus', { exact: true })).toExist(),
+      Scene.expect(Scene.text('Load when opened')).toBeAbsent(),
+    );
+  });
+
+  test('official grade signals are scannable without opening course detail', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        gradeSignals: GradeSignalsSuccess({
+          response: fixtureGradeSummariesResponse(['TDT4136']),
+        }),
+        visibleCount: 1,
+      }),
+      Scene.expect(Scene.text('Historical outcomes')).toExist(),
+      Scene.expect(
+        Scene.role('img', {
+          name: /HK-dir DBH historical outcomes\. Letter grades\./,
+        }),
+      ).toExist(),
+      Scene.expect(Scene.text('Letter grades')).toExist(),
+      Scene.expect(Scene.text('10.7% failed · n=1,951 · 2022–2025')).toExist(),
+    );
+  });
+
+  test('an empty response is not rendered as a source failure', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({ ...baseModel(), catalogue: CatalogueEmpty() }),
+      Scene.expect(Scene.text('No courses match these filters')).toExist(),
+      Scene.expect(Scene.role('alert')).toBeAbsent(),
+    );
+  });
+
+  test('selected partial detail reuses the evidence-backed course view', () => {
+    const responseWithInference = {
+      ...partialCourseInsightFixture,
+      item: {
+        ...partialCourseInsightFixture.item,
+        evidence: partialCourseInsightFixture.item.evidence.map((evidence) =>
+          evidence.id === 'ntnu-teaching'
+            ? { ...evidence, kind: 'inference' as const, inferenceRule: 'Keyword classification.' }
+            : evidence,
+        ),
+      },
+    };
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CatalogueInitialLoading(),
+        nextPage: NextPageIdle(),
+        selectedCode: 'TDT4136',
+        detail: DetailPartial({ response: responseWithInference }),
+      }),
+      Scene.expect(Scene.role('button', { name: '← Back to course results' })).toExist(),
+      Scene.expect(Scene.role('article', { name: 'TDT4136 course details' })).toExist(),
+      Scene.expect(Scene.text('Partial result')).toExist(),
+      Scene.expect(Scene.text('Inferred')).toExist(),
+    );
+  });
+
+  test('selected course detail uses the active Norwegian interface locale', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...initForHref('http://course-lens.local/?lang=nb')[0],
+        catalogue: CatalogueInitialLoading(),
+        nextPage: NextPageIdle(),
+        selectedCode: 'TDT4136',
+        detail: DetailPartial({ response: partialCourseInsightFixture }),
+      }),
+      Scene.expect(Scene.role('article', { name: 'Emnedetaljer for TDT4136' })).toExist(),
+      Scene.expect(Scene.text('Delvis resultat')).toExist(),
+      Scene.expect(Scene.text('Vurdering og obligatorisk arbeid')).toExist(),
+      Scene.expect(Scene.text('Kilder og ferskhet')).toExist(),
+    );
+  });
+
+  test('closed detail remains a valid explicit state', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({ ...baseModel(), selectedCode: null, detail: DetailClosed() }),
+      Scene.expect(Scene.role('button', { name: '← Back to course results' })).toBeAbsent(),
+    );
+  });
+});

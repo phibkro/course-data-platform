@@ -3,6 +3,30 @@
   "name": "course-data-ingest",
   "main": "src/worker.ts",
   "compatibility_date": "2026-07-20",
+  "r2_buckets": [
+    {
+      "binding": "EVIDENCE",
+      "bucket_name": "course-data-evidence-local",
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "course-data-dev",
+      "database_id": "local",
+      "migrations_dir": "../../migrations/d1",
+    },
+  ],
+  "queues": {
+    "producers": [{ "binding": "SYNC_QUEUE", "queue": "course-data-sync-local" }],
+    "consumers": [{ "queue": "course-data-sync-local", "max_batch_size": 1, "max_retries": 3 }],
+  },
+  "triggers": {
+    "crons": ["*/15 * * * *", "0 2 * * *", "15 3 * * *"],
+  },
+  "vars": {
+    "ON_DEMAND_INGEST": "true",
+  },
   "observability": {
     "enabled": true,
   },

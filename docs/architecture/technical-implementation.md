@@ -2,13 +2,13 @@
 
 ## Decision summary
 
-- Strict TypeScript 7 is the common implementation language; TypeScript 6 is retained as a compatibility oracle during the transition.
+- Strict TypeScript 7 is the common implementation language and sole compiler authority.
 - Effect owns application services, typed failure, retries, and dependency composition.
 - Elysia owns HTTP transport, runtime request/response validation, OpenAPI, and Eden inference.
 - The first-party React PWA consumes the same API through Eden that external consumers can access through OpenAPI.
 - Base UI is the default primitive layer; React Aria is reserved for complex collection semantics after a focused comparison spike.
-- D1 stores canonical normalized records; R2 will preserve immutable source evidence.
-- Queues and Workflows will orchestrate ingestion once source adapters are introduced.
+- D1 stores canonical published revisions; R2 preserves immutable, content-addressed source evidence.
+- Cloudflare Queues and cron triggers orchestrate NTNU incremental/full scans and DBH periodic checks.
 - Alchemy is isolated to infrastructure composition.
 - Bun is the package manager and task runner, while Vite/Rolldown and Wrangler remain the target-specific bundlers.
 
@@ -24,11 +24,11 @@
 6. Elysia validates the response and publishes it through OpenAPI.
 7. Eden provides the first-party client type used by the PWA.
 
-## Near-term sequence
+## Live replication slice
 
-1. Prove Elysia under `workerd` with D1 bindings and response validation.
-2. Add immutable raw-source storage in R2.
-3. Implement the DBH source adapter against frozen fixtures.
-4. Replace fixture records with normalized DBH records.
-5. Port the useful interface behavior from `legacy/` into the new PWA.
-6. Add a second institution adapter before stabilising the adapter contract.
+1. Archive exact NTNU and DBH response bytes plus observation manifests in R2.
+2. Parse untrusted responses at the source boundary, preserving unavailable factual values.
+3. Build a candidate revision and atomically advance a D1 publication pointer only after quality validation.
+4. Run NTNU incrementally every 15 minutes with overlap, reconcile fully nightly, and check DBH daily.
+5. Serve the last valid revision through outages while recording an explicit stale source state.
+6. Unlock Compare only when ten distinct programme identities are published.

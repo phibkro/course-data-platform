@@ -1,36 +1,44 @@
-# Course Data Platform
+# Course Decision Product
 
-A multi-institution, provenance-preserving course catalogue and public data API. The earlier NTNU course-search prototype is retained in `legacy/` while the platform is rebuilt as explicit vertical slices.
+An evidence-backed NTNU course browser for answering the questions students
+actually have before choosing a subject: what it covers, how teaching works,
+what work is obligatory, how it is assessed, whether collaboration or
+attendance is explicit, and what historical grade outcomes look like.
 
-## First vertical slice
+The active product is a Foldkit web application backed by a small Elysia API.
+It fetches NTNU course data plus grades.no and DBH grade evidence, validates
+every source at the boundary, and preserves unavailable, conflicting, inferred,
+and fixture states instead of presenting guesses as facts.
 
-The current slice proves one complete request path:
+## Active slice
 
 ```text
-React PWA -> Eden client -> Elysia contract -> Effect use case -> repository -> D1
+Foldkit web -> Elysia/OpenAPI -> Effect service
+                              -> NTNU course search/detail
+                              -> grades.no + DBH/HK-dir outcomes
 ```
 
 Implemented now:
 
-- strict TypeScript monorepo boundaries;
-- Effect domain values, capabilities, typed repository failure, and runtime composition;
-- Elysia request and response validation;
-- runtime-generated OpenAPI and an Eden first-party client;
-- a D1 repository implementation and reviewed SQL migration;
-- Cloudflare API and ingestion Worker entry points;
-- React PWA shell with URL-owned search state and an explicit service worker;
-- Bun 1.3, native TypeScript 7, TS6 compatibility checking, Oxlint, Oxfmt, Vite 8, Vitest, and Wrangler validation;
-- Alchemy infrastructure composition kept isolated in `alchemy.run.ts`;
-- the previous prototype preserved under `legacy/` for behavioral reference.
+- a browse-first live NTNU catalogue with code/title search, teaching-term,
+  campus, study-level, open-admission, and English-language filters;
+- relevance, title, and course-code sorting plus incremental pagination;
+- URL-backed catalogue state and a decision-oriented course detail;
+- explicit evidence and per-source status for every factual result;
+- independent partial success when detail or grade providers fail;
+- ordinary-term, bounded grade aggregation with pass/fail outcomes kept
+  separate from ordinal letter grades;
+- Foldkit loading, success, partial, empty, and error scenes;
+- responsive Material You styling with desktop sidebar and mobile bottom bar;
+- TypeBox boundary contracts, public OpenAPI, and browser-facing response
+  validation;
+- TypeScript 7 as the sole compiler authority;
+- a minimal, parallel Alchemy v2 stack containing only the course API and
+  student web application.
 
-Not implemented in this slice:
-
-- live DBH or institution ingestion;
-- immutable R2 source archiving;
-- Base UI / React Aria production components;
-- user preference persistence;
-- semantic course relations;
-- a verified Alchemy deployment.
+The earlier programme planner, replication pipeline, D1/R2/Queue stack, and
+Workbench remain in the repository as a legacy platform baseline. They are not
+part of the default development, build, or deployment path.
 
 ## Commands
 
@@ -41,15 +49,24 @@ bun run build
 bun run dev
 ```
 
-The combined development command starts both services:
+The combined development command starts the active product:
 
-- PWA: `http://localhost:5173`
+- Student web: `http://localhost:5173`
 - API service index: `http://localhost:8787`
 - OpenAPI UI: `http://localhost:8787/openapi`
 
-`bun run dev:api` and `bun run dev:web` remain available when separate terminals are preferable. The API command applies pending local D1 migrations before starting Wrangler. Override the web app's API origin with `VITE_API_URL`.
+There is no database migration or account setup in the active slice. The API
+does need outbound access to the public source APIs. `bun run dev:api` and
+`VITE_API_URL=http://localhost:8787 bun run dev:web` are available for separate
+terminals. Override that origin when needed; use `VITE_USE_FIXTURE=true` only
+for explicit offline UI work. If port 8787 is already occupied, choose one
+consistent port for the combined stack with `COURSE_API_PORT=8788 bun run dev`.
 
-The service worker is registered only in production builds. Development startup removes earlier Course Data Platform service workers and caches so Vite modules and HMR connections are never served from stale PWA caches. After upgrading from an older checkout that registered the service worker during development, one browser reload may be required while the old worker is removed.
+If the host shell does not expose Node directly but Nix is available,
+`bun run dev` automatically re-enters the repository development shell. This
+keeps the default onboarding path to one command on the workstation.
+
+Run the previous platform deliberately with `bun run legacy:dev:platform`.
 
 Generate the checked-in public API document with:
 
@@ -57,22 +74,87 @@ Generate the checked-in public API document with:
 bun run openapi
 ```
 
+## Infrastructure
+
+Alchemy v2 uses the new stack ID `CourseDecisionProduct` and new resource IDs,
+so it does not adopt, mutate, or destroy the earlier v1-managed resources.
+The production student web is bound declaratively to
+`https://planner.phibkro.org`; Cloudflare manages its Worker custom-domain
+binding and certificate as part of the stack.
+Inspect the two-resource change before a first deployment:
+
+```sh
+bun run infra:plan:prod
+bun run deploy:prod
+```
+
+The unsuffixed `infra:plan` and `deploy` commands target Alchemy's per-user
+development stage. Production is intentionally separate and requires
+Cloudflare authentication. `deploy:prod` refuses to run unless the checkout is
+clean, on `main`, and exactly matches `origin/main`; production releases are
+explicit even though `main` is the canonical production source.
+
+PR previews use isolated Alchemy stages rather than a long-lived deployment
+branch. GitHub Actions creates or updates `pr-<number>` when a same-repository
+PR opens or receives a push, comments the public URL on the PR, and destroys
+the stage and comment when the PR closes or merges. Forked PRs never receive
+deployment credentials.
+
+The automation is gated by the `PREVIEW_DEPLOYMENTS_ENABLED` repository
+variable. Provision its least-privilege, account-owned Cloudflare credential
+and enable the workflow once with a dedicated Alchemy admin profile:
+
+```sh
+alchemy login --profile admin
+CLOUDFLARE_ACCOUNT_ID=<account-id> \
+  alchemy deploy stacks/github.ts --profile admin --yes
+```
+
+The admin profile must be able to create account API tokens and should only be
+used for this credential stack. The generated CI token can write Worker scripts
+and access the Alchemy Secrets Store, but cannot manage zones or the production
+custom domain. Its value passes directly from Cloudflare state to the encrypted
+GitHub secret and is never printed.
+
+For an exceptional manual deployment from a clean, pushed PR branch, run:
+
+```sh
+bun run deploy:preview -- 6
+```
+
+Preview source links point to the exact deployed commit. The production custom
+domain is attached only to the `prod` stage, so previews cannot claim
+`planner.phibkro.org`.
+
 ## Architecture
 
 ```text
-untrusted source
+untrusted HTTP source
   -> validated evidence
-  -> temporal domain model
-  -> Effect application use cases
+  -> course decision model
+  -> Effect service
   -> Elysia/OpenAPI transport
-  -> Eden first-party client
-  -> independent preference lens
+  -> validated Foldkit client
 ```
 
-See `docs/architecture/technical-implementation.md`, `docs/agent-context/next-slice.md`, `AGENTS.md`, and `docs/adr/`.
+See `docs/product/course-decision-contract.md`,
+`docs/adr/012-course-decisions-first.md`, `docs/agent-context/next-slice.md`,
+and `AGENTS.md`.
 
 ## Compiler policy
 
-TypeScript 7.0.2's native Go compiler is the authoritative checker. The repository also installs the TypeScript 6 compatibility package and runs `tsc6` during full validation so compiler differences are detected immediately. Type environments are declared per package rather than inherited accidentally through a hoisted install.
+TypeScript 7.0.2's native Go compiler is the sole checker. Type environments
+are declared per package rather than inherited accidentally through a hoisted
+install.
 
 Bun 1.3.14 is the canonical package manager and command runner. Vite/Rolldown remain responsible for the browser bundle, Vitest remains the test framework, and Wrangler remains responsible for Cloudflare Worker bundling.
+
+## License and support
+
+Course Data Platform is free software licensed under
+[GNU AGPL version 3 only](LICENSE). Network deployments expose a link to the
+corresponding source from the student interface.
+
+An optional student support link can be enabled with `VITE_TIP_URL`. It is
+shown only when the value is a valid HTTPS URL; no payment provider or account
+is assumed by the application.

@@ -1,0 +1,28 @@
+{
+  "sourceProvider": "dbh",
+  "tableId": 308,
+  "requestUrl": "https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData",
+  "requestMethod": "POST",
+  "requestBody": {
+    "tabell_id": 308,
+    "api_versjon": 1,
+    "statuslinje": "N",
+    "kodetekst": "J",
+    "groupBy": ["Karakter"],
+    "filter": [
+      { "variabel": "Institusjonskode", "selection": { "filter": "item", "values": ["1150"] } },
+      { "variabel": "Emnekode", "selection": { "filter": "like", "values": ["TDT4136%"] } },
+      { "variabel": "Årstall", "selection": { "filter": "between", "values": ["2023", "2024"] } }
+    ]
+  },
+  "courseCode": "TDT4136",
+  "fromYear": 2023,
+  "toYear": 2024,
+  "capturedAt": "2026-07-20T09:15:00Z",
+  "contentHash": {
+    "algorithm": "sha-256",
+    "rawBody": "d0dbf696d09f71d332d1b604db704e16f978be7ccf94d167abd2225c4499a107"
+  },
+  "isRepresentativeFixture": true,
+  "note": "Synthetic fixture shaped to match the live DBH/HK-dir table-308 response verified during this build: a plain row array grouped by Karakter with no leading status entry (unlike tables 208/347), including G (Bestått) and H (Ikke bestått) pass/fail rows alongside the A-F letter grades. Not a captured live response."
+}

@@ -1,0 +1,41 @@
+[
+  {
+    "year": 2024,
+    "semester": "AUTUMN",
+    "attendee_count": 210,
+    "a": 25,
+    "b": 55,
+    "c": 70,
+    "d": 35,
+    "e": 15,
+    "f": 10,
+    "passed": null,
+    "average_grade": 3.6
+  },
+  {
+    "year": 2023,
+    "semester": "AUTUMN",
+    "attendee_count": 198,
+    "a": 20,
+    "b": 48,
+    "c": 65,
+    "d": 34,
+    "e": 18,
+    "f": 13,
+    "passed": null,
+    "average_grade": 3.4
+  },
+  {
+    "year": 2023,
+    "semester": "SUMMER",
+    "attendee_count": 6,
+    "a": 0,
+    "b": 1,
+    "c": 2,
+    "d": 1,
+    "e": 1,
+    "f": 1,
+    "passed": null,
+    "average_grade": 2.8
+  }
+]

@@ -1,62 +1,99 @@
 # Validation report
 
-Validated in the build environment on 2026-07-20.
+Validated on 2026-07-23 for the course-decisions-first vertical slice.
 
-## Passed
+## Product journey
 
-The fast validation suite and production builds are separate commands so failures remain easy to localize:
+The active `bun run dev` command was started from a clean shell without a
+database, account, programme, or migration step. On this Nix workstation the
+command automatically entered the repository development shell. Agent Browser
+exercised the student application on desktop and mobile:
 
-- `bun run validate`
-- `bun run build`
+- the initial page loaded 40 alphabetically sorted rows from 2,825 live NTNU
+  autumn 2026 offerings without requiring a known course code;
+- “Show more courses” expanded the list from 40 to 80 while preserving the
+  source-reported total;
+- search, term, campus, study-level, open-admission, English-language, and sort
+  state were represented in the URL;
+- a code/title search for `TDT4136` automatically switched to NTNU relevance
+  and ranked the exact course first;
+- filtering the search to Trondheim and master level returned 10 courses;
+- open-admission filtering returned 898 courses;
+- a spring 2027 catalogue request returned 2,099 offerings; a direct
+  `PD6020` provider request returned the `/PD6020/2026` course page, whose
+  official detail identifies study year 2026/2027 and teaching start spring
+  2027, confirming the academic-year/season mapping;
+- opening `TDT4136` returned a live NTNU course insight backed by NTNU course
+  search/detail, grades.no, and DBH/HK-dir table 308;
+- the result exposed content, learning outcomes, work forms, assessment,
+  obligatory activities, prerequisites, grade distribution, failure rate,
+  average, median, source status, and evidence;
+- unsupported collaboration, attendance, and online-delivery claims remained
+  explicitly unknown;
+- grades.no and DBH period/sample disagreement rendered as conflicting rather
+  than being silently reconciled;
+- selection preserved the catalogue query, and back/forward navigation
+  restored the corresponding filter state;
+- desktop and 375 px mobile layouts had no horizontal overflow, with the
+  intended sidebar and bottom navigation respectively.
+- the accessibility tree exposed one correctly named checkbox per boolean
+  filter, without hidden-input duplication.
+- keyboard focus reached the custom Foldkit checkbox and Space toggled its
+  `aria-checked` state plus URL-backed filter.
 
-- Oxfmt formatting check
-- Oxlint with warnings denied
-- native TypeScript 7.0.2 checks across explicit package contexts
-- TypeScript 6 compatibility checks across the same contexts
-- domain, application, and Elysia transport tests
-- API Worker Wrangler dry-run build
-- ingestion Worker Wrangler dry-run build
-- React/Vite production build
-- OpenAPI generation from Elysia runtime schemas
-- local D1 migration from an empty database
-- local API smoke request through Wrangler/workerd
-- local web-server smoke request
-- Bun isolated-lockfile portability audit: no private registry, local `/tmp`, or `file:` dependencies
+The first clean run exposed two local-environment defects, both fixed before
+the successful journey: the pinned Workerd build required compatibility date
+`2026-07-21`, and Nix-launched Workerd needed the system CA bundle passed
+explicitly.
 
-## Deliberately deferred
+## Independent launch review
 
-- DBH network ingestion and reconciliation
-- R2 evidence archive
-- Queue and Workflow execution
-- Base UI / React Aria component spike
-- Playwright browser suite
-- Alchemy package compilation and deployment
-- temporary public deployment
+Fable 5 reviewed the validated catalogue commit in an isolated read-only
+worktree and found no P0. Its three P1 honesty checks were closed before the
+final gate:
 
-Alchemy is pinned in `infra/versions.json`, but it is not included in the default dependency installation until its provider graph can be installed and validated reliably in the execution environment.
+- spring academic-year semantics were verified live and autumn 2027 was added
+  to keep the term sequence complete;
+- inference-only facts now carry a visible `Inferred` state, and
+  attendance/online keyword scans are limited to assessment and teaching
+  sections;
+- source sections cut at the display limit now end with an explicit
+  “Truncated; continue at source” marker.
 
-## Compiler comparison
+## Automated checks
 
-Measured in this build environment over the eight package/tooling configurations:
+The canonical `bun run validate` gate regenerates OpenAPI and runs formatting,
+lint, both TypeScript compilers, and the full Vitest suite. `bun run build`
+performs the Worker dry run and production web build.
 
-- TypeScript 7.0.2: 3.55 seconds, 265,644 KB peak RSS
-- TypeScript 6 compatibility compiler: 10.71 seconds, 452,612 KB peak RSS
+The final gate passed 29 test files / 109 tests. The production build emitted a
+308.89 KiB gzip Worker upload and a 123.72 KiB gzip main browser bundle.
 
-Both produced zero diagnostics. These figures are directional rather than a general benchmark; the repository is still small.
+The suite covers boundary rejection, ordinary-term grade windows, cohort
+thresholds, pass/fail separation, weighted averages, per-field source
+reconciliation, partial upstream failures, evidence integrity, transport
+responses, Foldkit scenes/stories, and student-client error handling.
 
-## macOS development hotfix
+## Live-source qualification
 
-The July 20 follow-up fixes a Bash 3.2 portability bug in the TypeScript 6 compatibility lane, adds a discoverable API root and health route, and provides a combined `bun run dev` command that starts the API and PWA together. Pending local D1 migrations are applied before Wrangler starts.
+The live journey confirms the currently implemented request and parsing paths
+against all four upstream endpoints. DBH table 308 was additionally queried
+grouped by `Emnekode`, confirming that NTNU versions use the
+`TDT4136-1`-style suffix; the adapter therefore filters `TDT4136-%` so it keeps
+course versions without absorbing longer prefix-matching course codes.
 
-The original full validation and production builds passed on the preceding source revision. The hotfix was additionally checked with Bash syntax validation and JSON parsing in the packaging environment; the reporter's macOS run had already confirmed the unchanged TypeScript 7, test, Vite, and Wrangler build paths.
+Checked-in source fixtures remain deliberately labelled `fixture` and are not
+presented as captured source facts. Expanding the live golden corpus beyond
+TDT4136 and preserving provider-approved response captures remains a
+pre-public-launch task rather than a hidden claim of this slice.
 
-## Development service-worker regression fix
+## Current product boundary
 
-Validated after reproducing the Firefox failure caused by an older development service worker caching Vite module URLs from a previous checkout:
-
-- service-worker registration is production-only;
-- development startup unregisters prior Course Data Platform workers and removes their caches;
-- the production worker ignores cross-origin requests, including the local API Worker;
-- unavailable same-origin API requests return an explicit 503 Problem Details response rather than `Response.error()`;
-- local API CORS is covered by a regression test for `http://localhost:5173`;
-- TypeScript 7, TypeScript 6 compatibility, Oxlint, Oxfmt, Vitest, Vite, and both Worker dry-run builds pass.
+This release candidate supports broad scanning and narrowing by the factual
+facets available from NTNU's catalogue endpoint, then makes an opened course
+genuinely understandable. Result cards intentionally do not claim credits,
+assessment form, collaboration, remote feasibility, obligatory work, or grade
+risk until richer sources have been loaded. Batch grade signals, progressive
+detail enrichment, and shortlist comparison are the next student-value slices;
+programme planning, authentication, full replication, and multi-institution
+support remain deliberately later.

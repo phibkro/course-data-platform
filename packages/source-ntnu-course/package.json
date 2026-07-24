@@ -1,0 +1,18 @@
+{
+  "name": "@course-data/source-ntnu-course",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@course-data/course-model": "0.1.0",
+    "effect": "4.0.0-beta.97"
+  }
+}

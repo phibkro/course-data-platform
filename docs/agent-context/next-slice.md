@@ -1,61 +1,78 @@
-# Next vertical slice: DBH evidence ingestion
+# Next vertical slice: decision signals while browsing
+
+> Execution anchor: [`../product/scan-and-persist-design.md`](../product/scan-and-persist-design.md)
 
 ## Goal
 
-Replace fixture catalogue records with a replayable ingestion path for one official DBH dataset while preserving raw evidence and explicit provenance.
+Let a student scan a broad NTNU catalogue and see the first decision-relevant
+signals without opening every result.
 
-## Scope
-
-The slice covers one institution and a small bounded reporting period. It is a correctness spike, not a complete national import.
+The browse-first catalogue and evidence-backed detail are complete. Preserve
+both as the product path; enrich the list without making it wait for every
+upstream.
 
 ## Required path
 
 ```text
-frozen DBH fixture
-  -> source decoder
-  -> validated source record
-  -> raw evidence archive capability
-  -> normalized course/course-version records
-  -> idempotent D1 reconciliation
-  -> existing GET /v1/courses endpoint
+Foldkit catalogue with URL state
+  -> fast official NTNU result summaries
+  -> batched grade summaries for loaded course codes
+  -> bounded detail enrichment for visible or shortlisted courses
+  -> select a course
+  -> existing CourseInsight detail and evidence
 ```
 
-## New package boundaries
+## Scope
 
-- `packages/source-dbh`: DBH-specific discovery, decoding, and normalization.
-- `packages/evidence`: content hashes, raw-record identity, and archive capability.
-- `packages/reconciliation`: deterministic comparison between observed and canonical records.
-- `fixtures/dbh`: frozen source payloads and expected normalized output.
-
-## Domain additions
-
-- Explicit semester/reporting-period values.
-- Source-record content hash.
-- Ingestion-run identity and parser version.
-- Data states for present, unavailable, suppressed, conflicting, and invalid source data.
-- Immutable course-version revision identity.
+1. Add one batched DBH/HK-dir grade-summary capability for the course codes
+   already loaded in the catalogue.
+2. Show sample size, covered period, and failure-rate availability on result
+   cards; preserve pass/fail-only and absent-grade cases explicitly.
+3. Fetch NTNU detail only for visible, opened, or shortlisted courses, with a
+   concurrency limit and cancellation for filters that change.
+4. Derive compact assessment and obligatory-work signals through the existing
+   evidence model; do not interpret catalogue multimedia as remote teaching or
+   `examOnly` as an assessment claim.
+5. Keep initial official catalogue rows interactive while enrichments load or
+   fail independently.
+6. Preserve explicit unchecked, loading, known, inferred, conflicting,
+   unavailable, and failed states in the Foldkit model.
+7. Add a 10–20 course golden corpus spanning old/new courses, pass/fail,
+   multiple campuses, missing grades, source failure, and conflicting windows.
+8. Measure visible-card enrichment before introducing D1 caching or a full
+   catalogue replication pipeline.
 
 ## Acceptance criteria
 
-1. No network access is required by tests.
-2. The source fixture is archived before decoding.
-3. Every normalized field carries source provenance.
-4. Running the same input twice produces no duplicate canonical records.
-5. A changed parser can replay the archived evidence.
-6. Invalid records are quarantined with structured validation errors.
-7. The API returns DBH-backed records without changing its public response shape.
-8. Fixture, reconciliation, D1, transport, and migration tests pass.
-9. No source adapter calls D1 directly.
-10. No missing or suppressed value is represented as zero or false.
+- Initial official rows still appear without waiting for grade/detail
+  providers.
+- Loaded cards receive grade availability in a bounded number of requests,
+  rather than one DBH request per card.
+- Each signal makes clear whether it is checked, known, inferred, conflicting,
+  unavailable, or failed.
+- Changing filters cancels or ignores stale enrichment and never attaches
+  evidence to the wrong course.
+- Source failure leaves useful official result summaries visible and usable.
+- Desktop keyboard and 375 px mobile journeys pass Agent Browser smoke tests.
+- Type checks, lint, format, tests, OpenAPI generation, and builds remain green.
 
-## Explicit non-goals
+## Immediately after
 
-- Full historical grade import.
-- Course similarity or embeddings.
-- Multiple institution catalogue adapters.
-- User accounts or synchronized preferences.
-- Production scheduling.
+Add a local, account-free shortlist and comparison view for two to four
+enriched courses. Compare workload, assessment, obligatory work,
+collaboration, attendance, remote feasibility, and grade outcomes using the
+same Fact and evidence semantics.
 
-## Decision gate after completion
+## Still deferred
 
-Compare the DBH source shape against one institution-owned catalogue. Refine the canonical model only after both sources have exercised it.
+- programme compatibility and planning;
+- authentication and cross-device sync;
+- full catalogue replication and scheduled ingestion;
+- second-institution support;
+- discretionary design-system expansion.
+
+## Design-system constraint
+
+ADR-011 continues to freeze discretionary theme work. Reuse the existing
+Material You semantic tokens and Foldkit primitives. Add visual machinery only
+where discovery or comparison needs it.
