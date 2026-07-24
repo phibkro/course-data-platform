@@ -91,14 +91,22 @@ const buildBase = (gradeOutcomesInput: {
       {
         form: 'written-exam' as const,
         description: 'Skoleeksamen',
-        weightPercent: 100,
-        duration: null,
+        requirement: missing<'required' | 'optional' | 'choice' | 'conditional'>(),
+        weightPercent: known(100, [ntnuEvidenceId]),
+        duration: missing<string>(),
+        workloadPattern: missing<'distributed' | 'concentrated' | 'recurring' | 'milestone'>(),
       },
     ],
     [ntnuEvidenceId],
   ),
   obligatoryActivities: known(
-    ['Øvinger må være godkjent for å kunne gå opp til eksamen.'],
+    [
+      {
+        description: 'Øvinger må være godkjent for å kunne gå opp til eksamen.',
+        form: known('assignment' as const, [ntnuEvidenceId]),
+        workloadPattern: missing<'distributed' | 'concentrated' | 'recurring' | 'milestone'>(),
+      },
+    ],
     [ntnuEvidenceId],
   ),
   collaboration: known('mixed' as const, [ntnuEvidenceId]),

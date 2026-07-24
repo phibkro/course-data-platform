@@ -1,21 +1,33 @@
 import { Story } from 'foldkit';
 import { expect, test } from 'vitest';
 
-import { fixtureGradeSummariesResponse, fixtureSearchResponse } from './course-client';
 import {
+  fixtureDecisionSignalsResponse,
+  fixtureGradeSummariesResponse,
+  fixtureSearchResponse,
+} from './course-client';
+import {
+  ChangedColorMode,
+  ChangedCampus,
   ChangedLocale,
+  ChangedThemePreset,
+  ChangedUrl,
   CatalogueEmpty,
   CompletedNavigation,
   FailedCourseSearch,
   FetchCourseSearch,
+  FetchDecisionSignals,
   FetchGradeSignals,
   GradeSignalsSuccess,
   Navigate,
   NextPageFailure,
+  RequestedAppearance,
   RequestedMoreCourses,
   SubmittedSearch,
   SucceededCourseSearch,
+  SucceededDecisionSignals,
   SucceededGradeSignals,
+  ToggledSidebar,
   UpdatedQuery,
   initForHref,
   parseExternalHttpsUrl,
@@ -43,6 +55,59 @@ test('locale is explicit URL-backed state and changes do not refetch the catalog
   expect(initForHref('http://course-lens.local/?lang=unsupported')[0].locale).toBe('en');
 });
 
+test('sidebar density is a local preference and does not alter catalogue state', () => {
+  const initial = initialModel();
+  const [collapsed, commands] = update(initial, ToggledSidebar());
+
+  expect(collapsed.sidebarCollapsed).toBe(true);
+  expect(commands.map((command) => command.name)).toEqual(['PersistSidebarPreference']);
+  expect(collapsed.query).toBe(initial.query);
+  expect(collapsed.activeRequestKey).toBe(initial.activeRequestKey);
+  expect(initForHref('http://course-lens.local/', 'en', true)[0].sidebarCollapsed).toBe(true);
+});
+
+test('Nordic palettes and appearance are local preferences and do not refetch data', () => {
+  const initial = initialModel();
+  const [pine, presetCommands] = update(initial, ChangedThemePreset({ value: 'pine' }));
+  const [dark, modeCommands] = update(pine, ChangedColorMode({ value: 'dark' }));
+
+  expect(pine.themePreference).toMatchObject({
+    baseColor: 'olive',
+    themeColor: 'emerald',
+    chartColor: 'indigo',
+    mode: 'system',
+  });
+  expect(dark.themePreference.mode).toBe('dark');
+  expect(presetCommands.map((command) => command.name)).toEqual(['PersistThemePreference']);
+  expect(modeCommands.map((command) => command.name)).toEqual(['PersistThemePreference']);
+  expect(
+    [...presetCommands, ...modeCommands].some(({ name }) => name === 'FetchCourseSearch'),
+  ).toBe(false);
+});
+
+test('the Appearance modal is URL-backed and follows browser history changes', () => {
+  const initial = initialModel();
+  const [requested, requestCommands] = update(initial, RequestedAppearance());
+
+  expect(requested.appearanceDialog.isOpen).toBe(false);
+  expect(requestCommands.map(({ name }) => name)).toEqual(['Navigate']);
+  expect(requestCommands[0]?.args).toMatchObject({ href: '/appearance?lang=en', mode: 'push' });
+
+  const [open, openCommands] = update(
+    requested,
+    ChangedUrl({ href: 'http://course-lens.local/appearance?lang=en' }),
+  );
+  expect(open.appearanceDialog.isOpen).toBe(true);
+  expect(openCommands.map(({ name }) => name)).toContain('ShowDialog');
+
+  const [closed, closeCommands] = update(
+    open,
+    ChangedUrl({ href: 'http://course-lens.local/?lang=en' }),
+  );
+  expect(closed.appearanceDialog.isOpen).toBe(false);
+  expect(closeCommands.map(({ name }) => name)).toContain('RequestFrame');
+});
+
 test('a catalogue response makes official courses available without opening detail', () => {
   const model = initialModel();
   Story.story(
@@ -58,6 +123,7 @@ test('a catalogue response makes official courses available without opening deta
     Story.model((next) => {
       expect(next.catalogue._tag).toBe('CataloguePartial');
       expect(next.gradeSignals._tag).toBe('GradeSignalsLoading');
+      expect(next.decisionSignals._tag).toBe('DecisionSignalsLoading');
       expect(next.selectedCode).toBeNull();
       expect(next.visibleCount).toBe(1);
     }),
@@ -67,6 +133,14 @@ test('a catalogue response makes official courses available without opening deta
         requestKey: model.activeRequestKey,
         courseCodes: ['TDT4136'],
         response: fixtureGradeSummariesResponse(['TDT4136']),
+      }),
+    ),
+    Story.Command.resolve(
+      FetchDecisionSignals,
+      SucceededDecisionSignals({
+        requestKey: model.activeRequestKey,
+        courseCodes: ['TDT4136'],
+        response: fixtureDecisionSignalsResponse(['TDT4136']),
       }),
     ),
   );
@@ -95,6 +169,23 @@ test('grade responses enrich cards independently of the catalogue response', () 
   expect(enriched.gradeSignals).toEqual(
     GradeSignalsSuccess({ response: fixtureGradeSummariesResponse(['TDT4136']) }),
   );
+});
+
+test('stale decision enrichment is ignored after filters change', () => {
+  const initial = initialModel();
+  const [filtered] = update(initial, ChangedCampus({ value: 'trondheim' }));
+  const [afterStaleResponse, commands] = update(
+    filtered,
+    SucceededDecisionSignals({
+      requestKey: initial.activeRequestKey,
+      courseCodes: ['TDT4136'],
+      response: fixtureDecisionSignalsResponse(['TDT4136']),
+    }),
+  );
+
+  expect(afterStaleResponse).toBe(filtered);
+  expect(afterStaleResponse.decisionSignals._tag).toBe('DecisionSignalsIdle');
+  expect(commands).toEqual([]);
 });
 
 test('submitting a title or course-code query starts a fresh URL-backed search', () => {
@@ -126,6 +217,14 @@ test('submitting a title or course-code query starts a fresh URL-backed search',
         requestKey: 'algoritmer|2026-autumn|relevance|all|all|true|false|false',
         courseCodes: ['TDT4136'],
         response: fixtureGradeSummariesResponse(['TDT4136']),
+      }),
+    ),
+    Story.Command.resolve(
+      FetchDecisionSignals,
+      SucceededDecisionSignals({
+        requestKey: 'algoritmer|2026-autumn|relevance|all|all|true|false|false',
+        courseCodes: ['TDT4136'],
+        response: fixtureDecisionSignalsResponse(['TDT4136']),
       }),
     ),
   );
@@ -177,6 +276,14 @@ test('a later-page failure preserves already loaded catalogue rows', () => {
         response: fixtureGradeSummariesResponse(['TDT4136']),
       }),
     ),
+    Story.Command.resolve(
+      FetchDecisionSignals,
+      SucceededDecisionSignals({
+        requestKey: model.activeRequestKey,
+        courseCodes: ['TDT4136'],
+        response: fixtureDecisionSignalsResponse(['TDT4136']),
+      }),
+    ),
     Story.message(RequestedMoreCourses()),
     Story.Command.resolve(
       FetchCourseSearch,
@@ -196,7 +303,7 @@ test('a later-page failure preserves already loaded catalogue rows', () => {
 test('show more reveals already loaded rows before requesting another provider page', () => {
   const model = initialModel();
   const fixture = fixtureSearchResponse(1);
-  const items = Array.from({ length: 41 }, (_, index) => {
+  const items = Array.from({ length: 21 }, (_, index) => {
     const item = fixture.items[0]!;
     const code = `TEST${String(index + 1).padStart(3, '0')}`;
     return { ...item, courseKey: `NTNU:${code}`, code };
@@ -216,10 +323,14 @@ test('show more reveals already loaded rows before requesting another provider p
 
   const [revealed, commands] = update(loaded, RequestedMoreCourses());
 
-  expect(revealed.visibleCount).toBe(41);
+  expect(revealed.visibleCount).toBe(21);
   expect(revealed.gradeSignals).toMatchObject({
     _tag: 'GradeSignalsLoading',
-    pendingCodes: expect.arrayContaining(['TEST041']),
+    pendingCodes: expect.arrayContaining(['TEST021']),
   });
-  expect(commands).toHaveLength(1);
+  expect(revealed.decisionSignals).toMatchObject({
+    _tag: 'DecisionSignalsLoading',
+    pendingCodes: expect.arrayContaining(['TEST021']),
+  });
+  expect(commands).toHaveLength(2);
 });

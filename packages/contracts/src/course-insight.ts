@@ -1,4 +1,5 @@
 import type {
+  CourseDecisionSignals,
   CourseGradeSummary,
   CourseInsight,
   CourseSearchItem,
@@ -92,11 +93,33 @@ const AssessmentFormDto = t.Union([
   t.Literal('other'),
 ]);
 
+const AssessmentRequirementDto = t.Union([
+  t.Literal('required'),
+  t.Literal('optional'),
+  t.Literal('choice'),
+  t.Literal('conditional'),
+]);
+
+const WorkloadPatternDto = t.Union([
+  t.Literal('distributed'),
+  t.Literal('concentrated'),
+  t.Literal('recurring'),
+  t.Literal('milestone'),
+]);
+
 const AssessmentPartDto = t.Object({
   form: AssessmentFormDto,
   description: t.String({ minLength: 1 }),
-  weightPercent: t.Union([t.Number({ minimum: 0, maximum: 100 }), t.Null()]),
-  duration: t.Union([t.String({ minLength: 1 }), t.Null()]),
+  requirement: FactDto(AssessmentRequirementDto),
+  weightPercent: FactDto(t.Number({ exclusiveMinimum: 0, maximum: 100 })),
+  duration: FactDto(t.String({ minLength: 1 })),
+  workloadPattern: FactDto(WorkloadPatternDto),
+});
+
+const ObligatoryActivityDto = t.Object({
+  description: t.String({ minLength: 1 }),
+  form: FactDto(AssessmentFormDto),
+  workloadPattern: FactDto(WorkloadPatternDto),
 });
 
 const WorkFormDto = t.Union([
@@ -232,6 +255,40 @@ export const CourseGradeSummariesResponseDto = t.Object({
   }),
 });
 
+export const CourseDecisionSignalsRequestDto = t.Object({
+  courseCodes: t.Array(
+    t.String({
+      minLength: 2,
+      maxLength: 20,
+      pattern: '^[A-Za-zÆØÅæøå0-9]+$',
+    }),
+    { minItems: 1, maxItems: 40, uniqueItems: true },
+  ),
+  term: t.Optional(t.String({ minLength: 1, maxLength: 40 })),
+});
+
+export const CourseDecisionSignalsDto = t.Object({
+  courseCode: t.String({ minLength: 2, maxLength: 20 }),
+  credits: FactDto(t.Number({ minimum: 0, maximum: 60 })),
+  assessment: FactDto(t.Array(AssessmentPartDto)),
+  workFormSignals: FactDto(t.Array(WorkFormDto)),
+  obligatoryActivities: FactDto(t.Array(ObligatoryActivityDto)),
+  collaboration: FactDto(
+    t.Union([t.Literal('individual'), t.Literal('group'), t.Literal('mixed')]),
+  ),
+  attendance: FactDto(t.Union([t.Literal('required'), t.Literal('not-required')])),
+  onlineParticipation: FactDto(t.Union([t.Literal('available'), t.Literal('not-available')])),
+  sourceStatus: SourceStatusDto,
+  evidence: t.Array(EvidenceDto),
+});
+
+export const CourseDecisionSignalsResponseDto = t.Object({
+  items: t.Array(CourseDecisionSignalsDto),
+  meta: t.Object({
+    count: t.Integer({ minimum: 0 }),
+  }),
+});
+
 export const CourseInsightParamsDto = t.Object({
   courseCode: t.String({ minLength: 2, maxLength: 20 }),
 });
@@ -254,7 +311,7 @@ export const CourseInsightDto = t.Object({
   teachingMethods: FactDto(t.String({ minLength: 1 })),
   workForms: FactDto(t.Array(WorkFormDto)),
   assessment: FactDto(t.Array(AssessmentPartDto)),
-  obligatoryActivities: FactDto(t.Array(t.String({ minLength: 1 }))),
+  obligatoryActivities: FactDto(t.Array(ObligatoryActivityDto)),
   collaboration: FactDto(
     t.Union([t.Literal('individual'), t.Literal('group'), t.Literal('mixed')]),
   ),
@@ -280,6 +337,9 @@ export type CourseSearchResponseDtoType = Static<typeof CourseSearchResponseDto>
 export type CourseGradeSummariesRequestDtoType = Static<typeof CourseGradeSummariesRequestDto>;
 export type CourseGradeSummaryDtoType = Static<typeof CourseGradeSummaryDto>;
 export type CourseGradeSummariesResponseDtoType = Static<typeof CourseGradeSummariesResponseDto>;
+export type CourseDecisionSignalsRequestDtoType = Static<typeof CourseDecisionSignalsRequestDto>;
+export type CourseDecisionSignalsDtoType = Static<typeof CourseDecisionSignalsDto>;
+export type CourseDecisionSignalsResponseDtoType = Static<typeof CourseDecisionSignalsResponseDto>;
 export type CourseInsightParamsDtoType = Static<typeof CourseInsightParamsDto>;
 export type CourseInsightQueryDtoType = Static<typeof CourseInsightQueryDto>;
 export type CourseInsightDtoType = Static<typeof CourseInsightDto>;
@@ -345,6 +405,24 @@ const mapOffering = (offering: Offering) => ({
   deliveryModes: [...offering.deliveryModes],
 });
 
+const mapAssessmentPart = (
+  part: CourseInsight['assessment'] extends Fact<ReadonlyArray<infer A>> ? A : never,
+) => ({
+  ...part,
+  requirement: mapFact(part.requirement, (requirement) => requirement),
+  weightPercent: mapFact(part.weightPercent, Number),
+  duration: mapFact(part.duration, String),
+  workloadPattern: mapFact(part.workloadPattern, (pattern) => pattern),
+});
+
+const mapObligatoryActivity = (
+  activity: CourseInsight['obligatoryActivities'] extends Fact<ReadonlyArray<infer A>> ? A : never,
+) => ({
+  ...activity,
+  form: mapFact(activity.form, (form) => form),
+  workloadPattern: mapFact(activity.workloadPattern, (pattern) => pattern),
+});
+
 export const toCourseSearchItemDto = (item: CourseSearchItem): CourseSearchItemDtoType => ({
   courseKey: item.courseKey,
   institutionCode: item.institutionCode,
@@ -373,6 +451,26 @@ export const toCourseGradeSummaryDto = (
   evidence: summary.evidence.map(mapEvidence),
 });
 
+export const toCourseDecisionSignalsDto = (
+  signals: CourseDecisionSignals,
+): CourseDecisionSignalsDtoType => ({
+  courseCode: signals.courseCode,
+  credits: mapFact(signals.credits, Number),
+  assessment: mapFact(signals.assessment, (assessment) => assessment.map(mapAssessmentPart)),
+  workFormSignals: mapFact(signals.workFormSignals, (forms) => [...forms]),
+  obligatoryActivities: mapFact(signals.obligatoryActivities, (activities) =>
+    activities.map(mapObligatoryActivity),
+  ),
+  collaboration: mapFact(signals.collaboration, (collaboration) => collaboration),
+  attendance: mapFact(signals.attendance, (attendance) => attendance),
+  onlineParticipation: mapFact(signals.onlineParticipation, (availability) => availability),
+  sourceStatus: {
+    ...signals.sourceStatus,
+    observedAt: signals.sourceStatus.observedAt?.toISOString() ?? null,
+  },
+  evidence: signals.evidence.map(mapEvidence),
+});
+
 export const toCourseInsightDto = (insight: CourseInsight): CourseInsightDtoType => ({
   ...insight,
   title: mapFact(insight.title, String),
@@ -384,8 +482,10 @@ export const toCourseInsightDto = (insight: CourseInsight): CourseInsightDtoType
   learningOutcomes: mapFact(insight.learningOutcomes, String),
   teachingMethods: mapFact(insight.teachingMethods, String),
   workForms: mapFact(insight.workForms, (workForms) => [...workForms]),
-  assessment: mapFact(insight.assessment, (assessment) => assessment.map((part) => ({ ...part }))),
-  obligatoryActivities: mapFact(insight.obligatoryActivities, (activities) => [...activities]),
+  assessment: mapFact(insight.assessment, (assessment) => assessment.map(mapAssessmentPart)),
+  obligatoryActivities: mapFact(insight.obligatoryActivities, (activities) =>
+    activities.map(mapObligatoryActivity),
+  ),
   collaboration: mapFact(insight.collaboration, (collaboration) => collaboration),
   attendance: mapFact(insight.attendance, (attendance) => attendance),
   onlineParticipation: mapFact(insight.onlineParticipation, (availability) => availability),

@@ -49,6 +49,20 @@ bun run build
 bun run dev
 ```
 
+Accessibility checks run against the fixture-backed production PWA in real
+Chromium at phone and desktop widths. The Linux Nix development shell pins the
+browser and publishes its executable path to Playwright:
+
+```sh
+nix develop --command bun run test:a11y
+```
+
+Outside that shell, provide `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` or install the
+Playwright-managed browser for the current host.
+
+Pull requests and pushes to `main` run both the validation suite and this axe
+browser gate.
+
 The combined development command starts the active product:
 
 - Student web: `http://localhost:5173`

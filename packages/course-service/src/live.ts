@@ -21,6 +21,7 @@ import {
 import {
   fetchNtnuCourseDetail,
   fetchNtnuCourseSearch,
+  mapNtnuDetailToCourseDecisionSignals,
   mapNtnuToCourseInsightFields,
   type ValidatedNtnuCourseDetail,
   type ValidatedNtnuSearchHit,
@@ -115,6 +116,27 @@ const campuses = (location: string | null): ReadonlyArray<string> | null => {
 
 const academicPeriod = (academicYear: number, season: 'spring' | 'autumn'): string =>
   `${academicYear}/${academicYear + 1} · ${season}`;
+
+const mapConcurrent = async <Input, Output>(
+  inputs: ReadonlyArray<Input>,
+  concurrency: number,
+  task: (input: Input) => Promise<Output>,
+): Promise<ReadonlyArray<Output>> => {
+  const results = new Array<Output>(inputs.length);
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (nextIndex < inputs.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const input = inputs[index];
+      if (input !== undefined) results[index] = await task(input);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, inputs.length) }, async () => worker()),
+  );
+  return results;
+};
 
 const toSearchItem = (hit: ValidatedNtnuSearchHit): CourseSearchItem => {
   const evidenceId = `evidence:${hit.sourceRecordId}`;
@@ -376,5 +398,46 @@ export const makeLiveCourseDecisionService = (
         }),
     });
 
-  return { search, getInsight, getGradeSummaries };
+  const getDecisionSignals = (input: {
+    readonly courseCodes: ReadonlyArray<string>;
+    readonly term?: string;
+  }) =>
+    Effect.tryPromise({
+      try: async () => {
+        const term = resolveTerm(input.term, defaults);
+        const courseCodes = [
+          ...new Set(input.courseCodes.map((courseCode) => courseCode.trim().toUpperCase())),
+        ];
+        const items = await mapConcurrent(courseCodes, 4, async (courseCode) => {
+          try {
+            const result = await fetchNtnuCourseDetail(deps, courseCode, String(term.academicYear));
+            return mapNtnuDetailToCourseDecisionSignals(
+              courseCode,
+              term.academicYear,
+              term.season,
+              result.accepted,
+              result.rejected?.message ?? null,
+            );
+          } catch (cause) {
+            return mapNtnuDetailToCourseDecisionSignals(
+              courseCode,
+              term.academicYear,
+              term.season,
+              null,
+              errorMessage(cause),
+            );
+          }
+        });
+        return { items };
+      },
+      catch: (cause) =>
+        cause instanceof CourseInvalidTermError
+          ? cause
+          : new CourseSourcesUnavailableError({
+              operation: 'decision-signals',
+              message: errorMessage(cause),
+            }),
+    });
+
+  return { search, getInsight, getGradeSummaries, getDecisionSignals };
 };

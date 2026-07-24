@@ -32,6 +32,18 @@ export type AssessmentFormGuess =
   | 'assignment'
   | 'other';
 
+export interface ValidatedNtnuAssessmentPart {
+  readonly form: AssessmentFormGuess;
+  readonly description: string;
+  readonly weightPercent: number | null;
+  readonly duration: string | null;
+}
+
+export interface ValidatedNtnuObligatoryActivity {
+  readonly description: string;
+  readonly formGuess: AssessmentFormGuess | null;
+}
+
 export interface ValidatedNtnuCourseDetail {
   readonly courseCode: string;
   readonly sourceRecordId: string;
@@ -43,8 +55,11 @@ export interface ValidatedNtnuCourseDetail {
   readonly teachingMethods: FieldState;
   readonly assessmentText: FieldState;
   readonly assessmentFormGuesses: ReadonlyArray<AssessmentFormGuess>;
+  readonly assessmentParts:
+    | { readonly state: 'known'; readonly items: ReadonlyArray<ValidatedNtnuAssessmentPart> }
+    | { readonly state: 'unavailable'; readonly reason: string };
   readonly obligatoryActivities:
-    | { readonly state: 'known'; readonly items: ReadonlyArray<string> }
+    | { readonly state: 'known'; readonly items: ReadonlyArray<ValidatedNtnuObligatoryActivity> }
     | { readonly state: 'unavailable'; readonly reason: string };
   readonly prerequisites: FieldState;
   readonly accessRestrictions: FieldState;
@@ -146,9 +161,11 @@ const extractSection = (text: string, label: RegExp, maxLength = 1200): string |
 const known = (value: string): FieldState => ({ state: 'known', value });
 const unavailableField = (reason: string): FieldState => ({ state: 'unavailable', reason });
 
-const GROUP_RE = /(gruppearbeid|gruppeprosjekt|gruppeoppgave|group\s?(work|project)|in groups)/i;
+const GROUP_RE =
+  /(gruppearbeid|gruppeprosjekt|gruppeoppgave|i grupper?|kollaborativ\w*|group\s?(work|project)|in groups|collaborative)/i;
 const INDIVIDUAL_RE = /(individuell\w*|individual\w*|selvstendig\w*)/i;
-const REQUIRED_ATTENDANCE_RE = /obligatorisk (oppmøte|deltakelse|frammøte)|mandatory attendance/i;
+const REQUIRED_ATTENDANCE_RE =
+  /obligatorisk (oppmøte|deltakelse|frammøte|tilstedeværelse)|mandatory attendance|attendance (is )?required/i;
 const NOT_REQUIRED_ATTENDANCE_RE =
   /ikke obligatorisk (oppmøte|deltakelse)|attendance is not (required|mandatory)/i;
 const REMOTE_RE =
@@ -156,14 +173,110 @@ const REMOTE_RE =
 const CAMPUS_ONLY_RE = /kun (på campus|fysisk oppmøte)|physical attendance is required/i;
 
 const ASSESSMENT_FORM_PATTERNS: ReadonlyArray<readonly [RegExp, AssessmentFormGuess]> = [
-  [/skoleeksamen|written (school )?exam/i, 'written-exam'],
-  [/muntlig eksamen|oral exam/i, 'oral-exam'],
-  [/hjemmeeksamen|home exam|take-home exam/i, 'home-exam'],
-  [/mappevurdering|portfolio/i, 'portfolio'],
-  [/prosjekt(oppgave|arbeid)?|project (work|report)/i, 'project'],
+  [/skoleeksamen|skriftlig(?:\s+\w+){0,3}\s+eksamen|written (school )?exam/i, 'written-exam'],
+  [/muntlig(?:\s+\w+){0,2}\s+eksamen|oral exam/i, 'oral-exam'],
+  [/hjemme-?eksamen|home exam|take-home exam/i, 'home-exam'],
+  [/mappe(?:vurdering)?|portfolio/i, 'portfolio'],
+  [/prosjekt(oppgave|arbeid|rapport)?|project (work|report)/i, 'project'],
   [/praktisk (prøve|eksamen)|practical (exam|test)/i, 'practical'],
   [/øving\w*|innleveringer?|assignment/i, 'assignment'],
 ];
+
+const classifyAssessmentForms = (assessmentText: string): ReadonlyArray<AssessmentFormGuess> =>
+  ASSESSMENT_FORM_PATTERNS.flatMap(([pattern, form]) => {
+    const match = pattern.exec(assessmentText);
+    return match?.index === undefined ? [] : [{ form, index: match.index }];
+  })
+    .sort((left, right) => left.index - right.index)
+    .map(({ form }) => form);
+
+const extractClassElementText = (
+  html: string,
+  tagName: string,
+  className: string,
+): string | null => {
+  const match = new RegExp(
+    `<${tagName}\\b[^>]*class=["'][^"']*\\b${className}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/${tagName}>`,
+    'i',
+  ).exec(html);
+  if (match?.[1] === undefined) return null;
+  const value = stripTags(match[1]);
+  return value.length > 0 ? value : null;
+};
+
+const ORDINARY_EXAM_RE = /Ordinær eksamen|Ordinary (examination|exam)/i;
+const EXAM_FACT_STOPS =
+  'Hjelpemiddel|Dato|Tid|Varighet|Eksamenssystem|Sensurfrist|Karakterskala|Aid|Date|Time|Duration|Examination system|Grading scale|Alt om eksamen ved NTNU';
+
+const extractExamFact = (text: string, labels: string): string | null => {
+  const match = new RegExp(`(?:${labels})\\s+(.+?)(?=\\s+(?:${EXAM_FACT_STOPS})\\s+|$)`, 'i').exec(
+    text,
+  );
+  return match?.[1]?.trim() || null;
+};
+
+const parseOrdinaryAssessmentParts = (html: string): ReadonlyArray<ValidatedNtnuAssessmentPart> => {
+  const starts = [...html.matchAll(/<div\b[^>]*class=["'][^"']*\bexam-element\b[^"']*["'][^>]*>/gi)]
+    .map((match) => match.index)
+    .filter((index): index is number => index !== undefined);
+
+  const parts = starts.flatMap((start, index) => {
+    const block = html.slice(start, starts[index + 1] ?? html.length);
+    const heading = extractClassElementText(block, 'h4', 'course-exam-heading2');
+    if (heading !== null && !ORDINARY_EXAM_RE.test(heading)) return [];
+
+    const description = extractClassElementText(block, 'h5', 'exam-form');
+    if (description === null) return [];
+
+    const forms = classifyAssessmentForms(description);
+    const text = stripTags(block);
+    const weightMatch = /(?:Vekting|Weighting)\s+(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/i.exec(
+      text,
+    );
+    const numerator = Number(weightMatch?.[1]?.replace(',', '.'));
+    const denominator = Number(weightMatch?.[2]?.replace(',', '.'));
+    const weightPercent =
+      Number.isFinite(numerator) &&
+      Number.isFinite(denominator) &&
+      numerator > 0 &&
+      denominator > 0 &&
+      numerator <= denominator
+        ? (numerator / denominator) * 100
+        : null;
+    const duration = extractExamFact(text, 'Varighet|Duration');
+
+    return [
+      {
+        form: forms[0] ?? 'other',
+        description,
+        weightPercent,
+        duration,
+      } satisfies ValidatedNtnuAssessmentPart,
+    ];
+  });
+
+  return parts.reduce<ReadonlyArray<ValidatedNtnuAssessmentPart>>((unique, part) => {
+    const duplicateIndex = unique.findIndex(
+      (candidate) =>
+        candidate.form === part.form &&
+        candidate.description.trim().toLocaleLowerCase('nb') ===
+          part.description.trim().toLocaleLowerCase('nb') &&
+        candidate.weightPercent === part.weightPercent,
+    );
+    if (duplicateIndex === -1) return [...unique, part];
+
+    const duplicate = unique[duplicateIndex]!;
+    const preferredDuration =
+      duplicate.duration === null
+        ? part.duration
+        : part.duration === null || duplicate.duration.length <= part.duration.length
+          ? duplicate.duration
+          : part.duration;
+    return unique.map((candidate, index) =>
+      index === duplicateIndex ? { ...duplicate, duration: preferredDuration } : candidate,
+    );
+  }, []);
+};
 
 const WORK_FORM_PATTERNS: ReadonlyArray<
   readonly [RegExp, 'lectures' | 'exercises' | 'laboratory' | 'seminar' | 'project' | 'self-study']
@@ -281,11 +394,25 @@ export const parseNtnuCourseDetail = (
   const prerequisitesRaw = extractSection(text, /Forkunnskapskrav/);
   const accessRaw = extractSection(text, /Krever opptak til studieprogram/);
 
-  const assessmentFormGuesses = assessmentText
-    ? ASSESSMENT_FORM_PATTERNS.filter(([pattern]) => pattern.test(assessmentText)).map(
-        ([, form]) => form,
-      )
-    : [];
+  const assessmentFormGuesses = assessmentText ? classifyAssessmentForms(assessmentText) : [];
+  const ordinaryAssessmentParts = parseOrdinaryAssessmentParts(decoded.value);
+  const knownAssessmentWeightTotal = ordinaryAssessmentParts.every(
+    (part) => part.weightPercent !== null,
+  )
+    ? ordinaryAssessmentParts.reduce((sum, part) => sum + (part.weightPercent ?? 0), 0)
+    : null;
+  const hasValidAssessmentWeightTotal =
+    knownAssessmentWeightTotal === null || Math.abs(knownAssessmentWeightTotal - 100) <= 0.001;
+  const assessmentParts: ValidatedNtnuCourseDetail['assessmentParts'] =
+    ordinaryAssessmentParts.length > 0 && hasValidAssessmentWeightTotal
+      ? { state: 'known', items: ordinaryAssessmentParts }
+      : {
+          state: 'unavailable',
+          reason:
+            ordinaryAssessmentParts.length === 0
+              ? 'Structured ordinary assessment components were not present on the page.'
+              : `Structured ordinary assessment weights total ${knownAssessmentWeightTotal}%, not 100%.`,
+        };
 
   const obligatoryActivities: ValidatedNtnuCourseDetail['obligatoryActivities'] =
     obligatoryRaw === null
@@ -297,10 +424,14 @@ export const parseNtnuCourseDetail = (
             : obligatoryRaw
                 .split(/(?<=[.;])\s+(?=[A-ZÆØÅ])/)
                 .map((item) => item.trim())
-                .filter((item) => item.length > 0),
+                .filter((item) => item.length > 0)
+                .map((description) => ({
+                  description,
+                  formGuess: classifyAssessmentForms(description)[0] ?? null,
+                })),
         };
 
-  const collaborationScan = `${assessmentText ?? ''} ${teachingMethods ?? ''}`;
+  const collaborationScan = `${assessmentText ?? ''} ${teachingMethods ?? ''} ${obligatoryRaw ?? ''}`;
   const hasGroup = GROUP_RE.test(collaborationScan);
   const hasIndividual = INDIVIDUAL_RE.test(collaborationScan);
   const collaborationSignal =
@@ -344,6 +475,7 @@ export const parseNtnuCourseDetail = (
         ? known(assessmentText)
         : unavailableField('Vurderingsordning section not present on page.'),
       assessmentFormGuesses,
+      assessmentParts,
       obligatoryActivities,
       prerequisites: prerequisitesRaw
         ? known(prerequisitesRaw)

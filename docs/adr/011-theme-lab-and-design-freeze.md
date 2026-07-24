@@ -19,14 +19,23 @@ The product ships a small Theme Lab that controls four serializable dimensions:
 - chart/schedule palette;
 - light, dark, or system appearance.
 
+Six named Nordic presets provide coherent combinations without asking students
+to understand those dimensions: Fjord, Aurora, Birch, Heather, Pine, and Polar
+Night. The dimensions remain independent in the preference model so future
+schedule palettes do not become coupled to the application accent.
+
 The checked-in default is:
 
 - base: Mist;
-- theme: Emerald;
-- chart: Indigo;
+- theme: Blue;
+- chart: Sky;
 - appearance: System.
 
-Preferences are validated, stored locally, exportable as JSON, and applied through semantic CSS variables. Product components do not read concrete colour values.
+Preferences are validated, stored locally as versioned JSON, and applied through semantic CSS variables. Product components do not read concrete colour values.
+
+Pine preserves the original Mist/Olive and Emerald visual direction. Semantic
+valid, warning, danger, and constraint colours are deliberately independent
+from the selected theme accent.
 
 The shadcn CLI remains available for developer experimentation through `preset resolve`, `preset open`, and theme-only `preset apply`. Applying a CLI preset requires reviewing the resulting source diff before committing it.
 
@@ -35,6 +44,8 @@ The chart palette is deliberately separate from the application accent. It may l
 ## Consequences
 
 - Theme changes do not rewrite product components.
+- Named presets reduce the decision to a recognizable visual choice while
+  retaining explicit, serializable settings underneath.
 - The app can offer appearance personalization without authentication.
 - Schedule visualization colours have a stable future storage boundary.
 - Base UI and Material semantic roles remain the interaction and token substrates.

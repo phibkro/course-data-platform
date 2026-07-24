@@ -1,4 +1,5 @@
 import {
+  decodeCourseDecisionSignals,
   decodeCourseGradeSummary,
   decodeCourseInsight,
   decodeCourseSearchItem,
@@ -11,7 +12,7 @@ import {
 } from '@course-data/course-model';
 import * as Effect from 'effect/Effect';
 
-import { CourseNotFoundError, type CourseDecisionService } from './index';
+import { CourseInvalidTermError, CourseNotFoundError, type CourseDecisionService } from './index';
 
 const observedAt = '2026-07-23T10:00:00.000Z';
 const coursePageEvidenceId = 'fixture:ntnu-course-page:TDT4136:2026-spring';
@@ -81,14 +82,28 @@ const encodedInsight = {
       {
         form: 'written-exam' as const,
         description: 'Written school examination',
-        weightPercent: 100,
-        duration: null,
+        requirement: missing<'required' | 'optional' | 'choice' | 'conditional'>(
+          'The fixture does not state a component requirement rule.',
+        ),
+        weightPercent: known(100, [coursePageEvidenceId]),
+        duration: missing<string>('The fixture does not state a duration.'),
+        workloadPattern: missing<'distributed' | 'concentrated' | 'recurring' | 'milestone'>(
+          'The fixture does not state a workload pattern.',
+        ),
       },
     ],
     [coursePageEvidenceId],
   ),
   obligatoryActivities: known(
-    ['Exercises must be approved before assessment.'],
+    [
+      {
+        description: 'Exercises must be approved before assessment.',
+        form: known('assignment' as const, [coursePageEvidenceId]),
+        workloadPattern: missing<'distributed' | 'concentrated' | 'recurring' | 'milestone'>(
+          'The fixture does not state a workload pattern.',
+        ),
+      },
+    ],
     [coursePageEvidenceId],
   ),
   collaboration: missing<'individual' | 'group' | 'mixed'>(
@@ -216,6 +231,59 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
       ],
       fromYear: 2022,
       toYear: 2025,
+    });
+  },
+  getDecisionSignals: ({ courseCodes, term }) => {
+    if (term !== undefined && !/^\d{4}-(spring|autumn)$/.test(term)) {
+      return Effect.fail(
+        new CourseInvalidTermError({
+          term,
+          message: 'Term must use the form YYYY-spring or YYYY-autumn.',
+        }),
+      );
+    }
+    const normalizedCodes = [
+      ...new Set(courseCodes.map((courseCode) => courseCode.trim().toUpperCase())),
+    ];
+    const missingReason = 'The fixture contains no NTNU decision signals for this course.';
+    return Effect.succeed({
+      items: normalizedCodes.map((courseCode) =>
+        courseCode === 'TDT4136'
+          ? decodeCourseDecisionSignals({
+              courseCode,
+              credits: encodedInsight.credits,
+              assessment: encodedInsight.assessment,
+              workFormSignals: encodedInsight.workForms,
+              obligatoryActivities: encodedInsight.obligatoryActivities,
+              collaboration: encodedInsight.collaboration,
+              attendance: encodedInsight.attendance,
+              onlineParticipation: encodedInsight.onlineParticipation,
+              sourceStatus: {
+                provider: 'ntnu-course-page',
+                status: 'available',
+                observedAt,
+                warning: 'Fixture evidence; live adapter not connected.',
+              },
+              evidence: [coursePageEvidence],
+            })
+          : decodeCourseDecisionSignals({
+              courseCode,
+              credits: unavailable(missingReason),
+              assessment: unavailable(missingReason),
+              workFormSignals: unavailable(missingReason),
+              obligatoryActivities: unavailable(missingReason),
+              collaboration: unavailable(missingReason),
+              attendance: unavailable(missingReason),
+              onlineParticipation: unavailable(missingReason),
+              sourceStatus: {
+                provider: 'ntnu-course-page',
+                status: 'unavailable',
+                observedAt: null,
+                warning: missingReason,
+              },
+              evidence: [],
+            }),
+      ),
     });
   },
 };

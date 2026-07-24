@@ -111,15 +111,99 @@ export const AssessmentFormSchema = Schema.Literals([
 ]);
 export type AssessmentForm = Schema.Schema.Type<typeof AssessmentFormSchema>;
 
+export const AssessmentRequirementSchema = Schema.Literals([
+  'required',
+  'optional',
+  'choice',
+  'conditional',
+]);
+export type AssessmentRequirement = Schema.Schema.Type<typeof AssessmentRequirementSchema>;
+
+export const WorkloadPatternSchema = Schema.Literals([
+  'distributed',
+  'concentrated',
+  'recurring',
+  'milestone',
+]);
+export type WorkloadPattern = Schema.Schema.Type<typeof WorkloadPatternSchema>;
+
 export const AssessmentPartSchema = Schema.Struct({
   form: AssessmentFormSchema,
   description: NonEmptyString,
-  weightPercent: Schema.NullOr(
-    Schema.Number.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: 100 }))),
+  requirement: makeFactSchema(AssessmentRequirementSchema),
+  weightPercent: makeFactSchema(
+    Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isLessThanOrEqualTo(100)),
+    ),
   ),
-  duration: Schema.NullOr(NonEmptyString),
+  duration: makeFactSchema(NonEmptyString),
+  workloadPattern: makeFactSchema(WorkloadPatternSchema),
 });
 export type AssessmentPart = Schema.Schema.Type<typeof AssessmentPartSchema>;
+
+export const ObligatoryActivitySchema = Schema.Struct({
+  description: NonEmptyString,
+  form: makeFactSchema(AssessmentFormSchema),
+  workloadPattern: makeFactSchema(WorkloadPatternSchema),
+});
+export type ObligatoryActivity = Schema.Schema.Type<typeof ObligatoryActivitySchema>;
+
+export type AssessmentStructureFinding = {
+  readonly code: 'optional-weighted-assessment' | 'assessment-weights-do-not-total-100';
+  readonly path: string;
+  readonly message: string;
+};
+
+/**
+ * Assessment parts are graded contributions. Obligatory activities are a
+ * separate type: required, approved/not-approved gates with no grade weight.
+ * This evaluator therefore only needs to reject illegal states that can still
+ * be expressed by partially known provider data.
+ */
+export const validateAssessmentStructure = (
+  assessment: ReadonlyArray<AssessmentPart>,
+): ReadonlyArray<AssessmentStructureFinding> => {
+  const findings: Array<AssessmentStructureFinding> = [];
+
+  assessment.forEach((part, index) => {
+    if (
+      part.requirement.state === 'known' &&
+      part.requirement.value === 'optional' &&
+      part.weightPercent.state === 'known'
+    ) {
+      findings.push({
+        code: 'optional-weighted-assessment',
+        path: `assessment[${index}]`,
+        message: 'An optional course-work item cannot contribute to the final grade.',
+      });
+    }
+  });
+
+  if (
+    assessment.length > 0 &&
+    assessment.every(
+      (part) =>
+        part.requirement.state === 'known' &&
+        part.requirement.value === 'required' &&
+        part.weightPercent.state === 'known',
+    )
+  ) {
+    const total = assessment.reduce(
+      (sum, part) => sum + (part.weightPercent.state === 'known' ? part.weightPercent.value : 0),
+      0,
+    );
+    if (Math.abs(total - 100) > 0.001) {
+      findings.push({
+        code: 'assessment-weights-do-not-total-100',
+        path: 'assessment',
+        message: `Required assessment weights total ${total}%, not 100%.`,
+      });
+    }
+  }
+
+  return findings;
+};
 
 export const WorkFormSchema = Schema.Literals([
   'lectures',
@@ -207,7 +291,7 @@ export const CourseInsightSchema = Schema.Struct({
   teachingMethods: StringFactSchema,
   workForms: makeFactSchema(Schema.Array(WorkFormSchema)),
   assessment: makeFactSchema(Schema.Array(AssessmentPartSchema)),
-  obligatoryActivities: makeFactSchema(Schema.Array(NonEmptyString)),
+  obligatoryActivities: makeFactSchema(Schema.Array(ObligatoryActivitySchema)),
   collaboration: makeFactSchema(CollaborationSchema),
   attendance: makeFactSchema(AttendanceSchema),
   onlineParticipation: makeFactSchema(OnlineParticipationSchema),
@@ -236,9 +320,45 @@ export const CourseSearchItemSchema = Schema.Struct({
 });
 export type CourseSearchItem = Schema.Schema.Type<typeof CourseSearchItemSchema>;
 
-export const decodeCourseInsight = Schema.decodeUnknownSync(CourseInsightSchema);
+export const CourseDecisionSignalsSchema = Schema.Struct({
+  courseCode: NonEmptyString,
+  credits: makeFactSchema(
+    Schema.Number.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: 60 }))),
+  ),
+  assessment: makeFactSchema(Schema.Array(AssessmentPartSchema)),
+  workFormSignals: makeFactSchema(Schema.Array(WorkFormSchema)),
+  obligatoryActivities: makeFactSchema(Schema.Array(ObligatoryActivitySchema)),
+  collaboration: makeFactSchema(CollaborationSchema),
+  attendance: makeFactSchema(AttendanceSchema),
+  onlineParticipation: makeFactSchema(OnlineParticipationSchema),
+  sourceStatus: SourceStatusSchema,
+  evidence: Schema.Array(EvidenceSchema),
+});
+export type CourseDecisionSignals = Schema.Schema.Type<typeof CourseDecisionSignalsSchema>;
+
+const decodeCourseInsightSchema = Schema.decodeUnknownSync(CourseInsightSchema);
 export const decodeCourseSearchItem = Schema.decodeUnknownSync(CourseSearchItemSchema);
 export const decodeCourseGradeSummary = Schema.decodeUnknownSync(CourseGradeSummarySchema);
+const decodeCourseDecisionSignalsSchema = Schema.decodeUnknownSync(CourseDecisionSignalsSchema);
+
+const assertValidAssessmentStructure = (assessment: Fact<ReadonlyArray<AssessmentPart>>): void => {
+  if (assessment.state !== 'known') return;
+  const findings = validateAssessmentStructure(assessment.value);
+  if (findings.length === 0) return;
+  throw new TypeError(findings.map((finding) => `${finding.path}: ${finding.message}`).join('\n'));
+};
+
+export const decodeCourseInsight = (input: unknown): CourseInsight => {
+  const insight = decodeCourseInsightSchema(input);
+  assertValidAssessmentStructure(insight.assessment);
+  return insight;
+};
+
+export const decodeCourseDecisionSignals = (input: unknown): CourseDecisionSignals => {
+  const signals = decodeCourseDecisionSignalsSchema(input);
+  assertValidAssessmentStructure(signals.assessment);
+  return signals;
+};
 
 export const validateEvidenceReferences = (
   insight: CourseInsight,

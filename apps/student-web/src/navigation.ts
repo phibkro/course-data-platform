@@ -67,14 +67,20 @@ const desktopItemBase =
 const desktopItemIcon =
   'grid size-6 flex-none place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
 
-const desktopItem = <Message>(locale: Locale, item: NavigationItem): Html => {
+const desktopItem = <Message>(locale: Locale, item: NavigationItem, collapsed: boolean): Html => {
   const h = html<Message>();
-  const children = [icon<Message>(item.icon, desktopItemIcon), h.span([], [item.label])];
+  const children = [
+    icon<Message>(item.icon, desktopItemIcon),
+    h.span([h.Class(collapsed ? 'sr-only' : '')], [item.label]),
+  ];
+  const layoutClass = collapsed ? 'justify-center px-3' : '';
 
   return item.href === null
     ? h.span(
         [
-          h.Class(`${desktopItemBase} text-on-surface-variant cursor-not-allowed opacity-[0.52]`),
+          h.Class(
+            `${desktopItemBase} ${layoutClass} text-on-surface-variant cursor-not-allowed opacity-[0.52]`,
+          ),
           h.AriaDisabled(true),
           h.AriaLabel(translate(locale, 'nav.planned', { label: item.accessibleLabel })),
           h.Title(translate(locale, 'nav.plannedTitle', { label: item.accessibleLabel })),
@@ -84,9 +90,12 @@ const desktopItem = <Message>(locale: Locale, item: NavigationItem): Html => {
     : h.a(
         [
           h.Href(item.href),
-          h.Class(`${desktopItemBase} bg-secondary-container text-on-secondary-container`),
+          h.Class(
+            `${desktopItemBase} ${layoutClass} bg-secondary-container text-on-secondary-container`,
+          ),
           h.AriaCurrent('page'),
           h.AriaLabel(item.accessibleLabel),
+          ...(collapsed ? [h.Title(item.accessibleLabel)] : []),
         ],
         children,
       );
@@ -102,13 +111,33 @@ const mobileItemIcon = (isPrimary: boolean): string =>
     ? 'grid size-15 place-items-center rounded-full bg-primary text-on-primary shadow-m3-2 p-4 leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full'
     : 'grid size-8 place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
 
-const mobileItem = <Message>(locale: Locale, item: NavigationItem): Html => {
+const mobileItem = <Message>(
+  locale: Locale,
+  item: NavigationItem,
+  onAppearance?: Message,
+): Html => {
   const h = html<Message>();
   const itemClass = mobileItemLayout(item.isPrimary);
   const children = [
     icon<Message>(item.icon, mobileItemIcon(item.isPrimary)),
     h.span([h.Class('max-w-full truncate')], [item.label]),
   ];
+
+  if (item.id === 'more' && onAppearance !== undefined) {
+    const appearanceLabel = translate(locale, 'appearance.label');
+    return h.button(
+      [
+        h.Type('button'),
+        h.Class(`${itemClass} border-0 bg-transparent cursor-pointer [font:inherit]`),
+        h.OnClick(onAppearance),
+        h.AriaLabel(translate(locale, 'appearance.open')),
+      ],
+      [
+        icon<Message>('appearance', mobileItemIcon(false)),
+        h.span([h.Class('max-w-full truncate')], [appearanceLabel]),
+      ],
+    );
+  }
 
   return item.href === null
     ? h.span(
@@ -131,13 +160,19 @@ const mobileItem = <Message>(locale: Locale, item: NavigationItem): Html => {
       );
 };
 
-export const desktopNavigation = <Message>(locale: Locale = 'en'): Html => {
+export const desktopNavigation = <Message>(
+  locale: Locale = 'en',
+  collapsed = false,
+  onToggle?: Message,
+  onAppearance?: Message,
+  languageControl?: Html,
+): Html => {
   const h = html<Message>();
   const items = primaryNavigation(locale);
   return h.aside(
     [
       h.Class(
-        'fixed inset-y-0 left-0 hidden w-66 py-6 px-4 bg-surface-container-low border-r border-outline-variant [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:flex-col',
+        `fixed inset-y-0 left-0 hidden ${collapsed ? 'w-20 px-2' : 'w-66 px-4'} py-6 bg-surface-container-low border-r border-outline-variant [transition:width_180ms_ease] [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:flex-col`,
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
@@ -145,7 +180,9 @@ export const desktopNavigation = <Message>(locale: Locale = 'en'): Html => {
       h.div(
         [
           h.Class(
-            'flex items-center gap-3 pt-2 px-3 pb-8 text-[1.125rem] font-[750] tracking-[-0.02em]',
+            collapsed
+              ? 'flex flex-col items-center gap-2 pt-2 pb-7'
+              : 'flex items-center gap-3 pt-2 px-3 pb-8 text-[1.125rem] font-[750] tracking-[-0.02em]',
           ),
         ],
         [
@@ -158,22 +195,78 @@ export const desktopNavigation = <Message>(locale: Locale = 'en'): Html => {
             ],
             ['C'],
           ),
-          h.span([], [translate(locale, 'app.name')]),
+          h.span(
+            [h.Class(collapsed ? 'sr-only' : 'min-w-0 flex-1')],
+            [translate(locale, 'app.name')],
+          ),
+          onToggle === undefined
+            ? h.empty
+            : h.button(
+                [
+                  h.Type('button'),
+                  h.Class(
+                    'grid size-10 flex-none place-items-center rounded-full border-0 bg-surface-container-high text-on-surface cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2',
+                  ),
+                  h.OnClick(onToggle),
+                  h.AriaLabel(translate(locale, collapsed ? 'nav.expand' : 'nav.collapse')),
+                  h.Title(translate(locale, collapsed ? 'nav.expand' : 'nav.collapse')),
+                ],
+                [
+                  icon<Message>(
+                    'sidebar',
+                    `block size-5 [&_svg]:block [&_svg]:size-full ${collapsed ? '-scale-x-100' : ''}`,
+                  ),
+                ],
+              ),
         ],
       ),
       h.nav(
         [h.Class('grid gap-1')],
-        items.map((item) => desktopItem<Message>(locale, item)),
+        items.map((item) => desktopItem<Message>(locale, item, collapsed)),
       ),
-      h.p(
-        [h.Class('mt-auto mx-3 mb-0 text-on-surface-variant text-sm leading-[1.5]')],
-        [translate(locale, 'nav.claim')],
+      h.div(
+        [
+          h.Class(
+            `mt-auto grid gap-4 border-t border-outline-variant pt-4 ${collapsed ? '' : 'mx-3'}`,
+          ),
+        ],
+        [
+          collapsed
+            ? h.empty
+            : h.p(
+                [h.Class('m-0 text-on-surface-variant text-sm leading-[1.5]')],
+                [translate(locale, 'nav.claim')],
+              ),
+          onAppearance === undefined
+            ? h.empty
+            : h.button(
+                [
+                  h.Type('button'),
+                  h.Class(
+                    `flex min-h-11 w-full items-center gap-3 border-0 rounded-m3-medium bg-transparent text-on-surface cursor-pointer [font:inherit] font-[650] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
+                      collapsed ? 'justify-center px-2' : 'px-3'
+                    }`,
+                  ),
+                  h.OnClick(onAppearance),
+                  h.AriaLabel(translate(locale, 'appearance.open')),
+                  h.Title(translate(locale, 'appearance.label')),
+                ],
+                [
+                  icon<Message>('appearance', 'block size-5 [&_svg]:block [&_svg]:size-full'),
+                  h.span(
+                    [h.Class(collapsed ? 'sr-only' : '')],
+                    [translate(locale, 'appearance.label')],
+                  ),
+                ],
+              ),
+          languageControl ?? h.empty,
+        ],
       ),
     ],
   );
 };
 
-export const mobileNavigation = <Message>(locale: Locale = 'en'): Html => {
+export const mobileNavigation = <Message>(locale: Locale = 'en', onAppearance?: Message): Html => {
   const h = html<Message>();
   return h.nav(
     [
@@ -182,6 +275,6 @@ export const mobileNavigation = <Message>(locale: Locale = 'en'): Html => {
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
-    primaryNavigation(locale).map((item) => mobileItem<Message>(locale, item)),
+    primaryNavigation(locale).map((item) => mobileItem<Message>(locale, item, onAppearance)),
   );
 };

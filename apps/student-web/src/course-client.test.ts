@@ -136,4 +136,40 @@ describe('makeCourseClient', () => {
       '/v1/course-grade-summaries',
     );
   });
+
+  it('returns fixture decision signals for every visible course code', async () => {
+    const result = await Effect.runPromise(
+      makeCourseClient('http://course-api.test', true).getDecisionSignals(['TDT4136', 'NORESULT']),
+    );
+
+    expect(result.items[0]?.assessment).toMatchObject({
+      state: 'known',
+      value: [{ form: 'written-exam', weightPercent: { state: 'known', value: 100 } }],
+    });
+    expect(result.items[1]?.assessment.state).toBe('unavailable');
+  });
+
+  it('posts visible course codes and the selected term to the decision-signal endpoint', async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async (_input, init) => {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          courseCodes: ['TDT4136', 'TDT4100'],
+          term: '2026-autumn',
+        });
+        return Response.json({ items: [], meta: { count: 0 } });
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await Effect.runPromise(
+      makeCourseClient('http://course-api.test').getDecisionSignals(
+        ['TDT4136', 'TDT4100'],
+        '2026-autumn',
+      ),
+    );
+
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname).toBe(
+      '/v1/course-decision-signals',
+    );
+  });
 });

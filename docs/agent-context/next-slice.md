@@ -1,4 +1,4 @@
-# Next vertical slice: decision signals while browsing
+# Active vertical slice: assessment signals while browsing
 
 > Execution anchor: [`../product/scan-and-persist-design.md`](../product/scan-and-persist-design.md)
 
@@ -7,39 +7,37 @@
 Let a student scan a broad NTNU catalogue and see the first decision-relevant
 signals without opening every result.
 
-The browse-first catalogue and evidence-backed detail are complete. Preserve
-both as the product path; enrich the list without making it wait for every
-upstream.
+The browse-first catalogue, evidence-backed detail, HK-dir outcome strip, and
+English/Norwegian interface are delivered on `main`. Preserve them as the
+product path; add NTNU assessment/work signals without making the list wait for
+detail enrichment.
 
 ## Required path
 
 ```text
 Foldkit catalogue with URL state
   -> fast official NTNU result summaries
-  -> batched grade summaries for loaded course codes
-  -> bounded detail enrichment for visible or shortlisted courses
+  -> delivered batched grade summaries for loaded course codes
+  -> bounded NTNU detail enrichment for visible or shortlisted courses
   -> select a course
   -> existing CourseInsight detail and evidence
 ```
 
 ## Scope
 
-1. Add one batched DBH/HK-dir grade-summary capability for the course codes
-   already loaded in the catalogue.
-2. Show sample size, covered period, and failure-rate availability on result
-   cards; preserve pass/fail-only and absent-grade cases explicitly.
-3. Fetch NTNU detail only for visible, opened, or shortlisted courses, with a
+1. Fetch NTNU detail only for visible, opened, or shortlisted courses, with a
    concurrency limit and cancellation for filters that change.
-4. Derive compact assessment and obligatory-work signals through the existing
+2. Derive compact assessment and obligatory-work signals through the existing
    evidence model; do not interpret catalogue multimedia as remote teaching or
    `examOnly` as an assessment claim.
-5. Keep initial official catalogue rows interactive while enrichments load or
+3. Render semantic assessment icons with visible prose and accessible labels.
+4. Keep initial official catalogue rows interactive while enrichments load or
    fail independently.
-6. Preserve explicit unchecked, loading, known, inferred, conflicting,
+5. Preserve explicit unchecked, loading, known, inferred, conflicting,
    unavailable, and failed states in the Foldkit model.
-7. Add a 10–20 course golden corpus spanning old/new courses, pass/fail,
-   multiple campuses, missing grades, source failure, and conflicting windows.
-8. Measure visible-card enrichment before introducing D1 caching or a full
+6. Grow the assessment golden corpus to 10–20 observed courses spanning written,
+   oral, home, project, portfolio, practical, assignment, and mixed assessment.
+7. Measure visible-card enrichment before introducing D1 caching or a full
    catalogue replication pipeline.
 
 ## Acceptance criteria

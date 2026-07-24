@@ -1,4 +1,5 @@
 import type {
+  CourseDecisionSignals,
   CourseGradeSummary,
   CourseInsight,
   CourseSearchItem,
@@ -32,6 +33,11 @@ export interface CourseGradeSummariesInput {
   readonly courseCodes: ReadonlyArray<string>;
 }
 
+export interface CourseDecisionSignalsInput {
+  readonly courseCodes: ReadonlyArray<string>;
+  readonly term?: string;
+}
+
 export interface CourseSearchResult {
   readonly items: ReadonlyArray<CourseSearchItem>;
   readonly sourceStatuses: ReadonlyArray<SourceStatus>;
@@ -54,6 +60,10 @@ export interface CourseGradeSummariesResult {
   readonly toYear: number;
 }
 
+export interface CourseDecisionSignalsResult {
+  readonly items: ReadonlyArray<CourseDecisionSignals>;
+}
+
 export class CourseNotFoundError extends Data.TaggedError('CourseNotFoundError')<{
   readonly courseCode: string;
 }> {}
@@ -61,7 +71,7 @@ export class CourseNotFoundError extends Data.TaggedError('CourseNotFoundError')
 export class CourseSourcesUnavailableError extends Data.TaggedError(
   'CourseSourcesUnavailableError',
 )<{
-  readonly operation: 'search' | 'insight' | 'grade-summaries';
+  readonly operation: 'search' | 'insight' | 'grade-summaries' | 'decision-signals';
   readonly message: string;
 }> {}
 
@@ -86,4 +96,10 @@ export interface CourseDecisionService {
   readonly getGradeSummaries: (
     input: CourseGradeSummariesInput,
   ) => Effect.Effect<CourseGradeSummariesResult, CourseSourcesUnavailableError>;
+  readonly getDecisionSignals: (
+    input: CourseDecisionSignalsInput,
+  ) => Effect.Effect<
+    CourseDecisionSignalsResult,
+    CourseInvalidTermError | CourseSourcesUnavailableError
+  >;
 }

@@ -15,6 +15,7 @@ describe('course decision API', () => {
       endpoints: {
         search: '/v1/course-search',
         gradeSummaries: '/v1/course-grade-summaries',
+        decisionSignals: '/v1/course-decision-signals',
         insight: '/v1/courses/:courseCode/insight',
       },
     });
@@ -132,6 +133,36 @@ describe('course decision API', () => {
     });
   });
 
+  it('returns decision signals for every requested visible course', async () => {
+    const response = await app.handle(
+      new Request('http://localhost/v1/course-decision-signals', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ courseCodes: ['TDT4136', 'NORESULT'], term: '2026-autumn' }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      items: [
+        {
+          courseCode: 'TDT4136',
+          assessment: {
+            state: 'known',
+            value: [{ form: 'written-exam', weightPercent: { state: 'known', value: 100 } }],
+          },
+          obligatoryActivities: { state: 'known' },
+        },
+        {
+          courseCode: 'NORESULT',
+          assessment: { state: 'unavailable' },
+          sourceStatus: { status: 'unavailable' },
+        },
+      ],
+      meta: { count: 2 },
+    });
+  });
+
   it.each([
     { courseCodes: [] },
     { courseCodes: ['TDT4136', 'TDT4136'] },
@@ -149,6 +180,27 @@ describe('course decision API', () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       type: 'https://course-data.example/problems/invalid-request',
+      status: 400,
+    });
+  });
+
+  it.each([
+    { courseCodes: [] },
+    { courseCodes: ['TDT4136', 'TDT4136'] },
+    { courseCodes: ['not valid'] },
+    { courseCodes: ['TDT4136'], term: 'latest' },
+  ])('rejects invalid decision-signal batches as declared problems', async (body) => {
+    const response = await app.handle(
+      new Request('http://localhost/v1/course-decision-signals', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      type: expect.stringMatching(/invalid-(request|course-term)$/),
       status: 400,
     });
   });
@@ -171,6 +223,7 @@ describe('course decision API', () => {
     const document = (await response.json()) as { paths?: Record<string, unknown> };
 
     expect(document.paths).toHaveProperty('/v1/course-search');
+    expect(document.paths).toHaveProperty('/v1/course-decision-signals');
     expect(document.paths).toHaveProperty('/v1/course-grade-summaries');
     expect(document.paths).toHaveProperty('/v1/courses/{courseCode}/insight');
   });

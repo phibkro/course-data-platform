@@ -82,4 +82,165 @@ describe('parseNtnuCourseDetail', () => {
     expect(result.accepted?.attendanceSignal).toBeNull();
     expect(result.accepted?.onlineParticipationSignal).toBeNull();
   });
+
+  it.each([
+    ['Skriftlig skoleeksamen.', ['written-exam']],
+    ['Muntlig eksamen.', ['oral-exam']],
+    ['Hjemme-eksamen over 7 dager.', ['home-exam']],
+    ['Mappevurdering med tre arbeider.', ['portfolio']],
+    ['Prosjektrapport.', ['project']],
+    ['Praktisk eksamen.', ['practical']],
+    ['To obligatoriske innleveringer.', ['assignment']],
+    ['Prosjektarbeid 60 %. Muntlig eksamen 40 %.', ['project', 'oral-exam']],
+  ])('classifies assessment composition in source order: %s', (assessment, expected) => {
+    const result = parseNtnuCourseDetail(
+      `<html><body><h1>TDT4136</h1><h2>Vurderingsordning</h2><p>${assessment}</p></body></html>`,
+      capture,
+    );
+
+    expect(result.accepted?.assessmentFormGuesses).toEqual(expected);
+  });
+
+  it('extracts ordinary assessment weights and duration without merging the resit arrangement', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <h2>Vurderingsordning</h2><p>Samlet karakter</p>
+          <div class="exam-element">
+            <h4 class="h3 course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="h4 exam-form">Prosjektoppgave</h5>
+            <div class="exam-container">
+              <span class="exam-item exam-fact-label">Vekting</span>
+              <span class="exam-item">60/100</span>
+            </div>
+          </div>
+          <div class="exam-element">
+            <h4 class="h3 course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="h4 exam-form">Muntlig eksamen</h5>
+            <div class="exam-container">
+              <span class="exam-item exam-fact-label">Vekting</span>
+              <span class="exam-item">40/100</span>
+              <span class="exam-item exam-fact-label">Varighet</span>
+              <span class="exam-item">30 minutter</span>
+              <span class="exam-item exam-fact-label">Eksamenssystem</span>
+              <span class="exam-item">Inspera</span>
+            </div>
+          </div>
+          <div class="exam-element">
+            <h4 class="h3 course-exam-heading2">Utsatt eksamen - Sommer 2027</h4>
+            <h5 class="h4 exam-form">Skriftlig skoleeksamen</h5>
+            <div class="exam-container">
+              <span class="exam-item exam-fact-label">Vekting</span>
+              <span class="exam-item">100/100</span>
+            </div>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.assessmentParts).toEqual({
+      state: 'known',
+      items: [
+        {
+          form: 'project',
+          description: 'Prosjektoppgave',
+          weightPercent: 60,
+          duration: null,
+        },
+        {
+          form: 'oral-exam',
+          description: 'Muntlig eksamen',
+          weightPercent: 40,
+          duration: '30 minutter',
+        },
+      ],
+    });
+  });
+
+  it('collapses duplicated responsive assessment markup even when the final copy reaches the footer', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>MM8410</h1>
+          <h2>Vurderingsordning</h2><p>Muntlig eksamen</p>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Muntlig eksamen</h5>
+            <span class="exam-fact-label">Vekting</span><span>100/100</span>
+            <span class="exam-fact-label">Varighet</span><span>30 minutter</span>
+          </div>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Muntlig eksamen</h5>
+            <span class="exam-fact-label">Vekting</span><span>100/100</span>
+            <span class="exam-fact-label">Varighet</span><span>30 minutter</span>
+          </div>
+          <footer>Alt om eksamen ved NTNU</footer>
+        </body></html>
+      `,
+      {
+        ...capture,
+        courseCode: 'MM8410',
+        requestUrl: 'https://www.ntnu.no/studier/emner/MM8410/2026',
+      },
+    );
+
+    expect(result.accepted?.assessmentParts).toEqual({
+      state: 'known',
+      items: [
+        {
+          form: 'oral-exam',
+          description: 'Muntlig eksamen',
+          weightPercent: 100,
+          duration: '30 minutter',
+        },
+      ],
+    });
+  });
+
+  it('does not publish a structured composition when all known weights fail to total 100 percent', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <h2>Vurderingsordning</h2><p>Prosjekt og muntlig eksamen</p>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Prosjekt</h5>
+            <span class="exam-fact-label">Vekting</span><span>60/100</span>
+          </div>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Muntlig eksamen</h5>
+            <span class="exam-fact-label">Vekting</span><span>60/100</span>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.assessmentParts).toEqual({
+      state: 'unavailable',
+      reason: 'Structured ordinary assessment weights total 120%, not 100%.',
+    });
+  });
+
+  it('recognizes observed Norwegian collaboration and attendance phrases in obligatory work', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <h2>Læringsformer og aktiviteter</h2><p>Individuelle studentaktiviteter.</p>
+          <h2>Obligatoriske aktiviteter</h2>
+          <p>Kollaborative studentaktiviteter. Obligatorisk tilstedeværelse.</p>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.collaborationSignal).toBe('mixed');
+    expect(result.accepted?.attendanceSignal).toBe('required');
+  });
 });

@@ -3,7 +3,11 @@
 - Status: Active execution anchor
 - Date: 2026-07-24
 - Product loop: `Explore -> Inspect -> List -> Compare`
+- Shared interaction contract:
+  [`student-experience-contract.md`](./student-experience-contract.md)
 - Current milestone: `Scan -> Save -> Compare`
+- Delivered: outcome strip and English/Norwegian interface (`main`, 2026-07-24)
+- In progress: assessment scan signals
 
 ## Outcome
 
@@ -75,6 +79,44 @@ receive more visual emphasis than commodity catalogue metadata:
 
 The distribution is primary. Failure rate without its sample size and observed
 period is never presented as a standalone difficulty score.
+
+## Assessment and work semantics
+
+Explore treats the nature of work, its requirement, its evaluation, and its
+timing as separate axes. A project icon does not imply that work is spread over
+the semester, and a written assessment does not by itself prove a single
+high-load exam period.
+
+Two distinct types make the most important illegal combination
+unrepresentable:
+
+- an assessment part is a graded contribution to the course result;
+- an obligatory activity is required, approved/not approved, worth no grade
+  weight, and gates access to assessment.
+
+An assessment part may report a positive weight from the official ordinary
+assessment arrangement. Zero is not used to represent unknown or ungraded
+work. Missing weights, duration, requirement rules, and workload patterns retain
+their fact state. If a provider explicitly describes a part as optional while
+also assigning it grade weight, the domain evaluator rejects that combination.
+When every required assessment weight is known, the weights must total 100%.
+
+NTNU's structured ordinary-exam component markup is authoritative for component
+names, weights, and duration. Prose classification remains a fallback for form
+only. Resit arrangements are not merged into the ordinary assessment plan.
+Obligatory activities come from their own official section and are not promoted
+to graded components.
+
+The current product surface shows only decision-useful known values:
+
+- form and known weight for each graded component;
+- a required/ungraded label and count for obligatory activities;
+- full descriptions and duration in Inspect;
+- uncertainty at the group or field boundary without filling gaps by inference.
+
+Requirement choices, completion rules, and workload timing remain explicit
+unknowns until a provider states them. They are domain extension points, not
+promises for this Explore slice.
 
 ## Visual grammar
 
@@ -301,6 +343,8 @@ translated view must retain the original text and attribution.
 
 ### Slice 1: Outcome strip
 
+Status: Delivered on `main` (2026-07-24).
+
 Student decision: “Do these historical outcomes deserve closer inspection?”
 
 - Add grade distribution to the batched course-summary contract from model,
@@ -320,6 +364,8 @@ Acceptance: a student can compare the shape and reliability of historical
 outcomes across visible cards without opening each detail page.
 
 ### Enabling slice: English and Norwegian interface
+
+Status: Delivered on `main` (2026-07-24).
 
 Student decision: “Can I understand and share the course-decision interface in
 my preferred language?”
@@ -364,6 +410,8 @@ unchanged content hash is a no-op, and failed validation retains the last valid
 revision.
 
 ### Slice 3: Assessment scan signals
+
+Status: In progress on `agent/assessment-scan-signals`.
 
 Student decision: “How will I be assessed, and what kind of work is involved?”
 

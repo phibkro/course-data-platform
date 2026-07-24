@@ -51,13 +51,24 @@ const encodedInsight = {
       {
         form: 'written-exam' as const,
         description: 'Written school exam',
-        weightPercent: 100,
-        duration: '4 hours',
+        requirement: known('required' as const, [evidence.id]),
+        weightPercent: known(100, [evidence.id]),
+        duration: known('4 hours', [evidence.id]),
+        workloadPattern: unknown('The source does not state the workload timing.'),
       },
     ],
     [evidence.id],
   ),
-  obligatoryActivities: known(['Exercises'], [evidence.id]),
+  obligatoryActivities: known(
+    [
+      {
+        description: 'Exercises',
+        form: known('assignment' as const, [evidence.id]),
+        workloadPattern: unknown('The source does not state the workload timing.'),
+      },
+    ],
+    [evidence.id],
+  ),
   collaboration: missing<'individual' | 'group' | 'mixed'>(),
   attendance: missing<'required' | 'not-required'>(),
   onlineParticipation: missing<'available' | 'not-available'>(),
@@ -130,5 +141,61 @@ describe('CourseInsight', () => {
     const insight: CourseInsight = decodeCourseInsight(encodedInsight);
 
     expect(validateEvidenceReferences(insight)).toEqual([]);
+  });
+
+  it('rejects a weighted optional assessment component at the domain boundary', () => {
+    expect(() =>
+      decodeCourseInsight({
+        ...encodedInsight,
+        assessment: known(
+          [
+            {
+              form: 'project',
+              description: 'Optional project',
+              requirement: known('optional', [evidence.id]),
+              weightPercent: known(20, [evidence.id]),
+              duration: missing<string>(),
+              workloadPattern: missing<
+                'distributed' | 'concentrated' | 'recurring' | 'milestone'
+              >(),
+            },
+          ],
+          [evidence.id],
+        ),
+      }),
+    ).toThrow('An optional course-work item cannot contribute to the final grade.');
+  });
+
+  it('rejects a fully known required assessment total below 100 percent', () => {
+    expect(() =>
+      decodeCourseInsight({
+        ...encodedInsight,
+        assessment: known(
+          [
+            {
+              form: 'project',
+              description: 'Project',
+              requirement: known('required', [evidence.id]),
+              weightPercent: known(60, [evidence.id]),
+              duration: missing<string>(),
+              workloadPattern: missing<
+                'distributed' | 'concentrated' | 'recurring' | 'milestone'
+              >(),
+            },
+            {
+              form: 'oral-exam',
+              description: 'Oral exam',
+              requirement: known('required', [evidence.id]),
+              weightPercent: known(30, [evidence.id]),
+              duration: missing<string>(),
+              workloadPattern: missing<
+                'distributed' | 'concentrated' | 'recurring' | 'milestone'
+              >(),
+            },
+          ],
+          [evidence.id],
+        ),
+      }),
+    ).toThrow('Required assessment weights total 90%, not 100%.');
   });
 });

@@ -1,6 +1,14 @@
-import { known, unavailable, unknown, type Fact } from '@course-data/course-model';
+import {
+  known,
+  unavailable,
+  unknown,
+  type AssessmentPart,
+  type Fact,
+  type ObligatoryActivity,
+} from '@course-data/course-model';
 
 import type { ValidatedNtnuCourseDetail } from './detail';
+import { mapNtnuAssessment, mapNtnuObligatoryActivities } from './map-assessment';
 import type { ValidatedNtnuSearchHit } from './search';
 
 const academicPeriod = (academicYear: number, season: 'spring' | 'autumn'): string =>
@@ -32,21 +40,6 @@ export interface NtnuOffering {
   readonly deliveryModes: ReadonlyArray<'in-person' | 'online' | 'hybrid'>;
 }
 
-export interface NtnuAssessmentPart {
-  readonly form:
-    | 'written-exam'
-    | 'oral-exam'
-    | 'home-exam'
-    | 'project'
-    | 'portfolio'
-    | 'practical'
-    | 'assignment'
-    | 'other';
-  readonly description: string;
-  readonly weightPercent: number | null;
-  readonly duration: string | null;
-}
-
 export interface NtnuCourseInsightFields {
   readonly courseKey: string;
   readonly institutionCode: 'NTNU';
@@ -64,8 +57,8 @@ export interface NtnuCourseInsightFields {
       'lectures' | 'exercises' | 'laboratory' | 'seminar' | 'project' | 'self-study' | 'other'
     >
   >;
-  readonly assessment: Fact<ReadonlyArray<NtnuAssessmentPart>>;
-  readonly obligatoryActivities: Fact<ReadonlyArray<string>>;
+  readonly assessment: Fact<ReadonlyArray<AssessmentPart>>;
+  readonly obligatoryActivities: Fact<ReadonlyArray<ObligatoryActivity>>;
   readonly collaboration: Fact<'individual' | 'group' | 'mixed'>;
   readonly attendance: Fact<'required' | 'not-required'>;
   readonly onlineParticipation: Fact<'available' | 'not-available'>;
@@ -196,7 +189,7 @@ export const mapNtnuToCourseInsightFields = (
       observedAt: detail.attribution.retrievedAt,
       excerpt: null,
       inferenceRule:
-        'Classified from keyword matching over the assessment, teaching-methods, and page text.',
+        'Classified from keyword matching over the assessment, teaching-methods, and obligatory-activities sections.',
     },
   );
   sourceStatuses.push({
@@ -209,26 +202,12 @@ export const mapNtnuToCourseInsightFields = (
   const fromField = (field: ValidatedNtnuCourseDetail['content']): Fact<string> =>
     field.state === 'known' ? known(field.value, [factEvidenceId]) : unavailable(field.reason);
 
-  const assessment: Fact<ReadonlyArray<NtnuAssessmentPart>> =
-    detail.assessmentText.state !== 'known'
-      ? unavailable(detail.assessmentText.reason)
-      : known(
-          (detail.assessmentFormGuesses.length > 0
-            ? detail.assessmentFormGuesses
-            : (['other'] as const)
-          ).map((form) => ({
-            form,
-            description: detail.assessmentText.state === 'known' ? detail.assessmentText.value : '',
-            weightPercent: null,
-            duration: null,
-          })),
-          [inferenceEvidenceId],
-        );
-
-  const obligatoryActivities: Fact<ReadonlyArray<string>> =
-    detail.obligatoryActivities.state === 'known'
-      ? known(detail.obligatoryActivities.items, [factEvidenceId])
-      : unavailable(detail.obligatoryActivities.reason);
+  const assessment = mapNtnuAssessment(detail, factEvidenceId, inferenceEvidenceId);
+  const obligatoryActivities = mapNtnuObligatoryActivities(
+    detail,
+    factEvidenceId,
+    inferenceEvidenceId,
+  );
 
   const collaboration: Fact<'individual' | 'group' | 'mixed'> =
     detail.collaborationSignal === null

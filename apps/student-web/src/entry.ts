@@ -2,6 +2,9 @@ import { Runtime, Url } from 'foldkit';
 
 import { ChangedUrl, Model, RequestedUrl, routingInit, update, view } from './main';
 import './styles.css';
+import { initializeThemePreference } from './theme';
+
+initializeThemePreference();
 
 const application = Runtime.makeApplication({
   Model,
