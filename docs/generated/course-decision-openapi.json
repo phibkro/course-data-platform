@@ -38,6 +38,7 @@
                         "health",
                         "search",
                         "gradeSummaries",
+                        "decisionSignals",
                         "insight",
                         "openapi",
                         "openapiJson"
@@ -50,6 +51,9 @@
                           "type": "string"
                         },
                         "gradeSummaries": {
+                          "type": "string"
+                        },
+                        "decisionSignals": {
                           "type": "string"
                         },
                         "insight": {
@@ -1842,6 +1846,1514 @@
           }
         },
         "operationId": "getV1Course-search"
+      }
+    },
+    "/v1/course-decision-signals": {
+      "post": {
+        "summary": "Enrich visible courses with decision signals",
+        "description": "Returns bounded NTNU course-page assessment, work-form, obligation, collaboration, attendance, and remote-participation signals.",
+        "tags": [
+          "Courses"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "courseCodes"
+                ],
+                "properties": {
+                  "courseCodes": {
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 20,
+                      "pattern": "^[A-Za-zÆØÅæøå0-9]+$",
+                      "type": "string"
+                    }
+                  },
+                  "term": {
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "courseCodes"
+                ],
+                "properties": {
+                  "courseCodes": {
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 20,
+                      "pattern": "^[A-Za-zÆØÅæøå0-9]+$",
+                      "type": "string"
+                    }
+                  },
+                  "term": {
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "courseCodes"
+                ],
+                "properties": {
+                  "courseCodes": {
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 20,
+                      "pattern": "^[A-Za-zÆØÅæøå0-9]+$",
+                      "type": "string"
+                    }
+                  },
+                  "term": {
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "meta"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "courseCode",
+                          "assessmentSignals",
+                          "workFormSignals",
+                          "obligatoryActivities",
+                          "collaboration",
+                          "attendance",
+                          "onlineParticipation",
+                          "sourceStatus",
+                          "evidence"
+                        ],
+                        "properties": {
+                          "courseCode": {
+                            "minLength": 2,
+                            "maxLength": 20,
+                            "type": "string"
+                          },
+                          "assessmentSignals": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "array",
+                                    "items": {
+                                      "anyOf": [
+                                        {
+                                          "const": "written-exam",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "oral-exam",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "home-exam",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "project",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "portfolio",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "practical",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "assignment",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "other",
+                                          "type": "string"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "type": "array",
+                                          "items": {
+                                            "anyOf": [
+                                              {
+                                                "const": "written-exam",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "oral-exam",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "home-exam",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "project",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "portfolio",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "practical",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "assignment",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "other",
+                                                "type": "string"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "workFormSignals": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "array",
+                                    "items": {
+                                      "anyOf": [
+                                        {
+                                          "const": "lectures",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "exercises",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "laboratory",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "seminar",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "project",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "self-study",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "other",
+                                          "type": "string"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "type": "array",
+                                          "items": {
+                                            "anyOf": [
+                                              {
+                                                "const": "lectures",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "exercises",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "laboratory",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "seminar",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "project",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "self-study",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "const": "other",
+                                                "type": "string"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "obligatoryActivities": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "collaboration": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "anyOf": [
+                                      {
+                                        "const": "individual",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "group",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "mixed",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "const": "individual",
+                                              "type": "string"
+                                            },
+                                            {
+                                              "const": "group",
+                                              "type": "string"
+                                            },
+                                            {
+                                              "const": "mixed",
+                                              "type": "string"
+                                            }
+                                          ]
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "attendance": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "anyOf": [
+                                      {
+                                        "const": "required",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "not-required",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "const": "required",
+                                              "type": "string"
+                                            },
+                                            {
+                                              "const": "not-required",
+                                              "type": "string"
+                                            }
+                                          ]
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "onlineParticipation": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "anyOf": [
+                                      {
+                                        "const": "available",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "not-available",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "const": "available",
+                                              "type": "string"
+                                            },
+                                            {
+                                              "const": "not-available",
+                                              "type": "string"
+                                            }
+                                          ]
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "sourceStatus": {
+                            "type": "object",
+                            "required": [
+                              "provider",
+                              "status",
+                              "observedAt",
+                              "warning"
+                            ],
+                            "properties": {
+                              "provider": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "available",
+                                  "unavailable",
+                                  "failed"
+                                ]
+                              },
+                              "observedAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "warning": {
+                                "anyOf": [
+                                  {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "provider",
+                                "kind",
+                                "recordId",
+                                "sourceUrl",
+                                "sourcePeriod",
+                                "observedAt",
+                                "excerpt",
+                                "inferenceRule"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "source-fact",
+                                    "inference",
+                                    "fixture"
+                                  ]
+                                },
+                                "recordId": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "sourceUrl": {
+                                  "anyOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "sourcePeriod": {
+                                  "anyOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "observedAt": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "excerpt": {
+                                  "anyOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "inferenceRule": {
+                                  "anyOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "count"
+                      ],
+                      "properties": {
+                        "count": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Response for status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postV1Course-decision-signals"
       }
     },
     "/v1/course-grade-summaries": {

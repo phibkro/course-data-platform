@@ -1,4 +1,6 @@
 import {
+  CourseDecisionSignalsRequestDto,
+  CourseDecisionSignalsResponseDto,
   CourseInsightParamsDto,
   CourseInsightQueryDto,
   CourseInsightResponseDto,
@@ -7,6 +9,7 @@ import {
   CourseSearchQueryDto,
   CourseSearchResponseDto,
   ProblemDto,
+  toCourseDecisionSignalsDto,
   toCourseInsightDto,
   toCourseGradeSummaryDto,
   toCourseSearchItemDto,
@@ -79,6 +82,7 @@ export const createCourseApi = (
           health: '/health',
           search: '/v1/course-search',
           gradeSummaries: '/v1/course-grade-summaries',
+          decisionSignals: '/v1/course-decision-signals',
           insight: '/v1/courses/:courseCode/insight',
           openapi: '/openapi',
           openapiJson: '/openapi/json',
@@ -92,6 +96,7 @@ export const createCourseApi = (
             health: t.String(),
             search: t.String(),
             gradeSummaries: t.String(),
+            decisionSignals: t.String(),
             insight: t.String(),
             openapi: t.String(),
             openapiJson: t.String(),
@@ -179,6 +184,62 @@ export const createCourseApi = (
         detail: {
           summary: 'Search NTNU courses',
           description: 'Returns fast course summaries with explicit enrichment and source status.',
+          tags: ['Courses'],
+        },
+      },
+    )
+    .post(
+      '/v1/course-decision-signals',
+      async ({ body, request, set, status }) => {
+        const requestId = request.headers.get('cf-ray') ?? makeRequestId();
+        const result = await Effect.runPromise(
+          Effect.result(
+            service.getDecisionSignals({
+              courseCodes: body.courseCodes,
+              ...(body.term === undefined ? {} : { term: body.term }),
+            }),
+          ),
+        );
+        set.headers['x-request-id'] = requestId;
+        set.headers['cache-control'] = 'public, max-age=60, stale-while-revalidate=900';
+
+        if (Result.isFailure(result)) {
+          if (result.failure._tag === 'CourseInvalidTermError') {
+            return status(
+              400,
+              problem(
+                requestId,
+                400,
+                'invalid-course-term',
+                'Invalid course term',
+                result.failure.message,
+              ),
+            );
+          }
+          return status(
+            503,
+            problem(
+              requestId,
+              503,
+              'course-decision-signals-unavailable',
+              'Course decision signals unavailable',
+              result.failure.message,
+            ),
+          );
+        }
+
+        return {
+          items: result.success.items.map(toCourseDecisionSignalsDto),
+          meta: { count: result.success.items.length },
+        };
+      },
+      {
+        body: CourseDecisionSignalsRequestDto,
+        response: { 200: CourseDecisionSignalsResponseDto, 400: ProblemDto, 503: ProblemDto },
+        detail: {
+          summary: 'Enrich visible courses with decision signals',
+          description:
+            'Returns bounded NTNU course-page assessment, work-form, obligation, collaboration, attendance, and remote-participation signals.',
           tags: ['Courses'],
         },
       },

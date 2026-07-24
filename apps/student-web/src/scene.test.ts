@@ -2,7 +2,11 @@
 import { Scene } from 'foldkit';
 import { describe, test } from 'vitest';
 
-import { fixtureGradeSummariesResponse, fixtureSearchResponse } from './course-client';
+import {
+  fixtureDecisionSignalsResponse,
+  fixtureGradeSummariesResponse,
+  fixtureSearchResponse,
+} from './course-client';
 import { partialCourseInsightFixture } from './course-insight.fixture';
 import {
   CatalogueEmpty,
@@ -10,6 +14,7 @@ import {
   CataloguePartial,
   DetailClosed,
   DetailPartial,
+  DecisionSignalsSuccess,
   GradeSignalsSuccess,
   NextPageIdle,
   type Model,
@@ -90,6 +95,24 @@ describe('browse-first catalogue scene', () => {
       ).toExist(),
       Scene.expect(Scene.text('Letter grades')).toExist(),
       Scene.expect(Scene.text('10.7% failed · n=1,951 · 2022–2025')).toExist(),
+    );
+  });
+
+  test('assessment and work signals are scannable without opening course detail', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        decisionSignals: DecisionSignalsSuccess({
+          response: fixtureDecisionSignalsResponse(['TDT4136']),
+        }),
+        visibleCount: 1,
+      }),
+      Scene.expect(Scene.text('Assessment & work')).toExist(),
+      Scene.expect(Scene.text('Written exam')).toExist(),
+      Scene.expect(Scene.text('Obligatory work')).toExist(),
+      Scene.expect(Scene.text('Inferred')).toExist(),
     );
   });
 

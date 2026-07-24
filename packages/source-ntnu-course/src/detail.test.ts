@@ -82,4 +82,39 @@ describe('parseNtnuCourseDetail', () => {
     expect(result.accepted?.attendanceSignal).toBeNull();
     expect(result.accepted?.onlineParticipationSignal).toBeNull();
   });
+
+  it.each([
+    ['Skriftlig skoleeksamen.', ['written-exam']],
+    ['Muntlig eksamen.', ['oral-exam']],
+    ['Hjemme-eksamen over 7 dager.', ['home-exam']],
+    ['Mappevurdering med tre arbeider.', ['portfolio']],
+    ['Prosjektrapport.', ['project']],
+    ['Praktisk eksamen.', ['practical']],
+    ['To obligatoriske innleveringer.', ['assignment']],
+    ['Prosjektarbeid 60 %. Muntlig eksamen 40 %.', ['project', 'oral-exam']],
+  ])('classifies assessment composition in source order: %s', (assessment, expected) => {
+    const result = parseNtnuCourseDetail(
+      `<html><body><h1>TDT4136</h1><h2>Vurderingsordning</h2><p>${assessment}</p></body></html>`,
+      capture,
+    );
+
+    expect(result.accepted?.assessmentFormGuesses).toEqual(expected);
+  });
+
+  it('recognizes observed Norwegian collaboration and attendance phrases in obligatory work', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <h2>Læringsformer og aktiviteter</h2><p>Individuelle studentaktiviteter.</p>
+          <h2>Obligatoriske aktiviteter</h2>
+          <p>Kollaborative studentaktiviteter. Obligatorisk tilstedeværelse.</p>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.collaborationSignal).toBe('mixed');
+    expect(result.accepted?.attendanceSignal).toBe('required');
+  });
 });

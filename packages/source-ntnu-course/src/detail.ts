@@ -146,9 +146,11 @@ const extractSection = (text: string, label: RegExp, maxLength = 1200): string |
 const known = (value: string): FieldState => ({ state: 'known', value });
 const unavailableField = (reason: string): FieldState => ({ state: 'unavailable', reason });
 
-const GROUP_RE = /(gruppearbeid|gruppeprosjekt|gruppeoppgave|group\s?(work|project)|in groups)/i;
+const GROUP_RE =
+  /(gruppearbeid|gruppeprosjekt|gruppeoppgave|i grupper?|kollaborativ\w*|group\s?(work|project)|in groups|collaborative)/i;
 const INDIVIDUAL_RE = /(individuell\w*|individual\w*|selvstendig\w*)/i;
-const REQUIRED_ATTENDANCE_RE = /obligatorisk (oppmøte|deltakelse|frammøte)|mandatory attendance/i;
+const REQUIRED_ATTENDANCE_RE =
+  /obligatorisk (oppmøte|deltakelse|frammøte|tilstedeværelse)|mandatory attendance|attendance (is )?required/i;
 const NOT_REQUIRED_ATTENDANCE_RE =
   /ikke obligatorisk (oppmøte|deltakelse)|attendance is not (required|mandatory)/i;
 const REMOTE_RE =
@@ -156,14 +158,22 @@ const REMOTE_RE =
 const CAMPUS_ONLY_RE = /kun (på campus|fysisk oppmøte)|physical attendance is required/i;
 
 const ASSESSMENT_FORM_PATTERNS: ReadonlyArray<readonly [RegExp, AssessmentFormGuess]> = [
-  [/skoleeksamen|written (school )?exam/i, 'written-exam'],
-  [/muntlig eksamen|oral exam/i, 'oral-exam'],
-  [/hjemmeeksamen|home exam|take-home exam/i, 'home-exam'],
-  [/mappevurdering|portfolio/i, 'portfolio'],
-  [/prosjekt(oppgave|arbeid)?|project (work|report)/i, 'project'],
+  [/skoleeksamen|skriftlig(?:\s+\w+){0,3}\s+eksamen|written (school )?exam/i, 'written-exam'],
+  [/muntlig(?:\s+\w+){0,2}\s+eksamen|oral exam/i, 'oral-exam'],
+  [/hjemme-?eksamen|home exam|take-home exam/i, 'home-exam'],
+  [/mappe(?:vurdering)?|portfolio/i, 'portfolio'],
+  [/prosjekt(oppgave|arbeid|rapport)?|project (work|report)/i, 'project'],
   [/praktisk (prøve|eksamen)|practical (exam|test)/i, 'practical'],
   [/øving\w*|innleveringer?|assignment/i, 'assignment'],
 ];
+
+const classifyAssessmentForms = (assessmentText: string): ReadonlyArray<AssessmentFormGuess> =>
+  ASSESSMENT_FORM_PATTERNS.flatMap(([pattern, form]) => {
+    const match = pattern.exec(assessmentText);
+    return match?.index === undefined ? [] : [{ form, index: match.index }];
+  })
+    .sort((left, right) => left.index - right.index)
+    .map(({ form }) => form);
 
 const WORK_FORM_PATTERNS: ReadonlyArray<
   readonly [RegExp, 'lectures' | 'exercises' | 'laboratory' | 'seminar' | 'project' | 'self-study']
@@ -281,11 +291,7 @@ export const parseNtnuCourseDetail = (
   const prerequisitesRaw = extractSection(text, /Forkunnskapskrav/);
   const accessRaw = extractSection(text, /Krever opptak til studieprogram/);
 
-  const assessmentFormGuesses = assessmentText
-    ? ASSESSMENT_FORM_PATTERNS.filter(([pattern]) => pattern.test(assessmentText)).map(
-        ([, form]) => form,
-      )
-    : [];
+  const assessmentFormGuesses = assessmentText ? classifyAssessmentForms(assessmentText) : [];
 
   const obligatoryActivities: ValidatedNtnuCourseDetail['obligatoryActivities'] =
     obligatoryRaw === null
@@ -300,7 +306,7 @@ export const parseNtnuCourseDetail = (
                 .filter((item) => item.length > 0),
         };
 
-  const collaborationScan = `${assessmentText ?? ''} ${teachingMethods ?? ''}`;
+  const collaborationScan = `${assessmentText ?? ''} ${teachingMethods ?? ''} ${obligatoryRaw ?? ''}`;
   const hasGroup = GROUP_RE.test(collaborationScan);
   const hasIndividual = INDIVIDUAL_RE.test(collaborationScan);
   const collaborationSignal =

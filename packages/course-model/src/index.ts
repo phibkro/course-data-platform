@@ -236,9 +236,23 @@ export const CourseSearchItemSchema = Schema.Struct({
 });
 export type CourseSearchItem = Schema.Schema.Type<typeof CourseSearchItemSchema>;
 
+export const CourseDecisionSignalsSchema = Schema.Struct({
+  courseCode: NonEmptyString,
+  assessmentSignals: makeFactSchema(Schema.Array(AssessmentFormSchema)),
+  workFormSignals: makeFactSchema(Schema.Array(WorkFormSchema)),
+  obligatoryActivities: makeFactSchema(Schema.Array(NonEmptyString)),
+  collaboration: makeFactSchema(CollaborationSchema),
+  attendance: makeFactSchema(AttendanceSchema),
+  onlineParticipation: makeFactSchema(OnlineParticipationSchema),
+  sourceStatus: SourceStatusSchema,
+  evidence: Schema.Array(EvidenceSchema),
+});
+export type CourseDecisionSignals = Schema.Schema.Type<typeof CourseDecisionSignalsSchema>;
+
 export const decodeCourseInsight = Schema.decodeUnknownSync(CourseInsightSchema);
 export const decodeCourseSearchItem = Schema.decodeUnknownSync(CourseSearchItemSchema);
 export const decodeCourseGradeSummary = Schema.decodeUnknownSync(CourseGradeSummarySchema);
+export const decodeCourseDecisionSignals = Schema.decodeUnknownSync(CourseDecisionSignalsSchema);
 
 export const validateEvidenceReferences = (
   insight: CourseInsight,

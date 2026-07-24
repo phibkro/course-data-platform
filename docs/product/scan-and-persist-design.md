@@ -4,6 +4,8 @@
 - Date: 2026-07-24
 - Product loop: `Explore -> Inspect -> List -> Compare`
 - Current milestone: `Scan -> Save -> Compare`
+- Delivered: outcome strip and English/Norwegian interface (`main`, 2026-07-24)
+- In progress: assessment scan signals
 
 ## Outcome
 
@@ -301,6 +303,8 @@ translated view must retain the original text and attribution.
 
 ### Slice 1: Outcome strip
 
+Status: Delivered on `main` (2026-07-24).
+
 Student decision: “Do these historical outcomes deserve closer inspection?”
 
 - Add grade distribution to the batched course-summary contract from model,
@@ -320,6 +324,8 @@ Acceptance: a student can compare the shape and reliability of historical
 outcomes across visible cards without opening each detail page.
 
 ### Enabling slice: English and Norwegian interface
+
+Status: Delivered on `main` (2026-07-24).
 
 Student decision: “Can I understand and share the course-decision interface in
 my preferred language?”
@@ -364,6 +370,8 @@ unchanged content hash is a no-op, and failed validation retains the last valid
 revision.
 
 ### Slice 3: Assessment scan signals
+
+Status: In progress on `agent/assessment-scan-signals`.
 
 Student decision: “How will I be assessed, and what kind of work is involved?”
 

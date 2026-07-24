@@ -196,7 +196,7 @@ export const mapNtnuToCourseInsightFields = (
       observedAt: detail.attribution.retrievedAt,
       excerpt: null,
       inferenceRule:
-        'Classified from keyword matching over the assessment, teaching-methods, and page text.',
+        'Classified from keyword matching over the assessment, teaching-methods, and obligatory-activities sections.',
     },
   );
   sourceStatuses.push({

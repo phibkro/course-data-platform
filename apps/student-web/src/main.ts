@@ -1,4 +1,5 @@
 import type {
+  CourseDecisionSignalsDtoType,
   CourseGradeSummaryDtoType,
   CourseInsightResponseDtoType,
   CourseSearchItemDtoType,
@@ -14,10 +15,12 @@ import { evo } from 'foldkit/struct';
 import { Button, Checkbox, Dialog, Input, Select } from '@foldkit/ui';
 
 import {
+  CourseDecisionSignalsResponseSchema,
   CourseGradeSummariesResponseSchema,
   CourseInsightResponseSchema,
   CourseSearchResponseSchema,
   courseClient,
+  type CourseDecisionSignalsResponse,
   type CourseGradeSummariesResponse,
   type CourseSearchRequest,
   type CourseSearchResponse,
@@ -25,10 +28,10 @@ import {
 } from './course-client';
 import { courseInsightView } from './course-detail';
 import { isLocale, localeTag, translate, translateToken, type Locale } from './i18n';
-import { icon } from './icons';
+import { icon, type AppIcon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 
-const DISPLAY_CHUNK = 40;
+const DISPLAY_CHUNK = 20;
 const DEFAULT_TERM = '2026-autumn';
 const DEFAULT_SORT: CourseSearchSort = 'title-asc';
 const lazyCourseCard = createKeyedLazy();
@@ -119,6 +122,39 @@ type GradeSignalsResult =
       readonly error: string;
     };
 
+export const DecisionSignalsIdle = ts('DecisionSignalsIdle');
+export const DecisionSignalsLoading = ts('DecisionSignalsLoading', {
+  previous: S.NullOr(CourseDecisionSignalsResponseSchema),
+  pendingCodes: S.Array(S.String),
+});
+export const DecisionSignalsSuccess = ts('DecisionSignalsSuccess', {
+  response: CourseDecisionSignalsResponseSchema,
+});
+export const DecisionSignalsFailure = ts('DecisionSignalsFailure', {
+  previous: S.NullOr(CourseDecisionSignalsResponseSchema),
+  error: S.String,
+});
+const DecisionSignalsResult = S.Union([
+  DecisionSignalsIdle,
+  DecisionSignalsLoading,
+  DecisionSignalsSuccess,
+  DecisionSignalsFailure,
+]);
+
+type DecisionSignalsResult =
+  | ReturnType<typeof DecisionSignalsIdle>
+  | {
+      readonly _tag: 'DecisionSignalsLoading';
+      readonly previous: CourseDecisionSignalsResponse | null;
+      readonly pendingCodes: ReadonlyArray<string>;
+    }
+  | { readonly _tag: 'DecisionSignalsSuccess'; readonly response: CourseDecisionSignalsResponse }
+  | {
+      readonly _tag: 'DecisionSignalsFailure';
+      readonly previous: CourseDecisionSignalsResponse | null;
+      readonly error: string;
+    };
+
 export const NextPageIdle = ts('NextPageIdle');
 export const NextPageLoading = ts('NextPageLoading');
 export const NextPageFailure = ts('NextPageFailure', { error: S.String });
@@ -157,6 +193,7 @@ export const Model = S.Struct({
   visibleCount: S.Number,
   catalogue: CatalogueResult,
   gradeSignals: GradeSignalsResult,
+  decisionSignals: DecisionSignalsResult,
   nextPage: NextPageState,
   selectedCode: S.NullOr(S.String),
   detail: DetailResult,
@@ -164,9 +201,13 @@ export const Model = S.Struct({
 });
 
 type SchemaModel = typeof Model.Type;
-export type Model = Omit<SchemaModel, 'catalogue' | 'gradeSignals' | 'detail'> & {
+export type Model = Omit<
+  SchemaModel,
+  'catalogue' | 'gradeSignals' | 'decisionSignals' | 'detail'
+> & {
   readonly catalogue: CatalogueResult;
   readonly gradeSignals: GradeSignalsResult;
+  readonly decisionSignals: DecisionSignalsResult;
   readonly detail: DetailResult;
 };
 
@@ -199,6 +240,16 @@ export const SucceededGradeSignals = m('SucceededGradeSignals', {
   response: CourseGradeSummariesResponseSchema,
 });
 export const FailedGradeSignals = m('FailedGradeSignals', {
+  requestKey: S.String,
+  courseCodes: S.Array(S.String),
+  error: S.String,
+});
+export const SucceededDecisionSignals = m('SucceededDecisionSignals', {
+  requestKey: S.String,
+  courseCodes: S.Array(S.String),
+  response: CourseDecisionSignalsResponseSchema,
+});
+export const FailedDecisionSignals = m('FailedDecisionSignals', {
   requestKey: S.String,
   courseCodes: S.Array(S.String),
   error: S.String,
@@ -237,6 +288,8 @@ export const Message = S.Union([
   FailedCourseSearch,
   SucceededGradeSignals,
   FailedGradeSignals,
+  SucceededDecisionSignals,
+  FailedDecisionSignals,
   SucceededCourseInsight,
   FailedCourseInsight,
   CompletedNavigation,
@@ -349,6 +402,20 @@ export const FetchGradeSignals = Command.define(
   ),
 );
 
+export const FetchDecisionSignals = Command.define(
+  'FetchDecisionSignals',
+  { courseCodes: S.Array(S.String), term: S.String, requestKey: S.String },
+  SucceededDecisionSignals,
+  FailedDecisionSignals,
+)(({ courseCodes, term, requestKey: key }) =>
+  courseClient.getDecisionSignals(courseCodes, term).pipe(
+    Effect.map((response) => SucceededDecisionSignals({ requestKey: key, courseCodes, response })),
+    Effect.catch((error) =>
+      Effect.succeed(FailedDecisionSignals({ requestKey: key, courseCodes, error: error.message })),
+    ),
+  ),
+);
+
 export const Navigate = Command.define(
   'Navigate',
   { href: S.String, mode: S.String },
@@ -410,6 +477,20 @@ const gradeSignalsResponse = (result: GradeSignalsResult): CourseGradeSummariesR
   }
 };
 
+const decisionSignalsResponse = (
+  result: DecisionSignalsResult,
+): CourseDecisionSignalsResponse | null => {
+  switch (result._tag) {
+    case 'DecisionSignalsSuccess':
+      return result.response;
+    case 'DecisionSignalsLoading':
+    case 'DecisionSignalsFailure':
+      return result.previous;
+    case 'DecisionSignalsIdle':
+      return null;
+  }
+};
+
 const isPartial = (response: CourseSearchResponse): boolean =>
   response.sourceStatuses.some(
     (source) => source.status !== 'available' || source.warning !== null,
@@ -449,6 +530,19 @@ const isGradeSignalsPartial = (response: CourseGradeSummariesResponse): boolean 
     (source) => source.status !== 'available' || source.warning !== null,
   );
 
+const mergeDecisionSignals = (
+  current: CourseDecisionSignalsResponse | null,
+  next: CourseDecisionSignalsResponse,
+): CourseDecisionSignalsResponse => {
+  if (current === null) return next;
+  const byCode = new Map(current.items.map((item) => [item.courseCode, item]));
+  for (const item of next.items) byCode.set(item.courseCode, item);
+  return {
+    items: [...byCode.values()],
+    meta: { count: byCode.size },
+  };
+};
+
 const requestVisibleGradeSignals = (
   response: CourseSearchResponse,
   visibleCount: number,
@@ -476,6 +570,37 @@ const requestVisibleGradeSignals = (
   return [
     GradeSignalsLoading({ previous, pendingCodes: [...pendingCodes, ...courseCodes] }),
     [FetchGradeSignals({ courseCodes, requestKey: key })],
+  ];
+};
+
+const requestVisibleDecisionSignals = (
+  response: CourseSearchResponse,
+  visibleCount: number,
+  current: DecisionSignalsResult,
+  term: string,
+  key: string,
+  reset: boolean,
+): readonly [DecisionSignalsResult, ReadonlyArray<Command.Command<Message>>] => {
+  const previous = reset ? null : decisionSignalsResponse(current);
+  const pendingCodes = reset
+    ? []
+    : current._tag === 'DecisionSignalsLoading'
+      ? current.pendingCodes
+      : [];
+  const loadedCodes = new Set([
+    ...(previous?.items.map((item) => item.courseCode) ?? []),
+    ...pendingCodes,
+  ]);
+  const courseCodes = response.items
+    .slice(0, visibleCount)
+    .map((item) => item.code)
+    .filter((courseCode) => !loadedCodes.has(courseCode));
+  if (courseCodes.length === 0) {
+    return [reset ? DecisionSignalsIdle() : current, []];
+  }
+  return [
+    DecisionSignalsLoading({ previous, pendingCodes: [...pendingCodes, ...courseCodes] }),
+    [FetchDecisionSignals({ courseCodes, term, requestKey: key })],
   ];
 };
 
@@ -509,6 +634,7 @@ const startCatalogue = (
     visibleCount: DISPLAY_CHUNK,
     catalogue: CatalogueInitialLoading(),
     gradeSignals: GradeSignalsIdle(),
+    decisionSignals: DecisionSignalsIdle(),
     nextPage: NextPageIdle(),
   };
   return [
@@ -627,14 +753,23 @@ export const update = (
             model.activeRequestKey,
             false,
           );
+          const [decisionSignals, decisionCommands] = requestVisibleDecisionSignals(
+            response,
+            visibleCount,
+            model.decisionSignals,
+            model.term,
+            model.activeRequestKey,
+            false,
+          );
           return [
             {
               ...model,
               visibleCount,
               gradeSignals,
+              decisionSignals,
               nextPage: NextPageIdle(),
             },
-            gradeCommands,
+            [...gradeCommands, ...decisionCommands],
           ];
         }
         if (!response.meta.hasMore) return [model, []];
@@ -658,6 +793,7 @@ export const update = (
             detail: location.selectedCode === null ? DetailClosed() : DetailLoading(),
             catalogue: CatalogueInitialLoading(),
             gradeSignals: GradeSignalsIdle(),
+            decisionSignals: DecisionSignalsIdle(),
             nextPage: NextPageIdle(),
             visibleCount: DISPLAY_CHUNK,
           };
@@ -720,15 +856,24 @@ export const update = (
           key,
           !append,
         );
+        const [decisionSignals, decisionCommands] = requestVisibleDecisionSignals(
+          response,
+          visibleCount,
+          model.decisionSignals,
+          model.term,
+          key,
+          !append,
+        );
         return [
           {
             ...model,
             catalogue: result,
             gradeSignals,
+            decisionSignals,
             visibleCount,
             nextPage: NextPageIdle(),
           },
-          gradeCommands,
+          [...gradeCommands, ...decisionCommands],
         ];
       },
       FailedCourseSearch: ({ requestKey: key, append, error }) => {
@@ -766,6 +911,41 @@ export const update = (
                 ...model,
                 gradeSignals: GradeSignalsFailure({
                   previous: gradeSignalsResponse(model.gradeSignals),
+                  error,
+                }),
+              },
+              [],
+            ],
+      SucceededDecisionSignals: ({ requestKey: key, courseCodes, response: nextResponse }) => {
+        if (key !== model.activeRequestKey) return [model, []];
+        const response = mergeDecisionSignals(
+          decisionSignalsResponse(model.decisionSignals),
+          nextResponse,
+        );
+        const completedCodes = new Set(courseCodes);
+        const pendingCodes =
+          model.decisionSignals._tag === 'DecisionSignalsLoading'
+            ? model.decisionSignals.pendingCodes.filter((code) => !completedCodes.has(code))
+            : [];
+        return [
+          {
+            ...model,
+            decisionSignals:
+              pendingCodes.length > 0
+                ? DecisionSignalsLoading({ previous: response, pendingCodes })
+                : DecisionSignalsSuccess({ response }),
+          },
+          [],
+        ];
+      },
+      FailedDecisionSignals: ({ requestKey: key, error }) =>
+        key !== model.activeRequestKey
+          ? [model, []]
+          : [
+              {
+                ...model,
+                decisionSignals: DecisionSignalsFailure({
+                  previous: decisionSignalsResponse(model.decisionSignals),
                   error,
                 }),
               },
@@ -819,6 +999,7 @@ export const initForHref = (
     visibleCount: DISPLAY_CHUNK,
     catalogue: CatalogueInitialLoading(),
     gradeSignals: GradeSignalsIdle(),
+    decisionSignals: DecisionSignalsIdle(),
     nextPage: NextPageIdle(),
     selectedCode: location.selectedCode,
     detail: location.selectedCode === null ? DetailClosed() : DetailLoading(),
@@ -1520,6 +1701,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
           lazyCourseCard(course.courseKey, courseCard, [
             normalizedUrl(model, course.code),
             course,
+            decisionSignalForCourse(model.decisionSignals, course.code),
             gradeSignalForCourse(model.gradeSignals, course.code),
             model.locale,
           ]),
@@ -1580,6 +1762,25 @@ type GradeSignal =
   | 'missing'
   | 'partial-missing';
 
+type DecisionSignal = CourseDecisionSignalsDtoType | 'loading' | 'failure' | 'idle' | 'missing';
+
+const decisionSignalForCourse = (
+  state: DecisionSignalsResult,
+  courseCode: string,
+): DecisionSignal => {
+  const signals = decisionSignalsResponse(state)?.items.find(
+    (item) => item.courseCode === courseCode,
+  );
+  if (signals !== undefined) return signals;
+  return M.value(state._tag).pipe(
+    M.when('DecisionSignalsLoading', () => 'loading' as const),
+    M.when('DecisionSignalsFailure', () => 'failure' as const),
+    M.when('DecisionSignalsIdle', () => 'idle' as const),
+    M.when('DecisionSignalsSuccess', () => 'missing' as const),
+    M.exhaustive,
+  );
+};
+
 const gradeSignalForCourse = (state: GradeSignalsResult, courseCode: string): GradeSignal => {
   const summary = gradeSignalsResponse(state)?.items.find((item) => item.courseCode === courseCode);
   if (summary !== undefined) return summary;
@@ -1596,6 +1797,7 @@ const gradeSignalForCourse = (state: GradeSignalsResult, courseCode: string): Gr
 const courseCard = (
   href: string,
   course: CourseSearchItemDtoType,
+  decisionSignal: DecisionSignal,
   gradeSignal: GradeSignal,
   locale: Locale,
 ): Html => {
@@ -1672,11 +1874,177 @@ const courseCard = (
                   ),
                 ],
               ),
+              decisionSignalView(decisionSignal, locale),
               gradeSignalView(gradeSignal, locale),
             ],
           ),
         ],
       ),
+    ],
+  );
+};
+
+type AssessmentForm =
+  | 'written-exam'
+  | 'oral-exam'
+  | 'home-exam'
+  | 'project'
+  | 'portfolio'
+  | 'practical'
+  | 'assignment'
+  | 'other';
+
+const assessmentIconName = (form: AssessmentForm): AppIcon =>
+  M.value(form).pipe(
+    M.when('written-exam', () => 'assessment-written' as const),
+    M.when('oral-exam', () => 'assessment-oral' as const),
+    M.when('home-exam', () => 'assessment-home-exam' as const),
+    M.when('project', () => 'assessment-project' as const),
+    M.when('portfolio', () => 'assessment-portfolio' as const),
+    M.when('practical', () => 'assessment-practical' as const),
+    M.when('assignment', () => 'assessment-assignment' as const),
+    M.when('other', () => 'assessment-other' as const),
+    M.exhaustive,
+  );
+
+const assessmentLabel = (form: AssessmentForm, locale: Locale): string =>
+  M.value(form).pipe(
+    M.when('written-exam', () => translate(locale, 'signals.writtenExam')),
+    M.when('oral-exam', () => translate(locale, 'signals.oralExam')),
+    M.when('home-exam', () => translate(locale, 'signals.homeExam')),
+    M.when('project', () => translate(locale, 'signals.project')),
+    M.when('portfolio', () => translate(locale, 'signals.portfolio')),
+    M.when('practical', () => translate(locale, 'signals.practical')),
+    M.when('assignment', () => translate(locale, 'signals.assignment')),
+    M.when('other', () => translate(locale, 'signals.otherAssessment')),
+    M.exhaustive,
+  );
+
+const collaborationLabel = (
+  collaboration: 'individual' | 'group' | 'mixed',
+  locale: Locale,
+): string =>
+  M.value(collaboration).pipe(
+    M.when('individual', () => translate(locale, 'signals.individual')),
+    M.when('group', () => translate(locale, 'signals.group')),
+    M.when('mixed', () => translate(locale, 'signals.mixedCollaboration')),
+    M.exhaustive,
+  );
+
+const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
+  const h = html<Message>();
+  const stateClass =
+    'grid gap-2 min-w-0 p-3 rounded-m3-medium bg-secondary-container text-on-secondary-container';
+  if (typeof signal === 'string') {
+    const message = M.value(signal).pipe(
+      M.when('loading', () => translate(locale, 'signals.checking')),
+      M.when('failure', () => translate(locale, 'signals.failed')),
+      M.when('idle', () => translate(locale, 'signals.waiting')),
+      M.when('missing', () => translate(locale, 'signals.missing')),
+      M.exhaustive,
+    );
+    return h.div(
+      [h.Class(`${stateClass} bg-surface-container text-on-surface-variant`)],
+      [
+        h.p([h.Class(factDtClass)], [translate(locale, 'signals.heading')]),
+        h.p([h.Class('m-0 text-[0.84rem] leading-[1.4]')], [message]),
+      ],
+    );
+  }
+
+  if (signal.sourceStatus.status === 'failed') {
+    return h.div(
+      [h.Class(`${stateClass} bg-surface-container text-on-surface-variant`)],
+      [
+        h.p([h.Class(factDtClass)], [translate(locale, 'signals.heading')]),
+        h.p([h.Class('m-0 text-[0.84rem] leading-[1.4]')], [translate(locale, 'signals.failed')]),
+      ],
+    );
+  }
+
+  const forms = signal.assessmentSignals.state === 'known' ? signal.assessmentSignals.value : [];
+  const hasObligatory =
+    signal.obligatoryActivities.state === 'known'
+      ? signal.obligatoryActivities.value.length > 0
+      : null;
+  const collaboration = signal.collaboration.state === 'known' ? signal.collaboration.value : null;
+
+  return h.div(
+    [h.Class(stateClass)],
+    [
+      h.div(
+        [h.Class('flex items-baseline justify-between gap-3')],
+        [
+          h.p([h.Class(factDtClass)], [translate(locale, 'signals.heading')]),
+          h.p(
+            [
+              h.Class('m-0 shrink-0 text-[0.68rem] font-[700] text-on-secondary-container/80'),
+              h.Title(translate(locale, 'signals.inferred')),
+            ],
+            [translate(locale, 'detail.inferred')],
+          ),
+        ],
+      ),
+      forms.length === 0
+        ? h.p([h.Class('m-0 text-[0.84rem]')], [translate(locale, 'signals.missing')])
+        : h.ul(
+            [h.Class('flex flex-wrap gap-1.5 p-0 list-none')],
+            forms.map((form) => {
+              const label = assessmentLabel(form, locale);
+              return h.li(
+                [
+                  h.Class(
+                    'inline-flex items-center gap-1.5 min-h-8 px-2.5 rounded-full bg-secondary text-on-secondary text-[0.76rem] font-[750]',
+                  ),
+                  h.Title(label),
+                ],
+                [
+                  icon<Message>(
+                    assessmentIconName(form),
+                    'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
+                  ),
+                  h.span([], [label]),
+                ],
+              );
+            }),
+          ),
+      hasObligatory === null && collaboration === null
+        ? h.empty
+        : h.div(
+            [h.Class('flex flex-wrap gap-x-3 gap-y-1 text-[0.78rem] font-[700]')],
+            [
+              ...(hasObligatory === null
+                ? []
+                : [
+                    h.span(
+                      [h.Class('inline-flex items-center gap-1.5')],
+                      [
+                        icon<Message>(
+                          'obligatory-work',
+                          'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
+                        ),
+                        hasObligatory
+                          ? translate(locale, 'signals.obligatory')
+                          : translate(locale, 'signals.noObligatory'),
+                      ],
+                    ),
+                  ]),
+              ...(collaboration === null
+                ? []
+                : [
+                    h.span(
+                      [h.Class('inline-flex items-center gap-1.5')],
+                      [
+                        icon<Message>(
+                          'collaboration',
+                          'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
+                        ),
+                        collaborationLabel(collaboration, locale),
+                      ],
+                    ),
+                  ]),
+            ],
+          ),
     ],
   );
 };

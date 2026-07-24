@@ -1,13 +1,19 @@
 import { Story } from 'foldkit';
 import { expect, test } from 'vitest';
 
-import { fixtureGradeSummariesResponse, fixtureSearchResponse } from './course-client';
+import {
+  fixtureDecisionSignalsResponse,
+  fixtureGradeSummariesResponse,
+  fixtureSearchResponse,
+} from './course-client';
 import {
   ChangedLocale,
+  ChangedCampus,
   CatalogueEmpty,
   CompletedNavigation,
   FailedCourseSearch,
   FetchCourseSearch,
+  FetchDecisionSignals,
   FetchGradeSignals,
   GradeSignalsSuccess,
   Navigate,
@@ -15,6 +21,7 @@ import {
   RequestedMoreCourses,
   SubmittedSearch,
   SucceededCourseSearch,
+  SucceededDecisionSignals,
   SucceededGradeSignals,
   UpdatedQuery,
   initForHref,
@@ -58,6 +65,7 @@ test('a catalogue response makes official courses available without opening deta
     Story.model((next) => {
       expect(next.catalogue._tag).toBe('CataloguePartial');
       expect(next.gradeSignals._tag).toBe('GradeSignalsLoading');
+      expect(next.decisionSignals._tag).toBe('DecisionSignalsLoading');
       expect(next.selectedCode).toBeNull();
       expect(next.visibleCount).toBe(1);
     }),
@@ -67,6 +75,14 @@ test('a catalogue response makes official courses available without opening deta
         requestKey: model.activeRequestKey,
         courseCodes: ['TDT4136'],
         response: fixtureGradeSummariesResponse(['TDT4136']),
+      }),
+    ),
+    Story.Command.resolve(
+      FetchDecisionSignals,
+      SucceededDecisionSignals({
+        requestKey: model.activeRequestKey,
+        courseCodes: ['TDT4136'],
+        response: fixtureDecisionSignalsResponse(['TDT4136']),
       }),
     ),
   );
@@ -95,6 +111,23 @@ test('grade responses enrich cards independently of the catalogue response', () 
   expect(enriched.gradeSignals).toEqual(
     GradeSignalsSuccess({ response: fixtureGradeSummariesResponse(['TDT4136']) }),
   );
+});
+
+test('stale decision enrichment is ignored after filters change', () => {
+  const initial = initialModel();
+  const [filtered] = update(initial, ChangedCampus({ value: 'trondheim' }));
+  const [afterStaleResponse, commands] = update(
+    filtered,
+    SucceededDecisionSignals({
+      requestKey: initial.activeRequestKey,
+      courseCodes: ['TDT4136'],
+      response: fixtureDecisionSignalsResponse(['TDT4136']),
+    }),
+  );
+
+  expect(afterStaleResponse).toBe(filtered);
+  expect(afterStaleResponse.decisionSignals._tag).toBe('DecisionSignalsIdle');
+  expect(commands).toEqual([]);
 });
 
 test('submitting a title or course-code query starts a fresh URL-backed search', () => {
@@ -126,6 +159,14 @@ test('submitting a title or course-code query starts a fresh URL-backed search',
         requestKey: 'algoritmer|2026-autumn|relevance|all|all|true|false|false',
         courseCodes: ['TDT4136'],
         response: fixtureGradeSummariesResponse(['TDT4136']),
+      }),
+    ),
+    Story.Command.resolve(
+      FetchDecisionSignals,
+      SucceededDecisionSignals({
+        requestKey: 'algoritmer|2026-autumn|relevance|all|all|true|false|false',
+        courseCodes: ['TDT4136'],
+        response: fixtureDecisionSignalsResponse(['TDT4136']),
       }),
     ),
   );
@@ -177,6 +218,14 @@ test('a later-page failure preserves already loaded catalogue rows', () => {
         response: fixtureGradeSummariesResponse(['TDT4136']),
       }),
     ),
+    Story.Command.resolve(
+      FetchDecisionSignals,
+      SucceededDecisionSignals({
+        requestKey: model.activeRequestKey,
+        courseCodes: ['TDT4136'],
+        response: fixtureDecisionSignalsResponse(['TDT4136']),
+      }),
+    ),
     Story.message(RequestedMoreCourses()),
     Story.Command.resolve(
       FetchCourseSearch,
@@ -196,7 +245,7 @@ test('a later-page failure preserves already loaded catalogue rows', () => {
 test('show more reveals already loaded rows before requesting another provider page', () => {
   const model = initialModel();
   const fixture = fixtureSearchResponse(1);
-  const items = Array.from({ length: 41 }, (_, index) => {
+  const items = Array.from({ length: 21 }, (_, index) => {
     const item = fixture.items[0]!;
     const code = `TEST${String(index + 1).padStart(3, '0')}`;
     return { ...item, courseKey: `NTNU:${code}`, code };
@@ -216,10 +265,14 @@ test('show more reveals already loaded rows before requesting another provider p
 
   const [revealed, commands] = update(loaded, RequestedMoreCourses());
 
-  expect(revealed.visibleCount).toBe(41);
+  expect(revealed.visibleCount).toBe(21);
   expect(revealed.gradeSignals).toMatchObject({
     _tag: 'GradeSignalsLoading',
-    pendingCodes: expect.arrayContaining(['TEST041']),
+    pendingCodes: expect.arrayContaining(['TEST021']),
   });
-  expect(commands).toHaveLength(1);
+  expect(revealed.decisionSignals).toMatchObject({
+    _tag: 'DecisionSignalsLoading',
+    pendingCodes: expect.arrayContaining(['TEST021']),
+  });
+  expect(commands).toHaveLength(2);
 });

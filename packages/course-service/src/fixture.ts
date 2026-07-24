@@ -1,4 +1,5 @@
 import {
+  decodeCourseDecisionSignals,
   decodeCourseGradeSummary,
   decodeCourseInsight,
   decodeCourseSearchItem,
@@ -11,7 +12,7 @@ import {
 } from '@course-data/course-model';
 import * as Effect from 'effect/Effect';
 
-import { CourseNotFoundError, type CourseDecisionService } from './index';
+import { CourseInvalidTermError, CourseNotFoundError, type CourseDecisionService } from './index';
 
 const observedAt = '2026-07-23T10:00:00.000Z';
 const coursePageEvidenceId = 'fixture:ntnu-course-page:TDT4136:2026-spring';
@@ -216,6 +217,57 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
       ],
       fromYear: 2022,
       toYear: 2025,
+    });
+  },
+  getDecisionSignals: ({ courseCodes, term }) => {
+    if (term !== undefined && !/^\d{4}-(spring|autumn)$/.test(term)) {
+      return Effect.fail(
+        new CourseInvalidTermError({
+          term,
+          message: 'Term must use the form YYYY-spring or YYYY-autumn.',
+        }),
+      );
+    }
+    const normalizedCodes = [
+      ...new Set(courseCodes.map((courseCode) => courseCode.trim().toUpperCase())),
+    ];
+    const missingReason = 'The fixture contains no NTNU decision signals for this course.';
+    return Effect.succeed({
+      items: normalizedCodes.map((courseCode) =>
+        courseCode === 'TDT4136'
+          ? decodeCourseDecisionSignals({
+              courseCode,
+              assessmentSignals: known(['written-exam'], [coursePageEvidenceId]),
+              workFormSignals: encodedInsight.workForms,
+              obligatoryActivities: encodedInsight.obligatoryActivities,
+              collaboration: encodedInsight.collaboration,
+              attendance: encodedInsight.attendance,
+              onlineParticipation: encodedInsight.onlineParticipation,
+              sourceStatus: {
+                provider: 'ntnu-course-page',
+                status: 'available',
+                observedAt,
+                warning: 'Fixture evidence; live adapter not connected.',
+              },
+              evidence: [coursePageEvidence],
+            })
+          : decodeCourseDecisionSignals({
+              courseCode,
+              assessmentSignals: unavailable(missingReason),
+              workFormSignals: unavailable(missingReason),
+              obligatoryActivities: unavailable(missingReason),
+              collaboration: unavailable(missingReason),
+              attendance: unavailable(missingReason),
+              onlineParticipation: unavailable(missingReason),
+              sourceStatus: {
+                provider: 'ntnu-course-page',
+                status: 'unavailable',
+                observedAt: null,
+                warning: missingReason,
+              },
+              evidence: [],
+            }),
+      ),
     });
   },
 };

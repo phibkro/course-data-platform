@@ -1,4 +1,5 @@
 import type {
+  CourseDecisionSignals,
   CourseGradeSummary,
   CourseInsight,
   CourseSearchItem,
@@ -232,6 +233,39 @@ export const CourseGradeSummariesResponseDto = t.Object({
   }),
 });
 
+export const CourseDecisionSignalsRequestDto = t.Object({
+  courseCodes: t.Array(
+    t.String({
+      minLength: 2,
+      maxLength: 20,
+      pattern: '^[A-Za-zÆØÅæøå0-9]+$',
+    }),
+    { minItems: 1, maxItems: 40, uniqueItems: true },
+  ),
+  term: t.Optional(t.String({ minLength: 1, maxLength: 40 })),
+});
+
+export const CourseDecisionSignalsDto = t.Object({
+  courseCode: t.String({ minLength: 2, maxLength: 20 }),
+  assessmentSignals: FactDto(t.Array(AssessmentFormDto)),
+  workFormSignals: FactDto(t.Array(WorkFormDto)),
+  obligatoryActivities: FactDto(t.Array(t.String({ minLength: 1 }))),
+  collaboration: FactDto(
+    t.Union([t.Literal('individual'), t.Literal('group'), t.Literal('mixed')]),
+  ),
+  attendance: FactDto(t.Union([t.Literal('required'), t.Literal('not-required')])),
+  onlineParticipation: FactDto(t.Union([t.Literal('available'), t.Literal('not-available')])),
+  sourceStatus: SourceStatusDto,
+  evidence: t.Array(EvidenceDto),
+});
+
+export const CourseDecisionSignalsResponseDto = t.Object({
+  items: t.Array(CourseDecisionSignalsDto),
+  meta: t.Object({
+    count: t.Integer({ minimum: 0 }),
+  }),
+});
+
 export const CourseInsightParamsDto = t.Object({
   courseCode: t.String({ minLength: 2, maxLength: 20 }),
 });
@@ -280,6 +314,9 @@ export type CourseSearchResponseDtoType = Static<typeof CourseSearchResponseDto>
 export type CourseGradeSummariesRequestDtoType = Static<typeof CourseGradeSummariesRequestDto>;
 export type CourseGradeSummaryDtoType = Static<typeof CourseGradeSummaryDto>;
 export type CourseGradeSummariesResponseDtoType = Static<typeof CourseGradeSummariesResponseDto>;
+export type CourseDecisionSignalsRequestDtoType = Static<typeof CourseDecisionSignalsRequestDto>;
+export type CourseDecisionSignalsDtoType = Static<typeof CourseDecisionSignalsDto>;
+export type CourseDecisionSignalsResponseDtoType = Static<typeof CourseDecisionSignalsResponseDto>;
 export type CourseInsightParamsDtoType = Static<typeof CourseInsightParamsDto>;
 export type CourseInsightQueryDtoType = Static<typeof CourseInsightQueryDto>;
 export type CourseInsightDtoType = Static<typeof CourseInsightDto>;
@@ -371,6 +408,23 @@ export const toCourseGradeSummaryDto = (
   failureRatePercent: mapFact(summary.failureRatePercent, Number),
   gradingScale: mapFact(summary.gradingScale, (scale) => scale),
   evidence: summary.evidence.map(mapEvidence),
+});
+
+export const toCourseDecisionSignalsDto = (
+  signals: CourseDecisionSignals,
+): CourseDecisionSignalsDtoType => ({
+  courseCode: signals.courseCode,
+  assessmentSignals: mapFact(signals.assessmentSignals, (forms) => [...forms]),
+  workFormSignals: mapFact(signals.workFormSignals, (forms) => [...forms]),
+  obligatoryActivities: mapFact(signals.obligatoryActivities, (activities) => [...activities]),
+  collaboration: mapFact(signals.collaboration, (collaboration) => collaboration),
+  attendance: mapFact(signals.attendance, (attendance) => attendance),
+  onlineParticipation: mapFact(signals.onlineParticipation, (availability) => availability),
+  sourceStatus: {
+    ...signals.sourceStatus,
+    observedAt: signals.sourceStatus.observedAt?.toISOString() ?? null,
+  },
+  evidence: signals.evidence.map(mapEvidence),
 });
 
 export const toCourseInsightDto = (insight: CourseInsight): CourseInsightDtoType => ({

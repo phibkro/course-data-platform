@@ -259,6 +259,74 @@ describe('live course decision service', () => {
     expect(result.items[1]?.distribution.state).toBe('unavailable');
   });
 
+  it('enriches visible-course decision signals with a four-request concurrency bound', async () => {
+    let inFlight = 0;
+    let maximumInFlight = 0;
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url) => {
+          if (!url.includes('/studier/emner/')) return new Response('not found', { status: 404 });
+          inFlight += 1;
+          maximumInFlight = Math.max(maximumInFlight, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          inFlight -= 1;
+          const courseCode = /\/emner\/([^/]+)\//.exec(url)?.[1] ?? 'UNKNOWN';
+          return new Response(`
+            <html><body>
+              <h1>${courseCode}</h1>
+              <h2>Læringsformer og aktiviteter</h2><p>Prosjektarbeid i grupper.</p>
+              <h2>Vurderingsordning</h2><p>Prosjektrapport og muntlig eksamen.</p>
+              <h2>Obligatoriske aktiviteter</h2><p>Godkjent prosjektpresentasjon.</p>
+            </body></html>
+          `);
+        },
+        now: () => new Date('2026-07-24T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+    const courseCodes = Array.from({ length: 9 }, (_, index) => `TST${index + 100}`);
+
+    const result = await Effect.runPromise(service.getDecisionSignals({ courseCodes }));
+
+    expect(result.items).toHaveLength(9);
+    expect(maximumInFlight).toBe(4);
+    expect(result.items[0]).toMatchObject({
+      assessmentSignals: { state: 'known', value: ['project', 'oral-exam'] },
+      collaboration: { state: 'known', value: 'group' },
+    });
+  });
+
+  it('returns an unavailable item instead of failing the whole decision-signal batch', async () => {
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url) =>
+          url.includes('/TST404/')
+            ? new Response('unavailable', { status: 503 })
+            : new Response(
+                `<html><body><h1>TST200</h1><h2>Vurderingsordning</h2><p>Skoleeksamen.</p></body></html>`,
+              ),
+        now: () => new Date('2026-07-24T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(
+      service.getDecisionSignals({ courseCodes: ['TST200', 'TST404'] }),
+    );
+
+    expect(result.items[0]?.assessmentSignals).toMatchObject({
+      state: 'known',
+      value: ['written-exam'],
+    });
+    expect(result.items[1]).toMatchObject({
+      courseCode: 'TST404',
+      assessmentSignals: { state: 'unavailable' },
+      sourceStatus: { status: 'failed' },
+    });
+  });
+
   it('treats a returned protected zero DBH count as suppressed rather than a known zero', async () => {
     const service = makeLiveCourseDecisionService(
       {
