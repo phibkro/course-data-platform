@@ -30,7 +30,7 @@ jobs:
         run: bun run validate
 
       - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+        run: bun --bun apps/student-web/node_modules/.bin/playwright install --with-deps chromium
 
       - name: Check browser accessibility
         run: bun run test:a11y
