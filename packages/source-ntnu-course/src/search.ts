@@ -1,4 +1,4 @@
-import * as Either from 'effect/Either';
+import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 
 export interface NtnuSearchCaptureMetadata {
@@ -57,35 +57,37 @@ export interface NtnuSearchParseResult {
 }
 
 const IsoTimestampSchema = Schema.String.pipe(
-  Schema.pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/),
+  Schema.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/)),
 );
-const Sha256Schema = Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/));
+const Sha256Schema = Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-f0-9]{64}$/)));
 
 const CaptureSchema = Schema.Struct({
   retrievedAt: IsoTimestampSchema,
   contentHash: Sha256Schema,
-  requestUrl: Schema.String.pipe(Schema.startsWith('https://www.ntnu.no/')),
+  requestUrl: Schema.String.pipe(Schema.check(Schema.isStartsWith('https://www.ntnu.no/'))),
   queryString: Schema.String,
-  academicYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
-  season: Schema.Literal('spring', 'autumn'),
-  evidenceKind: Schema.Literal('source-fact', 'fixture'),
+  academicYear: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
+  season: Schema.Literals(['spring', 'autumn']),
+  evidenceKind: Schema.Literals(['source-fact', 'fixture']),
 });
 
 const SearchCourseSchema = Schema.Struct({
-  courseCode: Schema.String.pipe(Schema.minLength(1)),
+  courseCode: Schema.NonEmptyString,
   courseVersion: Schema.NullOr(Schema.String),
-  courseName: Schema.String.pipe(Schema.minLength(1)),
+  courseName: Schema.NonEmptyString,
   examOnly: Schema.Boolean,
   hasMultimedia: Schema.Boolean,
-  courseUrl: Schema.String.pipe(Schema.startsWith('https://www.ntnu.no/studier/emner/')),
+  courseUrl: Schema.String.pipe(
+    Schema.check(Schema.isStartsWith('https://www.ntnu.no/studier/emner/')),
+  ),
   location: Schema.NullOr(Schema.String),
 });
 
 const SearchResponseSchema = Schema.Struct({
   courses: Schema.Array(Schema.Unknown),
-  numFound: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-  pageNr: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1)),
-  pageSize: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1)),
+  numFound: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
+  pageNr: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(1))),
+  pageSize: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(1))),
   hasMoreResults: Schema.Boolean,
 });
 
@@ -126,8 +128,8 @@ export const parseNtnuCourseSearch = (
   input: unknown | Uint8Array,
   capture: NtnuSearchCaptureMetadata,
 ): NtnuSearchParseResult => {
-  const captureResult = Schema.decodeUnknownEither(CaptureSchema)(capture);
-  if (Either.isLeft(captureResult)) {
+  const captureResult = Schema.decodeUnknownResult(CaptureSchema)(capture);
+  if (Result.isFailure(captureResult)) {
     return rejectOne(
       'invalid-capture-metadata',
       'NTNU search capture metadata failed validation.',
@@ -140,8 +142,8 @@ export const parseNtnuCourseSearch = (
     return rejectOne(decoded.code, 'NTNU search response could not be decoded.', input);
   }
 
-  const responseResult = Schema.decodeUnknownEither(SearchResponseSchema)(decoded.value);
-  if (Either.isLeft(responseResult)) {
+  const responseResult = Schema.decodeUnknownResult(SearchResponseSchema)(decoded.value);
+  if (Result.isFailure(responseResult)) {
     return rejectOne(
       'invalid-response-shape',
       'NTNU search response failed boundary validation.',
@@ -149,14 +151,14 @@ export const parseNtnuCourseSearch = (
     );
   }
 
-  const response = responseResult.right;
-  const query = captureResult.right.queryString.trim().toUpperCase();
+  const response = responseResult.success;
+  const query = captureResult.success.queryString.trim().toUpperCase();
 
   const accepted: ValidatedNtnuSearchHit[] = [];
   const rejected: NtnuSearchRejection[] = [];
   for (const rawCourse of response.courses) {
-    const courseResult = Schema.decodeUnknownEither(SearchCourseSchema)(rawCourse);
-    if (Either.isLeft(courseResult)) {
+    const courseResult = Schema.decodeUnknownResult(SearchCourseSchema)(rawCourse);
+    if (Result.isFailure(courseResult)) {
       rejected.push({
         code: 'invalid-response-shape',
         message: 'An NTNU search result row failed boundary validation.',
@@ -165,20 +167,20 @@ export const parseNtnuCourseSearch = (
       continue;
     }
 
-    const course = courseResult.right;
+    const course = courseResult.success;
     const sourceRecordId = [
       'ntnu-course-search',
       course.courseCode,
       course.courseVersion ?? 'unknown-version',
-      `${captureResult.right.academicYear}-${captureResult.right.season}`,
+      `${captureResult.success.academicYear}-${captureResult.success.season}`,
     ].join(':');
     const attribution: NtnuSearchAttribution = {
       provider: 'ntnu-course-search',
       sourceRecordId,
-      retrievedAt: captureResult.right.retrievedAt,
-      requestUrl: captureResult.right.requestUrl,
-      contentHash: captureResult.right.contentHash,
-      evidenceKind: captureResult.right.evidenceKind,
+      retrievedAt: captureResult.success.retrievedAt,
+      requestUrl: captureResult.success.requestUrl,
+      contentHash: captureResult.success.contentHash,
+      evidenceKind: captureResult.success.evidenceKind,
     };
     accepted.push({
       courseCode: course.courseCode,
@@ -189,8 +191,8 @@ export const parseNtnuCourseSearch = (
       courseUrl: course.courseUrl,
       location: course.location,
       exactMatch: course.courseCode.toUpperCase() === query,
-      academicYear: captureResult.right.academicYear,
-      season: captureResult.right.season,
+      academicYear: captureResult.success.academicYear,
+      season: captureResult.success.season,
       sourceRecordId,
       attribution,
     });

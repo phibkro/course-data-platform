@@ -1,0 +1,10 @@
+{
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "always"
+  },
+  "[javascript][javascriptreact][typescript][typescriptreact][json][jsonc][css][scss]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode",
+    "editor.formatOnSave": true
+  },
+  "oxc.fmt.configPath": ".oxfmtrc.json"
+}

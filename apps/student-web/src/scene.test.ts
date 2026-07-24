@@ -2,7 +2,7 @@
 import { Scene } from 'foldkit';
 import { describe, test } from 'vitest';
 
-import { fixtureSearchResponse } from './course-client';
+import { fixtureGradeSummariesResponse, fixtureSearchResponse } from './course-client';
 import { partialCourseInsightFixture } from './course-insight.fixture';
 import {
   CatalogueEmpty,
@@ -10,6 +10,7 @@ import {
   CataloguePartial,
   DetailClosed,
   DetailPartial,
+  GradeSignalsSuccess,
   NextPageIdle,
   type Model,
   initForHref,
@@ -49,6 +50,22 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.text('Showing 1 of 1 courses')).toExist(),
       Scene.expect(Scene.text('Campus', { exact: true })).toExist(),
       Scene.expect(Scene.text('Load when opened')).toBeAbsent(),
+    );
+  });
+
+  test('official grade signals are scannable without opening course detail', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        gradeSignals: GradeSignalsSuccess({
+          response: fixtureGradeSummariesResponse(['TDT4136']),
+        }),
+        visibleCount: 1,
+      }),
+      Scene.expect(Scene.text('Historical outcomes')).toExist(),
+      Scene.expect(Scene.text('Letter grades · 10.7% failed · 1951 results · 2022–2025')).toExist(),
     );
   });
 

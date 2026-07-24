@@ -99,4 +99,41 @@ describe('makeCourseClient', () => {
       ),
     ).rejects.toThrow('The course API returned an invalid CourseSearch response.');
   });
+
+  it('requests grade summaries for visible course codes in one call', async () => {
+    const client = makeCourseClient('http://course-api.test', true);
+
+    const result = await Effect.runPromise(client.getGradeSummaries(['TDT4136', 'NORESULT']));
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]?.failureRatePercent).toMatchObject({
+      state: 'known',
+      value: 10.7,
+    });
+    expect(result.items[1]?.sampleSize.state).toBe('unavailable');
+  });
+
+  it('posts visible course codes to the grade-summary endpoint', async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async (_input, init) => {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          courseCodes: ['TDT4136', 'TDT4100'],
+        });
+        return Response.json({
+          items: [],
+          sourceStatuses: [],
+          meta: { count: 0, fromYear: 2022, toYear: 2025 },
+        });
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await Effect.runPromise(
+      makeCourseClient('http://course-api.test').getGradeSummaries(['TDT4136', 'TDT4100']),
+    );
+
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname).toBe(
+      '/v1/course-grade-summaries',
+    );
+  });
 });

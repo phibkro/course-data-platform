@@ -676,7 +676,8 @@ const sourceSection = (course: CourseInsight): Html => {
       h.ol(
         [h.Class('evidence-list')],
         course.evidence.map((evidence) =>
-          h.li(
+          h.keyed('li')(
+            evidence.id,
             [h.Id(`evidence-${evidence.id}`)],
             [
               h.div(

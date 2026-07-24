@@ -37,6 +37,7 @@
                       "required": [
                         "health",
                         "search",
+                        "gradeSummaries",
                         "insight",
                         "openapi",
                         "openapiJson"
@@ -46,6 +47,9 @@
                           "type": "string"
                         },
                         "search": {
+                          "type": "string"
+                        },
+                        "gradeSummaries": {
                           "type": "string"
                         },
                         "insight": {
@@ -1838,6 +1842,1148 @@
           }
         },
         "operationId": "getV1Course-search"
+      }
+    },
+    "/v1/course-grade-summaries": {
+      "post": {
+        "summary": "Summarize grades for visible NTNU courses",
+        "description": "Returns official DBH/HK-dir grade availability for up to 40 course codes in one request.",
+        "tags": [
+          "Courses"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "courseCodes"
+                ],
+                "properties": {
+                  "courseCodes": {
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 20,
+                      "pattern": "^[A-Za-zÆØÅæøå0-9]+$",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "courseCodes"
+                ],
+                "properties": {
+                  "courseCodes": {
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 20,
+                      "pattern": "^[A-Za-zÆØÅæøå0-9]+$",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "courseCodes"
+                ],
+                "properties": {
+                  "courseCodes": {
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 20,
+                      "pattern": "^[A-Za-zÆØÅæøå0-9]+$",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "sourceStatuses",
+                    "meta"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "courseCode",
+                          "period",
+                          "sampleSize",
+                          "failureRatePercent",
+                          "gradingScale",
+                          "evidence"
+                        ],
+                        "properties": {
+                          "courseCode": {
+                            "minLength": 2,
+                            "maxLength": 20,
+                            "type": "string"
+                          },
+                          "period": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "object",
+                                    "required": [
+                                      "fromYear",
+                                      "toYear"
+                                    ],
+                                    "properties": {
+                                      "fromYear": {
+                                        "minimum": 2000,
+                                        "maximum": 2200,
+                                        "anyOf": [
+                                          {
+                                            "format": "integer",
+                                            "default": 0,
+                                            "type": "string"
+                                          },
+                                          {
+                                            "minimum": 2000,
+                                            "maximum": 2200,
+                                            "type": "integer"
+                                          }
+                                        ]
+                                      },
+                                      "toYear": {
+                                        "minimum": 2000,
+                                        "maximum": 2200,
+                                        "anyOf": [
+                                          {
+                                            "format": "integer",
+                                            "default": 0,
+                                            "type": "string"
+                                          },
+                                          {
+                                            "minimum": 2000,
+                                            "maximum": 2200,
+                                            "type": "integer"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "type": "object",
+                                          "required": [
+                                            "fromYear",
+                                            "toYear"
+                                          ],
+                                          "properties": {
+                                            "fromYear": {
+                                              "minimum": 2000,
+                                              "maximum": 2200,
+                                              "anyOf": [
+                                                {
+                                                  "format": "integer",
+                                                  "default": 0,
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "minimum": 2000,
+                                                  "maximum": 2200,
+                                                  "type": "integer"
+                                                }
+                                              ]
+                                            },
+                                            "toYear": {
+                                              "minimum": 2000,
+                                              "maximum": 2200,
+                                              "anyOf": [
+                                                {
+                                                  "format": "integer",
+                                                  "default": 0,
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "minimum": 2000,
+                                                  "maximum": 2200,
+                                                  "type": "integer"
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "sampleSize": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "minimum": 0,
+                                    "anyOf": [
+                                      {
+                                        "format": "integer",
+                                        "default": 0,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      }
+                                    ]
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "minimum": 0,
+                                          "anyOf": [
+                                            {
+                                              "format": "integer",
+                                              "default": 0,
+                                              "type": "string"
+                                            },
+                                            {
+                                              "minimum": 0,
+                                              "type": "integer"
+                                            }
+                                          ]
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "failureRatePercent": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "minimum": 0,
+                                    "maximum": 100,
+                                    "type": "number"
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "minimum": 0,
+                                          "maximum": 100,
+                                          "type": "number"
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "gradingScale": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "anyOf": [
+                                      {
+                                        "const": "letter",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "pass-fail",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "mixed",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "const": "letter",
+                                              "type": "string"
+                                            },
+                                            {
+                                              "const": "pass-fail",
+                                              "type": "string"
+                                            },
+                                            {
+                                              "const": "mixed",
+                                              "type": "string"
+                                            }
+                                          ]
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "provider",
+                                "kind",
+                                "recordId",
+                                "sourceUrl",
+                                "sourcePeriod",
+                                "observedAt",
+                                "excerpt",
+                                "inferenceRule"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "source-fact",
+                                    "inference",
+                                    "fixture"
+                                  ]
+                                },
+                                "recordId": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "sourceUrl": {
+                                  "anyOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "sourcePeriod": {
+                                  "anyOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "observedAt": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "excerpt": {
+                                  "anyOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "inferenceRule": {
+                                  "anyOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "sourceStatuses": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "provider",
+                          "status",
+                          "observedAt",
+                          "warning"
+                        ],
+                        "properties": {
+                          "provider": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "available",
+                              "unavailable",
+                              "failed"
+                            ]
+                          },
+                          "observedAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "warning": {
+                            "anyOf": [
+                              {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "count",
+                        "fromYear",
+                        "toYear"
+                      ],
+                      "properties": {
+                        "count": {
+                          "minimum": 0,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "fromYear": {
+                          "minimum": 2000,
+                          "maximum": 2200,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 2000,
+                              "maximum": 2200,
+                              "type": "integer"
+                            }
+                          ]
+                        },
+                        "toYear": {
+                          "minimum": 2000,
+                          "maximum": 2200,
+                          "anyOf": [
+                            {
+                              "format": "integer",
+                              "default": 0,
+                              "type": "string"
+                            },
+                            {
+                              "minimum": 2000,
+                              "maximum": 2200,
+                              "type": "integer"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Response for status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "format": "integer",
+                          "default": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postV1Course-grade-summaries"
       }
     },
     "/v1/courses/{courseCode}/insight": {

@@ -2,7 +2,7 @@
 
 ## Decision summary
 
-- Strict TypeScript 7 is the common implementation language; TypeScript 6 is retained as a compatibility oracle during the transition.
+- Strict TypeScript 7 is the common implementation language and sole compiler authority.
 - Effect owns application services, typed failure, retries, and dependency composition.
 - Elysia owns HTTP transport, runtime request/response validation, OpenAPI, and Eden inference.
 - The first-party React PWA consumes the same API through Eden that external consumers can access through OpenAPI.

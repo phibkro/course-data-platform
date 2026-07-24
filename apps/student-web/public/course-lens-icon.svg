@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Course Lens</title>
+  <rect width="512" height="512" rx="112" fill="#006c4f"/>
+  <path
+    fill="#ffffff"
+    d="M312 132c48 0 88 18 116 48l-52 49c-17-18-38-28-64-28-48 0-82 34-82 55s34 55 82 55c26 0 47-10 64-28l52 49c-28 30-68 48-116 48-91 0-158-57-158-124s67-124 158-124Z"
+  />
+  <circle cx="312" cy="256" r="29" fill="#8df8cd"/>
+</svg>

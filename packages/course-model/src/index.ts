@@ -1,10 +1,10 @@
 import * as Schema from 'effect/Schema';
 
-const NonEmptyString = Schema.String.pipe(Schema.minLength(1));
+const NonEmptyString = Schema.NonEmptyString;
 const EvidenceIds = Schema.Array(NonEmptyString);
-const AttributedEvidenceIds = EvidenceIds.pipe(Schema.minItems(1));
+const AttributedEvidenceIds = EvidenceIds.pipe(Schema.check(Schema.isMinLength(1)));
 
-export const EvidenceKindSchema = Schema.Literal('source-fact', 'inference', 'fixture');
+export const EvidenceKindSchema = Schema.Literals(['source-fact', 'inference', 'fixture']);
 export type EvidenceKind = Schema.Schema.Type<typeof EvidenceKindSchema>;
 
 export const EvidenceSchema = Schema.Struct({
@@ -20,8 +20,8 @@ export const EvidenceSchema = Schema.Struct({
 });
 export type Evidence = Schema.Schema.Type<typeof EvidenceSchema>;
 
-export const makeFactSchema = <A, I, R>(valueSchema: Schema.Schema<A, I, R>) =>
-  Schema.Union(
+export const makeFactSchema = <S extends Schema.Constraint>(valueSchema: S) =>
+  Schema.Union([
     Schema.Struct({
       state: Schema.Literal('known'),
       value: valueSchema,
@@ -50,10 +50,10 @@ export const makeFactSchema = <A, I, R>(valueSchema: Schema.Schema<A, I, R>) =>
           value: valueSchema,
           evidenceIds: AttributedEvidenceIds,
         }),
-      ).pipe(Schema.minItems(2)),
+      ).pipe(Schema.check(Schema.isMinLength(2))),
       evidenceIds: EvidenceIds,
     }),
-  );
+  ]);
 
 export type Fact<A> =
   | {
@@ -76,30 +76,30 @@ export type Fact<A> =
       readonly evidenceIds: ReadonlyArray<string>;
     };
 
-export const CourseLevelSchema = Schema.Literal(
+export const CourseLevelSchema = Schema.Literals([
   'bachelor',
   'master',
   'phd',
   'continuing-education',
   'unknown',
-);
+]);
 export type CourseLevel = Schema.Schema.Type<typeof CourseLevelSchema>;
 
-export const SeasonSchema = Schema.Literal('spring', 'summer', 'autumn', 'full-year');
+export const SeasonSchema = Schema.Literals(['spring', 'summer', 'autumn', 'full-year']);
 export type Season = Schema.Schema.Type<typeof SeasonSchema>;
 
-export const DeliveryModeSchema = Schema.Literal('in-person', 'online', 'hybrid');
+export const DeliveryModeSchema = Schema.Literals(['in-person', 'online', 'hybrid']);
 export type DeliveryMode = Schema.Schema.Type<typeof DeliveryModeSchema>;
 
 export const OfferingSchema = Schema.Struct({
-  academicYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
+  academicYear: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
   season: SeasonSchema,
   campuses: Schema.Array(NonEmptyString),
   deliveryModes: Schema.Array(DeliveryModeSchema),
 });
 export type Offering = Schema.Schema.Type<typeof OfferingSchema>;
 
-export const AssessmentFormSchema = Schema.Literal(
+export const AssessmentFormSchema = Schema.Literals([
   'written-exam',
   'oral-exam',
   'home-exam',
@@ -108,18 +108,20 @@ export const AssessmentFormSchema = Schema.Literal(
   'practical',
   'assignment',
   'other',
-);
+]);
 export type AssessmentForm = Schema.Schema.Type<typeof AssessmentFormSchema>;
 
 export const AssessmentPartSchema = Schema.Struct({
   form: AssessmentFormSchema,
   description: NonEmptyString,
-  weightPercent: Schema.NullOr(Schema.Number.pipe(Schema.between(0, 100))),
+  weightPercent: Schema.NullOr(
+    Schema.Number.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: 100 }))),
+  ),
   duration: Schema.NullOr(NonEmptyString),
 });
 export type AssessmentPart = Schema.Schema.Type<typeof AssessmentPartSchema>;
 
-export const WorkFormSchema = Schema.Literal(
+export const WorkFormSchema = Schema.Literals([
   'lectures',
   'exercises',
   'laboratory',
@@ -127,37 +129,42 @@ export const WorkFormSchema = Schema.Literal(
   'project',
   'self-study',
   'other',
-);
+]);
 export type WorkForm = Schema.Schema.Type<typeof WorkFormSchema>;
 
-export const CollaborationSchema = Schema.Literal('individual', 'group', 'mixed');
+export const CollaborationSchema = Schema.Literals(['individual', 'group', 'mixed']);
 export type Collaboration = Schema.Schema.Type<typeof CollaborationSchema>;
 
-export const AttendanceSchema = Schema.Literal('required', 'not-required');
+export const AttendanceSchema = Schema.Literals(['required', 'not-required']);
 export type Attendance = Schema.Schema.Type<typeof AttendanceSchema>;
 
-export const OnlineParticipationSchema = Schema.Literal('available', 'not-available');
+export const OnlineParticipationSchema = Schema.Literals(['available', 'not-available']);
 export type OnlineParticipation = Schema.Schema.Type<typeof OnlineParticipationSchema>;
 
 export const GradeBucketSchema = Schema.Struct({
   grade: NonEmptyString,
-  count: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-  percentage: Schema.Number.pipe(Schema.between(0, 100)),
+  count: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
+  percentage: Schema.Number.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: 100 }))),
 });
 export type GradeBucket = Schema.Schema.Type<typeof GradeBucketSchema>;
 
 export const GradePeriodSchema = Schema.Struct({
-  fromYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
-  toYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
+  fromYear: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
+  toYear: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
 });
 export type GradePeriod = Schema.Schema.Type<typeof GradePeriodSchema>;
 
+export const GradingScaleSchema = Schema.Literals(['letter', 'pass-fail', 'mixed']);
+export type GradingScale = Schema.Schema.Type<typeof GradingScaleSchema>;
+
 const StringFactSchema = makeFactSchema(NonEmptyString);
-const PercentageFactSchema = makeFactSchema(Schema.Number.pipe(Schema.between(0, 100)));
+const PercentageFactSchema = makeFactSchema(
+  Schema.Number.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: 100 }))),
+);
 
 export const GradeOutcomesSchema = Schema.Struct({
   period: makeFactSchema(GradePeriodSchema),
-  sampleSize: makeFactSchema(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  sampleSize: makeFactSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
   distribution: makeFactSchema(Schema.Array(GradeBucketSchema)),
   failureRatePercent: PercentageFactSchema,
   averageGrade: StringFactSchema,
@@ -165,9 +172,19 @@ export const GradeOutcomesSchema = Schema.Struct({
 });
 export type GradeOutcomes = Schema.Schema.Type<typeof GradeOutcomesSchema>;
 
+export const CourseGradeSummarySchema = Schema.Struct({
+  courseCode: NonEmptyString,
+  period: makeFactSchema(GradePeriodSchema),
+  sampleSize: makeFactSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
+  failureRatePercent: PercentageFactSchema,
+  gradingScale: makeFactSchema(GradingScaleSchema),
+  evidence: Schema.Array(EvidenceSchema),
+});
+export type CourseGradeSummary = Schema.Schema.Type<typeof CourseGradeSummarySchema>;
+
 export const SourceStatusSchema = Schema.Struct({
   provider: NonEmptyString,
-  status: Schema.Literal('available', 'unavailable', 'failed'),
+  status: Schema.Literals(['available', 'unavailable', 'failed']),
   observedAt: Schema.NullOr(Schema.DateFromString),
   warning: Schema.NullOr(NonEmptyString),
 });
@@ -178,7 +195,9 @@ export const CourseInsightSchema = Schema.Struct({
   institutionCode: Schema.Literal('NTNU'),
   code: NonEmptyString,
   title: StringFactSchema,
-  credits: makeFactSchema(Schema.Number.pipe(Schema.between(0, 60))),
+  credits: makeFactSchema(
+    Schema.Number.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: 60 }))),
+  ),
   level: makeFactSchema(CourseLevelSchema),
   teachingLanguage: StringFactSchema,
   offerings: makeFactSchema(Schema.Array(OfferingSchema)),
@@ -204,18 +223,21 @@ export const CourseSearchItemSchema = Schema.Struct({
   institutionCode: Schema.Literal('NTNU'),
   code: NonEmptyString,
   title: StringFactSchema,
-  credits: makeFactSchema(Schema.Number.pipe(Schema.between(0, 60))),
+  credits: makeFactSchema(
+    Schema.Number.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: 60 }))),
+  ),
   level: makeFactSchema(CourseLevelSchema),
   offerings: makeFactSchema(Schema.Array(OfferingSchema)),
   assessmentSignals: makeFactSchema(Schema.Array(AssessmentFormSchema)),
   workFormSignals: makeFactSchema(Schema.Array(WorkFormSchema)),
-  enrichment: Schema.Literal('basic', 'enriching', 'enriched', 'partial'),
+  enrichment: Schema.Literals(['basic', 'enriching', 'enriched', 'partial']),
   evidence: Schema.Array(EvidenceSchema),
 });
 export type CourseSearchItem = Schema.Schema.Type<typeof CourseSearchItemSchema>;
 
 export const decodeCourseInsight = Schema.decodeUnknownSync(CourseInsightSchema);
 export const decodeCourseSearchItem = Schema.decodeUnknownSync(CourseSearchItemSchema);
+export const decodeCourseGradeSummary = Schema.decodeUnknownSync(CourseGradeSummarySchema);
 
 export const validateEvidenceReferences = (
   insight: CourseInsight,

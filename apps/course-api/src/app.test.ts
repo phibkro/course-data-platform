@@ -14,6 +14,7 @@ describe('course decision API', () => {
       service: 'NTNU Course Decision API',
       endpoints: {
         search: '/v1/course-search',
+        gradeSummaries: '/v1/course-grade-summaries',
         insight: '/v1/courses/:courseCode/insight',
       },
     });
@@ -103,6 +104,53 @@ describe('course decision API', () => {
     });
   });
 
+  it('returns a grade summary for every requested visible course', async () => {
+    const response = await app.handle(
+      new Request('http://localhost/v1/course-grade-summaries', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ courseCodes: ['TDT4136', 'NORESULT'] }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      items: [
+        {
+          courseCode: 'TDT4136',
+          sampleSize: { state: 'known', value: 1951 },
+          gradingScale: { state: 'known', value: 'letter' },
+        },
+        {
+          courseCode: 'NORESULT',
+          sampleSize: { state: 'unavailable' },
+        },
+      ],
+      meta: { count: 2, fromYear: 2022, toYear: 2025 },
+    });
+  });
+
+  it.each([
+    { courseCodes: [] },
+    { courseCodes: ['TDT4136', 'TDT4136'] },
+    { courseCodes: ['not valid'] },
+    { courseCodes: Array.from({ length: 41 }, (_, index) => `TDT${index}`) },
+  ])('rejects invalid grade-summary batches as declared problems', async (body) => {
+    const response = await app.handle(
+      new Request('http://localhost/v1/course-grade-summaries', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      type: 'https://course-data.example/problems/invalid-request',
+      status: 400,
+    });
+  });
+
   it('returns a schema-declared not-found problem', async () => {
     const response = await app.handle(new Request('http://localhost/v1/courses/NOT101/insight'));
 
@@ -121,6 +169,7 @@ describe('course decision API', () => {
     const document = (await response.json()) as { paths?: Record<string, unknown> };
 
     expect(document.paths).toHaveProperty('/v1/course-search');
+    expect(document.paths).toHaveProperty('/v1/course-grade-summaries');
     expect(document.paths).toHaveProperty('/v1/courses/{courseCode}/insight');
   });
 });

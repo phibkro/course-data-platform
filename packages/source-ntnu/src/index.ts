@@ -1,4 +1,4 @@
-import * as Either from 'effect/Either';
+import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 
 export interface NtnuCaptureMetadata {
@@ -79,29 +79,29 @@ export interface NtnuParseResult {
 }
 
 const IsoTimestampSchema = Schema.String.pipe(
-  Schema.pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/),
+  Schema.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/)),
 );
 const CaptureSchema = Schema.Struct({
   retrievedAt: IsoTimestampSchema,
-  contentHash: Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/)),
-  requestUrl: Schema.String.pipe(Schema.startsWith('https://www.ntnu.no/')),
+  contentHash: Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-f0-9]{64}$/))),
+  requestUrl: Schema.String.pipe(Schema.check(Schema.isStartsWith('https://www.ntnu.no/'))),
 });
 const ChoiceSchema = Schema.Struct({
-  code: Schema.String.pipe(Schema.minLength(1)),
-  name: Schema.String.pipe(Schema.minLength(1)),
+  code: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
   description: Schema.NullOr(Schema.String),
 });
 const CourseSchema = Schema.Struct({
-  code: Schema.String.pipe(Schema.minLength(1)),
+  code: Schema.NonEmptyString,
   version: Schema.NullOr(Schema.String),
-  name: Schema.String.pipe(Schema.minLength(1)),
-  credit: Schema.NullOr(Schema.String.pipe(Schema.pattern(/^\d+(?:\.\d+)?$/))),
+  name: Schema.NonEmptyString,
+  credit: Schema.NullOr(Schema.String.pipe(Schema.check(Schema.isPattern(/^\d+(?:\.\d+)?$/)))),
   planelement: Schema.Boolean,
   studyChoice: ChoiceSchema,
 });
 const GroupSchema = Schema.Struct({
-  code: Schema.String.pipe(Schema.minLength(1)),
-  name: Schema.String.pipe(Schema.minLength(1)),
+  code: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
   description: Schema.NullOr(Schema.String),
   deadlinedate: Schema.NullOr(Schema.String),
   relperiod: Schema.Number,
@@ -109,7 +109,7 @@ const GroupSchema = Schema.Struct({
   waypoint: Schema.Boolean,
 });
 const PeriodSchema = Schema.Struct({
-  periodNumber: Schema.String.pipe(Schema.pattern(/^\d+$/)),
+  periodNumber: Schema.String.pipe(Schema.check(Schema.isPattern(/^\d+$/))),
   direction: Schema.Struct({
     code: Schema.NullOr(Schema.String),
     name: Schema.NullOr(Schema.String),
@@ -123,17 +123,17 @@ const PeriodSchema = Schema.Struct({
 const ResponseSchema = Schema.Struct({
   settings: Schema.Struct({
     programmeCode: Schema.String,
-    year: Schema.String.pipe(Schema.pattern(/^\d{4}$/)),
+    year: Schema.String.pipe(Schema.check(Schema.isPattern(/^\d{4}$/))),
   }),
   studyplan: Schema.Struct({
-    code: Schema.String.pipe(Schema.minLength(1)),
-    name: Schema.String.pipe(Schema.minLength(1)),
-    year: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
-    startTerm: Schema.Literal('HØST', 'VÅR'),
-    updated: Schema.String.pipe(Schema.minLength(1)),
+    code: Schema.NonEmptyString,
+    name: Schema.NonEmptyString,
+    year: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
+    startTerm: Schema.Literals(['HØST', 'VÅR']),
+    updated: Schema.NonEmptyString,
     studyPeriods: Schema.Array(PeriodSchema),
   }),
-  publishedYears: Schema.Array(Schema.Number.pipe(Schema.int())),
+  publishedYears: Schema.Array(Schema.Int),
 });
 
 const decodeInput = (
@@ -160,8 +160,8 @@ export const parseNtnuCurriculum = (
   input: unknown | Uint8Array,
   capture: NtnuCaptureMetadata,
 ): NtnuParseResult => {
-  const captureResult = Schema.decodeUnknownEither(CaptureSchema)(capture);
-  if (Either.isLeft(captureResult)) {
+  const captureResult = Schema.decodeUnknownResult(CaptureSchema)(capture);
+  if (Result.isFailure(captureResult)) {
     return {
       accepted: [],
       rejected: [
@@ -189,8 +189,8 @@ export const parseNtnuCurriculum = (
       ],
     };
   }
-  const responseResult = Schema.decodeUnknownEither(ResponseSchema)(decoded.value);
-  if (Either.isLeft(responseResult)) {
+  const responseResult = Schema.decodeUnknownResult(ResponseSchema)(decoded.value);
+  if (Result.isFailure(responseResult)) {
     return {
       accepted: [],
       rejected: [
@@ -204,7 +204,7 @@ export const parseNtnuCurriculum = (
     };
   }
 
-  const response = responseResult.right;
+  const response = responseResult.success;
   const sourceRecordId = `ntnu-studyplan:${response.studyplan.code}:${response.studyplan.year}`;
   if (
     response.studyplan.studyPeriods.some((period) => period.direction.studyWaypoints.length > 0)
@@ -225,11 +225,11 @@ export const parseNtnuCurriculum = (
   const attribution: NtnuSourceAttribution = {
     provider: 'ntnu-studyplan',
     sourceRecordId,
-    retrievedAt: captureResult.right.retrievedAt,
+    retrievedAt: captureResult.success.retrievedAt,
     sourcePeriod: String(response.studyplan.year),
-    datasetRevision: captureResult.right.contentHash,
-    contentHash: captureResult.right.contentHash,
-    requestUrl: captureResult.right.requestUrl,
+    datasetRevision: captureResult.success.contentHash,
+    contentHash: captureResult.success.contentHash,
+    requestUrl: captureResult.success.requestUrl,
   };
   const fields: Record<string, NtnuAttributedField> = {};
   const addField = (path: string, value: string | number | boolean | null): void => {

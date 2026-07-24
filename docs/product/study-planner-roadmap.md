@@ -85,6 +85,12 @@ a shortlisted course fits a selected programme or scenario.
 - full national replication and evidence archives;
 - scheduled ingestion fleets, knowledge graphs, and constraint solvers.
 
+The exploratory [future-pathways note](./future-pathways.md) records how
+programme-aware discovery, planning, scheduling, and cross-institution
+eligibility could eventually form a constrained study state space. It preserves
+the direction without moving those capabilities ahead of the current product
+gates.
+
 ## Product gates
 
 - An exact course code produces a useful result in one interaction.

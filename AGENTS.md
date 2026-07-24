@@ -56,8 +56,6 @@ Dependencies flow inward:
 - `bun install --frozen-lockfile`
 - `bun run check`
 - `bun run check:types` — authoritative TypeScript 7 check
-- `bun run check:types:ts6` — TypeScript 6 compatibility check
-- `bun run check:types:compat` — both compilers
 - `bun run test`
 - `bun run build`
 - `bun run validate`
@@ -68,7 +66,7 @@ Dependencies flow inward:
 ## Non-negotiable rules
 
 - Bun is the package manager and runner; do not add a second root lockfile.
-- TypeScript 7 is authoritative, while TypeScript 6 compatibility must remain green.
+- TypeScript 7 is the sole compiler authority.
 - Each package declares its own ambient type context; do not repair missing declarations by adding globals to the shared base config.
 - Parse all untrusted data at the boundary.
 - Preserve unknown, unavailable, suppressed, and conflicting states; do not collapse them to zero or false.

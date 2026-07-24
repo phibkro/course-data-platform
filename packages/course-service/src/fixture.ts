@@ -1,4 +1,5 @@
 import {
+  decodeCourseGradeSummary,
   decodeCourseInsight,
   decodeCourseSearchItem,
   known,
@@ -175,4 +176,41 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
     courseCode.trim().toUpperCase() === 'TDT4136'
       ? Effect.succeed({ item: fixtureCourseInsight, partial: true })
       : Effect.fail(new CourseNotFoundError({ courseCode })),
+  getGradeSummaries: ({ courseCodes }) => {
+    const normalizedCodes = [
+      ...new Set(courseCodes.map((courseCode) => courseCode.trim().toUpperCase())),
+    ];
+    const missingReason = 'The fixture contains no grade summary for this course.';
+    return Effect.succeed({
+      items: normalizedCodes.map((courseCode) =>
+        courseCode === 'TDT4136'
+          ? decodeCourseGradeSummary({
+              courseCode,
+              period: known({ fromYear: 2022, toYear: 2025 }, [gradesEvidenceId]),
+              sampleSize: known(1951, [gradesEvidenceId]),
+              failureRatePercent: known(10.7, [gradesEvidenceId]),
+              gradingScale: known('letter', [gradesEvidenceId]),
+              evidence: [gradesEvidence],
+            })
+          : decodeCourseGradeSummary({
+              courseCode,
+              period: unavailable(missingReason),
+              sampleSize: unavailable(missingReason),
+              failureRatePercent: unavailable(missingReason),
+              gradingScale: unavailable(missingReason),
+              evidence: [],
+            }),
+      ),
+      sourceStatuses: [
+        {
+          provider: 'dbh',
+          status: 'available' as const,
+          observedAt: new Date(observedAt),
+          warning: 'Fixture evidence; live adapter not connected.',
+        },
+      ],
+      fromYear: 2022,
+      toYear: 2025,
+    });
+  },
 };

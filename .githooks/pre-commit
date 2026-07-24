@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+format_files=()
+lint_files=()
+
+while IFS= read -r -d '' file; do
+  case "$file" in
+    */fixtures/*|docs/generated/*|*.md|*.html|*.yaml|*.yml)
+      ;;
+    *.js|*.jsx|*.ts|*.tsx|*.mjs|*.cjs|*.mts|*.cts)
+      format_files+=("$file")
+      lint_files+=("$file")
+      ;;
+    *.json|*.jsonc|*.css|*.scss)
+      format_files+=("$file")
+      ;;
+  esac
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if ((${#format_files[@]} > 0)); then
+  ./node_modules/.bin/oxfmt --check "${format_files[@]}"
+fi
+
+if ((${#lint_files[@]} > 0)); then
+  ./node_modules/.bin/oxlint --deny-warnings "${lint_files[@]}"
+fi

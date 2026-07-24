@@ -1,4 +1,9 @@
-import type { CourseInsight, CourseSearchItem, SourceStatus } from '@course-data/course-model';
+import type {
+  CourseGradeSummary,
+  CourseInsight,
+  CourseSearchItem,
+  SourceStatus,
+} from '@course-data/course-model';
 import * as Data from 'effect/Data';
 import type * as Effect from 'effect/Effect';
 
@@ -23,6 +28,10 @@ export interface CourseInsightInput {
   readonly term?: string;
 }
 
+export interface CourseGradeSummariesInput {
+  readonly courseCodes: ReadonlyArray<string>;
+}
+
 export interface CourseSearchResult {
   readonly items: ReadonlyArray<CourseSearchItem>;
   readonly sourceStatuses: ReadonlyArray<SourceStatus>;
@@ -38,6 +47,13 @@ export interface CourseInsightResult {
   readonly partial: boolean;
 }
 
+export interface CourseGradeSummariesResult {
+  readonly items: ReadonlyArray<CourseGradeSummary>;
+  readonly sourceStatuses: ReadonlyArray<SourceStatus>;
+  readonly fromYear: number;
+  readonly toYear: number;
+}
+
 export class CourseNotFoundError extends Data.TaggedError('CourseNotFoundError')<{
   readonly courseCode: string;
 }> {}
@@ -45,7 +61,7 @@ export class CourseNotFoundError extends Data.TaggedError('CourseNotFoundError')
 export class CourseSourcesUnavailableError extends Data.TaggedError(
   'CourseSourcesUnavailableError',
 )<{
-  readonly operation: 'search' | 'insight';
+  readonly operation: 'search' | 'insight' | 'grade-summaries';
   readonly message: string;
 }> {}
 
@@ -67,4 +83,7 @@ export interface CourseDecisionService {
   readonly getInsight: (
     input: CourseInsightInput,
   ) => Effect.Effect<CourseInsightResult, CourseInsightError>;
+  readonly getGradeSummaries: (
+    input: CourseGradeSummariesInput,
+  ) => Effect.Effect<CourseGradeSummariesResult, CourseSourcesUnavailableError>;
 }

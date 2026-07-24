@@ -2,10 +2,13 @@ import {
   CourseInsightParamsDto,
   CourseInsightQueryDto,
   CourseInsightResponseDto,
+  CourseGradeSummariesRequestDto,
+  CourseGradeSummariesResponseDto,
   CourseSearchQueryDto,
   CourseSearchResponseDto,
   ProblemDto,
   toCourseInsightDto,
+  toCourseGradeSummaryDto,
   toCourseSearchItemDto,
 } from '@course-data/contracts';
 import type {
@@ -15,8 +18,8 @@ import type {
 } from '@course-data/course-service';
 import { cors } from '@elysiajs/cors';
 import { openapi } from '@elysiajs/openapi';
-import * as Either from 'effect/Either';
 import * as Effect from 'effect/Effect';
+import * as Result from 'effect/Result';
 import { Elysia, t } from 'elysia';
 
 const problem = (
@@ -75,6 +78,7 @@ export const createCourseApi = (
         endpoints: {
           health: '/health',
           search: '/v1/course-search',
+          gradeSummaries: '/v1/course-grade-summaries',
           insight: '/v1/courses/:courseCode/insight',
           openapi: '/openapi',
           openapiJson: '/openapi/json',
@@ -87,6 +91,7 @@ export const createCourseApi = (
           endpoints: t.Object({
             health: t.String(),
             search: t.String(),
+            gradeSummaries: t.String(),
             insight: t.String(),
             openapi: t.String(),
             openapiJson: t.String(),
@@ -104,7 +109,7 @@ export const createCourseApi = (
       async ({ query, request, set, status }) => {
         const requestId = request.headers.get('cf-ray') ?? makeRequestId();
         const result = await Effect.runPromise(
-          Effect.either(
+          Effect.result(
             service.search({
               ...(query.query === undefined ? {} : { query: query.query }),
               ...(query.term === undefined ? {} : { term: query.term }),
@@ -127,8 +132,8 @@ export const createCourseApi = (
         set.headers['x-request-id'] = requestId;
         set.headers['cache-control'] = 'public, max-age=30, stale-while-revalidate=300';
 
-        if (Either.isLeft(result)) {
-          if (result.left._tag === 'CourseInvalidTermError') {
+        if (Result.isFailure(result)) {
+          if (result.failure._tag === 'CourseInvalidTermError') {
             return status(
               400,
               problem(
@@ -136,7 +141,7 @@ export const createCourseApi = (
                 400,
                 'invalid-course-term',
                 'Invalid course term',
-                result.left.message,
+                result.failure.message,
               ),
             );
           }
@@ -147,24 +152,24 @@ export const createCourseApi = (
               503,
               'course-search-unavailable',
               'Course search unavailable',
-              result.left.message,
+              result.failure.message,
             ),
           );
         }
 
         return {
-          items: result.right.items.map(toCourseSearchItemDto),
-          sourceStatuses: result.right.sourceStatuses.map((sourceStatus) => ({
+          items: result.success.items.map(toCourseSearchItemDto),
+          sourceStatuses: result.success.sourceStatuses.map((sourceStatus) => ({
             ...sourceStatus,
             observedAt: sourceStatus.observedAt?.toISOString() ?? null,
           })),
           meta: {
-            count: result.right.items.length,
-            total: result.right.total,
-            page: result.right.page,
-            pageSize: result.right.pageSize,
-            hasMore: result.right.hasMore,
-            exactMatchCode: result.right.exactMatchCode,
+            count: result.success.items.length,
+            total: result.success.total,
+            page: result.success.page,
+            pageSize: result.success.pageSize,
+            hasMore: result.success.hasMore,
+            exactMatchCode: result.success.exactMatchCode,
           },
         };
       },
@@ -178,12 +183,59 @@ export const createCourseApi = (
         },
       },
     )
+    .post(
+      '/v1/course-grade-summaries',
+      async ({ body, request, set, status }) => {
+        const requestId = request.headers.get('cf-ray') ?? makeRequestId();
+        const result = await Effect.runPromise(
+          Effect.result(service.getGradeSummaries({ courseCodes: body.courseCodes })),
+        );
+        set.headers['x-request-id'] = requestId;
+        set.headers['cache-control'] = 'public, max-age=300, stale-while-revalidate=3600';
+
+        if (Result.isFailure(result)) {
+          return status(
+            503,
+            problem(
+              requestId,
+              503,
+              'course-grade-summaries-unavailable',
+              'Course grade summaries unavailable',
+              result.failure.message,
+            ),
+          );
+        }
+
+        return {
+          items: result.success.items.map(toCourseGradeSummaryDto),
+          sourceStatuses: result.success.sourceStatuses.map((sourceStatus) => ({
+            ...sourceStatus,
+            observedAt: sourceStatus.observedAt?.toISOString() ?? null,
+          })),
+          meta: {
+            count: result.success.items.length,
+            fromYear: result.success.fromYear,
+            toYear: result.success.toYear,
+          },
+        };
+      },
+      {
+        body: CourseGradeSummariesRequestDto,
+        response: { 200: CourseGradeSummariesResponseDto, 400: ProblemDto, 503: ProblemDto },
+        detail: {
+          summary: 'Summarize grades for visible NTNU courses',
+          description:
+            'Returns official DBH/HK-dir grade availability for up to 40 course codes in one request.',
+          tags: ['Courses'],
+        },
+      },
+    )
     .get(
       '/v1/courses/:courseCode/insight',
       async ({ params, query, request, set, status }) => {
         const requestId = request.headers.get('cf-ray') ?? makeRequestId();
         const result = await Effect.runPromise(
-          Effect.either(
+          Effect.result(
             service.getInsight({
               courseCode: params.courseCode,
               ...(query.term === undefined ? {} : { term: query.term }),
@@ -193,8 +245,8 @@ export const createCourseApi = (
         set.headers['x-request-id'] = requestId;
         set.headers['cache-control'] = 'public, max-age=60, stale-while-revalidate=900';
 
-        if (Either.isLeft(result)) {
-          if (result.left._tag === 'CourseInvalidTermError') {
+        if (Result.isFailure(result)) {
+          if (result.failure._tag === 'CourseInvalidTermError') {
             return status(
               400,
               problem(
@@ -202,11 +254,11 @@ export const createCourseApi = (
                 400,
                 'invalid-course-term',
                 'Invalid course term',
-                result.left.message,
+                result.failure.message,
               ),
             );
           }
-          if (result.left._tag === 'CourseNotFoundError') {
+          if (result.failure._tag === 'CourseNotFoundError') {
             return status(
               404,
               problem(
@@ -214,7 +266,7 @@ export const createCourseApi = (
                 404,
                 'course-not-found',
                 'Course not found',
-                `No NTNU course matched ${result.left.courseCode}.`,
+                `No NTNU course matched ${result.failure.courseCode}.`,
               ),
             );
           }
@@ -225,14 +277,14 @@ export const createCourseApi = (
               503,
               'course-insight-unavailable',
               'Course insight unavailable',
-              result.left.message,
+              result.failure.message,
             ),
           );
         }
 
         return {
-          item: toCourseInsightDto(result.right.item),
-          meta: { partial: result.right.partial },
+          item: toCourseInsightDto(result.success.item),
+          meta: { partial: result.success.partial },
         };
       },
       {

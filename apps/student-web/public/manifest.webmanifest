@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Course Lens",
+  "short_name": "Courses",
+  "description": "Evidence-backed NTNU course discovery and comparison.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f9f5",
+  "theme_color": "#006c4f",
+  "icons": [
+    {
+      "src": "/course-lens-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Explore courses",
+      "short_name": "Explore",
+      "url": "/"
+    }
+  ]
+}

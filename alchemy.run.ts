@@ -19,8 +19,10 @@ export default Alchemy.Stack(
     const api = yield* CourseApi;
     const web = yield* Cloudflare.Website.Vite('StudentWeb', {
       rootDir: './apps/student-web',
+      domain: 'planner.phibkro.org',
       env: {
         VITE_API_URL: api.url.as<string>(),
+        VITE_SOURCE_URL: 'https://github.com/phibkro/course-data-platform',
       },
       assets: {
         notFoundHandling: 'single-page-application',

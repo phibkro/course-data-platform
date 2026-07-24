@@ -2,7 +2,7 @@ import { CourseVersionIdSchema, InstitutionIdSchema } from '@course-data/domain'
 import * as Schema from 'effect/Schema';
 
 const nonEmptyBrandedString = <Name extends string>(name: Name) =>
-  Schema.String.pipe(Schema.minLength(1), Schema.brand(name));
+  Schema.NonEmptyString.pipe(Schema.brand(name));
 
 export const ProgrammeIdSchema = nonEmptyBrandedString('ProgrammeId');
 export type ProgrammeId = Schema.Schema.Type<typeof ProgrammeIdSchema>;
@@ -22,19 +22,21 @@ export type StudyTermId = Schema.Schema.Type<typeof StudyTermIdSchema>;
 export const DataRevisionSchema = nonEmptyBrandedString('DataRevision');
 export type DataRevision = Schema.Schema.Type<typeof DataRevisionSchema>;
 
-export const CreditsSchema = Schema.Number.pipe(Schema.between(0, 60));
+export const CreditsSchema = Schema.Number.pipe(
+  Schema.check(Schema.isBetween({ minimum: 0, maximum: 60 })),
+);
 export type Credits = Schema.Schema.Type<typeof CreditsSchema>;
 
-export const TermSeasonSchema = Schema.Literal('autumn', 'spring', 'summer');
+export const TermSeasonSchema = Schema.Literals(['autumn', 'spring', 'summer']);
 export type TermSeason = Schema.Schema.Type<typeof TermSeasonSchema>;
 
 export const CourseOptionSchema = Schema.Struct({
   courseVersionId: CourseVersionIdSchema,
-  code: Schema.String.pipe(Schema.minLength(1)),
-  title: Schema.String.pipe(Schema.minLength(1)),
+  code: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
   credits: CreditsSchema,
   recommendedTermIndex: Schema.NullOr(
-    Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(0)),
+    Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
   ),
 });
 export type CourseOption = Schema.Schema.Type<typeof CourseOptionSchema>;
@@ -42,71 +44,73 @@ export type CourseOption = Schema.Schema.Type<typeof CourseOptionSchema>;
 export const RequiredCourseRequirementSchema = Schema.Struct({
   kind: Schema.Literal('required-course'),
   id: RequirementGroupIdSchema,
-  title: Schema.String.pipe(Schema.minLength(1)),
+  title: Schema.NonEmptyString,
   course: CourseOptionSchema,
-  evidenceRefs: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+  evidenceRefs: Schema.Array(Schema.NonEmptyString),
 });
 export type RequiredCourseRequirement = Schema.Schema.Type<typeof RequiredCourseRequirementSchema>;
 
 export const ChooseNRequirementSchema = Schema.Struct({
   kind: Schema.Literal('choose-n'),
   id: RequirementGroupIdSchema,
-  title: Schema.String.pipe(Schema.minLength(1)),
-  choose: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1)),
+  title: Schema.NonEmptyString,
+  choose: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(1))),
   options: Schema.Array(CourseOptionSchema),
   defaultCourseVersionIds: Schema.Array(CourseVersionIdSchema),
-  evidenceRefs: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+  evidenceRefs: Schema.Array(Schema.NonEmptyString),
 });
 export type ChooseNRequirement = Schema.Schema.Type<typeof ChooseNRequirementSchema>;
 
 export const MinimumCreditsRequirementSchema = Schema.Struct({
   kind: Schema.Literal('minimum-credits'),
   id: RequirementGroupIdSchema,
-  title: Schema.String.pipe(Schema.minLength(1)),
+  title: Schema.NonEmptyString,
   minimumCredits: CreditsSchema,
   eligibleCourseVersionIds: Schema.Array(CourseVersionIdSchema),
-  evidenceRefs: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+  evidenceRefs: Schema.Array(Schema.NonEmptyString),
 });
 export type MinimumCreditsRequirement = Schema.Schema.Type<typeof MinimumCreditsRequirementSchema>;
 
-export const ProgrammeRequirementSchema = Schema.Union(
+export const ProgrammeRequirementSchema = Schema.Union([
   RequiredCourseRequirementSchema,
   ChooseNRequirementSchema,
   MinimumCreditsRequirementSchema,
-);
+]);
 export type ProgrammeRequirement = Schema.Schema.Type<typeof ProgrammeRequirementSchema>;
 
 export const ProgrammeVersionSchema = Schema.Struct({
   id: ProgrammeVersionIdSchema,
   programmeId: ProgrammeIdSchema,
   institutionId: InstitutionIdSchema,
-  institutionShortName: Schema.String.pipe(Schema.minLength(1)),
-  title: Schema.String.pipe(Schema.minLength(1)),
-  cohortStartYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
-  startSeason: Schema.Literal('autumn', 'spring'),
-  durationTerms: Schema.Number.pipe(Schema.int(), Schema.between(1, 24)),
+  institutionShortName: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
+  cohortStartYear: Schema.Int.pipe(
+    Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 })),
+  ),
+  startSeason: Schema.Literals(['autumn', 'spring']),
+  durationTerms: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 1, maximum: 24 }))),
   dataRevision: DataRevisionSchema,
-  relationAuthority: Schema.Literal('official', 'administrative', 'inferred', 'fixture'),
+  relationAuthority: Schema.Literals(['official', 'administrative', 'inferred', 'fixture']),
   requirements: Schema.Array(ProgrammeRequirementSchema),
 });
 export type ProgrammeVersion = Schema.Schema.Type<typeof ProgrammeVersionSchema>;
 
 export const StudyTermSchema = Schema.Struct({
   id: StudyTermIdSchema,
-  index: Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(0)),
-  academicYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
+  index: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
+  academicYear: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
   season: TermSeasonSchema,
-  label: Schema.String.pipe(Schema.minLength(1)),
+  label: Schema.NonEmptyString,
 });
 export type StudyTerm = Schema.Schema.Type<typeof StudyTermSchema>;
 
 export const PlannedCourseSchema = Schema.Struct({
   courseVersionId: CourseVersionIdSchema,
-  code: Schema.String.pipe(Schema.minLength(1)),
-  title: Schema.String.pipe(Schema.minLength(1)),
+  code: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
   credits: CreditsSchema,
   requirementGroupId: Schema.NullOr(RequirementGroupIdSchema),
-  placementSource: Schema.Literal('baseline', 'user'),
+  placementSource: Schema.Literals(['baseline', 'user']),
 });
 export type PlannedCourse = Schema.Schema.Type<typeof PlannedCourseSchema>;
 
@@ -119,7 +123,7 @@ export type PlannedTerm = Schema.Schema.Type<typeof PlannedTermSchema>;
 export const PlanningScenarioSchema = Schema.Struct({
   schemaVersion: Schema.Literal(1),
   id: PlanningScenarioIdSchema,
-  title: Schema.String.pipe(Schema.minLength(1)),
+  title: Schema.NonEmptyString,
   programmeVersionId: ProgrammeVersionIdSchema,
   dataRevision: DataRevisionSchema,
   completedCourseVersionIds: Schema.Array(CourseVersionIdSchema),
@@ -128,20 +132,20 @@ export const PlanningScenarioSchema = Schema.Struct({
 export type PlanningScenario = Schema.Schema.Type<typeof PlanningScenarioSchema>;
 
 export const ViewFilterSchema = Schema.Struct({
-  field: Schema.String.pipe(Schema.minLength(1)),
-  operator: Schema.Literal('equals', 'includes', 'in', 'greater-than-or-equal'),
-  value: Schema.Union(Schema.String, Schema.Number, Schema.Array(Schema.String)),
+  field: Schema.NonEmptyString,
+  operator: Schema.Literals(['equals', 'includes', 'in', 'greater-than-or-equal']),
+  value: Schema.Union([Schema.String, Schema.Number, Schema.Array(Schema.String)]),
 });
 export type ViewFilter = Schema.Schema.Type<typeof ViewFilterSchema>;
 
 export const ViewSortSchema = Schema.Struct({
-  field: Schema.String.pipe(Schema.minLength(1)),
-  direction: Schema.Literal('ascending', 'descending'),
+  field: Schema.NonEmptyString,
+  direction: Schema.Literals(['ascending', 'descending']),
 });
 export type ViewSort = Schema.Schema.Type<typeof ViewSortSchema>;
 
 export const ViewParameterSchema = Schema.Struct({
-  name: Schema.String.pipe(Schema.minLength(1)),
+  name: Schema.NonEmptyString,
   value: Schema.String,
 });
 export type ViewParameter = Schema.Schema.Type<typeof ViewParameterSchema>;
@@ -149,36 +153,36 @@ export type ViewParameter = Schema.Schema.Type<typeof ViewParameterSchema>;
 export const WorkbenchViewSpecSchema = Schema.Struct({
   schemaVersion: Schema.Literal(1),
   id: nonEmptyBrandedString('WorkbenchViewId'),
-  title: Schema.String.pipe(Schema.minLength(1)),
-  entity: Schema.Literal('programme-version', 'planning-scenario', 'course-version'),
+  title: Schema.NonEmptyString,
+  entity: Schema.Literals(['programme-version', 'planning-scenario', 'course-version']),
   filters: Schema.Array(ViewFilterSchema),
-  relationTraversal: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
-  groupBy: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+  relationTraversal: Schema.Array(Schema.NonEmptyString),
+  groupBy: Schema.Array(Schema.NonEmptyString),
   sort: Schema.Array(ViewSortSchema),
-  fields: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
-  presentation: Schema.Literal('table', 'cards', 'roadmap', 'graph', 'matrix'),
+  fields: Schema.Array(Schema.NonEmptyString),
+  presentation: Schema.Literals(['table', 'cards', 'roadmap', 'graph', 'matrix']),
   parameters: Schema.Array(ViewParameterSchema),
 });
 export type WorkbenchViewSpec = Schema.Schema.Type<typeof WorkbenchViewSpecSchema>;
 
-export const FindingSeveritySchema = Schema.Literal('info', 'warning', 'error');
+export const FindingSeveritySchema = Schema.Literals(['info', 'warning', 'error']);
 export type FindingSeverity = Schema.Schema.Type<typeof FindingSeveritySchema>;
 
 export const EvaluationFindingSchema = Schema.Struct({
-  code: Schema.Literal(
+  code: Schema.Literals([
     'required-course-missing',
     'choice-requirement-unmet',
     'minimum-credits-unmet',
     'term-credit-limit-exceeded',
     'recommended-term-changed',
-  ),
+  ]),
   severity: FindingSeveritySchema,
-  title: Schema.String.pipe(Schema.minLength(1)),
-  detail: Schema.String.pipe(Schema.minLength(1)),
+  title: Schema.NonEmptyString,
+  detail: Schema.NonEmptyString,
   requirementGroupId: Schema.NullOr(RequirementGroupIdSchema),
   courseVersionId: Schema.NullOr(CourseVersionIdSchema),
   termId: Schema.NullOr(StudyTermIdSchema),
-  evidenceRefs: Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+  evidenceRefs: Schema.Array(Schema.NonEmptyString),
 });
 export type EvaluationFinding = Schema.Schema.Type<typeof EvaluationFindingSchema>;
 

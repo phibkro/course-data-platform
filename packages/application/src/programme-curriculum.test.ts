@@ -112,12 +112,12 @@ describe('programme curriculum use cases', () => {
     const locked = await Effect.runPromise(
       compareProgrammes(programmes[0]!.id, programmes[1]!.id).pipe(
         Effect.provide(nineLayer),
-        Effect.either,
+        Effect.result,
       ),
     );
     expect(locked).toMatchObject({
-      _tag: 'Left',
-      left: {
+      _tag: 'Failure',
+      failure: {
         _tag: 'CompareUnavailableError',
         availableProgrammeCount: 9,
         requiredProgrammeCount: 10,

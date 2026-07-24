@@ -1,4 +1,8 @@
-import type { CourseInsightResponseDtoType, CourseSearchItemDtoType } from '@course-data/contracts';
+import type {
+  CourseGradeSummaryDtoType,
+  CourseInsightResponseDtoType,
+  CourseSearchItemDtoType,
+} from '@course-data/contracts';
 import { Effect, Match as M, Schema as S } from 'effect';
 import { Command, Navigation, Runtime, Url } from 'foldkit';
 import type { Document, Html } from 'foldkit/html';
@@ -10,9 +14,11 @@ import { evo } from 'foldkit/struct';
 import { Button, Checkbox, Input, Select } from '@foldkit/ui';
 
 import {
+  CourseGradeSummariesResponseSchema,
   CourseInsightResponseSchema,
   CourseSearchResponseSchema,
   courseClient,
+  type CourseGradeSummariesResponse,
   type CourseSearchRequest,
   type CourseSearchResponse,
   type CourseSearchSort,
@@ -22,6 +28,20 @@ import { courseInsightView } from './course-detail';
 const DISPLAY_CHUNK = 40;
 const DEFAULT_TERM = '2026-autumn';
 const DEFAULT_SORT: CourseSearchSort = 'title-asc';
+const exploreUrl = (): string => '/';
+
+export const parseExternalHttpsUrl = (candidate: string | undefined): string | null => {
+  if (candidate === undefined) return null;
+  try {
+    const url = new URL(candidate);
+    return url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+};
+
+const sourceUrl = parseExternalHttpsUrl(import.meta.env.VITE_SOURCE_URL as string | undefined);
+const tipUrl = parseExternalHttpsUrl(import.meta.env.VITE_TIP_URL as string | undefined);
 
 type Campus = 'all' | 'trondheim' | 'gjovik' | 'alesund';
 type Level = 'all' | 'bachelor' | 'master' | 'phd';
@@ -49,6 +69,44 @@ type CatalogueResult =
   | { readonly _tag: 'CataloguePartial'; readonly response: CourseSearchResponse }
   | ReturnType<typeof CatalogueEmpty>
   | ReturnType<typeof CatalogueFailure>;
+
+export const GradeSignalsIdle = ts('GradeSignalsIdle');
+export const GradeSignalsLoading = ts('GradeSignalsLoading', {
+  previous: S.NullOr(CourseGradeSummariesResponseSchema),
+  pendingCodes: S.Array(S.String),
+});
+export const GradeSignalsSuccess = ts('GradeSignalsSuccess', {
+  response: CourseGradeSummariesResponseSchema,
+});
+export const GradeSignalsPartial = ts('GradeSignalsPartial', {
+  response: CourseGradeSummariesResponseSchema,
+});
+export const GradeSignalsFailure = ts('GradeSignalsFailure', {
+  previous: S.NullOr(CourseGradeSummariesResponseSchema),
+  error: S.String,
+});
+const GradeSignalsResult = S.Union([
+  GradeSignalsIdle,
+  GradeSignalsLoading,
+  GradeSignalsSuccess,
+  GradeSignalsPartial,
+  GradeSignalsFailure,
+]);
+
+type GradeSignalsResult =
+  | ReturnType<typeof GradeSignalsIdle>
+  | {
+      readonly _tag: 'GradeSignalsLoading';
+      readonly previous: CourseGradeSummariesResponse | null;
+      readonly pendingCodes: ReadonlyArray<string>;
+    }
+  | { readonly _tag: 'GradeSignalsSuccess'; readonly response: CourseGradeSummariesResponse }
+  | { readonly _tag: 'GradeSignalsPartial'; readonly response: CourseGradeSummariesResponse }
+  | {
+      readonly _tag: 'GradeSignalsFailure';
+      readonly previous: CourseGradeSummariesResponse | null;
+      readonly error: string;
+    };
 
 export const NextPageIdle = ts('NextPageIdle');
 export const NextPageLoading = ts('NextPageLoading');
@@ -86,14 +144,16 @@ export const Model = S.Struct({
   activeRequestKey: S.String,
   visibleCount: S.Number,
   catalogue: CatalogueResult,
+  gradeSignals: GradeSignalsResult,
   nextPage: NextPageState,
   selectedCode: S.NullOr(S.String),
   detail: DetailResult,
 });
 
 type SchemaModel = typeof Model.Type;
-export type Model = Omit<SchemaModel, 'catalogue' | 'detail'> & {
+export type Model = Omit<SchemaModel, 'catalogue' | 'gradeSignals' | 'detail'> & {
   readonly catalogue: CatalogueResult;
+  readonly gradeSignals: GradeSignalsResult;
   readonly detail: DetailResult;
 };
 
@@ -117,6 +177,16 @@ export const SucceededCourseSearch = m('SucceededCourseSearch', {
 export const FailedCourseSearch = m('FailedCourseSearch', {
   requestKey: S.String,
   append: S.Boolean,
+  error: S.String,
+});
+export const SucceededGradeSignals = m('SucceededGradeSignals', {
+  requestKey: S.String,
+  courseCodes: S.Array(S.String),
+  response: CourseGradeSummariesResponseSchema,
+});
+export const FailedGradeSignals = m('FailedGradeSignals', {
+  requestKey: S.String,
+  courseCodes: S.Array(S.String),
   error: S.String,
 });
 export const SucceededCourseInsight = m('SucceededCourseInsight', {
@@ -145,6 +215,8 @@ export const Message = S.Union([
   ClosedCourse,
   SucceededCourseSearch,
   FailedCourseSearch,
+  SucceededGradeSignals,
+  FailedGradeSignals,
   SucceededCourseInsight,
   FailedCourseInsight,
   CompletedNavigation,
@@ -240,6 +312,20 @@ export const FetchCourseInsight = Command.define(
   ),
 );
 
+export const FetchGradeSignals = Command.define(
+  'FetchGradeSignals',
+  { courseCodes: S.Array(S.String), requestKey: S.String },
+  SucceededGradeSignals,
+  FailedGradeSignals,
+)(({ courseCodes, requestKey: key }) =>
+  courseClient.getGradeSummaries(courseCodes).pipe(
+    Effect.map((response) => SucceededGradeSignals({ requestKey: key, courseCodes, response })),
+    Effect.catch((error) =>
+      Effect.succeed(FailedGradeSignals({ requestKey: key, courseCodes, error: error.message })),
+    ),
+  ),
+);
+
 export const Navigate = Command.define(
   'Navigate',
   { href: S.String, mode: S.String },
@@ -270,6 +356,19 @@ const fetchCommand = (
 const catalogueResponse = (result: CatalogueResult): CourseSearchResponse | null =>
   result._tag === 'CatalogueSuccess' || result._tag === 'CataloguePartial' ? result.response : null;
 
+const gradeSignalsResponse = (result: GradeSignalsResult): CourseGradeSummariesResponse | null => {
+  switch (result._tag) {
+    case 'GradeSignalsSuccess':
+    case 'GradeSignalsPartial':
+      return result.response;
+    case 'GradeSignalsLoading':
+    case 'GradeSignalsFailure':
+      return result.previous;
+    case 'GradeSignalsIdle':
+      return null;
+  }
+};
+
 const isPartial = (response: CourseSearchResponse): boolean =>
   response.sourceStatuses.some(
     (source) => source.status !== 'available' || source.warning !== null,
@@ -288,6 +387,55 @@ const mergeResponses = (
     sourceStatuses: next.sourceStatuses,
     meta: { ...next.meta, count: byKey.size },
   };
+};
+
+const mergeGradeSignals = (
+  current: CourseGradeSummariesResponse | null,
+  next: CourseGradeSummariesResponse,
+): CourseGradeSummariesResponse => {
+  if (current === null) return next;
+  const byCode = new Map(current.items.map((item) => [item.courseCode, item]));
+  for (const item of next.items) byCode.set(item.courseCode, item);
+  return {
+    items: [...byCode.values()],
+    sourceStatuses: next.sourceStatuses,
+    meta: { ...next.meta, count: byCode.size },
+  };
+};
+
+const isGradeSignalsPartial = (response: CourseGradeSummariesResponse): boolean =>
+  response.sourceStatuses.some(
+    (source) => source.status !== 'available' || source.warning !== null,
+  );
+
+const requestVisibleGradeSignals = (
+  response: CourseSearchResponse,
+  visibleCount: number,
+  current: GradeSignalsResult,
+  key: string,
+  reset: boolean,
+): readonly [GradeSignalsResult, ReadonlyArray<Command.Command<Message>>] => {
+  const previous = reset ? null : gradeSignalsResponse(current);
+  const pendingCodes = reset
+    ? []
+    : current._tag === 'GradeSignalsLoading'
+      ? current.pendingCodes
+      : [];
+  const loadedCodes = new Set([
+    ...(previous?.items.map((item) => item.courseCode) ?? []),
+    ...pendingCodes,
+  ]);
+  const courseCodes = response.items
+    .slice(0, visibleCount)
+    .map((item) => item.code)
+    .filter((courseCode) => !loadedCodes.has(courseCode));
+  if (courseCodes.length === 0) {
+    return [reset ? GradeSignalsIdle() : current, []];
+  }
+  return [
+    GradeSignalsLoading({ previous, pendingCodes: [...pendingCodes, ...courseCodes] }),
+    [FetchGradeSignals({ courseCodes, requestKey: key })],
+  ];
 };
 
 const normalizedUrl = (model: Model, selectedCode: string | null): string => {
@@ -318,6 +466,7 @@ const startCatalogue = (
     activeRequestKey: key,
     visibleCount: DISPLAY_CHUNK,
     catalogue: CatalogueInitialLoading(),
+    gradeSignals: GradeSignalsIdle(),
     nextPage: NextPageIdle(),
   };
   return [
@@ -414,12 +563,22 @@ export const update = (
         const response = catalogueResponse(model.catalogue);
         if (response === null || model.nextPage._tag === 'NextPageLoading') return [model, []];
         if (model.visibleCount < response.items.length) {
+          const visibleCount = Math.min(response.items.length, model.visibleCount + DISPLAY_CHUNK);
+          const [gradeSignals, gradeCommands] = requestVisibleGradeSignals(
+            response,
+            visibleCount,
+            model.gradeSignals,
+            model.activeRequestKey,
+            false,
+          );
           return [
-            evo(model, {
-              visibleCount: (count) => Math.min(response.items.length, count + DISPLAY_CHUNK),
-              nextPage: () => NextPageIdle(),
-            }),
-            [],
+            {
+              ...model,
+              visibleCount,
+              gradeSignals,
+              nextPage: NextPageIdle(),
+            },
+            gradeCommands,
           ];
         }
         if (!response.meta.hasMore) return [model, []];
@@ -442,6 +601,7 @@ export const update = (
             selectedCode: location.selectedCode,
             detail: location.selectedCode === null ? DetailClosed() : DetailLoading(),
             catalogue: CatalogueInitialLoading(),
+            gradeSignals: GradeSignalsIdle(),
             nextPage: NextPageIdle(),
             visibleCount: DISPLAY_CHUNK,
           };
@@ -485,16 +645,25 @@ export const update = (
             : isPartial(response)
               ? { _tag: 'CataloguePartial', response }
               : { _tag: 'CatalogueSuccess', response };
+        const visibleCount = append
+          ? Math.min(response.items.length, model.visibleCount + DISPLAY_CHUNK)
+          : Math.min(DISPLAY_CHUNK, response.items.length);
+        const [gradeSignals, gradeCommands] = requestVisibleGradeSignals(
+          response,
+          visibleCount,
+          model.gradeSignals,
+          key,
+          !append,
+        );
         return [
           {
             ...model,
             catalogue: result,
-            visibleCount: append
-              ? Math.min(response.items.length, model.visibleCount + DISPLAY_CHUNK)
-              : Math.min(DISPLAY_CHUNK, response.items.length),
+            gradeSignals,
+            visibleCount,
             nextPage: NextPageIdle(),
           },
-          [],
+          gradeCommands,
         ];
       },
       FailedCourseSearch: ({ requestKey: key, append, error }) => {
@@ -503,6 +672,40 @@ export const update = (
           ? [{ ...model, nextPage: NextPageFailure({ error }) }, []]
           : [{ ...model, catalogue: CatalogueFailure({ error }) }, []];
       },
+      SucceededGradeSignals: ({ requestKey: key, courseCodes, response: nextResponse }) => {
+        if (key !== model.activeRequestKey) return [model, []];
+        const response = mergeGradeSignals(gradeSignalsResponse(model.gradeSignals), nextResponse);
+        const completedCodes = new Set(courseCodes);
+        const pendingCodes =
+          model.gradeSignals._tag === 'GradeSignalsLoading'
+            ? model.gradeSignals.pendingCodes.filter((code) => !completedCodes.has(code))
+            : [];
+        return [
+          {
+            ...model,
+            gradeSignals:
+              pendingCodes.length > 0
+                ? GradeSignalsLoading({ previous: response, pendingCodes })
+                : isGradeSignalsPartial(response)
+                  ? GradeSignalsPartial({ response })
+                  : GradeSignalsSuccess({ response }),
+          },
+          [],
+        ];
+      },
+      FailedGradeSignals: ({ requestKey: key, error }) =>
+        key !== model.activeRequestKey
+          ? [model, []]
+          : [
+              {
+                ...model,
+                gradeSignals: GradeSignalsFailure({
+                  previous: gradeSignalsResponse(model.gradeSignals),
+                  error,
+                }),
+              },
+              [],
+            ],
       SucceededCourseInsight: ({ courseCode, response }) => {
         if (courseCode !== model.selectedCode) return [model, []];
         return [
@@ -539,6 +742,7 @@ export const initForHref = (
     activeRequestKey: '',
     visibleCount: DISPLAY_CHUNK,
     catalogue: CatalogueInitialLoading(),
+    gradeSignals: GradeSignalsIdle(),
     nextPage: NextPageIdle(),
     selectedCode: location.selectedCode,
     detail: location.selectedCode === null ? DetailClosed() : DetailLoading(),
@@ -600,7 +804,7 @@ const desktopNavigation = (): Html => {
         [
           h.a(
             [
-              h.Href('/'),
+              h.Href(exploreUrl()),
               h.Class('navigation-item navigation-item--active'),
               h.AriaCurrent('page'),
             ],
@@ -619,7 +823,7 @@ const mobileNavigation = (): Html => {
     [h.Class('bottom-navigation'), h.AriaLabel('Primary navigation')],
     [
       h.a(
-        [h.Href('/'), h.Class('bottom-navigation__item'), h.AriaCurrent('page')],
+        [h.Href(exploreUrl()), h.Class('bottom-navigation__item'), h.AriaCurrent('page')],
         [h.span([h.AriaHidden(true)], ['⌕']), h.span([], ['Explore'])],
       ),
     ],
@@ -646,6 +850,7 @@ const catalogueView = (model: Model): Html => {
       ),
       catalogueControls(model),
       catalogueResultView(model),
+      productFooter(),
     ],
   );
 };
@@ -905,6 +1110,7 @@ const courseCard = (model: Model, course: CourseSearchItemDtoType): Html => {
     offering === null
       ? 'Term unavailable'
       : formatOfferingPeriod(offering.academicYear, offering.season);
+  const gradeSignal = gradeSignalFor(model.gradeSignals, course.code);
   return h.li(
     [h.Class('course-list__item')],
     [
@@ -934,26 +1140,50 @@ const courseCard = (model: Model, course: CourseSearchItemDtoType): Html => {
             [
               h.div([], [h.dt([], ['Term']), h.dd([], [term])]),
               h.div([], [h.dt([], ['Campus']), h.dd([], [place])]),
-              h.div(
-                [],
-                [
-                  h.dt([], ['Details']),
-                  h.dd(
-                    [],
-                    [
-                      course.enrichment === 'basic'
-                        ? 'Load when opened'
-                        : formatToken(course.enrichment),
-                    ],
-                  ),
-                ],
-              ),
+              h.div([], [h.dt([], ['Historical outcomes']), h.dd([], [gradeSignal])]),
             ],
           ),
         ],
       ),
     ],
   );
+};
+
+const gradeSignalFor = (state: GradeSignalsResult, courseCode: string): string => {
+  const summary = gradeSignalsResponse(state)?.items.find((item) => item.courseCode === courseCode);
+  if (summary !== undefined) return formatGradeSignal(summary);
+  switch (state._tag) {
+    case 'GradeSignalsLoading':
+      return 'Checking HK-dir…';
+    case 'GradeSignalsFailure':
+      return 'Grade check unavailable';
+    case 'GradeSignalsIdle':
+      return 'Waiting to check';
+    case 'GradeSignalsSuccess':
+    case 'GradeSignalsPartial':
+      return 'No grade summary';
+  }
+};
+
+const formatGradeSignal = (summary: CourseGradeSummaryDtoType): string => {
+  if (
+    summary.sampleSize.state !== 'known' ||
+    summary.failureRatePercent.state !== 'known' ||
+    summary.gradingScale.state !== 'known'
+  ) {
+    return 'No published outcomes';
+  }
+  const scale = M.value(summary.gradingScale.value).pipe(
+    M.when('letter', () => 'Letter grades'),
+    M.when('pass-fail', () => 'Pass/fail'),
+    M.when('mixed', () => 'Mixed scales'),
+    M.exhaustive,
+  );
+  const period =
+    summary.period.state === 'known'
+      ? ` · ${summary.period.value.fromYear}–${summary.period.value.toYear}`
+      : '';
+  return `${scale} · ${summary.failureRatePercent.value}% failed · ${summary.sampleSize.value} results${period}`;
 };
 
 const selectedCourseView = (model: Model): Html => {
@@ -968,6 +1198,39 @@ const selectedCourseView = (model: Model): Html => {
           h.button([...attributes.button, h.Class('back-button')], ['← Back to course results']),
       }),
       detailResultView(model.detail),
+      productFooter(),
+    ],
+  );
+};
+
+const productFooter = (): Html => {
+  const h = html<Message>();
+  const externalLink = (url: string, label: string): Html =>
+    h.a([h.Href(url), h.Target('_blank'), h.Rel('noreferrer')], [label]);
+  return h.footer(
+    [h.Class('product-footer')],
+    [
+      h.p(
+        [],
+        [
+          'Copyright © Course Data Platform contributors. Free software licensed under ',
+          externalLink('https://www.gnu.org/licenses/agpl-3.0.html', 'AGPL-3.0-only'),
+          '; provided without warranty.',
+        ],
+      ),
+      ...(sourceUrl === null ? [] : [h.p([], [externalLink(sourceUrl, 'View source code')])]),
+      ...(tipUrl === null
+        ? []
+        : [
+            h.p(
+              [],
+              [
+                'Found this useful? ',
+                externalLink(tipUrl, 'Support the project'),
+                ' — completely optional.',
+              ],
+            ),
+          ]),
     ],
   );
 };

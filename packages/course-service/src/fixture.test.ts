@@ -45,14 +45,26 @@ describe('fixtureCourseDecisionService', () => {
     });
   });
 
+  it('returns an explicit summary for every requested course code', async () => {
+    const result = await Effect.runPromise(
+      fixtureCourseDecisionService.getGradeSummaries({
+        courseCodes: ['TDT4136', 'NORESULT'],
+      }),
+    );
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]?.sampleSize).toMatchObject({ state: 'known', value: 1951 });
+    expect(result.items[1]?.sampleSize.state).toBe('unavailable');
+  });
+
   it('fails explicitly for an absent course', async () => {
     const result = await Effect.runPromise(
-      Effect.either(fixtureCourseDecisionService.getInsight({ courseCode: 'NOT101' })),
+      Effect.result(fixtureCourseDecisionService.getInsight({ courseCode: 'NOT101' })),
     );
 
     expect(result).toMatchObject({
-      _tag: 'Left',
-      left: { _tag: 'CourseNotFoundError', courseCode: 'NOT101' },
+      _tag: 'Failure',
+      failure: { _tag: 'CourseNotFoundError', courseCode: 'NOT101' },
     });
   });
 });

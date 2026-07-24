@@ -1,23 +1,35 @@
 import { Story } from 'foldkit';
 import { expect, test } from 'vitest';
 
-import { fixtureSearchResponse } from './course-client';
+import { fixtureGradeSummariesResponse, fixtureSearchResponse } from './course-client';
 import {
   CatalogueEmpty,
   CompletedNavigation,
   FailedCourseSearch,
   FetchCourseSearch,
+  FetchGradeSignals,
+  GradeSignalsSuccess,
   Navigate,
   NextPageFailure,
   RequestedMoreCourses,
   SubmittedSearch,
   SucceededCourseSearch,
+  SucceededGradeSignals,
   UpdatedQuery,
   initForHref,
+  parseExternalHttpsUrl,
   update,
 } from './main';
 
 const initialModel = () => initForHref('http://course-lens.local/')[0];
+
+test('external product links accept only absolute HTTPS destinations', () => {
+  expect(parseExternalHttpsUrl('https://example.com/support')).toBe('https://example.com/support');
+  expect(parseExternalHttpsUrl('http://example.com/support')).toBeNull();
+  expect(parseExternalHttpsUrl('/relative')).toBeNull();
+  expect(parseExternalHttpsUrl('not a url')).toBeNull();
+  expect(parseExternalHttpsUrl(undefined)).toBeNull();
+});
 
 test('a catalogue response makes official courses available without opening detail', () => {
   const model = initialModel();
@@ -33,9 +45,43 @@ test('a catalogue response makes official courses available without opening deta
     ),
     Story.model((next) => {
       expect(next.catalogue._tag).toBe('CataloguePartial');
+      expect(next.gradeSignals._tag).toBe('GradeSignalsLoading');
       expect(next.selectedCode).toBeNull();
       expect(next.visibleCount).toBe(1);
     }),
+    Story.Command.resolve(
+      FetchGradeSignals,
+      SucceededGradeSignals({
+        requestKey: model.activeRequestKey,
+        courseCodes: ['TDT4136'],
+        response: fixtureGradeSummariesResponse(['TDT4136']),
+      }),
+    ),
+  );
+});
+
+test('grade responses enrich cards independently of the catalogue response', () => {
+  const model = initialModel();
+  const [loaded] = update(
+    model,
+    SucceededCourseSearch({
+      requestKey: model.activeRequestKey,
+      append: false,
+      response: fixtureSearchResponse(1),
+    }),
+  );
+
+  const [enriched] = update(
+    loaded,
+    SucceededGradeSignals({
+      requestKey: model.activeRequestKey,
+      courseCodes: ['TDT4136'],
+      response: fixtureGradeSummariesResponse(['TDT4136']),
+    }),
+  );
+
+  expect(enriched.gradeSignals).toEqual(
+    GradeSignalsSuccess({ response: fixtureGradeSummariesResponse(['TDT4136']) }),
   );
 });
 
@@ -60,6 +106,14 @@ test('submitting a title or course-code query starts a fresh URL-backed search',
         requestKey: 'algoritmer|2026-autumn|relevance|all|all|true|false|false',
         append: false,
         response: fixtureSearchResponse(1),
+      }),
+    ),
+    Story.Command.resolve(
+      FetchGradeSignals,
+      SucceededGradeSignals({
+        requestKey: 'algoritmer|2026-autumn|relevance|all|all|true|false|false',
+        courseCodes: ['TDT4136'],
+        response: fixtureGradeSummariesResponse(['TDT4136']),
       }),
     ),
   );
@@ -103,6 +157,14 @@ test('a later-page failure preserves already loaded catalogue rows', () => {
         response,
       }),
     ),
+    Story.Command.resolve(
+      FetchGradeSignals,
+      SucceededGradeSignals({
+        requestKey: model.activeRequestKey,
+        courseCodes: ['TDT4136'],
+        response: fixtureGradeSummariesResponse(['TDT4136']),
+      }),
+    ),
     Story.message(RequestedMoreCourses()),
     Story.Command.resolve(
       FetchCourseSearch,
@@ -143,5 +205,9 @@ test('show more reveals already loaded rows before requesting another provider p
   const [revealed, commands] = update(loaded, RequestedMoreCourses());
 
   expect(revealed.visibleCount).toBe(41);
-  expect(commands).toEqual([]);
+  expect(revealed.gradeSignals).toMatchObject({
+    _tag: 'GradeSignalsLoading',
+    pendingCodes: expect.arrayContaining(['TEST041']),
+  });
+  expect(commands).toHaveLength(1);
 });

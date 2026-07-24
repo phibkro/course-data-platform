@@ -9,8 +9,10 @@ import {
   type SourceStatus,
 } from '@course-data/course-model';
 import {
+  fetchDbhGradeSummaries,
   fetchDbhGrades,
   fetchGradesNoGrades,
+  mapDbhToGradeSummary,
   mapGradesToOutcomes,
   type GradeWindow,
   type ValidatedDbhGrades,
@@ -326,5 +328,53 @@ export const makeLiveCourseDecisionService = (
       },
     });
 
-  return { search, getInsight };
+  const getGradeSummaries = (input: { readonly courseCodes: ReadonlyArray<string> }) =>
+    Effect.tryPromise({
+      try: async () => {
+        const courseCodes = [
+          ...new Set(input.courseCodes.map((courseCode) => courseCode.trim().toUpperCase())),
+        ];
+        const result = await fetchDbhGradeSummaries(
+          deps,
+          courseCodes,
+          defaults.gradeFromYear,
+          defaults.gradeToYear,
+        );
+        if (result.rejected.length > 0 && result.accepted.length === 0) {
+          throw new Error(
+            result.rejected[0]?.message ?? 'DBH grade-summary response was rejected.',
+          );
+        }
+
+        const byCourseCode = new Map(
+          result.accepted.map((grades) => [grades.courseCode, grades] as const),
+        );
+        return {
+          items: courseCodes.map((courseCode) =>
+            mapDbhToGradeSummary(courseCode, byCourseCode.get(courseCode) ?? null),
+          ),
+          sourceStatuses: [
+            {
+              provider: 'dbh',
+              status:
+                result.accepted.length === 0 ? ('unavailable' as const) : ('available' as const),
+              observedAt: deps.now(),
+              warning:
+                result.rejected.length === 0
+                  ? null
+                  : `${result.rejected.length} malformed DBH grade row(s) were excluded.`,
+            },
+          ],
+          fromYear: defaults.gradeFromYear,
+          toYear: defaults.gradeToYear,
+        };
+      },
+      catch: (cause) =>
+        new CourseSourcesUnavailableError({
+          operation: 'grade-summaries',
+          message: errorMessage(cause),
+        }),
+    });
+
+  return { search, getInsight, getGradeSummaries };
 };

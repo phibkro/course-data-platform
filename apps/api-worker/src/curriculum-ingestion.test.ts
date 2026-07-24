@@ -357,11 +357,11 @@ describe('official NTNU curriculum reconciliation', () => {
     const during = await Effect.runPromise(concurrentRepository.listProgrammeVersions());
     expect(during.map((row) => row.programmeVersionId)).toEqual([previous?.programmeVersionId]);
     const hiddenCandidate = await Effect.runPromise(
-      Effect.either(concurrentRepository.getProgrammeVersion(candidate.programmeVersionId)),
+      Effect.result(concurrentRepository.getProgrammeVersion(candidate.programmeVersionId)),
     );
     expect(hiddenCandidate).toMatchObject({
-      _tag: 'Left',
-      left: { _tag: 'ProgrammeVersionNotFoundError' },
+      _tag: 'Failure',
+      failure: { _tag: 'ProgrammeVersionNotFoundError' },
     });
     const storedDuring = await proxy.env.DB.prepare(
       `SELECT COUNT(*) AS count FROM programme_version`,

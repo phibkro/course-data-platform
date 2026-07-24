@@ -1,7 +1,37 @@
 {
   "plugins": ["typescript", "react", "vitest"],
+  "jsPlugins": [
+    {
+      "name": "foldkit",
+      "specifier": "@foldkit/oxlint-plugin"
+    }
+  ],
   "ignorePatterns": ["legacy/**", "**/dist/**", "node_modules/**"],
   "rules": {
+    "foldkit/command-binding-matches-name": "error",
+    "foldkit/command-define-pascal-const": "error",
+    "foldkit/got-prefix-requires-submodel-payload": "error",
+    "foldkit/got-submodel-message-name": "error",
+    "foldkit/got-wrapper-carries-only-routing": "error",
+    "foldkit/keyed-required-for-mapped-rows": "error",
+    "foldkit/lazy-view-stable-references": "error",
+    "foldkit/message-binding-matches-tag": "error",
+    "foldkit/mount-factory-must-use-element": "error",
+    "foldkit/no-array-index-view-keys": "error",
+    "foldkit/no-child-message-construction-in-root": "error",
+    "foldkit/no-disabling-dev-guardrails": "error",
+    "foldkit/no-duplicate-onmount-per-element": "error",
+    "foldkit/no-empty-object-tagged-call": "error",
+    "foldkit/no-hand-rolled-command-struct": "error",
+    "foldkit/no-hardcoded-route-strings": "error",
+    "foldkit/no-module-level-mutable-state": "error",
+    "foldkit/no-noop-message": "error",
+    "foldkit/no-raw-dom-event-attributes": "error",
+    "foldkit/no-spread-in-evo": "error",
+    "foldkit/prefer-callable-message-constructor": "error",
+    "foldkit/require-rel-for-external-link": "error",
+    "foldkit/selection-submodel-factory-at-module-scope": "error",
+    "foldkit/wrap-child-output-in-got-message": "error",
     "no-debugger": "error",
     "no-throw-literal": "error",
     "prefer-const": "error",
@@ -13,7 +43,37 @@
     {
       "files": ["alchemy.run.ts", "scripts/**"],
       "rules": {
+        "foldkit/no-module-level-mutable-state": "off",
         "no-console": "off"
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "foldkit/command-binding-matches-name": "off",
+        "foldkit/command-define-pascal-const": "off",
+        "foldkit/got-prefix-requires-submodel-payload": "off",
+        "foldkit/got-submodel-message-name": "off",
+        "foldkit/got-wrapper-carries-only-routing": "off",
+        "foldkit/keyed-required-for-mapped-rows": "off",
+        "foldkit/lazy-view-stable-references": "off",
+        "foldkit/message-binding-matches-tag": "off",
+        "foldkit/mount-factory-must-use-element": "off",
+        "foldkit/no-array-index-view-keys": "off",
+        "foldkit/no-child-message-construction-in-root": "off",
+        "foldkit/no-disabling-dev-guardrails": "off",
+        "foldkit/no-duplicate-onmount-per-element": "off",
+        "foldkit/no-empty-object-tagged-call": "off",
+        "foldkit/no-hand-rolled-command-struct": "off",
+        "foldkit/no-hardcoded-route-strings": "off",
+        "foldkit/no-module-level-mutable-state": "off",
+        "foldkit/no-noop-message": "off",
+        "foldkit/no-raw-dom-event-attributes": "off",
+        "foldkit/no-spread-in-evo": "off",
+        "foldkit/prefer-callable-message-constructor": "off",
+        "foldkit/require-rel-for-external-link": "off",
+        "foldkit/selection-submodel-factory-at-module-scope": "off",
+        "foldkit/wrap-child-output-in-got-message": "off"
       }
     }
   ]

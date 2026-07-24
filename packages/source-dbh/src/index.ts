@@ -1,4 +1,4 @@
-import * as Either from 'effect/Either';
+import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 
 export type DbhTableId = 208 | 347;
@@ -68,16 +68,16 @@ export interface ParseResult {
 }
 
 const IsoTimestampSchema = Schema.String.pipe(
-  Schema.pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/),
+  Schema.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/)),
 );
-const Sha256Schema = Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/));
+const Sha256Schema = Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-f0-9]{64}$/)));
 const CaptureMetadataSchema = Schema.Struct({
   retrievedAt: IsoTimestampSchema,
   contentHash: Sha256Schema,
 });
-const ScalarSchema = Schema.Union(Schema.String, Schema.Number, Schema.Boolean, Schema.Null);
-const RawFieldSchema = Schema.Union(ScalarSchema, Schema.Array(ScalarSchema));
-const RawRowSchema = Schema.Record({ key: Schema.String, value: RawFieldSchema });
+const ScalarSchema = Schema.Union([Schema.String, Schema.Number, Schema.Boolean, Schema.Null]);
+const RawFieldSchema = Schema.Union([ScalarSchema, Schema.Array(ScalarSchema)]);
+const RawRowSchema = Schema.Record(Schema.String, RawFieldSchema);
 const ResponseSchema = Schema.Array(Schema.Unknown);
 const StatusEntrySchema = Schema.Struct({
   status: Schema.Struct({
@@ -91,15 +91,15 @@ const StatusEntrySchema = Schema.Struct({
   }),
 });
 const BaseIdentitySchema = Schema.Struct({
-  Institusjonskode: Schema.String.pipe(Schema.minLength(1)),
-  Avdelingskode: Schema.String.pipe(Schema.minLength(1)),
-  Årstall: Schema.String.pipe(Schema.pattern(/^\d{4}$/)),
-  Semester: Schema.Literal('1', '3'),
-  Studieprogramkode: Schema.String.pipe(Schema.minLength(1)),
+  Institusjonskode: Schema.NonEmptyString,
+  Avdelingskode: Schema.NonEmptyString,
+  Årstall: Schema.String.pipe(Schema.check(Schema.isPattern(/^\d{4}$/))),
+  Semester: Schema.Literals(['1', '3']),
+  Studieprogramkode: Schema.NonEmptyString,
 });
 const CourseIdentitySchema = Schema.Struct({
   ...BaseIdentitySchema.fields,
-  Emnekode: Schema.String.pipe(Schema.minLength(1)),
+  Emnekode: Schema.NonEmptyString,
 });
 
 const EXPECTED_FIELDS: Readonly<Record<DbhTableId, ReadonlyArray<string>>> = {
@@ -212,8 +212,8 @@ const parseTable = (
   input: unknown | Uint8Array,
   capture: CaptureMetadata,
 ): ParseResult => {
-  const captureResult = Schema.decodeUnknownEither(CaptureMetadataSchema)(capture);
-  if (Either.isLeft(captureResult)) {
+  const captureResult = Schema.decodeUnknownResult(CaptureMetadataSchema)(capture);
+  if (Result.isFailure(captureResult)) {
     return {
       accepted: [],
       rejected: [
@@ -246,8 +246,8 @@ const parseTable = (
     };
   }
 
-  const responseResult = Schema.decodeUnknownEither(ResponseSchema)(decodedInput.value);
-  if (Either.isLeft(responseResult)) {
+  const responseResult = Schema.decodeUnknownResult(ResponseSchema)(decodedInput.value);
+  if (Result.isFailure(responseResult)) {
     return {
       accepted: [],
       rejected: [
@@ -263,9 +263,9 @@ const parseTable = (
     };
   }
 
-  const [statusCandidate, ...rowCandidates] = responseResult.right;
-  const statusResult = Schema.decodeUnknownEither(StatusEntrySchema)(statusCandidate);
-  if (Either.isLeft(statusResult)) {
+  const [statusCandidate, ...rowCandidates] = responseResult.success;
+  const statusResult = Schema.decodeUnknownResult(StatusEntrySchema)(statusCandidate);
+  if (Result.isFailure(statusResult)) {
     return {
       accepted: [],
       rejected: [
@@ -280,14 +280,14 @@ const parseTable = (
       ],
     };
   }
-  if (statusResult.right.status.tabell_id !== tableId) {
+  if (statusResult.success.status.tabell_id !== tableId) {
     return {
       accepted: [],
       rejected: [
         rejection(
           tableId,
           'response-table-mismatch',
-          `Expected table ${tableId}, received ${statusResult.right.status.tabell_id}.`,
+          `Expected table ${tableId}, received ${statusResult.success.status.tabell_id}.`,
           null,
           'response',
           statusCandidate,
@@ -300,8 +300,8 @@ const parseTable = (
   const rejected: Rejection[] = [];
   rowCandidates.forEach((candidate, offset) => {
     const rowIndex = offset + 1;
-    const rowResult = Schema.decodeUnknownEither(RawRowSchema)(candidate);
-    if (Either.isLeft(rowResult)) {
+    const rowResult = Schema.decodeUnknownResult(RawRowSchema)(candidate);
+    if (Result.isFailure(rowResult)) {
       rejected.push(
         rejection(
           tableId,
@@ -317,23 +317,23 @@ const parseTable = (
 
     const identityResult =
       tableId === 208
-        ? Schema.decodeUnknownEither(CourseIdentitySchema)(rowResult.right)
-        : Schema.decodeUnknownEither(BaseIdentitySchema)(rowResult.right);
-    if (Either.isLeft(identityResult)) {
+        ? Schema.decodeUnknownResult(CourseIdentitySchema)(rowResult.success)
+        : Schema.decodeUnknownResult(BaseIdentitySchema)(rowResult.success);
+    if (Result.isFailure(identityResult)) {
       rejected.push(
         rejection(
           tableId,
           'row-identity-invalid',
           'Row is missing a required DBH identity field or contains an invalid period.',
           rowIndex,
-          partialIdentity(rowResult.right, rowIndex),
-          rowResult.right,
+          partialIdentity(rowResult.success, rowIndex),
+          rowResult.success,
         ),
       );
       return;
     }
 
-    const identity = identityResult.right;
+    const identity = identityResult.success;
     const sourceRecordId =
       tableId === 208
         ? [
@@ -357,22 +357,22 @@ const parseTable = (
       provider: 'dbh',
       tableId,
       sourceRecordId,
-      retrievedAt: captureResult.right.retrievedAt,
+      retrievedAt: captureResult.success.retrievedAt,
       sourcePeriod: {
         year: Number(identity.Årstall),
         semester: Number(identity.Semester) as 1 | 3,
       },
-      datasetRevision: String(statusResult.right.status.leveransenr),
-      contentHash: captureResult.right.contentHash,
+      datasetRevision: String(statusResult.success.status.leveransenr),
+      contentHash: captureResult.success.contentHash,
     };
     const fields: Record<string, AttributedSourceValue> = {};
-    for (const field of new Set([...EXPECTED_FIELDS[tableId], ...Object.keys(rowResult.right)])) {
+    for (const field of new Set([...EXPECTED_FIELDS[tableId], ...Object.keys(rowResult.success)])) {
       fields[field] = {
-        value: classifyValue(field, rowResult.right[field]),
+        value: classifyValue(field, rowResult.success[field]),
         attribution,
       };
     }
-    accepted.push({ tableId, sourceRecordId, fields, raw: rowResult.right });
+    accepted.push({ tableId, sourceRecordId, fields, raw: rowResult.success });
   });
 
   return { accepted, rejected };

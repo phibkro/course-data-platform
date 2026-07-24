@@ -1,4 +1,4 @@
-import * as Either from 'effect/Either';
+import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 
 const DBH_TABLE_ID = 308;
@@ -51,21 +51,21 @@ export type DbhGradesParseResult =
   | { readonly accepted: null; readonly rejected: DbhGradesRejection };
 
 const IsoTimestampSchema = Schema.String.pipe(
-  Schema.pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/),
+  Schema.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/)),
 );
-const Sha256Schema = Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/));
+const Sha256Schema = Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-f0-9]{64}$/)));
 const CaptureSchema = Schema.Struct({
   retrievedAt: IsoTimestampSchema,
   contentHash: Sha256Schema,
-  courseCode: Schema.String.pipe(Schema.minLength(1)),
-  fromYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
-  toYear: Schema.Number.pipe(Schema.int(), Schema.between(2000, 2200)),
-  evidenceKind: Schema.Literal('source-fact', 'fixture'),
+  courseCode: Schema.NonEmptyString,
+  fromYear: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
+  toYear: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
+  evidenceKind: Schema.Literals(['source-fact', 'fixture']),
 });
 const ResponseSchema = Schema.Array(Schema.Unknown);
 const RowSchema = Schema.Struct({
-  Karakter: Schema.String.pipe(Schema.minLength(1)),
-  'Antall kandidater totalt': Schema.String.pipe(Schema.pattern(/^\d+$/)),
+  Karakter: Schema.NonEmptyString,
+  'Antall kandidater totalt': Schema.String.pipe(Schema.check(Schema.isPattern(/^\d+$/))),
 });
 
 const decodeInput = (
@@ -106,8 +106,8 @@ export const parseDbhGrades = (
   input: unknown | Uint8Array,
   capture: DbhGradesCaptureMetadata,
 ): DbhGradesParseResult => {
-  const captureResult = Schema.decodeUnknownEither(CaptureSchema)(capture);
-  if (Either.isLeft(captureResult)) {
+  const captureResult = Schema.decodeUnknownResult(CaptureSchema)(capture);
+  if (Result.isFailure(captureResult)) {
     return reject('invalid-capture-metadata', 'DBH capture metadata failed validation.', capture);
   }
 
@@ -116,26 +116,26 @@ export const parseDbhGrades = (
     return reject(decoded.code, 'DBH response could not be decoded.', input);
   }
 
-  const responseResult = Schema.decodeUnknownEither(ResponseSchema)(decoded.value);
-  if (Either.isLeft(responseResult)) {
+  const responseResult = Schema.decodeUnknownResult(ResponseSchema)(decoded.value);
+  if (Result.isFailure(responseResult)) {
     return reject('invalid-response-shape', 'DBH response must be an array.', decoded.value);
   }
 
   // The live table-308 response is a plain row array (unlike tables 208/347,
   // which prefix a status entry): no status/table-id header to validate here.
   const rows: ValidatedDbhGradeRow[] = [];
-  for (const candidate of responseResult.right) {
-    const rowResult = Schema.decodeUnknownEither(RowSchema)(candidate);
-    if (Either.isLeft(rowResult)) {
+  for (const candidate of responseResult.success) {
+    const rowResult = Schema.decodeUnknownResult(RowSchema)(candidate);
+    if (Result.isFailure(rowResult)) {
       return reject('row-schema-invalid', 'A DBH grade row failed boundary validation.', candidate);
     }
     rows.push({
-      grade: rowResult.right.Karakter.trim().toUpperCase(),
-      candidateCount: Number(rowResult.right['Antall kandidater totalt']),
+      grade: rowResult.success.Karakter.trim().toUpperCase(),
+      candidateCount: Number(rowResult.success['Antall kandidater totalt']),
     });
   }
 
-  const capturedFields = captureResult.right;
+  const capturedFields = captureResult.success;
   const sourceRecordId = `dbh:${DBH_TABLE_ID}:${capturedFields.courseCode}:${capturedFields.fromYear}-${capturedFields.toYear}`;
   const attribution: DbhGradesAttribution = {
     provider: 'dbh',

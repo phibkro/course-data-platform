@@ -35,10 +35,22 @@ const localBinary = (directory: string, name: string): string =>
   resolve(directory, 'node_modules/.bin', process.platform === 'win32' ? `${name}.cmd` : name);
 
 const preview = new Set(process.argv.slice(2)).has('--preview');
+const apiPort = process.env.COURSE_API_PORT ?? '8787';
+if (!/^[1-9]\d{0,4}$/.test(apiPort) || Number(apiPort) > 65_535) {
+  console.error('COURSE_API_PORT must be an integer between 1 and 65535.');
+  process.exit(1);
+}
+const localApiUrl = `http://127.0.0.1:${apiPort}`;
+const localWebEnvironment = {
+  ...process.env,
+  VITE_API_URL: process.env.VITE_API_URL ?? localApiUrl,
+  VITE_SOURCE_URL: process.env.VITE_SOURCE_URL ?? 'https://github.com/phibkro/course-data-platform',
+  VITE_USE_FIXTURE: 'false',
+};
 if (preview) {
   const build = spawnSync(bun, ['run', 'build'], {
     cwd: root,
-    env: process.env,
+    env: localWebEnvironment,
     stdio: 'inherit',
   });
   if (build.status !== 0) process.exit(build.status ?? 1);
@@ -76,7 +88,7 @@ const apiEnvironment = {
 const api = spawnService(
   'course-api',
   localBinary(apiDirectory, 'wrangler'),
-  ['dev'],
+  ['dev', '--port', apiPort],
   apiDirectory,
   apiEnvironment,
 );
@@ -87,19 +99,15 @@ const web = spawnService(
     ? ['preview', '--host', '127.0.0.1', '--port', '4173', '--strictPort']
     : ['--host', '127.0.0.1', '--port', '5173', '--strictPort'],
   webDirectory,
-  {
-    ...process.env,
-    VITE_API_URL: process.env.VITE_API_URL ?? 'http://127.0.0.1:8787',
-    VITE_USE_FIXTURE: 'false',
-  },
+  localWebEnvironment,
 );
 const children = [api, web];
 
 const webUrl = preview ? 'http://127.0.0.1:4173' : 'http://127.0.0.1:5173';
 console.log('\nCourse Decision Product');
 console.log(`  Student web: ${webUrl}`);
-console.log('  Course API:  http://127.0.0.1:8787');
-console.log('  OpenAPI:     http://127.0.0.1:8787/openapi');
+console.log(`  Course API:  ${localApiUrl}`);
+console.log(`  OpenAPI:     ${localApiUrl}/openapi`);
 console.log('\nPress Ctrl+C to stop both services.\n');
 
 let shuttingDown = false;

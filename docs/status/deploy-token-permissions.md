@@ -1,5 +1,12 @@
 # R3b deploy — minimal Cloudflare API token (least-privilege)
 
+> Historical note: this document describes the deferred legacy replication
+> stack. The active `CourseDecisionProduct` production stack now binds the
+> student web Worker to `planner.phibkro.org`. Deploying that active stack
+> therefore also requires permission to manage Worker routes/custom domains
+> and read the `phibkro.org` zone; the “no Zone scope needed” statements below
+> apply only to the older workers.dev-only design.
+
 **Purpose:** the smallest scoped Cloudflare API token that runs the FULL `alchemy deploy alchemy.run.ts`
 (Workers ×3 + D1 + R2 + Queues + Static-Assets SPA + live ingestion). Create it so the operator hands over
 a least-privilege token, **not** their global key. Derived from the actual `alchemy.run.ts` /

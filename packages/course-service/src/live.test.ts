@@ -77,6 +77,8 @@ const dbhPayload = [
   { Karakter: 'H', 'Antall kandidater totalt': '2' },
 ];
 
+const dbhBatchPayload = dbhPayload.map((row) => ({ Emnekode: 'TDT4136-1', ...row }));
+
 const defaults = {
   academicYear: 2026,
   season: 'autumn' as const,
@@ -86,7 +88,7 @@ const defaults = {
 
 const makeFetch =
   (failedSources: ReadonlySet<'detail' | 'grades-no' | 'dbh'> = new Set()) =>
-  async (url: string): Promise<Response> => {
+  async (url: string, init?: RequestInit): Promise<Response> => {
     if (url.includes('fetch-courselist-as-json')) {
       return Response.json(searchPayload);
     }
@@ -101,9 +103,9 @@ const makeFetch =
         : Response.json(gradesNoPayload);
     }
     if (url.includes('dbh-data')) {
-      return failedSources.has('dbh')
-        ? new Response('unavailable', { status: 503 })
-        : Response.json(dbhPayload);
+      if (failedSources.has('dbh')) return new Response('unavailable', { status: 503 });
+      const request = JSON.parse(String(init?.body)) as { groupBy?: ReadonlyArray<string> };
+      return Response.json(request.groupBy?.includes('Emnekode') ? dbhBatchPayload : dbhPayload);
     }
     return new Response('not found', { status: 404 });
   };
@@ -218,6 +220,34 @@ describe('live course decision service', () => {
     expect(validateEvidenceReferences(result.item)).toEqual([]);
   });
 
+  it('loads grade signals for several visible courses through one DBH request', async () => {
+    let dbhRequestCount = 0;
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url, init) => {
+          if (url.includes('dbh-data')) dbhRequestCount += 1;
+          return makeFetch()(url, init);
+        },
+        now: () => new Date('2026-07-23T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(
+      service.getGradeSummaries({ courseCodes: ['tdt4136', 'NORESULT', 'TDT4136'] }),
+    );
+
+    expect(dbhRequestCount).toBe(1);
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]).toMatchObject({
+      courseCode: 'TDT4136',
+      sampleSize: { state: 'known', value: 411 },
+      gradingScale: { state: 'known', value: 'mixed' },
+    });
+    expect(result.items[1]?.sampleSize.state).toBe('unavailable');
+  });
+
   it('preserves course facts when both grade providers fail', async () => {
     const result = await Effect.runPromise(
       makeService(new Set(['grades-no', 'dbh'])).getInsight({
@@ -245,12 +275,12 @@ describe('live course decision service', () => {
 
   it('rejects ambiguous term strings explicitly', async () => {
     const result = await Effect.runPromise(
-      Effect.either(makeService().getInsight({ courseCode: 'TDT4136', term: 'autumn' })),
+      Effect.result(makeService().getInsight({ courseCode: 'TDT4136', term: 'autumn' })),
     );
 
     expect(result).toMatchObject({
-      _tag: 'Left',
-      left: { _tag: 'CourseInvalidTermError' },
+      _tag: 'Failure',
+      failure: { _tag: 'CourseInvalidTermError' },
     });
   });
 });

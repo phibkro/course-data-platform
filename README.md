@@ -32,7 +32,7 @@ Implemented now:
 - responsive Material You styling with desktop sidebar and mobile bottom bar;
 - TypeBox boundary contracts, public OpenAPI, and browser-facing response
   validation;
-- TypeScript 7 authority plus TypeScript 6 compatibility;
+- TypeScript 7 as the sole compiler authority;
 - a minimal, parallel Alchemy v2 stack containing only the course API and
   student web application.
 
@@ -59,7 +59,8 @@ There is no database migration or account setup in the active slice. The API
 does need outbound access to the public source APIs. `bun run dev:api` and
 `VITE_API_URL=http://localhost:8787 bun run dev:web` are available for separate
 terminals. Override that origin when needed; use `VITE_USE_FIXTURE=true` only
-for explicit offline UI work.
+for explicit offline UI work. If port 8787 is already occupied, choose one
+consistent port for the combined stack with `COURSE_API_PORT=8788 bun run dev`.
 
 If the host shell does not expose Node directly but Nix is available,
 `bun run dev` automatically re-enters the repository development shell. This
@@ -77,15 +78,21 @@ bun run openapi
 
 Alchemy v2 uses the new stack ID `CourseDecisionProduct` and new resource IDs,
 so it does not adopt, mutate, or destroy the earlier v1-managed resources.
+The production student web is bound declaratively to
+`https://planner.phibkro.org`; Cloudflare manages its Worker custom-domain
+binding and certificate as part of the stack.
 Inspect the two-resource change before a first deployment:
 
 ```sh
-bun run infra:plan
-bun run deploy
+bun run infra:plan:prod
+bun run deploy:prod
 ```
 
-Deployment is intentionally not part of onboarding and requires separate
-Cloudflare authentication.
+The unsuffixed `infra:plan` and `deploy` commands target Alchemy's per-user
+development stage. Production is intentionally separate and requires
+Cloudflare authentication. `deploy:prod` refuses to run unless the checkout is
+clean, on `main`, and exactly matches `origin/main`; production releases are
+explicit even though `main` is the canonical production source.
 
 ## Architecture
 
@@ -104,6 +111,18 @@ and `AGENTS.md`.
 
 ## Compiler policy
 
-TypeScript 7.0.2's native Go compiler is the authoritative checker. The repository also installs the TypeScript 6 compatibility package and runs `tsc6` during full validation so compiler differences are detected immediately. Type environments are declared per package rather than inherited accidentally through a hoisted install.
+TypeScript 7.0.2's native Go compiler is the sole checker. Type environments
+are declared per package rather than inherited accidentally through a hoisted
+install.
 
 Bun 1.3.14 is the canonical package manager and command runner. Vite/Rolldown remain responsible for the browser bundle, Vitest remains the test framework, and Wrangler remains responsible for Cloudflare Worker bundling.
+
+## License and support
+
+Course Data Platform is free software licensed under
+[GNU AGPL version 3 only](LICENSE). Network deployments expose a link to the
+corresponding source from the student interface.
+
+An optional student support link can be enabled with `VITE_TIP_URL`. It is
+shown only when the value is a valid HTTPS URL; no payment provider or account
+is assumed by the application.

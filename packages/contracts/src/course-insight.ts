@@ -1,4 +1,10 @@
-import type { CourseInsight, CourseSearchItem, Fact, Offering } from '@course-data/course-model';
+import type {
+  CourseGradeSummary,
+  CourseInsight,
+  CourseSearchItem,
+  Fact,
+  Offering,
+} from '@course-data/course-model';
 import { type Static, type TSchema } from '@sinclair/typebox';
 import { t } from 'elysia';
 
@@ -190,6 +196,41 @@ export const CourseSearchResponseDto = t.Object({
   }),
 });
 
+export const CourseGradeSummariesRequestDto = t.Object({
+  courseCodes: t.Array(
+    t.String({
+      minLength: 2,
+      maxLength: 20,
+      pattern: '^[A-Za-zÆØÅæøå0-9]+$',
+    }),
+    { minItems: 1, maxItems: 40, uniqueItems: true },
+  ),
+});
+
+export const CourseGradeSummaryDto = t.Object({
+  courseCode: t.String({ minLength: 2, maxLength: 20 }),
+  period: FactDto(
+    t.Object({
+      fromYear: t.Integer({ minimum: 2000, maximum: 2200 }),
+      toYear: t.Integer({ minimum: 2000, maximum: 2200 }),
+    }),
+  ),
+  sampleSize: FactDto(t.Integer({ minimum: 0 })),
+  failureRatePercent: FactDto(t.Number({ minimum: 0, maximum: 100 })),
+  gradingScale: FactDto(t.Union([t.Literal('letter'), t.Literal('pass-fail'), t.Literal('mixed')])),
+  evidence: t.Array(EvidenceDto),
+});
+
+export const CourseGradeSummariesResponseDto = t.Object({
+  items: t.Array(CourseGradeSummaryDto),
+  sourceStatuses: t.Array(SourceStatusDto),
+  meta: t.Object({
+    count: t.Integer({ minimum: 0 }),
+    fromYear: t.Integer({ minimum: 2000, maximum: 2200 }),
+    toYear: t.Integer({ minimum: 2000, maximum: 2200 }),
+  }),
+});
+
 export const CourseInsightParamsDto = t.Object({
   courseCode: t.String({ minLength: 2, maxLength: 20 }),
 });
@@ -235,6 +276,9 @@ export const CourseInsightResponseDto = t.Object({
 export type CourseSearchQueryDtoType = Static<typeof CourseSearchQueryDto>;
 export type CourseSearchItemDtoType = Static<typeof CourseSearchItemDto>;
 export type CourseSearchResponseDtoType = Static<typeof CourseSearchResponseDto>;
+export type CourseGradeSummariesRequestDtoType = Static<typeof CourseGradeSummariesRequestDto>;
+export type CourseGradeSummaryDtoType = Static<typeof CourseGradeSummaryDto>;
+export type CourseGradeSummariesResponseDtoType = Static<typeof CourseGradeSummariesResponseDto>;
 export type CourseInsightParamsDtoType = Static<typeof CourseInsightParamsDto>;
 export type CourseInsightQueryDtoType = Static<typeof CourseInsightQueryDto>;
 export type CourseInsightDtoType = Static<typeof CourseInsightDto>;
@@ -312,6 +356,17 @@ export const toCourseSearchItemDto = (item: CourseSearchItem): CourseSearchItemD
   workFormSignals: mapFact(item.workFormSignals, (signals) => [...signals]),
   enrichment: item.enrichment,
   evidence: item.evidence.map(mapEvidence),
+});
+
+export const toCourseGradeSummaryDto = (
+  summary: CourseGradeSummary,
+): CourseGradeSummaryDtoType => ({
+  courseCode: summary.courseCode,
+  period: mapFact(summary.period, (period) => period),
+  sampleSize: mapFact(summary.sampleSize, Number),
+  failureRatePercent: mapFact(summary.failureRatePercent, Number),
+  gradingScale: mapFact(summary.gradingScale, (scale) => scale),
+  evidence: summary.evidence.map(mapEvidence),
 });
 
 export const toCourseInsightDto = (insight: CourseInsight): CourseInsightDtoType => ({

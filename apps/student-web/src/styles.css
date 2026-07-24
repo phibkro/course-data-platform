@@ -1,3 +1,5 @@
+@import 'tailwindcss';
+
 :root {
   color-scheme: light dark;
   font-family:
@@ -165,7 +167,7 @@ a {
 .main-content {
   width: min(100%, 76rem);
   margin: 0 auto;
-  padding: 1rem 1rem 7rem;
+  padding: 1rem 1rem calc(7rem + env(safe-area-inset-bottom));
 }
 
 .hero {
@@ -663,7 +665,7 @@ thead th {
   position: fixed;
   z-index: 10;
   right: 0.75rem;
-  bottom: 0.75rem;
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
   left: 0.75rem;
   display: flex;
   justify-content: center;
@@ -848,6 +850,7 @@ thead th {
 }
 
 .course-card {
+  position: relative;
   display: grid;
   gap: 1rem;
   padding: 1.1rem;
@@ -880,11 +883,17 @@ thead th {
   text-decoration: none;
 }
 
+.course-card__identity a::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
 .course-card__facts {
   display: grid;
   gap: 0.75rem;
   margin: 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
 }
 
 .course-card__facts div {
@@ -903,6 +912,7 @@ thead th {
   margin: 0.2rem 0 0;
   font-size: 0.9rem;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .button--secondary,
@@ -943,6 +953,26 @@ thead th {
   padding-top: 1rem;
 }
 
+.product-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  padding: 1.5rem 0 0.5rem;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.product-footer p {
+  margin: 0;
+}
+
+.product-footer a {
+  position: relative;
+  font-weight: 650;
+}
+
 .back-button {
   justify-self: start;
 }
@@ -976,7 +1006,7 @@ thead th {
   }
 }
 
-@media (min-width: 58rem) {
+@media (min-width: 48rem) and (min-height: 40rem) {
   .sidebar {
     display: flex;
     flex-direction: column;
@@ -984,12 +1014,19 @@ thead th {
 
   .main-content {
     width: min(calc(100% - 16.5rem), 76rem);
-    padding: 1rem 2.5rem 5rem;
+    padding: 1rem 1.5rem 5rem;
     margin-left: 16.5rem;
   }
 
   .bottom-navigation {
     display: none;
+  }
+}
+
+@media (min-width: 64rem) {
+  .main-content {
+    padding-right: 2.5rem;
+    padding-left: 2.5rem;
   }
 
   .course-header {

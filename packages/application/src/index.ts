@@ -39,10 +39,9 @@ export interface CourseRepositoryService {
   ) => Effect.Effect<ReadonlyArray<CourseSummary>, RepositoryError>;
 }
 
-export class CourseRepository extends Context.Tag('@course-data/CourseRepository')<
-  CourseRepository,
-  CourseRepositoryService
->() {}
+export class CourseRepository extends Context.Service<CourseRepository, CourseRepositoryService>()(
+  '@course-data/CourseRepository',
+) {}
 
 export const listCourses = (query: CourseQuery) =>
   Effect.flatMap(CourseRepository, (repository) => repository.list(query));
@@ -96,9 +95,10 @@ export interface ProgrammeCurriculumRepositoryService {
   >;
 }
 
-export class ProgrammeCurriculumRepository extends Context.Tag(
-  '@course-data/ProgrammeCurriculumRepository',
-)<ProgrammeCurriculumRepository, ProgrammeCurriculumRepositoryService>() {}
+export class ProgrammeCurriculumRepository extends Context.Service<
+  ProgrammeCurriculumRepository,
+  ProgrammeCurriculumRepositoryService
+>()('@course-data/ProgrammeCurriculumRepository') {}
 
 export const programmeCurriculumRepositoryLayer = (
   repository: ProgrammeCurriculumRepositoryService,

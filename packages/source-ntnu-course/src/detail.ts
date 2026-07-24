@@ -1,4 +1,4 @@
-import * as Either from 'effect/Either';
+import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 
 export interface NtnuDetailCaptureMetadata {
@@ -73,15 +73,17 @@ export type NtnuDetailParseResult =
   | { readonly accepted: null; readonly rejected: NtnuDetailRejection };
 
 const IsoTimestampSchema = Schema.String.pipe(
-  Schema.pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/),
+  Schema.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/)),
 );
-const Sha256Schema = Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/));
+const Sha256Schema = Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-f0-9]{64}$/)));
 const CaptureSchema = Schema.Struct({
   retrievedAt: IsoTimestampSchema,
   contentHash: Sha256Schema,
-  requestUrl: Schema.String.pipe(Schema.startsWith('https://www.ntnu.no/studier/emner/')),
-  courseCode: Schema.String.pipe(Schema.minLength(1)),
-  evidenceKind: Schema.Literal('source-fact', 'fixture'),
+  requestUrl: Schema.String.pipe(
+    Schema.check(Schema.isStartsWith('https://www.ntnu.no/studier/emner/')),
+  ),
+  courseCode: Schema.NonEmptyString,
+  evidenceKind: Schema.Literals(['source-fact', 'fixture']),
 });
 
 const stripTags = (html: string): string =>
@@ -192,8 +194,8 @@ export const parseNtnuCourseDetail = (
   input: unknown | Uint8Array,
   capture: NtnuDetailCaptureMetadata,
 ): NtnuDetailParseResult => {
-  const captureResult = Schema.decodeUnknownEither(CaptureSchema)(capture);
-  if (Either.isLeft(captureResult)) {
+  const captureResult = Schema.decodeUnknownResult(CaptureSchema)(capture);
+  if (Result.isFailure(captureResult)) {
     return {
       accepted: null,
       rejected: {
@@ -228,7 +230,7 @@ export const parseNtnuCourseDetail = (
     };
   }
 
-  const capturedFields = captureResult.right;
+  const capturedFields = captureResult.success;
   if (
     !new RegExp(
       `\\b${capturedFields.courseCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,

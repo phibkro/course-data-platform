@@ -4,8 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-COMPILER="${1:-tsc}"
-BINARY="$ROOT/node_modules/.bin/$COMPILER"
+BINARY="$ROOT/node_modules/.bin/tsc"
 
 if [[ ! -x "$BINARY" ]]; then
   printf 'Compiler not found: %s\n' "$BINARY" >&2
@@ -33,16 +32,8 @@ CONFIGS=(
   tsconfig.json
 )
 
-printf 'Type-checking with %s (%s)\n' "$COMPILER" "$($BINARY --version)"
+printf 'Type-checking with TypeScript 7 (%s)\n' "$($BINARY --version)"
 for config in "${CONFIGS[@]}"; do
   printf '  %s\n' "$config"
-
-  # Bash 3.2 (the default on macOS) treats expansion of an empty array as an
-  # unbound variable under `set -u`. Keep the compiler-specific invocation
-  # explicit instead of passing a possibly empty argument array.
-  if [[ "$COMPILER" == "tsc" ]]; then
-    "$BINARY" -p "$config" --checkers "${TS_CHECKERS:-4}"
-  else
-    "$BINARY" -p "$config"
-  fi
+  "$BINARY" -p "$config" --checkers "${TS_CHECKERS:-4}"
 done

@@ -21,8 +21,8 @@ import {
 import { decodeInstitutionId } from '@course-data/domain';
 import { cors } from '@elysiajs/cors';
 import { openapi } from '@elysiajs/openapi';
-import * as Either from 'effect/Either';
 import * as Effect from 'effect/Effect';
+import * as Result from 'effect/Result';
 import { Elysia, t } from 'elysia';
 
 import type { CourseRuntime } from './runtime';
@@ -35,27 +35,27 @@ const createCompareApi = (runtime: CourseRuntime) =>
     async ({ query, request, set, status }) => {
       const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
       const result = await runtime.runPromise(
-        Effect.either(
+        Effect.result(
           compareProgrammes(query.leftProgrammeVersionId, query.rightProgrammeVersionId),
         ),
       );
       set.headers['x-request-id'] = requestId;
-      if (Either.isLeft(result)) {
-        if (result.left._tag === 'CompareUnavailableError') {
+      if (Result.isFailure(result)) {
+        if (result.failure._tag === 'CompareUnavailableError') {
           return status(409, {
             type: 'https://course-data.example/problems/compare-locked',
             title: 'Compare is locked',
             status: 409,
-            detail: `Compare requires ${result.left.requiredProgrammeCount} programmes; ${result.left.availableProgrammeCount} are available.`,
+            detail: `Compare requires ${result.failure.requiredProgrammeCount} programmes; ${result.failure.availableProgrammeCount} are available.`,
             requestId,
           });
         }
-        if (result.left._tag === 'ProgrammeVersionNotFoundError') {
+        if (result.failure._tag === 'ProgrammeVersionNotFoundError') {
           return status(404, {
             type: 'https://course-data.example/problems/programme-version-not-found',
             title: 'Programme version not found',
             status: 404,
-            detail: `No programme version exists for ${result.left.programmeVersionId}.`,
+            detail: `No programme version exists for ${result.failure.programmeVersionId}.`,
             requestId,
           });
         }
@@ -63,21 +63,21 @@ const createCompareApi = (runtime: CourseRuntime) =>
           type: 'https://course-data.example/problems/compare-unavailable',
           title: 'Compare unavailable',
           status: 503,
-          detail: result.left.message,
+          detail: result.failure.message,
           requestId,
         });
       }
       return {
         left: {
-          ...result.right.left,
-          uniqueCourses: result.right.left.uniqueCourses.map((course) => ({ ...course })),
+          ...result.success.left,
+          uniqueCourses: result.success.left.uniqueCourses.map((course) => ({ ...course })),
         },
         right: {
-          ...result.right.right,
-          uniqueCourses: result.right.right.uniqueCourses.map((course) => ({ ...course })),
+          ...result.success.right,
+          uniqueCourses: result.success.right.uniqueCourses.map((course) => ({ ...course })),
         },
-        sharedCourses: result.right.sharedCourses.map((course) => ({ ...course })),
-        meta: { ...result.right.meta },
+        sharedCourses: result.success.sharedCourses.map((course) => ({ ...course })),
+        meta: { ...result.success.meta },
       };
     },
     {
@@ -97,21 +97,21 @@ const createDataStatusApi = (runtime: CourseRuntime) =>
     '/v1/data-status',
     async ({ request, set, status }) => {
       const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
-      const result = await runtime.runPromise(Effect.either(getDataStatus()));
+      const result = await runtime.runPromise(Effect.result(getDataStatus()));
       set.headers['x-request-id'] = requestId;
       set.headers['cache-control'] = 'public, max-age=30, stale-while-revalidate=60';
-      if (Either.isLeft(result)) {
+      if (Result.isFailure(result)) {
         return status(503, {
           type: 'https://course-data.example/problems/data-status-unavailable',
           title: 'Data status unavailable',
           status: 503,
-          detail: result.left.message,
+          detail: result.failure.message,
           requestId,
         });
       }
       return {
-        sources: result.right.sources.map((source) => ({ ...source })),
-        meta: { ...result.right.meta },
+        sources: result.success.sources.map((source) => ({ ...source })),
+        meta: { ...result.success.meta },
       };
     },
     {
@@ -126,7 +126,7 @@ const createCoursesApi = (runtime: CourseRuntime) =>
     async ({ query, request, set, status }) => {
       const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
       const result = await runtime.runPromise(
-        Effect.either(
+        Effect.result(
           listCourses({
             ...(query.search ? { search: query.search } : {}),
             ...(query.institutionId
@@ -138,16 +138,16 @@ const createCoursesApi = (runtime: CourseRuntime) =>
       );
       set.headers['cache-control'] = 'public, max-age=60, stale-while-revalidate=300';
       set.headers['x-request-id'] = requestId;
-      if (Either.isLeft(result)) {
+      if (Result.isFailure(result)) {
         return status(503, {
           type: 'https://course-data.example/problems/catalogue-unavailable',
           title: 'Catalogue unavailable',
           status: 503,
-          detail: result.left.message,
+          detail: result.failure.message,
           requestId,
         });
       }
-      const items = result.right.map(toCourseSummaryDto);
+      const items = result.success.map(toCourseSummaryDto);
       return { items, meta: { count: items.length, dataRevision: DATA_REVISION } };
     },
     {
@@ -229,22 +229,22 @@ export const createApi = (runtime: CourseRuntime) =>
       '/v1/programmes',
       async ({ request, set, status }) => {
         const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
-        const result = await runtime.runPromise(Effect.either(listProgrammes()));
+        const result = await runtime.runPromise(Effect.result(listProgrammes()));
         set.headers['x-request-id'] = requestId;
-        if (Either.isLeft(result)) {
+        if (Result.isFailure(result)) {
           return status(503, {
             type: 'https://course-data.example/problems/catalogue-unavailable',
             title: 'Programme catalogue unavailable',
             status: 503,
-            detail: result.left.message,
+            detail: result.failure.message,
             requestId,
           });
         }
         return {
-          items: result.right.items.map((item) => ({ ...item })),
+          items: result.success.items.map((item) => ({ ...item })),
           meta: {
-            ...result.right.meta,
-            warnings: result.right.meta.warnings.map((warning) => ({ ...warning })),
+            ...result.success.meta,
+            warnings: result.success.meta.warnings.map((warning) => ({ ...warning })),
           },
         };
       },
@@ -263,16 +263,16 @@ export const createApi = (runtime: CourseRuntime) =>
       async ({ query, request, set, status }) => {
         const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
         const result = await runtime.runPromise(
-          Effect.either(getPlannerBaseline(query.programmeVersionId)),
+          Effect.result(getPlannerBaseline(query.programmeVersionId)),
         );
         set.headers['x-request-id'] = requestId;
-        if (Either.isLeft(result)) {
-          if (result.left._tag !== 'ProgrammeVersionNotFoundError') {
+        if (Result.isFailure(result)) {
+          if (result.failure._tag !== 'ProgrammeVersionNotFoundError') {
             return status(503, {
               type: 'https://course-data.example/problems/planner-unavailable',
               title: 'Planner unavailable',
               status: 503,
-              detail: result.left.message,
+              detail: result.failure.message,
               requestId,
             });
           }
@@ -284,7 +284,7 @@ export const createApi = (runtime: CourseRuntime) =>
             requestId,
           });
         }
-        return toPlannerDemoResponseDto(result.right);
+        return toPlannerDemoResponseDto(result.success);
       },
       {
         query: PlannerBaselineQueryDto,
@@ -305,35 +305,35 @@ export const createApi = (runtime: CourseRuntime) =>
       '/v1/planner/demo',
       async ({ request, set, status }) => {
         const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
-        const programmes = await runtime.runPromise(Effect.either(listProgrammes()));
+        const programmes = await runtime.runPromise(Effect.result(listProgrammes()));
         set.headers['x-request-id'] = requestId;
-        if (Either.isLeft(programmes) || programmes.right.items[0] === undefined) {
+        if (Result.isFailure(programmes) || programmes.success.items[0] === undefined) {
           return status(503, {
             type: 'https://course-data.example/problems/planner-unavailable',
             title: 'Planner unavailable',
             status: 503,
-            detail: Either.isLeft(programmes)
-              ? programmes.left.message
+            detail: Result.isFailure(programmes)
+              ? programmes.failure.message
               : 'No persisted programme version is available.',
             requestId,
           });
         }
         const result = await runtime.runPromise(
-          Effect.either(getPlannerBaseline(programmes.right.items[0].programmeVersionId)),
+          Effect.result(getPlannerBaseline(programmes.success.items[0].programmeVersionId)),
         );
-        if (Either.isLeft(result)) {
+        if (Result.isFailure(result)) {
           return status(503, {
             type: 'https://course-data.example/problems/planner-unavailable',
             title: 'Planner unavailable',
             status: 503,
             detail:
-              result.left._tag === 'ProgrammeVersionNotFoundError'
-                ? `Persisted programme ${result.left.programmeVersionId} disappeared during the read.`
-                : result.left.message,
+              result.failure._tag === 'ProgrammeVersionNotFoundError'
+                ? `Persisted programme ${result.failure.programmeVersionId} disappeared during the read.`
+                : result.failure.message,
             requestId,
           });
         }
-        return toPlannerDemoResponseDto(result.right);
+        return toPlannerDemoResponseDto(result.success);
       },
       {
         response: { 200: PlannerDemoResponseDto, 503: ProblemDto },
