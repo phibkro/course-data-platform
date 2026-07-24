@@ -10,6 +10,7 @@ import { evo } from 'foldkit/struct';
 import { Button, Input } from '@foldkit/ui';
 
 import { courseClient } from './course-client';
+import { desktopNavigation, mobileNavigation } from './navigation';
 
 type CourseInsightResponse = CourseInsightResponseDtoType;
 type CourseInsight = CourseInsightResponse['item'];
@@ -197,7 +198,7 @@ export const view = (model: Model): Document => {
     body: h.div(
       [h.Class('app-shell')],
       [
-        desktopNavigation(),
+        desktopNavigation<Message>(),
         h.main(
           [h.Class('main-content')],
           [
@@ -219,50 +220,10 @@ export const view = (model: Model): Document => {
             resultView(model.result),
           ],
         ),
-        mobileNavigation(),
+        mobileNavigation<Message>(),
       ],
     ),
   };
-};
-
-const desktopNavigation = (): Html => {
-  const h = html<Message>();
-  return h.aside(
-    [h.Class('sidebar'), h.AriaLabel('Primary navigation')],
-    [
-      h.div(
-        [h.Class('brand')],
-        [h.span([h.Class('brand__mark'), h.AriaHidden(true)], ['C']), h.span([], ['Course lens'])],
-      ),
-      h.nav(
-        [],
-        [
-          h.a(
-            [
-              h.Href('#explore'),
-              h.Class('navigation-item navigation-item--active'),
-              h.AriaCurrent('page'),
-            ],
-            [h.span([h.AriaHidden(true)], ['⌕']), h.span([], ['Explore'])],
-          ),
-        ],
-      ),
-      h.p([h.Class('sidebar__note')], ['Facts stay traceable. Missing information stays visible.']),
-    ],
-  );
-};
-
-const mobileNavigation = (): Html => {
-  const h = html<Message>();
-  return h.nav(
-    [h.Class('bottom-navigation'), h.AriaLabel('Primary navigation')],
-    [
-      h.a(
-        [h.Href('#explore'), h.Class('bottom-navigation__item'), h.AriaCurrent('page')],
-        [h.span([h.AriaHidden(true)], ['⌕']), h.span([], ['Explore'])],
-      ),
-    ],
-  );
 };
 
 const searchForm = (query: string, loading: boolean): Html => {

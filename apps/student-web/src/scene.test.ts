@@ -29,6 +29,10 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.label('Search courses')).toExist(),
       Scene.expect(Scene.label('Campus')).toExist(),
       Scene.expect(Scene.label('Study level')).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Explore' })).toExist(),
+      Scene.expect(Scene.text('List')).toExist(),
+      Scene.expect(Scene.text('Schedule')).toExist(),
+      Scene.expect(Scene.text('Degree')).toExist(),
       Scene.expect(Scene.text('Loading the NTNU catalogue')).toExist(),
     );
   });

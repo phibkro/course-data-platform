@@ -24,11 +24,11 @@ import {
   type CourseSearchSort,
 } from './course-client';
 import { courseInsightView } from './course-detail';
+import { desktopNavigation, mobileNavigation } from './navigation';
 
 const DISPLAY_CHUNK = 40;
 const DEFAULT_TERM = '2026-autumn';
 const DEFAULT_SORT: CourseSearchSort = 'title-asc';
-const exploreUrl = (): string => '/';
 
 export const parseExternalHttpsUrl = (candidate: string | undefined): string | null => {
   if (candidate === undefined) return null;
@@ -780,52 +780,12 @@ const appView = (model: Model): Html => {
   return h.div(
     [h.Class('app-shell')],
     [
-      desktopNavigation(),
+      desktopNavigation<Message>(),
       h.main(
         [h.Class('main-content')],
         [model.selectedCode === null ? catalogueView(model) : selectedCourseView(model)],
       ),
-      mobileNavigation(),
-    ],
-  );
-};
-
-const desktopNavigation = (): Html => {
-  const h = html<Message>();
-  return h.aside(
-    [h.Class('sidebar'), h.AriaLabel('Primary navigation')],
-    [
-      h.div(
-        [h.Class('brand')],
-        [h.span([h.Class('brand__mark'), h.AriaHidden(true)], ['C']), h.span([], ['Course lens'])],
-      ),
-      h.nav(
-        [],
-        [
-          h.a(
-            [
-              h.Href(exploreUrl()),
-              h.Class('navigation-item navigation-item--active'),
-              h.AriaCurrent('page'),
-            ],
-            [h.span([h.AriaHidden(true)], ['⌕']), h.span([], ['Explore'])],
-          ),
-        ],
-      ),
-      h.p([h.Class('sidebar__note')], ['Facts stay traceable. Missing information stays visible.']),
-    ],
-  );
-};
-
-const mobileNavigation = (): Html => {
-  const h = html<Message>();
-  return h.nav(
-    [h.Class('bottom-navigation'), h.AriaLabel('Primary navigation')],
-    [
-      h.a(
-        [h.Href(exploreUrl()), h.Class('bottom-navigation__item'), h.AriaCurrent('page')],
-        [h.span([h.AriaHidden(true)], ['⌕']), h.span([], ['Explore'])],
-      ),
+      mobileNavigation<Message>(),
     ],
   );
 };
