@@ -404,6 +404,8 @@ a:focus-visible {
     var(--preset-accent) 73% 87%,
     var(--preset-chart) 87%
   );
+  background-clip: padding-box;
+  background-repeat: no-repeat;
 }
 
 .theme-preset-card--fjord {
