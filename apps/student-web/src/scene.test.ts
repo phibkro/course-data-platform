@@ -1,6 +1,5 @@
 /* oxlint-disable vitest/expect-expect -- Foldkit Scene.expect performs the assertions. */
 import { Scene } from 'foldkit';
-import { Dialog } from '@foldkit/ui';
 import { describe, test } from 'vitest';
 
 import {
@@ -17,7 +16,6 @@ import {
   DetailPartial,
   DecisionSignalsSuccess,
   GradeSignalsSuccess,
-  GotAppearanceDialogMessage,
   NextPageIdle,
   type Model,
   initForHref,
@@ -48,10 +46,7 @@ describe('browse-first catalogue scene', () => {
   });
 
   test('appearance settings expose Nordic palettes and explicit light modes', () => {
-    const [open] = update(
-      baseModel(),
-      GotAppearanceDialogMessage({ message: Dialog.RequestedOpen() }),
-    );
+    const open = initForHref('http://course-lens.local/appearance')[0];
     Scene.scene(
       { update, view },
       Scene.with(open),

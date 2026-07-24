@@ -59,9 +59,21 @@ test('Theme Lab has no detectable WCAG A/AA violations', async ({ page }) => {
   await waitForEnrichedCatalogue(page);
   await page.getByRole('button', { name: 'Open appearance settings' }).click();
   const dialog = page.getByRole('dialog');
+  await expect(page).toHaveURL(/\/appearance(?:\?|$)/);
   await expect(dialog.getByRole('heading', { name: 'Theme lab' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Close appearance settings' })).toBeFocused();
   await expectNoAxeViolations(page);
+
+  await page.goBack();
+  await expect(page).not.toHaveURL(/\/appearance(?:\?|$)/);
+  await expect(dialog).not.toBeVisible();
+
+  await page.goForward();
+  await expect(page).toHaveURL(/\/appearance(?:\?|$)/);
+  await expect(dialog).toBeVisible();
+
+  await page.getByRole('button', { name: 'Close appearance settings' }).click();
+  await expect(page).not.toHaveURL(/\/appearance(?:\?|$)/);
 });
 
 test('course Inspect view has no detectable WCAG A/AA violations', async ({ page }) => {

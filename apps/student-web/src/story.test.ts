@@ -8,9 +8,10 @@ import {
 } from './course-client';
 import {
   ChangedColorMode,
-  ChangedLocale,
   ChangedCampus,
+  ChangedLocale,
   ChangedThemePreset,
+  ChangedUrl,
   CatalogueEmpty,
   CompletedNavigation,
   FailedCourseSearch,
@@ -20,6 +21,7 @@ import {
   GradeSignalsSuccess,
   Navigate,
   NextPageFailure,
+  RequestedAppearance,
   RequestedMoreCourses,
   SubmittedSearch,
   SucceededCourseSearch,
@@ -81,6 +83,29 @@ test('Nordic palettes and appearance are local preferences and do not refetch da
   expect(
     [...presetCommands, ...modeCommands].some(({ name }) => name === 'FetchCourseSearch'),
   ).toBe(false);
+});
+
+test('the Appearance modal is URL-backed and follows browser history changes', () => {
+  const initial = initialModel();
+  const [requested, requestCommands] = update(initial, RequestedAppearance());
+
+  expect(requested.appearanceDialog.isOpen).toBe(false);
+  expect(requestCommands.map(({ name }) => name)).toEqual(['Navigate']);
+  expect(requestCommands[0]?.args).toMatchObject({ href: '/appearance?lang=en', mode: 'push' });
+
+  const [open, openCommands] = update(
+    requested,
+    ChangedUrl({ href: 'http://course-lens.local/appearance?lang=en' }),
+  );
+  expect(open.appearanceDialog.isOpen).toBe(true);
+  expect(openCommands.map(({ name }) => name)).toContain('ShowDialog');
+
+  const [closed, closeCommands] = update(
+    open,
+    ChangedUrl({ href: 'http://course-lens.local/?lang=en' }),
+  );
+  expect(closed.appearanceDialog.isOpen).toBe(false);
+  expect(closeCommands.map(({ name }) => name)).toContain('RequestFrame');
 });
 
 test('a catalogue response makes official courses available without opening detail', () => {

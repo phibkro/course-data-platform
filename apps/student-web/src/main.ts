@@ -335,6 +335,7 @@ export const FailedNavigation = m('FailedNavigation', { error: S.String });
 export const PersistedLocale = m('PersistedLocale');
 export const FailedLocalePersistence = m('FailedLocalePersistence');
 export const ToggledSidebar = m('ToggledSidebar');
+export const RequestedAppearance = m('RequestedAppearance');
 export const PersistedSidebarPreference = m('PersistedSidebarPreference');
 export const FailedSidebarPreferencePersistence = m('FailedSidebarPreferencePersistence');
 export const GotRefineDialogMessage = m('GotRefineDialogMessage', {
@@ -381,6 +382,7 @@ export const Message = S.Union([
   PersistedLocale,
   FailedLocalePersistence,
   ToggledSidebar,
+  RequestedAppearance,
   PersistedSidebarPreference,
   FailedSidebarPreferencePersistence,
   GotRefineDialogMessage,
@@ -730,7 +732,7 @@ const requestVisibleDecisionSignals = (
   ];
 };
 
-const normalizedUrl = (model: Model, selectedCode: string | null): string => {
+const normalizedUrl = (model: Model, selectedCode: string | null, pathname = '/'): string => {
   const params = new URLSearchParams();
   params.set('lang', model.locale);
   if (model.query.trim().length > 0) params.set('q', model.query.trim());
@@ -742,8 +744,11 @@ const normalizedUrl = (model: Model, selectedCode: string | null): string => {
   if (model.englishOnly) params.set('english', '1');
   if (selectedCode !== null) params.set('course', selectedCode);
   const query = params.toString();
-  return query.length === 0 ? '/' : `/?${query}`;
+  return query.length === 0 ? pathname : `${pathname}?${query}`;
 };
+
+const appearanceUrl = (model: Model): string =>
+  normalizedUrl(model, model.selectedCode, '/appearance');
 
 const startCatalogue = (
   model: Model,
@@ -785,6 +790,7 @@ interface ParsedLocation {
   readonly openOnly: boolean;
   readonly englishOnly: boolean;
   readonly selectedCode: string | null;
+  readonly appearanceOpen: boolean;
 }
 
 const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocation => {
@@ -812,6 +818,7 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
     openOnly: url.searchParams.get('open') === '1',
     englishOnly: url.searchParams.get('english') === '1',
     selectedCode: url.searchParams.get('course')?.trim().toUpperCase() || null,
+    appearanceOpen: url.pathname === '/appearance' || url.pathname === '/appearance/',
   };
 };
 
@@ -909,6 +916,20 @@ const applySelectValue = (
   }
 };
 
+const syncAppearanceDialog = (
+  model: Model,
+  shouldOpen: boolean,
+): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+  if (model.appearanceDialog.isOpen === shouldOpen) return [model, []];
+  const [appearanceDialog, commands] = shouldOpen
+    ? Dialog.open(model.appearanceDialog)
+    : Dialog.close(model.appearanceDialog);
+  return [
+    { ...model, appearanceDialog },
+    Command.mapMessages(commands, (message) => GotAppearanceDialogMessage({ message })),
+  ];
+};
+
 export const update = (
   model: Model,
   message: Message,
@@ -935,6 +956,7 @@ export const update = (
           [PersistSidebarPreference({ collapsed: sidebarCollapsed })],
         ];
       },
+      RequestedAppearance: () => [model, [Navigate({ href: appearanceUrl(model), mode: 'push' })]],
       SubmittedSearch: () =>
         startCatalogue(model, {
           query: model.query.trim(),
@@ -1007,10 +1029,24 @@ export const update = (
       ],
       ChangedUrl: ({ href }) => {
         const location = parseLocation(href);
+        const withAppearance = (
+          result: readonly [Model, ReadonlyArray<Command.Command<Message>>],
+        ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+          const [next, commands] = result;
+          const [synced, appearanceCommands] = syncAppearanceDialog(next, location.appearanceOpen);
+          return [synced, [...commands, ...appearanceCommands]];
+        };
         if (!locationMatchesModel(location, model)) {
           const next: Model = {
             ...model,
-            ...location,
+            locale: location.locale,
+            query: location.query,
+            term: location.term,
+            campus: location.campus,
+            level: location.level,
+            sort: location.sort,
+            openOnly: location.openOnly,
+            englishOnly: location.englishOnly,
             selectedCode: location.selectedCode,
             detail: location.selectedCode === null ? DetailClosed() : DetailLoading(),
             catalogue: CatalogueInitialLoading(),
@@ -1021,7 +1057,7 @@ export const update = (
           };
           const request = searchRequest(next, 1);
           const key = requestKey(request);
-          return [
+          return withAppearance([
             { ...next, activeRequestKey: key },
             [
               fetchCommand(request, key, false),
@@ -1029,28 +1065,30 @@ export const update = (
                 ? []
                 : [FetchCourseInsight({ courseCode: location.selectedCode, term: location.term })]),
             ],
-          ];
+          ]);
         }
         const localizedModel =
           location.locale === model.locale ? model : { ...model, locale: location.locale };
         const localeCommands =
           location.locale === model.locale ? [] : [PersistLocale({ locale: location.locale })];
         if (location.selectedCode === model.selectedCode) {
-          return [localizedModel, localeCommands];
+          return withAppearance([localizedModel, localeCommands]);
         }
-        return location.selectedCode === null
-          ? [{ ...localizedModel, selectedCode: null, detail: DetailClosed() }, localeCommands]
-          : [
-              {
-                ...localizedModel,
-                selectedCode: location.selectedCode,
-                detail: DetailLoading(),
-              },
-              [
-                ...localeCommands,
-                FetchCourseInsight({ courseCode: location.selectedCode, term: model.term }),
+        return withAppearance(
+          location.selectedCode === null
+            ? [{ ...localizedModel, selectedCode: null, detail: DetailClosed() }, localeCommands]
+            : [
+                {
+                  ...localizedModel,
+                  selectedCode: location.selectedCode,
+                  detail: DetailLoading(),
+                },
+                [
+                  ...localeCommands,
+                  FetchCourseInsight({ courseCode: location.selectedCode, term: model.term }),
+                ],
               ],
-            ];
+        );
       },
       ClosedCourse: () => [
         model,
@@ -1203,6 +1241,12 @@ export const update = (
         ];
       },
       GotAppearanceDialogMessage: ({ message: dialogMessage }) => {
+        if (dialogMessage._tag === 'RequestedClose') {
+          return [
+            model,
+            [Navigate({ href: normalizedUrl(model, model.selectedCode), mode: 'replace' })],
+          ];
+        }
         const [appearanceDialog, commands] = Dialog.update(model.appearanceDialog, dialogMessage);
         return [
           { ...model, appearanceDialog },
@@ -1259,6 +1303,14 @@ export const initForHref = (
   themePreference: ThemePreference = defaultThemePreference,
 ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
   const location = parseLocation(href, fallbackLocale);
+  const initialAppearanceDialog = Dialog.init({
+    id: 'appearance-settings',
+    isAnimated: true,
+    focusSelector: '#appearance-settings-close',
+  });
+  const [appearanceDialog, appearanceCommands] = location.appearanceOpen
+    ? Dialog.open(initialAppearanceDialog)
+    : [initialAppearanceDialog, []];
   const base: Model = {
     locale: location.locale,
     query: location.query,
@@ -1283,11 +1335,7 @@ export const initForHref = (
       isAnimated: true,
       focusSelector: '#catalogue-refine-close',
     }),
-    appearanceDialog: Dialog.init({
-      id: 'appearance-settings',
-      isAnimated: true,
-      focusSelector: '#appearance-settings-close',
-    }),
+    appearanceDialog,
     themePreference: decodeThemePreference(themePreference),
     selectFields: {
       campusInline: initSelectField('campus-inline'),
@@ -1309,6 +1357,9 @@ export const initForHref = (
       ...(location.selectedCode === null
         ? []
         : [FetchCourseInsight({ courseCode: location.selectedCode, term: location.term })]),
+      ...Command.mapMessages(appearanceCommands, (message) =>
+        GotAppearanceDialogMessage({ message }),
+      ),
     ],
   ];
 };
@@ -1399,7 +1450,7 @@ const appView = (model: Model): Html => {
         model.locale,
         model.sidebarCollapsed,
         ToggledSidebar(),
-        GotAppearanceDialogMessage({ message: Dialog.RequestedOpen() }),
+        RequestedAppearance(),
         languageSelectControl(
           model.selectFields,
           'language-desktop',
@@ -1429,10 +1480,7 @@ const appView = (model: Model): Html => {
         model.themePreference,
         model.appearanceDialog,
       ]),
-      lazyMobileNavigation(mobileNavigation<Message>, [
-        model.locale,
-        GotAppearanceDialogMessage({ message: Dialog.RequestedOpen() }),
-      ]),
+      lazyMobileNavigation(mobileNavigation<Message>, [model.locale, RequestedAppearance()]),
     ],
   );
 };
