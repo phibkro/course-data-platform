@@ -5,13 +5,13 @@ import type {
 } from '@course-data/contracts';
 import { Effect, Match as M, Schema as S } from 'effect';
 import { Command, Navigation, Runtime, Url } from 'foldkit';
-import type { Document, Html } from 'foldkit/html';
+import type { ChildAttribute, Document, Html } from 'foldkit/html';
 import { html } from 'foldkit/html';
 import { m } from 'foldkit/message';
 import { ts } from 'foldkit/schema';
 import { evo } from 'foldkit/struct';
 
-import { Button, Checkbox, Input, Select } from '@foldkit/ui';
+import { Button, Checkbox, Dialog, Input, Select } from '@foldkit/ui';
 
 import {
   CourseGradeSummariesResponseSchema,
@@ -24,6 +24,7 @@ import {
   type CourseSearchSort,
 } from './course-client';
 import { courseInsightView } from './course-detail';
+import { icon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 
 const DISPLAY_CHUNK = 40;
@@ -148,6 +149,7 @@ export const Model = S.Struct({
   nextPage: NextPageState,
   selectedCode: S.NullOr(S.String),
   detail: DetailResult,
+  refineDialog: Dialog.Model,
 });
 
 type SchemaModel = typeof Model.Type;
@@ -199,6 +201,9 @@ export const FailedCourseInsight = m('FailedCourseInsight', {
 });
 export const CompletedNavigation = m('CompletedNavigation');
 export const FailedNavigation = m('FailedNavigation', { error: S.String });
+export const GotRefineDialogMessage = m('GotRefineDialogMessage', {
+  message: Dialog.Message,
+});
 
 export const Message = S.Union([
   UpdatedQuery,
@@ -221,6 +226,7 @@ export const Message = S.Union([
   FailedCourseInsight,
   CompletedNavigation,
   FailedNavigation,
+  GotRefineDialogMessage,
 ]);
 export type Message = typeof Message.Type;
 
@@ -724,6 +730,13 @@ export const update = (
           : [model, []],
       CompletedNavigation: () => [model, []],
       FailedNavigation: () => [model, []],
+      GotRefineDialogMessage: ({ message: dialogMessage }) => {
+        const [refineDialog, commands] = Dialog.update(model.refineDialog, dialogMessage);
+        return [
+          { ...model, refineDialog },
+          Command.mapMessages(commands, (message) => GotRefineDialogMessage({ message })),
+        ];
+      },
     }),
   );
 
@@ -746,6 +759,11 @@ export const initForHref = (
     nextPage: NextPageIdle(),
     selectedCode: location.selectedCode,
     detail: location.selectedCode === null ? DetailClosed() : DetailLoading(),
+    refineDialog: Dialog.init({
+      id: 'catalogue-refine',
+      isAnimated: true,
+      focusSelector: '#refine-course-query',
+    }),
   };
   const request = searchRequest(base, 1);
   const key = requestKey(request);
@@ -785,6 +803,7 @@ const appView = (model: Model): Html => {
         [h.Class('main-content')],
         [model.selectedCode === null ? catalogueView(model) : selectedCourseView(model)],
       ),
+      catalogueRefineDialog(model),
       mobileNavigation<Message>(),
     ],
   );
@@ -809,18 +828,28 @@ const catalogueView = (model: Model): Html => {
         ],
       ),
       catalogueControls(model),
+      catalogueRefineAction(model),
       catalogueResultView(model),
       productFooter(),
     ],
   );
 };
 
-const catalogueControls = (model: Model): Html => {
+interface CatalogueControlsOptions {
+  readonly className?: string;
+  readonly idPrefix?: string;
+  readonly initialFocus?: ReadonlyArray<ChildAttribute>;
+}
+
+const catalogueControls = (model: Model, options: CatalogueControlsOptions = {}): Html => {
   const h = html<Message>();
   const loading = model.catalogue._tag === 'CatalogueInitialLoading';
+  const idPrefix = options.idPrefix ?? '';
   return h.form(
     [
-      h.Class('catalogue-controls'),
+      h.Class(
+        `catalogue-controls${options.className === undefined ? '' : ` ${options.className}`}`,
+      ),
       h.Role('search'),
       h.OnSubmit(SubmittedSearch()),
       h.AriaLabel('Find and filter NTNU courses'),
@@ -830,7 +859,7 @@ const catalogueControls = (model: Model): Html => {
         [h.Class('catalogue-controls__search')],
         [
           Input.view<Message>({
-            id: 'course-query',
+            id: `${idPrefix}course-query`,
             value: model.query,
             placeholder: 'Course code or title',
             onInput: (value) => UpdatedQuery({ value }),
@@ -839,7 +868,12 @@ const catalogueControls = (model: Model): Html => {
                 [h.Class('field')],
                 [
                   h.label([...attributes.label, h.Class('field__label')], ['Search courses']),
-                  h.input([...attributes.input, h.Class('field__input'), h.Autocomplete('off')]),
+                  h.input([
+                    ...attributes.input,
+                    ...(options.initialFocus ?? []),
+                    h.Class('field__input'),
+                    h.Autocomplete('off'),
+                  ]),
                 ],
               ),
           }),
@@ -857,25 +891,25 @@ const catalogueControls = (model: Model): Html => {
       h.div(
         [h.Class('catalogue-filters')],
         [
-          selectControl('term', 'Term', model.term, ChangedTerm, [
+          selectControl(`${idPrefix}term`, 'Term', model.term, ChangedTerm, [
             ['2026-autumn', 'Autumn 2026 · 2026/27'],
             ['2026-spring', 'Spring 2027 · 2026/27'],
             ['2027-autumn', 'Autumn 2027 · 2027/28'],
             ['2027-spring', 'Spring 2028 · 2027/28'],
           ]),
-          selectControl('campus', 'Campus', model.campus, ChangedCampus, [
+          selectControl(`${idPrefix}campus`, 'Campus', model.campus, ChangedCampus, [
             ['all', 'All campuses'],
             ['trondheim', 'Trondheim'],
             ['gjovik', 'Gjøvik'],
             ['alesund', 'Ålesund'],
           ]),
-          selectControl('level', 'Study level', model.level, ChangedLevel, [
+          selectControl(`${idPrefix}level`, 'Study level', model.level, ChangedLevel, [
             ['all', 'All levels'],
             ['bachelor', 'Bachelor'],
             ['master', 'Master'],
             ['phd', 'PhD'],
           ]),
-          selectControl('sort', 'Sort', model.sort, ChangedSort, [
+          selectControl(`${idPrefix}sort`, 'Sort', model.sort, ChangedSort, [
             ['relevance', 'NTNU relevance'],
             ['title-asc', 'Title A–Z'],
             ['title-desc', 'Title Z–A'],
@@ -887,16 +921,148 @@ const catalogueControls = (model: Model): Html => {
       h.div(
         [h.Class('catalogue-toggles')],
         [
-          checkboxControl('open-admission', 'Open admission', model.openOnly, (isChecked) =>
-            ToggledOpen({ isChecked }),
+          checkboxControl(
+            `${idPrefix}open-admission`,
+            'Open admission',
+            model.openOnly,
+            (isChecked) => ToggledOpen({ isChecked }),
           ),
-          checkboxControl('english', 'Taught in English', model.englishOnly, (isChecked) =>
-            ToggledEnglish({ isChecked }),
+          checkboxControl(
+            `${idPrefix}english`,
+            'Taught in English',
+            model.englishOnly,
+            (isChecked) => ToggledEnglish({ isChecked }),
           ),
         ],
       ),
     ],
   );
+};
+
+const activeRefinementCount = (model: Model): number =>
+  [
+    model.query.trim().length > 0,
+    model.term !== DEFAULT_TERM,
+    model.campus !== 'all',
+    model.level !== 'all',
+    model.sort !== DEFAULT_SORT,
+    model.openOnly,
+    model.englishOnly,
+  ].filter(Boolean).length;
+
+const catalogueRefineAction = (model: Model): Html => {
+  const h = html<Message>();
+  const count = activeRefinementCount(model);
+  return h.div(
+    [h.Class('catalogue-refine-action')],
+    [
+      h.div(
+        [h.Class('catalogue-refine-action__summary')],
+        [
+          h.span(
+            [],
+            [
+              count === 0
+                ? 'All NTNU courses'
+                : `${count} active refinement${count === 1 ? '' : 's'}`,
+            ],
+          ),
+          h.span([], ['Change search, filters, or sorting from anywhere in the list.']),
+        ],
+      ),
+      h.button(
+        [
+          h.Class('button catalogue-refine-action__button'),
+          h.Type('button'),
+          h.OnClick(GotRefineDialogMessage({ message: Dialog.RequestedOpen() })),
+          h.AriaHasPopup('dialog'),
+          h.AriaControls('catalogue-refine'),
+        ],
+        [
+          icon<Message>('refine', 'button__icon'),
+          h.span([], [count === 0 ? 'Refine' : `Refine · ${count}`]),
+        ],
+      ),
+    ],
+  );
+};
+
+const catalogueRefineDialog = (model: Model): Html => {
+  const h = html<Message>();
+  return h.submodel({
+    slotId: 'catalogue-refine-dialog',
+    model: model.refineDialog,
+    view: Dialog.view,
+    viewInputs: {
+      toView: ({
+        dialog,
+        backdrop,
+        panel,
+        title,
+        description,
+        initialFocus,
+        closeButton,
+        isVisible,
+      }) =>
+        h.dialog(
+          [...dialog, h.Class('refine-dialog')],
+          isVisible
+            ? [
+                h.div([...backdrop, h.Class('refine-dialog__backdrop')], []),
+                h.section(
+                  [...panel, h.Class('refine-dialog__panel')],
+                  [
+                    h.header(
+                      [h.Class('refine-dialog__header')],
+                      [
+                        h.div(
+                          [],
+                          [
+                            h.p([h.Class('eyebrow')], ['Explore']),
+                            h.h2([...title], ['Refine courses']),
+                            h.p(
+                              [...description, h.Class('refine-dialog__description')],
+                              ['Changes apply immediately and stay in the shareable URL.'],
+                            ),
+                          ],
+                        ),
+                        h.button(
+                          [
+                            ...closeButton,
+                            h.Class('refine-dialog__close'),
+                            h.Type('button'),
+                            h.AriaLabel('Close course refinements'),
+                          ],
+                          [icon<Message>('close')],
+                        ),
+                      ],
+                    ),
+                    catalogueControls(model, {
+                      className: 'catalogue-controls--dialog',
+                      idPrefix: 'refine-',
+                      initialFocus,
+                    }),
+                    h.footer(
+                      [h.Class('refine-dialog__footer')],
+                      [
+                        h.button(
+                          [
+                            ...closeButton,
+                            h.Class('button button--primary refine-dialog__done'),
+                            h.Type('button'),
+                          ],
+                          ['View results'],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ]
+            : [],
+        ),
+    },
+    toParentMessage: (message) => GotRefineDialogMessage({ message }),
+  });
 };
 
 const selectControl = (

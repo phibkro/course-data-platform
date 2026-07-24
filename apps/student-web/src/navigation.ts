@@ -1,11 +1,13 @@
 import type { Html } from 'foldkit/html';
 import { html } from 'foldkit/html';
 
+import { icon, type AppIcon } from './icons';
+
 export interface NavigationItem {
   readonly id: 'list' | 'schedule' | 'explore' | 'degree' | 'more';
   readonly label: string;
   readonly accessibleLabel: string;
-  readonly icon: string;
+  readonly icon: AppIcon;
   readonly href: string | null;
   readonly isPrimary: boolean;
 }
@@ -20,7 +22,7 @@ export const primaryNavigation: ReadonlyArray<NavigationItem> = [
     id: 'list',
     label: 'List',
     accessibleLabel: 'List',
-    icon: '▤',
+    icon: 'list',
     href: null,
     isPrimary: false,
   },
@@ -28,7 +30,7 @@ export const primaryNavigation: ReadonlyArray<NavigationItem> = [
     id: 'schedule',
     label: 'Schedule',
     accessibleLabel: 'Schedule',
-    icon: '▦',
+    icon: 'schedule',
     href: null,
     isPrimary: false,
   },
@@ -36,7 +38,7 @@ export const primaryNavigation: ReadonlyArray<NavigationItem> = [
     id: 'explore',
     label: 'Explore',
     accessibleLabel: 'Explore',
-    icon: '⌕',
+    icon: 'explore',
     href: '/',
     isPrimary: true,
   },
@@ -44,7 +46,7 @@ export const primaryNavigation: ReadonlyArray<NavigationItem> = [
     id: 'degree',
     label: 'Degree',
     accessibleLabel: 'Full degree overview',
-    icon: '◇',
+    icon: 'degree',
     href: null,
     isPrimary: false,
   },
@@ -52,7 +54,7 @@ export const primaryNavigation: ReadonlyArray<NavigationItem> = [
     id: 'more',
     label: 'More',
     accessibleLabel: 'More',
-    icon: '•••',
+    icon: 'more',
     href: null,
     isPrimary: false,
   },
@@ -61,7 +63,7 @@ export const primaryNavigation: ReadonlyArray<NavigationItem> = [
 const desktopItem = <Message>(item: NavigationItem): Html => {
   const h = html<Message>();
   const children = [
-    h.span([h.Class('navigation-item__icon'), h.AriaHidden(true)], [item.icon]),
+    icon<Message>(item.icon, 'navigation-item__icon'),
     h.span([h.Class('navigation-item__label')], [item.label]),
   ];
 
@@ -90,7 +92,7 @@ const mobileItem = <Message>(item: NavigationItem): Html => {
   const h = html<Message>();
   const primaryClass = item.isPrimary ? ' bottom-navigation__item--primary' : '';
   const children = [
-    h.span([h.Class('bottom-navigation__icon'), h.AriaHidden(true)], [item.icon]),
+    icon<Message>(item.icon, 'bottom-navigation__icon'),
     h.span([h.Class('bottom-navigation__label')], [item.label]),
   ];
 
