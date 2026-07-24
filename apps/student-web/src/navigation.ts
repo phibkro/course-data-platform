@@ -124,6 +124,7 @@ const mobileItem = <Message>(
   ];
 
   if (item.id === 'more' && onAppearance !== undefined) {
+    const appearanceLabel = translate(locale, 'appearance.label');
     return h.button(
       [
         h.Type('button'),
@@ -131,7 +132,10 @@ const mobileItem = <Message>(
         h.OnClick(onAppearance),
         h.AriaLabel(translate(locale, 'appearance.open')),
       ],
-      children,
+      [
+        icon<Message>('appearance', mobileItemIcon(false)),
+        h.span([h.Class('max-w-full truncate')], [appearanceLabel]),
+      ],
     );
   }
 
