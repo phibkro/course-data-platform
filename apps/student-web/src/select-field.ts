@@ -5,11 +5,12 @@ import { html } from 'foldkit/html';
 
 import { Listbox } from '@foldkit/ui';
 
-import { icon } from './icons';
+import { icon, type AppIcon } from './icons';
 
 export interface SelectOption {
   readonly value: string;
   readonly label: string;
+  readonly icon?: AppIcon;
 }
 
 const StyledListbox = Listbox.create<SelectOption, string>();
@@ -78,9 +79,15 @@ export const selectField = <Message>({
             compact ? 'min-h-11 px-2 text-xs font-[800]' : ''
           }`,
           buttonContent: h.span(
-            [h.Class('flex min-w-0 flex-1 items-center justify-between gap-2')],
+            [h.Class('flex min-w-0 flex-1 items-center gap-2')],
             [
-              h.span([h.Class('truncate')], [selected?.label ?? value]),
+              selected?.icon === undefined
+                ? h.empty
+                : icon<Message>(
+                    selected.icon,
+                    'block size-4 flex-none [&_svg]:block [&_svg]:size-full',
+                  ),
+              h.span([h.Class('min-w-0 flex-1 truncate')], [selected?.label ?? value]),
               icon<Message>(
                 'caret-down',
                 'block size-4 flex-none [transition:transform_140ms_ease] group-data-[open]:rotate-180 [&_svg]:block [&_svg]:size-full',
@@ -96,9 +103,15 @@ export const selectField = <Message>({
               isActive ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'
             } ${isSelected ? 'font-[800]' : ''}`,
             content: h.span(
-              [h.Class('flex min-w-0 flex-1 items-center justify-between gap-3')],
+              [h.Class('flex min-w-0 flex-1 items-center gap-3')],
               [
-                h.span([h.Class('truncate')], [item.label]),
+                item.icon === undefined
+                  ? h.empty
+                  : icon<Message>(
+                      item.icon,
+                      'block size-4 flex-none [&_svg]:block [&_svg]:size-full',
+                    ),
+                h.span([h.Class('min-w-0 flex-1 truncate')], [item.label]),
                 isSelected
                   ? icon<Message>(
                       'check',

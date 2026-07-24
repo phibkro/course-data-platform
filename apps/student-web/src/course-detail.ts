@@ -11,6 +11,7 @@ import { Button, Input } from '@foldkit/ui';
 
 import { courseClient } from './course-client';
 import { localeTag, translate, translateToken, type Locale } from './i18n';
+import { collaborationIconName, icon, termSeasonIconName } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 
 type CourseInsightResponse = CourseInsightResponseDtoType;
@@ -535,7 +536,7 @@ export const courseInsightView = (
           chipList(forms.map((form) => translateToken(locale, form))),
         ),
         decisionFact(translate(locale, 'detail.collaboration'), course.collaboration, (value) =>
-          paragraph(translateToken(locale, value)),
+          collaborationPill(value, locale),
         ),
         decisionFact(translate(locale, 'detail.attendance'), course.attendance, (value) =>
           paragraph(translateToken(locale, value)),
@@ -934,8 +935,13 @@ const evidenceLinks = (
 const offeringList = (
   offerings: CourseInsight['offerings'] extends ProtocolFact<infer A> ? A : never,
   locale: Locale,
-): Html =>
-  stringList(
+): Html => {
+  const h = html<Message>();
+  if (offerings.length === 0) {
+    return h.p([], [translate(locale, 'detail.noneReported')]);
+  }
+  return h.ul(
+    [h.Class('mt-[0.35rem] mr-0 mb-0 ml-0 grid gap-2 p-0 list-none [&_li]:leading-[1.5]')],
     offerings.map((offering) => {
       const location =
         offering.campuses.length === 0
@@ -945,10 +951,20 @@ const offeringList = (
         offering.deliveryModes.length === 0
           ? translate(locale, 'detail.deliveryUnknown')
           : offering.deliveryModes.map((mode) => translateToken(locale, mode)).join(', ');
-      return `${formatOfferingPeriod(offering.academicYear, offering.season, locale)} · ${location} · ${delivery}`;
+      const label = `${formatOfferingPeriod(offering.academicYear, offering.season, locale)} · ${location} · ${delivery}`;
+      return h.li(
+        [h.Class('flex items-start gap-2')],
+        [
+          icon<Message>(
+            termSeasonIconName(offering.season),
+            'mt-0.5 block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
+          ),
+          h.span([], [label]),
+        ],
+      );
     }),
-    locale,
   );
+};
 
 const assessmentList = (
   assessment: CourseInsight['assessment'] extends ProtocolFact<infer A> ? A : never,
@@ -1010,14 +1026,24 @@ const paragraph = (value: string): Html => {
   return h.p([], [value]);
 };
 
-const stringList = (items: ReadonlyArray<string>, locale: Locale): Html => {
+const collaborationPill = (
+  collaboration: 'individual' | 'group' | 'mixed',
+  locale: Locale,
+): Html => {
   const h = html<Message>();
-  if (items.length === 0) {
-    return h.p([], [translate(locale, 'detail.noneReported')]);
-  }
-  return h.ul(
-    [h.Class('mt-[0.35rem] mr-0 mb-0 ml-0 pl-[1.2rem] [&_li]:my-[0.35rem] [&_li]:leading-[1.5]')],
-    items.map((item) => h.li([], [item])),
+  return h.span(
+    [
+      h.Class(
+        'mt-2 inline-flex min-h-8 items-center gap-2 rounded-full border border-outline bg-surface-container-high px-3 text-[0.82rem] font-[750] text-on-surface',
+      ),
+    ],
+    [
+      icon<Message>(
+        collaborationIconName(collaboration),
+        'block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
+      ),
+      translateToken(locale, collaboration),
+    ],
   );
 };
 

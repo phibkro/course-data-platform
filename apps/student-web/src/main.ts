@@ -28,7 +28,7 @@ import {
 } from './course-client';
 import { courseInsightView } from './course-detail';
 import { isLocale, localeTag, translate, translateToken, type Locale } from './i18n';
-import { icon, type AppIcon } from './icons';
+import { collaborationIconName, icon, termSeasonIconName, type AppIcon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 import {
   initSelectField,
@@ -1684,10 +1684,26 @@ const catalogueControls = (
                 translate(model.locale, 'catalogue.term'),
                 model.term,
                 [
-                  ['2026-autumn', formatOfferingPeriod(2026, 'autumn', model.locale)],
-                  ['2026-spring', formatOfferingPeriod(2026, 'spring', model.locale)],
-                  ['2027-autumn', formatOfferingPeriod(2027, 'autumn', model.locale)],
-                  ['2027-spring', formatOfferingPeriod(2027, 'spring', model.locale)],
+                  [
+                    '2026-autumn',
+                    formatOfferingPeriod(2026, 'autumn', model.locale),
+                    termSeasonIconName('autumn'),
+                  ],
+                  [
+                    '2026-spring',
+                    formatOfferingPeriod(2026, 'spring', model.locale),
+                    termSeasonIconName('spring'),
+                  ],
+                  [
+                    '2027-autumn',
+                    formatOfferingPeriod(2027, 'autumn', model.locale),
+                    termSeasonIconName('autumn'),
+                  ],
+                  [
+                    '2027-spring',
+                    formatOfferingPeriod(2027, 'spring', model.locale),
+                    termSeasonIconName('spring'),
+                  ],
                 ],
               ),
               selectControl(
@@ -2289,7 +2305,7 @@ const selectControl = (
   id: SelectControlId,
   label: string,
   value: string,
-  options: ReadonlyArray<readonly [string, string]>,
+  options: ReadonlyArray<readonly [string, string, AppIcon?]>,
   compact = false,
 ): Html =>
   selectField<Message>({
@@ -2297,9 +2313,10 @@ const selectControl = (
     label,
     value,
     options: options.map(
-      ([optionValue, optionLabel]): SelectOption => ({
+      ([optionValue, optionLabel, optionIcon]): SelectOption => ({
         value: optionValue,
         label: optionLabel,
+        ...(optionIcon === undefined ? {} : { icon: optionIcon }),
       }),
     ),
     compact,
@@ -2647,7 +2664,18 @@ const courseCard = (
                     [h.Class('min-w-0')],
                     [
                       h.dt([h.Class(factDtClass)], [translate(locale, 'course.termFact')]),
-                      h.dd([h.Class(factDdClass)], [term]),
+                      h.dd(
+                        [h.Class(`${factDdClass} inline-flex items-start gap-1.5`)],
+                        [
+                          offering === null
+                            ? h.empty
+                            : icon<Message>(
+                                termSeasonIconName(offering.season),
+                                'mt-0.5 block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
+                              ),
+                          h.span([], [term]),
+                        ],
+                      ),
                     ],
                   ),
                   h.div(
@@ -2870,8 +2898,21 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
         );
   const collaboration =
     signal.collaboration.state === 'known'
-      ? collaborationLabel(signal.collaboration.value, locale)
-      : factStateLabel(signal.collaboration.state, locale);
+      ? h.span(
+          [
+            h.Class(
+              'inline-flex min-h-7 items-center gap-1.5 rounded-full bg-surface-container-highest px-2.5 text-[0.76rem] font-[800] text-on-surface',
+            ),
+          ],
+          [
+            icon<Message>(
+              collaborationIconName(signal.collaboration.value),
+              'block size-4 flex-none [&_svg]:block [&_svg]:size-full',
+            ),
+            collaborationLabel(signal.collaboration.value, locale),
+          ],
+        )
+      : h.span([], [factStateLabel(signal.collaboration.state, locale)]);
   const inferred = signal.evidence.some((evidence) => evidence.kind === 'inference');
   const factRowClass =
     'grid gap-1.5 @min-[24rem]:grid-cols-[minmax(7.5rem,0.8fr)_minmax(0,1fr)] @min-[24rem]:gap-3';
