@@ -17,6 +17,7 @@ describe('mapNtnuDetailToCourseDecisionSignals', () => {
       `
         <html><body>
           <h1>TPD4114</h1>
+          <p>Studiepoeng 7,5</p>
           <h2>Læringsformer og aktiviteter</h2>
           <p>Forelesninger og prosjektarbeid i grupper.</p>
           <h2>Vurderingsordning</h2>
@@ -59,6 +60,7 @@ describe('mapNtnuDetailToCourseDecisionSignals', () => {
         },
       ],
     });
+    expect(signals.credits).toMatchObject({ state: 'known', value: 7.5 });
     expect(signals.obligatoryActivities).toMatchObject({ state: 'known' });
     expect(signals.collaboration).toMatchObject({ state: 'known', value: 'group' });
     expect(signals.workFormSignals).toMatchObject({
@@ -82,6 +84,7 @@ describe('mapNtnuDetailToCourseDecisionSignals', () => {
       'NTNU returned HTTP 503.',
     );
 
+    expect(signals.credits.state).toBe('unavailable');
     expect(signals.assessment.state).toBe('unavailable');
     expect(signals.obligatoryActivities.state).toBe('unavailable');
     expect(signals.sourceStatus).toMatchObject({

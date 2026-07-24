@@ -955,6 +955,8 @@ const assessmentList = (
   locale: Locale,
 ): Html => {
   const h = html<Message>();
+  const formatWeight = (value: number): string =>
+    new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value);
   return h.ul(
     [h.Class('mt-[0.35rem] mr-0 mb-0 ml-0 pl-[1.2rem] [&_li]:my-[0.35rem] [&_li]:leading-[1.5]')],
     assessment.map((part) =>
@@ -965,7 +967,7 @@ const assessmentList = (
           h.span(
             [],
             [
-              ` — ${part.description}${part.weightPercent.state === 'known' ? ` · ${part.weightPercent.value}%` : ''}${part.duration.state === 'known' ? ` · ${part.duration.value}` : ''}`,
+              ` — ${part.description}${part.weightPercent.state === 'known' ? ` · ${formatWeight(part.weightPercent.value)}%` : ''}${part.duration.state === 'known' ? ` · ${part.duration.value}` : ''}`,
             ],
           ),
         ],

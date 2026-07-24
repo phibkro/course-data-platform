@@ -322,6 +322,9 @@ export type CourseSearchItem = Schema.Schema.Type<typeof CourseSearchItemSchema>
 
 export const CourseDecisionSignalsSchema = Schema.Struct({
   courseCode: NonEmptyString,
+  credits: makeFactSchema(
+    Schema.Number.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: 60 }))),
+  ),
   assessment: makeFactSchema(Schema.Array(AssessmentPartSchema)),
   workFormSignals: makeFactSchema(Schema.Array(WorkFormSchema)),
   obligatoryActivities: makeFactSchema(Schema.Array(ObligatoryActivitySchema)),

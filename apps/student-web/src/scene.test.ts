@@ -59,11 +59,26 @@ describe('browse-first catalogue scene', () => {
   });
 
   test('official results are semantic links into existing course detail', () => {
+    const searchResponse = fixtureSearchResponse(1);
+    const responseWithSearchCreditsUnknown = {
+      ...searchResponse,
+      items: searchResponse.items.map((item) => ({
+        ...item,
+        credits: {
+          state: 'unknown' as const,
+          reason: 'Course credits require the NTNU detail page.',
+          evidenceIds: [],
+        },
+      })),
+    };
     Scene.scene(
       { update, view },
       Scene.with({
         ...baseModel(),
-        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        catalogue: CataloguePartial({ response: responseWithSearchCreditsUnknown }),
+        decisionSignals: DecisionSignalsSuccess({
+          response: fixtureDecisionSignalsResponse(['TDT4136']),
+        }),
         visibleCount: 1,
       }),
       Scene.expect(Scene.role('region', { name: 'Course results' })).toExist(),
@@ -75,9 +90,57 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.text('Showing 1 of 1 courses')).toExist(),
       Scene.expect(Scene.text('Credits', { exact: true })).toExist(),
       Scene.expect(Scene.text('7.5 credits', { exact: true })).toExist(),
-      Scene.expect(Scene.text('Level', { exact: true })).toExist(),
+      Scene.expect(Scene.text('Level', { exact: true })).toBeAbsent(),
       Scene.expect(Scene.text('Campus', { exact: true })).toExist(),
       Scene.expect(Scene.text('Load when opened')).toBeAbsent(),
+    );
+  });
+
+  test('mixed historical populations can switch without combining unlike grading scales', () => {
+    const response = fixtureGradeSummariesResponse(['TDT4136']);
+    const summary = response.items[0]!;
+    const mixed = {
+      ...response,
+      items: [
+        {
+          ...summary,
+          gradingScale: {
+            state: 'known' as const,
+            value: 'mixed' as const,
+            evidenceIds: summary.gradingScale.evidenceIds,
+          },
+          distribution: {
+            state: 'known' as const,
+            value: [
+              { grade: 'A', count: 30, percentage: 18.75 },
+              { grade: 'B', count: 20, percentage: 12.5 },
+              { grade: 'F', count: 10, percentage: 6.25 },
+              { grade: 'G', count: 80, percentage: 50 },
+              { grade: 'H', count: 20, percentage: 12.5 },
+            ],
+            evidenceIds: summary.distribution.evidenceIds,
+          },
+        },
+      ],
+    };
+
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        gradeSignals: GradeSignalsSuccess({ response: mixed }),
+        visibleCount: 1,
+      }),
+      Scene.expect(Scene.role('group', { name: 'Choose historical outcome scale' })).toExist(),
+      Scene.expect(Scene.text('16.7% failed · n=60 · 2022–2025')).toExist(),
+      Scene.click(Scene.role('button', { name: 'Pass/fail' })),
+      Scene.expect(
+        Scene.role('img', {
+          name: /Pass\/fail\. Pass 80 percent, Fail 20 percent/,
+        }),
+      ).toExist(),
+      Scene.expect(Scene.text('20% failed · n=100 · 2022–2025')).toExist(),
     );
   });
 
@@ -192,13 +255,13 @@ describe('browse-first catalogue scene', () => {
             value: [
               {
                 ...written,
-                weightPercent: { ...written.weightPercent, value: 60 },
+                weightPercent: { ...written.weightPercent, value: 100 / 3 },
               },
               {
                 ...written,
                 form: 'project' as const,
                 description: 'Individual project',
-                weightPercent: { ...written.weightPercent, value: 40 },
+                weightPercent: { ...written.weightPercent, value: 200 / 3 },
               },
             ],
           },
@@ -215,9 +278,9 @@ describe('browse-first catalogue scene', () => {
         visibleCount: 1,
       }),
       Scene.expect(Scene.text('Written exam')).toExist(),
-      Scene.expect(Scene.text('60%')).toExist(),
+      Scene.expect(Scene.text('33.33%')).toExist(),
       Scene.expect(Scene.text('Project')).toExist(),
-      Scene.expect(Scene.text('40%')).toExist(),
+      Scene.expect(Scene.text('66.67%')).toExist(),
     );
   });
 

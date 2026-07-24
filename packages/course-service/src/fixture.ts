@@ -251,6 +251,7 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
         courseCode === 'TDT4136'
           ? decodeCourseDecisionSignals({
               courseCode,
+              credits: encodedInsight.credits,
               assessment: encodedInsight.assessment,
               workFormSignals: encodedInsight.workForms,
               obligatoryActivities: encodedInsight.obligatoryActivities,
@@ -267,6 +268,7 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
             })
           : decodeCourseDecisionSignals({
               courseCode,
+              credits: unavailable(missingReason),
               assessment: unavailable(missingReason),
               workFormSignals: unavailable(missingReason),
               obligatoryActivities: unavailable(missingReason),

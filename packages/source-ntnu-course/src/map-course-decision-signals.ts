@@ -23,6 +23,7 @@ export const mapNtnuDetailToCourseDecisionSignals = (
     const reason = 'NTNU course-detail page was not available for this course.';
     return decodeCourseDecisionSignals({
       courseCode,
+      credits: unavailable(reason),
       assessment: unavailable(reason),
       workFormSignals: unavailable(reason),
       obligatoryActivities: unavailable(reason),
@@ -111,6 +112,10 @@ export const mapNtnuDetailToCourseDecisionSignals = (
 
   return decodeCourseDecisionSignals({
     courseCode,
+    credits:
+      detail.credits === null
+        ? unknown('NTNU course-detail page did not expose course credits.')
+        : known(detail.credits, [factEvidenceId]),
     assessment,
     workFormSignals,
     obligatoryActivities,

@@ -58,8 +58,10 @@ const tipUrl = parseExternalHttpsUrl(import.meta.env.VITE_TIP_URL as string | un
 
 type Campus = 'all' | 'trondheim' | 'gjovik' | 'alesund';
 type Level = 'all' | 'bachelor' | 'master' | 'phd';
+type OutcomeView = 'letter' | 'pass-fail';
 const CampusSchema = S.Literals(['all', 'trondheim', 'gjovik', 'alesund']);
 const LevelSchema = S.Literals(['all', 'bachelor', 'master', 'phd']);
+const OutcomeViewSchema = S.Literals(['letter', 'pass-fail']);
 const SortSchema = S.Literals(['relevance', 'title-asc', 'title-desc', 'code-asc', 'code-desc']);
 const LocaleSchema = S.Literals(['en', 'nb']);
 
@@ -189,6 +191,7 @@ export const Model = S.Struct({
   sort: SortSchema,
   openOnly: S.Boolean,
   englishOnly: S.Boolean,
+  outcomeView: OutcomeViewSchema,
   activeRequestKey: S.String,
   visibleCount: S.Number,
   catalogue: CatalogueResult,
@@ -221,6 +224,7 @@ export const ChangedLevel = m('ChangedLevel', { value: S.String });
 export const ChangedSort = m('ChangedSort', { value: S.String });
 export const ToggledOpen = m('ToggledOpen', { isChecked: S.Boolean });
 export const ToggledEnglish = m('ToggledEnglish', { isChecked: S.Boolean });
+export const ChangedOutcomeView = m('ChangedOutcomeView', { value: S.String });
 export const RequestedMoreCourses = m('RequestedMoreCourses');
 export const RequestedUrl = m('RequestedUrl', { href: S.String, external: S.Boolean });
 export const ChangedUrl = m('ChangedUrl', { href: S.String });
@@ -284,6 +288,7 @@ export const Message = S.Union([
   ChangedSort,
   ToggledOpen,
   ToggledEnglish,
+  ChangedOutcomeView,
   RequestedMoreCourses,
   RequestedUrl,
   ChangedUrl,
@@ -772,6 +777,10 @@ export const update = (
         }),
       ToggledOpen: ({ isChecked }) => startCatalogue(model, { openOnly: isChecked }),
       ToggledEnglish: ({ isChecked }) => startCatalogue(model, { englishOnly: isChecked }),
+      ChangedOutcomeView: ({ value }) => [
+        { ...model, outcomeView: oneOf(value, ['letter', 'pass-fail'], 'letter') },
+        [],
+      ],
       RequestedMoreCourses: () => {
         const response = catalogueResponse(model.catalogue);
         if (response === null || model.nextPage._tag === 'NextPageLoading') return [model, []];
@@ -1029,6 +1038,7 @@ export const initForHref = (
     sort: location.sort,
     openOnly: location.openOnly,
     englishOnly: location.englishOnly,
+    outcomeView: 'letter',
     activeRequestKey: '',
     visibleCount: DISPLAY_CHUNK,
     catalogue: CatalogueInitialLoading(),
@@ -1776,6 +1786,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
             decisionSignalForCourse(model.decisionSignals, course.code),
             gradeSignalForCourse(model.gradeSignals, course.code),
             model.locale,
+            model.outcomeView,
           ]),
         ),
       ),
@@ -1874,6 +1885,7 @@ const courseCard = (
   decisionSignal: DecisionSignal,
   gradeSignal: GradeSignal,
   locale: Locale,
+  outcomeView: OutcomeView,
 ): Html => {
   const h = html<Message>();
   const title =
@@ -1898,18 +1910,18 @@ const courseCard = (
         ? translate(locale, 'course.termUnavailable')
         : factStateLabel(course.offerings.state, locale)
       : formatOfferingPeriod(offering.academicYear, offering.season, locale);
+  const creditsFact =
+    typeof decisionSignal !== 'string' && decisionSignal.credits.state === 'known'
+      ? decisionSignal.credits
+      : course.credits;
   const credits =
-    course.credits.state === 'known'
+    creditsFact.state === 'known'
       ? translate(locale, 'course.creditsValue', {
           value: new Intl.NumberFormat(localeTag(locale), {
             maximumFractionDigits: 1,
-          }).format(course.credits.value),
+          }).format(creditsFact.value),
         })
-      : factStateLabel(course.credits.state, locale);
-  const level =
-    course.level.state === 'known'
-      ? translateToken(locale, course.level.value)
-      : factStateLabel(course.level.state, locale);
+      : factStateLabel(creditsFact.state, locale);
   return h.li(
     [],
     [
@@ -1966,13 +1978,6 @@ const courseCard = (
                   h.div(
                     [h.Class('min-w-0')],
                     [
-                      h.dt([h.Class(factDtClass)], [translate(locale, 'detail.level')]),
-                      h.dd([h.Class(factDdClass)], [level]),
-                    ],
-                  ),
-                  h.div(
-                    [h.Class('min-w-0')],
-                    [
                       h.dt([h.Class(factDtClass)], [translate(locale, 'course.termFact')]),
                       h.dd([h.Class(factDdClass)], [term]),
                     ],
@@ -1994,7 +1999,10 @@ const courseCard = (
                 'grid min-w-0 gap-3 [@media(min-width:80rem)]:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]',
               ),
             ],
-            [decisionSignalView(decisionSignal, locale), gradeSignalView(gradeSignal, locale)],
+            [
+              decisionSignalView(decisionSignal, locale),
+              gradeSignalView(gradeSignal, locale, outcomeView),
+            ],
           ),
         ],
       ),
@@ -2049,6 +2057,9 @@ const collaborationLabel = (
     M.exhaustive,
   );
 
+const formatAssessmentWeight = (value: number, locale: Locale): string =>
+  `${new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value)}%`;
+
 const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
   const h = html<Message>();
   const stateClass =
@@ -2091,7 +2102,10 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
     ) > 0;
   const assessmentPart = (part: (typeof parts)[number], index: number, grouped: boolean): Html => {
     const label = assessmentLabel(part.form, locale);
-    const weight = part.weightPercent.state === 'known' ? `${part.weightPercent.value}%` : null;
+    const weight =
+      part.weightPercent.state === 'known'
+        ? formatAssessmentWeight(part.weightPercent.value, locale)
+        : null;
     const accessibleLabel =
       weight === null ? label : `${label}, ${weight} ${translate(locale, 'signals.graded')}`;
     return h.li(
@@ -2245,8 +2259,8 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
 const outcomeStateClass =
   'grid gap-2 min-w-0 p-3 rounded-m3-medium bg-primary-container text-on-primary-container';
 
-const gradeSignalView = (signal: GradeSignal, locale: Locale): Html => {
-  if (typeof signal !== 'string') return gradeSummaryView(signal, locale);
+const gradeSignalView = (signal: GradeSignal, locale: Locale, outcomeView: OutcomeView): Html => {
+  if (typeof signal !== 'string') return gradeSummaryView(signal, locale, outcomeView);
   const h = html<Message>();
   const message = M.value(signal).pipe(
     M.when('loading', () => translate(locale, 'outcomes.checking')),
@@ -2274,15 +2288,13 @@ const gradeDisplayLabel = (grade: string, locale: Locale): string =>
     M.orElse(() => grade),
   );
 
-const gradeScaleLabel = (summary: CourseGradeSummaryDtoType, locale: Locale): string => {
-  if (summary.gradingScale.state !== 'known') return translate(locale, 'outcomes.heading');
-  return M.value(summary.gradingScale.value).pipe(
+const gradeScaleLabel = (scale: 'letter' | 'pass-fail' | 'mixed', locale: Locale): string =>
+  M.value(scale).pipe(
     M.when('letter', () => translate(locale, 'outcomes.letter')),
     M.when('pass-fail', () => translate(locale, 'outcomes.passFail')),
     M.when('mixed', () => translate(locale, 'outcomes.mixed')),
     M.exhaustive,
   );
-};
 
 const formatPercentage = (value: number, locale: Locale): string =>
   new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 }).format(value);
@@ -2307,27 +2319,32 @@ const distributionStateMessage = (
   }
 };
 
-const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): Html => {
+type GradeBucket = {
+  readonly grade: string;
+  readonly count: number;
+  readonly percentage: number;
+};
+
+const normalizeGradeBuckets = (buckets: ReadonlyArray<GradeBucket>): ReadonlyArray<GradeBucket> => {
+  const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+  if (total <= 0) return [];
+  return buckets.map((bucket) => ({
+    ...bucket,
+    percentage: (bucket.count / total) * 100,
+  }));
+};
+
+const gradeSummaryView = (
+  summary: CourseGradeSummaryDtoType,
+  locale: Locale,
+  requestedView: OutcomeView,
+): Html => {
   const h = html<Message>();
-  const scale = gradeScaleLabel(summary, locale);
-  const sample =
-    summary.sampleSize.state === 'known'
-      ? translate(locale, 'outcomes.sample', {
-          value: summary.sampleSize.value.toLocaleString(localeTag(locale)),
-        })
-      : null;
   const period =
     summary.period.state === 'known'
       ? `${summary.period.value.fromYear}–${summary.period.value.toYear}`
       : null;
-  const failure =
-    summary.failureRatePercent.state === 'known'
-      ? translate(locale, 'outcomes.failedRate', {
-          value: formatPercentage(summary.failureRatePercent.value, locale),
-        })
-      : null;
-  const metadata = [failure, sample, period].filter((value): value is string => value !== null);
-  const buckets =
+  const sourceBuckets =
     summary.distribution.state === 'known'
       ? [...summary.distribution.value].sort(
           (left, right) =>
@@ -2336,7 +2353,20 @@ const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): H
         )
       : [];
 
-  if (buckets.length === 0) {
+  if (sourceBuckets.length === 0) {
+    const sample =
+      summary.sampleSize.state === 'known'
+        ? translate(locale, 'outcomes.sample', {
+            value: summary.sampleSize.value.toLocaleString(localeTag(locale)),
+          })
+        : null;
+    const failure =
+      summary.failureRatePercent.state === 'known'
+        ? translate(locale, 'outcomes.failedRate', {
+            value: formatPercentage(summary.failureRatePercent.value, locale),
+          })
+        : null;
+    const metadata = [failure, sample, period].filter((value): value is string => value !== null);
     return h.div(
       [h.Class(`${outcomeStateClass} bg-surface-container text-on-surface-variant`)],
       [
@@ -2359,6 +2389,38 @@ const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): H
     );
   }
 
+  const letterBuckets = sourceBuckets.filter((bucket) => /^[A-F]$/.test(bucket.grade));
+  const passFailBuckets = sourceBuckets.filter(
+    (bucket) => bucket.grade === 'G' || bucket.grade === 'H',
+  );
+  const hasLetter = letterBuckets.some((bucket) => bucket.count > 0);
+  const hasPassFail = passFailBuckets.some((bucket) => bucket.count > 0);
+  const hasBothScales = hasLetter && hasPassFail;
+  const selectedScale: OutcomeView = hasBothScales
+    ? requestedView
+    : hasPassFail
+      ? 'pass-fail'
+      : 'letter';
+  const buckets = normalizeGradeBuckets(
+    selectedScale === 'letter' ? letterBuckets : passFailBuckets,
+  );
+  const selectedSampleSize = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+  const failedGrade = selectedScale === 'letter' ? 'F' : 'H';
+  const failedBucket = buckets.find((bucket) => bucket.grade === failedGrade);
+  const failure =
+    failedBucket === undefined
+      ? null
+      : translate(locale, 'outcomes.failedRate', {
+          value: formatPercentage(failedBucket.percentage, locale),
+        });
+  const sample =
+    selectedSampleSize > 0
+      ? translate(locale, 'outcomes.sample', {
+          value: selectedSampleSize.toLocaleString(localeTag(locale)),
+        })
+      : null;
+  const metadata = [failure, sample, period].filter((value): value is string => value !== null);
+  const scale = gradeScaleLabel(selectedScale, locale);
   const maxPercentage = Math.max(...buckets.map((bucket) => bucket.percentage), 1);
   const accessibleDistribution = buckets
     .map((bucket) =>
@@ -2372,11 +2434,7 @@ const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): H
   const passBucket = buckets.find((bucket) => bucket.grade === 'G');
   const failBucket = buckets.find((bucket) => bucket.grade === 'H');
   const isPassFail =
-    summary.gradingScale.state === 'known' &&
-    summary.gradingScale.value === 'pass-fail' &&
-    buckets.length === 2 &&
-    passBucket !== undefined &&
-    failBucket !== undefined;
+    selectedScale === 'pass-fail' && passBucket !== undefined && failBucket !== undefined;
   const distributionChart = isPassFail
     ? (() => {
         const total = Math.max(passBucket.percentage + failBucket.percentage, 1);
@@ -2475,12 +2533,37 @@ const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): H
         ],
       );
 
-  return h.figure(
-    [
-      h.Class(outcomeStateClass),
-      h.Role('img'),
-      h.AriaLabel(translate(locale, 'outcomes.chartLabel', { summary: accessibleSummary })),
-    ],
+  const toggle = hasBothScales
+    ? h.div(
+        [
+          h.Class(
+            'grid grid-cols-2 overflow-hidden rounded-full border border-outline bg-surface-container-low',
+          ),
+          h.Role('group'),
+          h.AriaLabel(translate(locale, 'outcomes.view')),
+        ],
+        (['letter', 'pass-fail'] as const).map((view) =>
+          h.button(
+            [
+              h.Type('button'),
+              h.Class(
+                `min-h-9 cursor-pointer border-0 px-3 text-[0.75rem] font-[800] ${
+                  selectedScale === view
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-transparent text-on-surface-variant'
+                }`,
+              ),
+              h.AriaPressed(String(selectedScale === view)),
+              h.OnClick(ChangedOutcomeView({ value: view })),
+            ],
+            [gradeScaleLabel(view, locale)],
+          ),
+        ),
+      )
+    : h.empty;
+
+  return h.div(
+    [h.Class(outcomeStateClass)],
     [
       h.div(
         [h.Class('flex flex-wrap items-start justify-between gap-x-3 gap-y-1')],
@@ -2488,7 +2571,7 @@ const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): H
           h.div(
             [h.Class('grid gap-0.5')],
             [
-              h.figcaption([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
+              h.p([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
               h.p([h.Class('m-0 text-[0.78rem] font-[750]')], [scale]),
             ],
           ),
@@ -2498,10 +2581,23 @@ const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): H
           ),
         ],
       ),
-      distributionChart,
-      metadata.length === 0
-        ? h.empty
-        : h.p([h.Class('m-0 text-[0.75rem] font-[650] leading-[1.35]')], [metadata.join(' · ')]),
+      toggle,
+      h.figure(
+        [
+          h.Class('grid gap-2 m-0'),
+          h.Role('img'),
+          h.AriaLabel(translate(locale, 'outcomes.chartLabel', { summary: accessibleSummary })),
+        ],
+        [
+          distributionChart,
+          metadata.length === 0
+            ? h.empty
+            : h.p(
+                [h.Class('m-0 text-[0.75rem] font-[650] leading-[1.35]')],
+                [metadata.join(' · ')],
+              ),
+        ],
+      ),
     ],
   );
 };

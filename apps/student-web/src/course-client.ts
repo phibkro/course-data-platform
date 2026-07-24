@@ -205,6 +205,9 @@ export const fixtureDecisionSignalsResponse = (
       const reason = 'The fixture contains no NTNU decision signals for this course.';
       return {
         courseCode: normalizedCode,
+        credits: available
+          ? partialCourseInsightFixture.item.credits
+          : { state: 'unavailable' as const, reason, evidenceIds: [] },
         assessment: available
           ? partialCourseInsightFixture.item.assessment
           : { state: 'unavailable' as const, reason, evidenceIds: [] },

@@ -269,6 +269,7 @@ export const CourseDecisionSignalsRequestDto = t.Object({
 
 export const CourseDecisionSignalsDto = t.Object({
   courseCode: t.String({ minLength: 2, maxLength: 20 }),
+  credits: FactDto(t.Number({ minimum: 0, maximum: 60 })),
   assessment: FactDto(t.Array(AssessmentPartDto)),
   workFormSignals: FactDto(t.Array(WorkFormDto)),
   obligatoryActivities: FactDto(t.Array(ObligatoryActivityDto)),
@@ -454,6 +455,7 @@ export const toCourseDecisionSignalsDto = (
   signals: CourseDecisionSignals,
 ): CourseDecisionSignalsDtoType => ({
   courseCode: signals.courseCode,
+  credits: mapFact(signals.credits, Number),
   assessment: mapFact(signals.assessment, (assessment) => assessment.map(mapAssessmentPart)),
   workFormSignals: mapFact(signals.workFormSignals, (forms) => [...forms]),
   obligatoryActivities: mapFact(signals.obligatoryActivities, (activities) =>

@@ -159,6 +159,74 @@ describe('parseNtnuCourseDetail', () => {
     });
   });
 
+  it('collapses duplicated responsive assessment markup even when the final copy reaches the footer', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>MM8410</h1>
+          <h2>Vurderingsordning</h2><p>Muntlig eksamen</p>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Muntlig eksamen</h5>
+            <span class="exam-fact-label">Vekting</span><span>100/100</span>
+            <span class="exam-fact-label">Varighet</span><span>30 minutter</span>
+          </div>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Muntlig eksamen</h5>
+            <span class="exam-fact-label">Vekting</span><span>100/100</span>
+            <span class="exam-fact-label">Varighet</span><span>30 minutter</span>
+          </div>
+          <footer>Alt om eksamen ved NTNU</footer>
+        </body></html>
+      `,
+      {
+        ...capture,
+        courseCode: 'MM8410',
+        requestUrl: 'https://www.ntnu.no/studier/emner/MM8410/2026',
+      },
+    );
+
+    expect(result.accepted?.assessmentParts).toEqual({
+      state: 'known',
+      items: [
+        {
+          form: 'oral-exam',
+          description: 'Muntlig eksamen',
+          weightPercent: 100,
+          duration: '30 minutter',
+        },
+      ],
+    });
+  });
+
+  it('does not publish a structured composition when all known weights fail to total 100 percent', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <h2>Vurderingsordning</h2><p>Prosjekt og muntlig eksamen</p>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Prosjekt</h5>
+            <span class="exam-fact-label">Vekting</span><span>60/100</span>
+          </div>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Muntlig eksamen</h5>
+            <span class="exam-fact-label">Vekting</span><span>60/100</span>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.assessmentParts).toEqual({
+      state: 'unavailable',
+      reason: 'Structured ordinary assessment weights total 120%, not 100%.',
+    });
+  });
+
   it('recognizes observed Norwegian collaboration and attendance phrases in obligatory work', () => {
     const result = parseNtnuCourseDetail(
       `

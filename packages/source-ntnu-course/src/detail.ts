@@ -206,7 +206,7 @@ const extractClassElementText = (
 
 const ORDINARY_EXAM_RE = /Ordinær eksamen|Ordinary (examination|exam)/i;
 const EXAM_FACT_STOPS =
-  'Hjelpemiddel|Dato|Tid|Varighet|Eksamenssystem|Sensurfrist|Karakterskala|Aid|Date|Time|Duration|Examination system|Grading scale';
+  'Hjelpemiddel|Dato|Tid|Varighet|Eksamenssystem|Sensurfrist|Karakterskala|Aid|Date|Time|Duration|Examination system|Grading scale|Alt om eksamen ved NTNU';
 
 const extractExamFact = (text: string, labels: string): string | null => {
   const match = new RegExp(`(?:${labels})\\s+(.+?)(?=\\s+(?:${EXAM_FACT_STOPS})\\s+|$)`, 'i').exec(
@@ -255,15 +255,27 @@ const parseOrdinaryAssessmentParts = (html: string): ReadonlyArray<ValidatedNtnu
     ];
   });
 
-  return parts.filter(
-    (part, index) =>
-      parts.findIndex(
-        (candidate) =>
-          candidate.description === part.description &&
-          candidate.weightPercent === part.weightPercent &&
-          candidate.duration === part.duration,
-      ) === index,
-  );
+  return parts.reduce<ReadonlyArray<ValidatedNtnuAssessmentPart>>((unique, part) => {
+    const duplicateIndex = unique.findIndex(
+      (candidate) =>
+        candidate.form === part.form &&
+        candidate.description.trim().toLocaleLowerCase('nb') ===
+          part.description.trim().toLocaleLowerCase('nb') &&
+        candidate.weightPercent === part.weightPercent,
+    );
+    if (duplicateIndex === -1) return [...unique, part];
+
+    const duplicate = unique[duplicateIndex]!;
+    const preferredDuration =
+      duplicate.duration === null
+        ? part.duration
+        : part.duration === null || duplicate.duration.length <= part.duration.length
+          ? duplicate.duration
+          : part.duration;
+    return unique.map((candidate, index) =>
+      index === duplicateIndex ? { ...duplicate, duration: preferredDuration } : candidate,
+    );
+  }, []);
 };
 
 const WORK_FORM_PATTERNS: ReadonlyArray<
@@ -384,12 +396,22 @@ export const parseNtnuCourseDetail = (
 
   const assessmentFormGuesses = assessmentText ? classifyAssessmentForms(assessmentText) : [];
   const ordinaryAssessmentParts = parseOrdinaryAssessmentParts(decoded.value);
+  const knownAssessmentWeightTotal = ordinaryAssessmentParts.every(
+    (part) => part.weightPercent !== null,
+  )
+    ? ordinaryAssessmentParts.reduce((sum, part) => sum + (part.weightPercent ?? 0), 0)
+    : null;
+  const hasValidAssessmentWeightTotal =
+    knownAssessmentWeightTotal === null || Math.abs(knownAssessmentWeightTotal - 100) <= 0.001;
   const assessmentParts: ValidatedNtnuCourseDetail['assessmentParts'] =
-    ordinaryAssessmentParts.length > 0
+    ordinaryAssessmentParts.length > 0 && hasValidAssessmentWeightTotal
       ? { state: 'known', items: ordinaryAssessmentParts }
       : {
           state: 'unavailable',
-          reason: 'Structured ordinary assessment components were not present on the page.',
+          reason:
+            ordinaryAssessmentParts.length === 0
+              ? 'Structured ordinary assessment components were not present on the page.'
+              : `Structured ordinary assessment weights total ${knownAssessmentWeightTotal}%, not 100%.`,
         };
 
   const obligatoryActivities: ValidatedNtnuCourseDetail['obligatoryActivities'] =
