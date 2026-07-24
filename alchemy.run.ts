@@ -1,6 +1,9 @@
 import * as Alchemy from 'alchemy';
 import * as Cloudflare from 'alchemy/Cloudflare';
+import * as GitHub from 'alchemy/GitHub';
+import * as Output from 'alchemy/Output';
 import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
 
 export const CourseApi = Cloudflare.Worker('CourseApi', {
   main: './apps/course-api/src/worker.ts',
@@ -12,7 +15,7 @@ export const CourseApi = Cloudflare.Worker('CourseApi', {
 export default Alchemy.Stack(
   'CourseDecisionProduct',
   {
-    providers: Cloudflare.providers(),
+    providers: Layer.mergeAll(Cloudflare.providers(), GitHub.providers()),
     state: Cloudflare.state(),
   },
   Effect.gen(function* () {
@@ -31,6 +34,25 @@ export default Alchemy.Stack(
         notFoundHandling: 'single-page-application',
       },
     });
+
+    const github = yield* GitHub.GitHubEnv;
+    if (github?.pr !== undefined) {
+      yield* GitHub.Comment('PreviewComment', {
+        owner: github.owner,
+        repository: github.repository,
+        issueNumber: github.pr,
+        allowDelete: true,
+        body: Output.interpolate`
+          ## Preview ready
+
+          **Open the app:** ${web.url}
+
+          Built from commit [\`${github.sha.slice(0, 7)}\`](https://github.com/${github.owner}/${github.repository}/tree/${github.sha}).
+
+          _This comment updates on every push and is removed when the pull request closes._
+        `,
+      });
+    }
 
     return {
       apiUrl: api.url,

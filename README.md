@@ -95,24 +95,36 @@ clean, on `main`, and exactly matches `origin/main`; production releases are
 explicit even though `main` is the canonical production source.
 
 PR previews use isolated Alchemy stages rather than a long-lived deployment
-branch. From a clean, pushed PR branch, deploy PR 6 with:
+branch. GitHub Actions creates or updates `pr-<number>` when a same-repository
+PR opens or receives a push, comments the public URL on the PR, and destroys
+the stage and comment when the PR closes or merges. Forked PRs never receive
+deployment credentials.
+
+The automation is gated by the `PREVIEW_DEPLOYMENTS_ENABLED` repository
+variable. Provision its least-privilege, account-owned Cloudflare credential
+and enable the workflow once with a dedicated Alchemy admin profile:
+
+```sh
+alchemy login --profile admin
+CLOUDFLARE_ACCOUNT_ID=<account-id> \
+  alchemy deploy stacks/github.ts --profile admin --yes
+```
+
+The admin profile must be able to create account API tokens and should only be
+used for this credential stack. The generated CI token can write Worker scripts
+and access the Alchemy Secrets Store, but cannot manage zones or the production
+custom domain. Its value passes directly from Cloudflare state to the encrypted
+GitHub secret and is never printed.
+
+For an exceptional manual deployment from a clean, pushed PR branch, run:
 
 ```sh
 bun run deploy:preview -- 6
 ```
 
-This creates or updates the `pr-6` stage and prints its public `workers.dev`
-URL. Preview source links point to the exact deployed commit. The production
-custom domain is attached only to the `prod` stage, so previews cannot claim
-`planner.phibkro.org`. Destroy the isolated stage after the PR closes:
-
-```sh
-bunx alchemy destroy --stage pr-6 alchemy.run.ts
-```
-
-Preview deployment is manual until Cloudflare and Alchemy CI credentials are
-configured deliberately; opening a PR does not create a failing or
-over-privileged GitHub workflow.
+Preview source links point to the exact deployed commit. The production custom
+domain is attached only to the `prod` stage, so previews cannot claim
+`planner.phibkro.org`.
 
 ## Architecture
 
