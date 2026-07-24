@@ -21,7 +21,7 @@ export const fetchDbhGradeSummaries = async (
     api_versjon: 1,
     statuslinje: 'N',
     kodetekst: 'J',
-    groupBy: ['Emnekode', 'Karakter'],
+    groupBy: ['Emnekode', 'Karakter', 'Årstall', 'Semester'],
     filter: [
       { variabel: 'Institusjonskode', selection: { filter: 'item', values: ['1150'] } },
       {

@@ -1,7 +1,7 @@
 import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 
-import type { DbhGradesAttribution, ValidatedDbhGradeRow } from './dbh-grades';
+import type { DbhGradesAttribution } from './dbh-grades';
 
 const DBH_TABLE_ID = 308;
 const MAX_COURSE_CODES = 40;
@@ -15,11 +15,18 @@ export interface DbhGradeSummariesCaptureMetadata {
   readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
+export interface ValidatedDbhGradeSummaryRow {
+  readonly grade: string;
+  readonly candidateCount: number;
+  readonly year: number;
+  readonly semester: 1 | 3;
+}
+
 export interface ValidatedDbhCourseGrades {
   readonly courseCode: string;
   readonly sourceRecordId: string;
   readonly attribution: DbhGradesAttribution;
-  readonly rows: ReadonlyArray<ValidatedDbhGradeRow>;
+  readonly rows: ReadonlyArray<ValidatedDbhGradeSummaryRow>;
 }
 
 export type DbhGradeSummariesRejectionCode =
@@ -28,6 +35,7 @@ export type DbhGradeSummariesRejectionCode =
   | 'invalid-response-shape'
   | 'invalid-capture-metadata'
   | 'row-schema-invalid'
+  | 'row-period-unrequested'
   | 'row-course-unrequested';
 
 export interface DbhGradeSummariesRejection {
@@ -61,6 +69,8 @@ const ResponseSchema = Schema.Array(Schema.Unknown);
 const RowSchema = Schema.Struct({
   Emnekode: Schema.NonEmptyString,
   Karakter: Schema.NonEmptyString,
+  Årstall: Schema.String.pipe(Schema.check(Schema.isPattern(/^\d{4}$/))),
+  Semester: Schema.Literals(['1', '3']),
   'Antall kandidater totalt': Schema.String.pipe(Schema.check(Schema.isPattern(/^\d+$/))),
 });
 
@@ -124,7 +134,7 @@ export const parseDbhGradeSummaries = (
   const requestedCodes = [
     ...new Set(captured.courseCodes.map((code) => code.trim().toUpperCase())),
   ];
-  const rowsByCourse = new Map<string, ValidatedDbhGradeRow[]>();
+  const rowsByCourse = new Map<string, ValidatedDbhGradeSummaryRow[]>();
   const rejected: DbhGradeSummariesRejection[] = [];
 
   for (const candidate of responseResult.success) {
@@ -139,6 +149,15 @@ export const parseDbhGradeSummaries = (
     }
 
     const row = rowResult.success;
+    const year = Number(row.Årstall);
+    if (year < captured.fromYear || year > captured.toYear) {
+      rejected.push({
+        code: 'row-period-unrequested',
+        message: 'A DBH grade-summary row was outside the requested year window.',
+        raw: candidate,
+      });
+      continue;
+    }
     const providerCourseCode = row.Emnekode.trim().toUpperCase();
     const courseCode = requestedCodes.find((code) => providerCourseCode.startsWith(`${code}-`));
     if (courseCode === undefined) {
@@ -154,6 +173,8 @@ export const parseDbhGradeSummaries = (
     rows.push({
       grade: row.Karakter.trim().toUpperCase(),
       candidateCount: Number(row['Antall kandidater totalt']),
+      year,
+      semester: Number(row.Semester) as 1 | 3,
     });
     rowsByCourse.set(courseCode, rows);
   }

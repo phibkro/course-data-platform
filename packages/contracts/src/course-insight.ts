@@ -216,6 +216,7 @@ export const CourseGradeSummaryDto = t.Object({
     }),
   ),
   sampleSize: FactDto(t.Integer({ minimum: 0 })),
+  distribution: FactDto(t.Array(GradeBucketDto)),
   failureRatePercent: FactDto(t.Number({ minimum: 0, maximum: 100 })),
   gradingScale: FactDto(t.Union([t.Literal('letter'), t.Literal('pass-fail'), t.Literal('mixed')])),
   evidence: t.Array(EvidenceDto),
@@ -364,6 +365,9 @@ export const toCourseGradeSummaryDto = (
   courseCode: summary.courseCode,
   period: mapFact(summary.period, (period) => period),
   sampleSize: mapFact(summary.sampleSize, Number),
+  distribution: mapFact(summary.distribution, (distribution) =>
+    distribution.map((bucket) => ({ ...bucket })),
+  ),
   failureRatePercent: mapFact(summary.failureRatePercent, Number),
   gradingScale: mapFact(summary.gradingScale, (scale) => scale),
   evidence: summary.evidence.map(mapEvidence),

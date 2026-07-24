@@ -119,11 +119,13 @@ describe('course decision API', () => {
         {
           courseCode: 'TDT4136',
           sampleSize: { state: 'known', value: 1951 },
+          distribution: { state: 'unavailable' },
           gradingScale: { state: 'known', value: 'letter' },
         },
         {
           courseCode: 'NORESULT',
           sampleSize: { state: 'unavailable' },
+          distribution: { state: 'unavailable' },
         },
       ],
       meta: { count: 2, fromYear: 2022, toYear: 2025 },

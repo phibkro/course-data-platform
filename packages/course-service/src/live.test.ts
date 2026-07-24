@@ -77,7 +77,12 @@ const dbhPayload = [
   { Karakter: 'H', 'Antall kandidater totalt': '2' },
 ];
 
-const dbhBatchPayload = dbhPayload.map((row) => ({ Emnekode: 'TDT4136-1', ...row }));
+const dbhBatchPayload = dbhPayload.map((row) => ({
+  Emnekode: 'TDT4136-1',
+  Årstall: '2024',
+  Semester: '3',
+  ...row,
+}));
 
 const defaults = {
   academicYear: 2026,
@@ -242,10 +247,56 @@ describe('live course decision service', () => {
     expect(result.items).toHaveLength(2);
     expect(result.items[0]).toMatchObject({
       courseCode: 'TDT4136',
+      period: { state: 'known', value: { fromYear: 2024, toYear: 2024 } },
       sampleSize: { state: 'known', value: 411 },
+      distribution: {
+        state: 'known',
+        value: expect.arrayContaining([{ grade: 'A', count: 44, percentage: 10.71 }]),
+      },
       gradingScale: { state: 'known', value: 'mixed' },
     });
     expect(result.items[1]?.sampleSize.state).toBe('unavailable');
+    expect(result.items[1]?.distribution.state).toBe('unavailable');
+  });
+
+  it('treats a returned protected zero DBH count as suppressed rather than a known zero', async () => {
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url, init) => {
+          if (url.includes('dbh-data')) {
+            const request = JSON.parse(String(init?.body)) as { groupBy?: ReadonlyArray<string> };
+            if (request.groupBy?.includes('Emnekode')) {
+              return Response.json([
+                {
+                  Emnekode: 'TDT4136-1',
+                  Årstall: '2024',
+                  Semester: '3',
+                  Karakter: 'A',
+                  'Antall kandidater totalt': '10',
+                },
+                {
+                  Emnekode: 'TDT4136-1',
+                  Årstall: '2024',
+                  Semester: '3',
+                  Karakter: 'F',
+                  'Antall kandidater totalt': '0',
+                },
+              ]);
+            }
+          }
+          return makeFetch()(url, init);
+        },
+        now: () => new Date('2026-07-23T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(service.getGradeSummaries({ courseCodes: ['TDT4136'] }));
+
+    expect(result.items[0]?.sampleSize.state).toBe('suppressed');
+    expect(result.items[0]?.distribution.state).toBe('suppressed');
+    expect(result.items[0]?.failureRatePercent.state).toBe('suppressed');
   });
 
   it('preserves course facts when both grade providers fail', async () => {

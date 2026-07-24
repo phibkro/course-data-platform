@@ -6,7 +6,7 @@ import type {
 import { Effect, Match as M, Schema as S } from 'effect';
 import { Command, Navigation, Runtime, Url } from 'foldkit';
 import type { ChildAttribute, Document, Html } from 'foldkit/html';
-import { html } from 'foldkit/html';
+import { createKeyedLazy, createLazy, html } from 'foldkit/html';
 import { m } from 'foldkit/message';
 import { ts } from 'foldkit/schema';
 import { evo } from 'foldkit/struct';
@@ -24,12 +24,21 @@ import {
   type CourseSearchSort,
 } from './course-client';
 import { courseInsightView } from './course-detail';
+import { isLocale, localeTag, translate, translateToken, type Locale } from './i18n';
 import { icon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 
 const DISPLAY_CHUNK = 40;
 const DEFAULT_TERM = '2026-autumn';
 const DEFAULT_SORT: CourseSearchSort = 'title-asc';
+const lazyCourseCard = createKeyedLazy();
+const lazyDesktopNavigation = createLazy();
+const lazyMobileNavigation = createLazy();
+const lazyCatalogueHeader = createLazy();
+const lazyCatalogueControls = createLazy();
+const lazyCatalogueRefineDialog = createLazy();
+const lazyCatalogueFooter = createLazy();
+const lazyDetailFooter = createLazy();
 
 export const parseExternalHttpsUrl = (candidate: string | undefined): string | null => {
   if (candidate === undefined) return null;
@@ -49,6 +58,7 @@ type Level = 'all' | 'bachelor' | 'master' | 'phd';
 const CampusSchema = S.Literals(['all', 'trondheim', 'gjovik', 'alesund']);
 const LevelSchema = S.Literals(['all', 'bachelor', 'master', 'phd']);
 const SortSchema = S.Literals(['relevance', 'title-asc', 'title-desc', 'code-asc', 'code-desc']);
+const LocaleSchema = S.Literals(['en', 'nb']);
 
 export const CatalogueInitialLoading = ts('CatalogueInitialLoading');
 export const CatalogueSuccess = ts('CatalogueSuccess', { response: CourseSearchResponseSchema });
@@ -135,6 +145,7 @@ type DetailResult =
   | ReturnType<typeof DetailFailure>;
 
 export const Model = S.Struct({
+  locale: LocaleSchema,
   query: S.String,
   term: S.String,
   campus: CampusSchema,
@@ -160,6 +171,7 @@ export type Model = Omit<SchemaModel, 'catalogue' | 'gradeSignals' | 'detail'> &
 };
 
 export const UpdatedQuery = m('UpdatedQuery', { value: S.String });
+export const ChangedLocale = m('ChangedLocale', { value: S.String });
 export const SubmittedSearch = m('SubmittedSearch');
 export const ChangedTerm = m('ChangedTerm', { value: S.String });
 export const ChangedCampus = m('ChangedCampus', { value: S.String });
@@ -201,12 +213,15 @@ export const FailedCourseInsight = m('FailedCourseInsight', {
 });
 export const CompletedNavigation = m('CompletedNavigation');
 export const FailedNavigation = m('FailedNavigation', { error: S.String });
+export const PersistedLocale = m('PersistedLocale');
+export const FailedLocalePersistence = m('FailedLocalePersistence');
 export const GotRefineDialogMessage = m('GotRefineDialogMessage', {
   message: Dialog.Message,
 });
 
 export const Message = S.Union([
   UpdatedQuery,
+  ChangedLocale,
   SubmittedSearch,
   ChangedTerm,
   ChangedCampus,
@@ -226,6 +241,8 @@ export const Message = S.Union([
   FailedCourseInsight,
   CompletedNavigation,
   FailedNavigation,
+  PersistedLocale,
+  FailedLocalePersistence,
   GotRefineDialogMessage,
 ]);
 export type Message = typeof Message.Type;
@@ -346,6 +363,24 @@ export const Navigate = Command.define(
   ).pipe(Effect.as(CompletedNavigation())),
 );
 
+export const PersistLocale = Command.define(
+  'PersistLocale',
+  { locale: LocaleSchema },
+  PersistedLocale,
+  FailedLocalePersistence,
+)(({ locale }) =>
+  Effect.try({
+    try: () => {
+      localStorage.setItem('course-lens:locale', locale);
+      document.documentElement.lang = localeTag(locale);
+    },
+    catch: () => new Error('Locale preference could not be persisted'),
+  }).pipe(
+    Effect.as(PersistedLocale()),
+    Effect.catch(() => Effect.succeed(FailedLocalePersistence())),
+  ),
+);
+
 const fetchCommand = (
   request: CourseSearchRequest,
   key: string,
@@ -446,6 +481,7 @@ const requestVisibleGradeSignals = (
 
 const normalizedUrl = (model: Model, selectedCode: string | null): string => {
   const params = new URLSearchParams();
+  params.set('lang', model.locale);
   if (model.query.trim().length > 0) params.set('q', model.query.trim());
   if (model.term !== DEFAULT_TERM) params.set('term', model.term);
   if (model.campus !== 'all') params.set('campus', model.campus);
@@ -488,6 +524,7 @@ const oneOf = <A extends string>(value: string, values: ReadonlyArray<A>, fallba
   values.includes(value as A) ? (value as A) : fallback;
 
 interface ParsedLocation {
+  readonly locale: Locale;
   readonly query: string;
   readonly term: string;
   readonly campus: Campus;
@@ -498,9 +535,11 @@ interface ParsedLocation {
   readonly selectedCode: string | null;
 }
 
-const parseLocation = (href: string): ParsedLocation => {
+const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocation => {
   const url = new URL(href, 'http://course-lens.local');
+  const requestedLocale = url.searchParams.get('lang');
   return {
+    locale: isLocale(requestedLocale) ? requestedLocale : fallbackLocale,
     query: url.searchParams.get('q') ?? '',
     term: url.searchParams.get('term') ?? DEFAULT_TERM,
     campus: oneOf(
@@ -541,6 +580,17 @@ export const update = (
     M.withReturnType<readonly [Model, ReadonlyArray<Command.Command<Message>>]>(),
     M.tagsExhaustive({
       UpdatedQuery: ({ value }) => [evo(model, { query: () => value }), []],
+      ChangedLocale: ({ value }) => {
+        const locale = isLocale(value) ? value : 'en';
+        const next = { ...model, locale };
+        return [
+          next,
+          [
+            PersistLocale({ locale }),
+            Navigate({ href: normalizedUrl(next, next.selectedCode), mode: 'replace' }),
+          ],
+        ];
+      },
       SubmittedSearch: () =>
         startCatalogue(model, {
           query: model.query.trim(),
@@ -623,16 +673,25 @@ export const update = (
             ],
           ];
         }
-        if (location.selectedCode === model.selectedCode) return [model, []];
+        const localizedModel =
+          location.locale === model.locale ? model : { ...model, locale: location.locale };
+        const localeCommands =
+          location.locale === model.locale ? [] : [PersistLocale({ locale: location.locale })];
+        if (location.selectedCode === model.selectedCode) {
+          return [localizedModel, localeCommands];
+        }
         return location.selectedCode === null
-          ? [{ ...model, selectedCode: null, detail: DetailClosed() }, []]
+          ? [{ ...localizedModel, selectedCode: null, detail: DetailClosed() }, localeCommands]
           : [
               {
-                ...model,
+                ...localizedModel,
                 selectedCode: location.selectedCode,
                 detail: DetailLoading(),
               },
-              [FetchCourseInsight({ courseCode: location.selectedCode, term: model.term })],
+              [
+                ...localeCommands,
+                FetchCourseInsight({ courseCode: location.selectedCode, term: model.term }),
+              ],
             ];
       },
       ClosedCourse: () => [
@@ -730,6 +789,8 @@ export const update = (
           : [model, []],
       CompletedNavigation: () => [model, []],
       FailedNavigation: () => [model, []],
+      PersistedLocale: () => [model, []],
+      FailedLocalePersistence: () => [model, []],
       GotRefineDialogMessage: ({ message: dialogMessage }) => {
         const [refineDialog, commands] = Dialog.update(model.refineDialog, dialogMessage);
         return [
@@ -742,9 +803,11 @@ export const update = (
 
 export const initForHref = (
   href: string,
+  fallbackLocale: Locale = 'en',
 ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
-  const location = parseLocation(href);
+  const location = parseLocation(href, fallbackLocale);
   const base: Model = {
+    locale: location.locale,
     query: location.query,
     term: location.term,
     campus: location.campus,
@@ -780,16 +843,28 @@ export const initForHref = (
 };
 
 export const init: Runtime.ApplicationInit<Model, Message> = () =>
-  initForHref(typeof window === 'undefined' ? 'http://course-lens.local/' : window.location.href);
+  initForHref(
+    typeof window === 'undefined' ? 'http://course-lens.local/' : window.location.href,
+    browserPreferredLocale(),
+  );
 
 export const routingInit: Runtime.RoutingApplicationInit<Model, Message> = (url) =>
-  initForHref(Url.toString(url));
+  initForHref(Url.toString(url), browserPreferredLocale());
+
+const browserPreferredLocale = (): Locale => {
+  if (typeof window === 'undefined') return 'en';
+  const stored = localStorage.getItem('course-lens:locale');
+  if (isLocale(stored)) return stored;
+  return navigator.languages.some((language) => language.toLowerCase().startsWith('nb'))
+    ? 'nb'
+    : 'en';
+};
 
 export const view = (model: Model): Document => ({
   title:
     model.detail._tag === 'DetailSuccess' || model.detail._tag === 'DetailPartial'
-      ? `${model.detail.response.item.code} · Course lens`
-      : 'Browse NTNU courses · Course lens',
+      ? `${model.detail.response.item.code} · ${translate(model.locale, 'app.name')}`
+      : translate(model.locale, 'app.catalogueTitle'),
   body: appView(model),
 });
 
@@ -833,13 +908,24 @@ const appView = (model: Model): Html => {
   return h.div(
     [h.Class('min-h-screen')],
     [
-      desktopNavigation<Message>(),
+      lazyDesktopNavigation(desktopNavigation<Message>, [model.locale]),
       h.main(
         [h.Class(mainContentClass)],
         [model.selectedCode === null ? catalogueView(model) : selectedCourseView(model)],
       ),
-      catalogueRefineDialog(model),
-      mobileNavigation<Message>(),
+      lazyCatalogueRefineDialog(catalogueRefineDialogFromValues, [
+        model.locale,
+        model.query,
+        model.term,
+        model.campus,
+        model.level,
+        model.sort,
+        model.openOnly,
+        model.englishOnly,
+        model.catalogue._tag === 'CatalogueInitialLoading',
+        model.refineDialog,
+      ]),
+      lazyMobileNavigation(mobileNavigation<Message>, [model.locale]),
     ],
   );
 };
@@ -849,33 +935,108 @@ const catalogueView = (model: Model): Html => {
   return h.div(
     [h.Class('grid gap-6')],
     [
-      h.header(
-        [h.Class('pt-[clamp(2rem,5vw,3.5rem)] pb-2')],
-        [
-          h.p([h.Class(eyebrowClass)], ['NTNU course catalogue']),
-          h.h1(
-            [
-              h.Class(
-                'max-w-[22ch] text-[clamp(2.1rem,6vw,4rem)] font-[720] tracking-[-0.05em] leading-none',
-              ),
-            ],
-            ['Browse courses before you choose.'],
-          ),
-          h.p(
-            [h.Class('max-w-192 mt-4 text-on-surface-variant text-[1.05rem] leading-[1.6]')],
-            [
-              'Scan official NTNU offerings, narrow the catalogue, then open a course for assessment, work-form, and grade evidence.',
-            ],
-          ),
-        ],
-      ),
-      catalogueControls(model),
+      lazyCatalogueHeader(catalogueHeader, [model.locale]),
+      lazyCatalogueControls(catalogueControlsFromValues, [
+        model.locale,
+        model.query,
+        model.term,
+        model.campus,
+        model.level,
+        model.sort,
+        model.openOnly,
+        model.englishOnly,
+        model.catalogue._tag === 'CatalogueInitialLoading',
+      ]),
       catalogueRefineAction(model),
       catalogueResultView(model),
-      productFooter(),
+      lazyCatalogueFooter(productFooter, [model.locale]),
     ],
   );
 };
+
+const catalogueHeader = (locale: Locale): Html => {
+  const h = html<Message>();
+  return h.header(
+    [h.Class('pt-[clamp(2rem,5vw,3.5rem)] pb-2')],
+    [
+      h.p([h.Class(eyebrowClass)], [translate(locale, 'catalogue.eyebrow')]),
+      h.h1(
+        [
+          h.Class(
+            'max-w-[22ch] text-[clamp(2.1rem,6vw,4rem)] font-[720] tracking-[-0.05em] leading-none',
+          ),
+        ],
+        [translate(locale, 'catalogue.heading')],
+      ),
+      h.p(
+        [h.Class('max-w-192 mt-4 text-on-surface-variant text-[1.05rem] leading-[1.6]')],
+        [translate(locale, 'catalogue.intro')],
+      ),
+    ],
+  );
+};
+
+interface CatalogueControlsState {
+  readonly locale: Locale;
+  readonly query: string;
+  readonly term: string;
+  readonly campus: Campus;
+  readonly level: Level;
+  readonly sort: CourseSearchSort;
+  readonly openOnly: boolean;
+  readonly englishOnly: boolean;
+  readonly loading: boolean;
+}
+
+const catalogueControlsFromValues = (
+  locale: Locale,
+  query: string,
+  term: string,
+  campus: Campus,
+  level: Level,
+  sort: CourseSearchSort,
+  openOnly: boolean,
+  englishOnly: boolean,
+  loading: boolean,
+): Html =>
+  catalogueControls({
+    locale,
+    query,
+    term,
+    campus,
+    level,
+    sort,
+    openOnly,
+    englishOnly,
+    loading,
+  });
+
+const catalogueRefineDialogFromValues = (
+  locale: Locale,
+  query: string,
+  term: string,
+  campus: Campus,
+  level: Level,
+  sort: CourseSearchSort,
+  openOnly: boolean,
+  englishOnly: boolean,
+  loading: boolean,
+  refineDialog: Model['refineDialog'],
+): Html =>
+  catalogueRefineDialog(
+    {
+      locale,
+      query,
+      term,
+      campus,
+      level,
+      sort,
+      openOnly,
+      englishOnly,
+      loading,
+    },
+    refineDialog,
+  );
 
 interface CatalogueControlsOptions {
   readonly className?: string;
@@ -889,9 +1050,12 @@ const catalogueControlsFrameClass =
 const catalogueControlsSearchClass =
   'flex items-end gap-3 [@media(max-width:37rem)]:items-stretch [@media(max-width:37rem)]:flex-col';
 
-const catalogueControls = (model: Model, options: CatalogueControlsOptions = {}): Html => {
+const catalogueControls = (
+  model: CatalogueControlsState,
+  options: CatalogueControlsOptions = {},
+): Html => {
   const h = html<Message>();
-  const loading = model.catalogue._tag === 'CatalogueInitialLoading';
+  const loading = model.loading;
   const idPrefix = options.idPrefix ?? '';
   const isDialog = options.className === 'catalogue-controls--dialog';
   return h.form(
@@ -899,7 +1063,7 @@ const catalogueControls = (model: Model, options: CatalogueControlsOptions = {})
       h.Class(isDialog ? 'grid gap-4' : catalogueControlsFrameClass),
       h.Role('search'),
       h.OnSubmit(SubmittedSearch()),
-      h.AriaLabel('Find and filter NTNU courses'),
+      h.AriaLabel(translate(model.locale, 'catalogue.searchRegion')),
     ],
     [
       h.div(
@@ -908,16 +1072,20 @@ const catalogueControls = (model: Model, options: CatalogueControlsOptions = {})
           Input.view<Message>({
             id: `${idPrefix}course-query`,
             value: model.query,
-            placeholder: 'Course code or title',
+            placeholder: translate(model.locale, 'catalogue.searchPlaceholder'),
             onInput: (value) => UpdatedQuery({ value }),
             toView: (attributes) =>
               h.div(
                 [h.Class('flex-1')],
                 [
-                  h.label([...attributes.label, h.Class(fieldLabelClass)], ['Search courses']),
+                  h.label(
+                    [...attributes.label, h.Class(fieldLabelClass)],
+                    [translate(model.locale, 'catalogue.searchLabel')],
+                  ),
                   h.input([
                     ...attributes.input,
                     ...(options.initialFocus ?? []),
+                    h.Placeholder(translate(model.locale, 'catalogue.searchPlaceholder')),
                     h.Class(
                       'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[1.05rem] normal-case [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
                     ),
@@ -932,7 +1100,11 @@ const catalogueControls = (model: Model, options: CatalogueControlsOptions = {})
             toView: (attributes) =>
               h.button(
                 [...attributes.button, h.Class(buttonPrimary)],
-                [loading ? 'Searching…' : 'Search'],
+                [
+                  loading
+                    ? translate(model.locale, 'catalogue.searching')
+                    : translate(model.locale, 'catalogue.search'),
+                ],
               ),
           }),
         ],
@@ -940,31 +1112,55 @@ const catalogueControls = (model: Model, options: CatalogueControlsOptions = {})
       h.div(
         [h.Class('grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]')],
         [
-          selectControl(`${idPrefix}term`, 'Term', model.term, ChangedTerm, [
-            ['2026-autumn', 'Autumn 2026 · 2026/27'],
-            ['2026-spring', 'Spring 2027 · 2026/27'],
-            ['2027-autumn', 'Autumn 2027 · 2027/28'],
-            ['2027-spring', 'Spring 2028 · 2027/28'],
-          ]),
-          selectControl(`${idPrefix}campus`, 'Campus', model.campus, ChangedCampus, [
-            ['all', 'All campuses'],
-            ['trondheim', 'Trondheim'],
-            ['gjovik', 'Gjøvik'],
-            ['alesund', 'Ålesund'],
-          ]),
-          selectControl(`${idPrefix}level`, 'Study level', model.level, ChangedLevel, [
-            ['all', 'All levels'],
-            ['bachelor', 'Bachelor'],
-            ['master', 'Master'],
-            ['phd', 'PhD'],
-          ]),
-          selectControl(`${idPrefix}sort`, 'Sort', model.sort, ChangedSort, [
-            ['relevance', 'NTNU relevance'],
-            ['title-asc', 'Title A–Z'],
-            ['title-desc', 'Title Z–A'],
-            ['code-asc', 'Code A–Z'],
-            ['code-desc', 'Code Z–A'],
-          ]),
+          selectControl(
+            `${idPrefix}term`,
+            translate(model.locale, 'catalogue.term'),
+            model.term,
+            ChangedTerm,
+            [
+              ['2026-autumn', formatOfferingPeriod(2026, 'autumn', model.locale)],
+              ['2026-spring', formatOfferingPeriod(2026, 'spring', model.locale)],
+              ['2027-autumn', formatOfferingPeriod(2027, 'autumn', model.locale)],
+              ['2027-spring', formatOfferingPeriod(2027, 'spring', model.locale)],
+            ],
+          ),
+          selectControl(
+            `${idPrefix}campus`,
+            translate(model.locale, 'catalogue.campus'),
+            model.campus,
+            ChangedCampus,
+            [
+              ['all', translate(model.locale, 'catalogue.allCampuses')],
+              ['trondheim', translate(model.locale, 'catalogue.trondheim')],
+              ['gjovik', translate(model.locale, 'catalogue.gjovik')],
+              ['alesund', translate(model.locale, 'catalogue.alesund')],
+            ],
+          ),
+          selectControl(
+            `${idPrefix}level`,
+            translate(model.locale, 'catalogue.level'),
+            model.level,
+            ChangedLevel,
+            [
+              ['all', translate(model.locale, 'catalogue.allLevels')],
+              ['bachelor', translate(model.locale, 'catalogue.bachelor')],
+              ['master', translate(model.locale, 'catalogue.master')],
+              ['phd', translate(model.locale, 'catalogue.phd')],
+            ],
+          ),
+          selectControl(
+            `${idPrefix}sort`,
+            translate(model.locale, 'catalogue.sort'),
+            model.sort,
+            ChangedSort,
+            [
+              ['relevance', translate(model.locale, 'catalogue.relevance')],
+              ['title-asc', translate(model.locale, 'catalogue.titleAsc')],
+              ['title-desc', translate(model.locale, 'catalogue.titleDesc')],
+              ['code-asc', translate(model.locale, 'catalogue.codeAsc')],
+              ['code-desc', translate(model.locale, 'catalogue.codeDesc')],
+            ],
+          ),
         ],
       ),
       h.div(
@@ -972,13 +1168,13 @@ const catalogueControls = (model: Model, options: CatalogueControlsOptions = {})
         [
           checkboxControl(
             `${idPrefix}open-admission`,
-            'Open admission',
+            translate(model.locale, 'catalogue.openAdmission'),
             model.openOnly,
             (isChecked) => ToggledOpen({ isChecked }),
           ),
           checkboxControl(
             `${idPrefix}english`,
-            'Taught in English',
+            translate(model.locale, 'catalogue.english'),
             model.englishOnly,
             (isChecked) => ToggledEnglish({ isChecked }),
           ),
@@ -1020,8 +1216,11 @@ const catalogueRefineAction = (model: Model): Html => {
             [h.Class('[@media(min-width:48rem)_and_(min-height:34rem)]:font-[750]')],
             [
               count === 0
-                ? 'All NTNU courses'
-                : `${count} active refinement${count === 1 ? '' : 's'}`,
+                ? translate(model.locale, 'catalogue.allCourses')
+                : translate(model.locale, 'catalogue.activeRefinements', {
+                    count,
+                    suffix: model.locale === 'en' && count !== 1 ? 's' : '',
+                  }),
             ],
           ),
           h.span(
@@ -1030,7 +1229,7 @@ const catalogueRefineAction = (model: Model): Html => {
                 '[@media(min-width:48rem)_and_(min-height:34rem)]:overflow-hidden [@media(min-width:48rem)_and_(min-height:34rem)]:text-on-surface-variant [@media(min-width:48rem)_and_(min-height:34rem)]:text-[0.8rem] [@media(min-width:48rem)_and_(min-height:34rem)]:text-ellipsis [@media(min-width:48rem)_and_(min-height:34rem)]:whitespace-nowrap',
               ),
             ],
-            ['Change search, filters, or sorting from anywhere in the list.'],
+            [translate(model.locale, 'catalogue.refineHelp')],
           ),
         ],
       ),
@@ -1044,7 +1243,14 @@ const catalogueRefineAction = (model: Model): Html => {
         ],
         [
           icon<Message>('refine', 'block size-5 [&_svg]:block [&_svg]:w-full [&_svg]:h-full'),
-          h.span([], [count === 0 ? 'Refine' : `Refine · ${count}`]),
+          h.span(
+            [],
+            [
+              count === 0
+                ? translate(model.locale, 'catalogue.refine')
+                : translate(model.locale, 'catalogue.refineCount', { count }),
+            ],
+          ),
         ],
       ),
     ],
@@ -1054,11 +1260,14 @@ const catalogueRefineAction = (model: Model): Html => {
 const refineDialogPanelClass =
   'fixed right-0 bottom-0 left-0 grid max-h-[min(92svh,52rem)] gap-5 pt-5 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] overflow-y-auto border border-outline-variant rounded-t-m3-extra-large bg-surface shadow-m3-2 [transform:translateY(0)] [transition:transform_180ms_ease] data-closed:[transform:translateY(100%)] [@media(min-width:48rem)_and_(min-height:34rem)]:top-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:left-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-3rem),44rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:p-6 [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-m3-extra-large [@media(min-width:48rem)_and_(min-height:34rem)]:[transform:translate(-50%,-50%)] [@media(min-width:48rem)_and_(min-height:34rem)]:[transition:opacity_160ms_ease,transform_180ms_ease] [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:opacity-0 [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:[transform:translate(-50%,-47%)_scale(0.98)]';
 
-const catalogueRefineDialog = (model: Model): Html => {
+const catalogueRefineDialog = (
+  model: CatalogueControlsState,
+  refineDialog: Model['refineDialog'],
+): Html => {
   const h = html<Message>();
   return h.submodel({
     slotId: 'catalogue-refine-dialog',
-    model: model.refineDialog,
+    model: refineDialog,
     view: Dialog.view,
     viewInputs: {
       toView: ({
@@ -1093,20 +1302,20 @@ const catalogueRefineDialog = (model: Model): Html => {
                         h.div(
                           [],
                           [
-                            h.p([h.Class(eyebrowClass)], ['Explore']),
+                            h.p([h.Class(eyebrowClass)], [translate(model.locale, 'nav.explore')]),
                             h.h2(
                               [
                                 ...title,
                                 h.Class('text-[clamp(1.6rem,6vw,2.25rem)] tracking-[-0.035em]'),
                               ],
-                              ['Refine courses'],
+                              [translate(model.locale, 'catalogue.refineHeading')],
                             ),
                             h.p(
                               [
                                 ...description,
                                 h.Class('mt-[0.4rem] text-on-surface-variant leading-[1.5]'),
                               ],
-                              ['Changes apply immediately and stay in the shareable URL.'],
+                              [translate(model.locale, 'catalogue.refineDescription')],
                             ),
                           ],
                         ),
@@ -1117,7 +1326,7 @@ const catalogueRefineDialog = (model: Model): Html => {
                               'grid size-11 flex-none p-[0.7rem] place-items-center border-0 rounded-full bg-surface-container text-on-surface cursor-pointer',
                             ),
                             h.Type('button'),
-                            h.AriaLabel('Close course refinements'),
+                            h.AriaLabel(translate(model.locale, 'catalogue.closeRefinements')),
                           ],
                           [icon<Message>('close')],
                         ),
@@ -1137,7 +1346,7 @@ const catalogueRefineDialog = (model: Model): Html => {
                             h.Class(`${buttonPrimary} min-w-[min(100%,12rem)]`),
                             h.Type('button'),
                           ],
-                          ['View results'],
+                          [translate(model.locale, 'catalogue.viewResults')],
                         ),
                       ],
                     ),
@@ -1227,32 +1436,26 @@ const catalogueResultView = (model: Model): Html => {
         [h.Class(stateCardBase), h.Role('status'), h.AriaLive('polite')],
         [
           h.div([h.Class(loadingIndicatorClass), h.AriaHidden(true)], []),
-          h.h2([h.Class(stateCardH2Class)], ['Loading the NTNU catalogue']),
-          h.p(
-            [h.Class(stateCardPClass)],
-            ['Official course summaries appear before deeper evidence is loaded.'],
-          ),
+          h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'catalogue.loading')]),
+          h.p([h.Class(stateCardPClass)], [translate(model.locale, 'catalogue.loadingHelp')]),
         ],
       );
     case 'CatalogueFailure':
       return h.section(
         [h.Class(stateCardFailure), h.Role('alert')],
         [
-          h.p([h.Class(statusLabelErrorClass)], ['Catalogue unavailable']),
-          h.h2([h.Class(stateCardH2Class)], ['We could not load courses']),
+          h.p([h.Class(statusLabelErrorClass)], [translate(model.locale, 'catalogue.unavailable')]),
+          h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'catalogue.loadFailed')]),
           h.p([h.Class(stateCardFailurePClass)], [model.catalogue.error]),
-          h.p(
-            [h.Class(stateCardFailurePClass)],
-            ['Your filters are preserved. Submit the search to try again.'],
-          ),
+          h.p([h.Class(stateCardFailurePClass)], [translate(model.locale, 'catalogue.retry')]),
         ],
       );
     case 'CatalogueEmpty':
       return h.section(
         [h.Class(stateCardBase), h.Role('status')],
         [
-          h.h2([h.Class(stateCardH2Class)], ['No courses match these filters']),
-          h.p([h.Class(stateCardPClass)], ['Try another phrase, campus, term, or study level.']),
+          h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'catalogue.empty')]),
+          h.p([h.Class(stateCardPClass)], [translate(model.locale, 'catalogue.emptyHelp')]),
         ],
       );
     case 'CataloguePartial':
@@ -1270,7 +1473,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
   return h.section(
     [
       h.Class('grid gap-4'),
-      h.AriaLabel('Course results'),
+      h.AriaLabel(translate(model.locale, 'catalogue.results')),
       h.AriaBusy(model.nextPage._tag === 'NextPageLoading'),
     ],
     [
@@ -1280,9 +1483,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
               h.Class('py-4 px-5 rounded-m3-medium bg-warning-container text-on-warning-container'),
               h.Role('status'),
             ],
-            [
-              'Some catalogue data could not be used. Official results that were validated remain visible.',
-            ],
+            [translate(model.locale, 'catalogue.partial')],
           )
         : h.empty,
       h.header(
@@ -1295,19 +1496,34 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
           h.div(
             [],
             [
-              h.h2([], ['Courses']),
+              h.h2([], [translate(model.locale, 'catalogue.courses')]),
               h.p(
                 [h.AriaLive('polite'), h.Class('text-on-surface-variant text-[0.88rem]')],
-                [`Showing ${shown.length} of ${response.meta.total} courses`],
+                [
+                  translate(model.locale, 'catalogue.showing', {
+                    shown: shown.length,
+                    total: response.meta.total,
+                  }),
+                ],
               ),
             ],
           ),
-          h.p([h.Class('text-on-surface-variant text-[0.88rem]')], ['Official NTNU catalogue']),
+          h.p(
+            [h.Class('text-on-surface-variant text-[0.88rem]')],
+            [translate(model.locale, 'catalogue.official')],
+          ),
         ],
       ),
       h.ol(
         [h.Class('grid gap-3 p-0 list-none')],
-        shown.map((course) => courseCard(model, course)),
+        shown.map((course) =>
+          lazyCourseCard(course.courseKey, courseCard, [
+            normalizedUrl(model, course.code),
+            course,
+            gradeSignalForCourse(model.gradeSignals, course.code),
+            model.locale,
+          ]),
+        ),
       ),
       model.nextPage._tag === 'NextPageFailure'
         ? h.div(
@@ -1318,7 +1534,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
               h.Role('alert'),
             ],
             [
-              h.strong([], ['More courses could not be loaded.']),
+              h.strong([], [translate(model.locale, 'catalogue.moreFailed')]),
               h.span([], [` ${model.nextPage.error}`]),
             ],
           )
@@ -1336,12 +1552,15 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
                 ],
                 [
                   model.nextPage._tag === 'NextPageLoading'
-                    ? 'Loading more courses…'
-                    : 'Show more courses',
+                    ? translate(model.locale, 'catalogue.loadingMore')
+                    : translate(model.locale, 'catalogue.showMore'),
                 ],
               ),
           })
-        : h.p([h.Class('m-0 text-on-surface-variant text-center')], ['End of results']),
+        : h.p(
+            [h.Class('m-0 text-on-surface-variant text-center')],
+            [translate(model.locale, 'catalogue.end')],
+          ),
     ],
   );
 };
@@ -1353,22 +1572,50 @@ const factDtClass = 'text-on-surface-variant text-[0.75rem] font-[700] tracking-
 
 const factDdClass = 'mt-[0.2rem] text-[0.9rem] leading-[1.35] [overflow-wrap:anywhere]';
 
-const courseCard = (model: Model, course: CourseSearchItemDtoType): Html => {
+type GradeSignal =
+  | CourseGradeSummaryDtoType
+  | 'loading'
+  | 'failure'
+  | 'idle'
+  | 'missing'
+  | 'partial-missing';
+
+const gradeSignalForCourse = (state: GradeSignalsResult, courseCode: string): GradeSignal => {
+  const summary = gradeSignalsResponse(state)?.items.find((item) => item.courseCode === courseCode);
+  if (summary !== undefined) return summary;
+  return M.value(state._tag).pipe(
+    M.when('GradeSignalsLoading', () => 'loading' as const),
+    M.when('GradeSignalsFailure', () => 'failure' as const),
+    M.when('GradeSignalsIdle', () => 'idle' as const),
+    M.when('GradeSignalsSuccess', () => 'missing' as const),
+    M.when('GradeSignalsPartial', () => 'partial-missing' as const),
+    M.exhaustive,
+  );
+};
+
+const courseCard = (
+  href: string,
+  course: CourseSearchItemDtoType,
+  gradeSignal: GradeSignal,
+  locale: Locale,
+): Html => {
   const h = html<Message>();
-  const title = course.title.state === 'known' ? course.title.value : 'Title unavailable';
+  const title =
+    course.title.state === 'known'
+      ? course.title.value
+      : translate(locale, 'course.titleUnavailable');
   const offering =
     course.offerings.state === 'known' && course.offerings.value.length > 0
       ? (course.offerings.value[0] ?? null)
       : null;
   const place =
     offering === null || offering.campuses.length === 0
-      ? 'Campus not reported'
+      ? translate(locale, 'course.campusUnreported')
       : offering.campuses.join(', ');
   const term =
     offering === null
-      ? 'Term unavailable'
-      : formatOfferingPeriod(offering.academicYear, offering.season);
-  const gradeSignal = gradeSignalFor(model.gradeSignals, course.code);
+      ? translate(locale, 'course.termUnavailable')
+      : formatOfferingPeriod(offering.academicYear, offering.season, locale);
   return h.li(
     [],
     [
@@ -1391,8 +1638,8 @@ const courseCard = (model: Model, course: CourseSearchItemDtoType): Html => {
                 [
                   h.a(
                     [
-                      h.Href(normalizedUrl(model, course.code)),
-                      h.AriaLabel(`Open ${course.code}: ${title}`),
+                      h.Href(href),
+                      h.AriaLabel(translate(locale, 'course.open', { code: course.code, title })),
                       h.Class(
                         "text-on-surface no-underline after:absolute after:inset-0 after:content-['']",
                       ),
@@ -1403,28 +1650,29 @@ const courseCard = (model: Model, course: CourseSearchItemDtoType): Html => {
               ),
             ],
           ),
-          h.dl(
+          h.div(
+            [h.Class('grid gap-3')],
             [
-              h.Class(
-                'grid gap-3 grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] [@media(max-width:37rem)]:grid-cols-1',
-              ),
-            ],
-            [
-              h.div(
-                [h.Class('min-w-0')],
-                [h.dt([h.Class(factDtClass)], ['Term']), h.dd([h.Class(factDdClass)], [term])],
-              ),
-              h.div(
-                [h.Class('min-w-0')],
-                [h.dt([h.Class(factDtClass)], ['Campus']), h.dd([h.Class(factDdClass)], [place])],
-              ),
-              h.div(
-                [h.Class('min-w-0')],
+              h.dl(
+                [h.Class('grid gap-3 grid-cols-2')],
                 [
-                  h.dt([h.Class(factDtClass)], ['Historical outcomes']),
-                  h.dd([h.Class(factDdClass)], [gradeSignal]),
+                  h.div(
+                    [h.Class('min-w-0')],
+                    [
+                      h.dt([h.Class(factDtClass)], [translate(locale, 'course.termFact')]),
+                      h.dd([h.Class(factDdClass)], [term]),
+                    ],
+                  ),
+                  h.div(
+                    [h.Class('min-w-0')],
+                    [
+                      h.dt([h.Class(factDtClass)], [translate(locale, 'course.campusFact')]),
+                      h.dd([h.Class(factDdClass)], [place]),
+                    ],
+                  ),
                 ],
               ),
+              gradeSignalView(gradeSignal, locale),
             ],
           ),
         ],
@@ -1433,41 +1681,184 @@ const courseCard = (model: Model, course: CourseSearchItemDtoType): Html => {
   );
 };
 
-const gradeSignalFor = (state: GradeSignalsResult, courseCode: string): string => {
-  const summary = gradeSignalsResponse(state)?.items.find((item) => item.courseCode === courseCode);
-  if (summary !== undefined) return formatGradeSignal(summary);
-  switch (state._tag) {
-    case 'GradeSignalsLoading':
-      return 'Checking HK-dir…';
-    case 'GradeSignalsFailure':
-      return 'Grade check unavailable';
-    case 'GradeSignalsIdle':
-      return 'Waiting to check';
-    case 'GradeSignalsSuccess':
-    case 'GradeSignalsPartial':
-      return 'No grade summary';
+const outcomeStateClass =
+  'grid gap-2 min-w-0 p-3 rounded-m3-medium bg-primary-container text-on-primary-container';
+
+const gradeSignalView = (signal: GradeSignal, locale: Locale): Html => {
+  if (typeof signal !== 'string') return gradeSummaryView(signal, locale);
+  const h = html<Message>();
+  const message = M.value(signal).pipe(
+    M.when('loading', () => translate(locale, 'outcomes.checking')),
+    M.when('failure', () => translate(locale, 'outcomes.failed')),
+    M.when('idle', () => translate(locale, 'outcomes.waiting')),
+    M.when('missing', () => translate(locale, 'outcomes.missing')),
+    M.when('partial-missing', () => translate(locale, 'outcomes.missing')),
+    M.exhaustive,
+  );
+  return h.div(
+    [h.Class(`${outcomeStateClass} bg-surface-container text-on-surface-variant`)],
+    [
+      h.p([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
+      h.p([h.Class('m-0 text-[0.88rem] leading-[1.4]')], [message]),
+    ],
+  );
+};
+
+const gradeOrder = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
+
+const gradeDisplayLabel = (grade: string, locale: Locale): string =>
+  M.value(grade).pipe(
+    M.when('G', () => translate(locale, 'outcomes.pass')),
+    M.when('H', () => translate(locale, 'outcomes.fail')),
+    M.orElse(() => grade),
+  );
+
+const gradeScaleLabel = (summary: CourseGradeSummaryDtoType, locale: Locale): string => {
+  if (summary.gradingScale.state !== 'known') return translate(locale, 'outcomes.heading');
+  return M.value(summary.gradingScale.value).pipe(
+    M.when('letter', () => translate(locale, 'outcomes.letter')),
+    M.when('pass-fail', () => translate(locale, 'outcomes.passFail')),
+    M.when('mixed', () => translate(locale, 'outcomes.mixed')),
+    M.exhaustive,
+  );
+};
+
+const formatPercentage = (value: number, locale: Locale): string =>
+  new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 }).format(value);
+
+const sparkBar = (percentage: number, maximum: number): string => {
+  const bars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'] as const;
+  const normalized = Math.max(percentage / maximum, 0);
+  return bars[Math.min(Math.floor(normalized * (bars.length - 1)), bars.length - 1)] ?? '▁';
+};
+
+const distributionStateMessage = (
+  distribution: CourseGradeSummaryDtoType['distribution'],
+  locale: Locale,
+): string => {
+  switch (distribution.state) {
+    case 'known':
+      return distribution.value.length === 0
+        ? translate(locale, 'outcomes.noBuckets')
+        : translate(locale, 'outcomes.available');
+    case 'suppressed':
+      return translate(locale, 'outcomes.protected');
+    case 'conflicting':
+      return translate(locale, 'outcomes.conflicting');
+    case 'unknown':
+      return translate(locale, 'outcomes.unknown');
+    case 'unavailable':
+      return translate(locale, 'outcomes.unavailable');
   }
 };
 
-const formatGradeSignal = (summary: CourseGradeSummaryDtoType): string => {
-  if (
-    summary.sampleSize.state !== 'known' ||
-    summary.failureRatePercent.state !== 'known' ||
-    summary.gradingScale.state !== 'known'
-  ) {
-    return 'No published outcomes';
-  }
-  const scale = M.value(summary.gradingScale.value).pipe(
-    M.when('letter', () => 'Letter grades'),
-    M.when('pass-fail', () => 'Pass/fail'),
-    M.when('mixed', () => 'Mixed scales'),
-    M.exhaustive,
-  );
+const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): Html => {
+  const h = html<Message>();
+  const scale = gradeScaleLabel(summary, locale);
+  const sample =
+    summary.sampleSize.state === 'known'
+      ? translate(locale, 'outcomes.sample', {
+          value: summary.sampleSize.value.toLocaleString(localeTag(locale)),
+        })
+      : null;
   const period =
     summary.period.state === 'known'
-      ? ` · ${summary.period.value.fromYear}–${summary.period.value.toYear}`
-      : '';
-  return `${scale} · ${summary.failureRatePercent.value}% failed · ${summary.sampleSize.value} results${period}`;
+      ? `${summary.period.value.fromYear}–${summary.period.value.toYear}`
+      : null;
+  const failure =
+    summary.failureRatePercent.state === 'known'
+      ? translate(locale, 'outcomes.failedRate', {
+          value: formatPercentage(summary.failureRatePercent.value, locale),
+        })
+      : null;
+  const metadata = [failure, sample, period].filter((value): value is string => value !== null);
+  const buckets =
+    summary.distribution.state === 'known'
+      ? [...summary.distribution.value].sort(
+          (left, right) =>
+            gradeOrder.indexOf(left.grade as (typeof gradeOrder)[number]) -
+            gradeOrder.indexOf(right.grade as (typeof gradeOrder)[number]),
+        )
+      : [];
+
+  if (buckets.length === 0) {
+    return h.div(
+      [h.Class(`${outcomeStateClass} bg-surface-container text-on-surface-variant`)],
+      [
+        h.div(
+          [h.Class('flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1')],
+          [
+            h.p([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
+            h.p([h.Class('m-0 text-[0.72rem] font-[750]')], [translate(locale, 'outcomes.source')]),
+          ],
+        ),
+        h.p(
+          [h.Class('m-0 text-[0.88rem] leading-[1.4]')],
+          [
+            metadata.length === 0
+              ? distributionStateMessage(summary.distribution, locale)
+              : `${distributionStateMessage(summary.distribution, locale)} · ${metadata.join(' · ')}`,
+          ],
+        ),
+      ],
+    );
+  }
+
+  const maxPercentage = Math.max(...buckets.map((bucket) => bucket.percentage), 1);
+  const accessibleDistribution = buckets
+    .map((bucket) =>
+      translate(locale, 'outcomes.percent', {
+        label: gradeDisplayLabel(bucket.grade, locale),
+        value: formatPercentage(bucket.percentage, locale),
+      }),
+    )
+    .join(', ');
+  const accessibleSummary = `${scale}. ${accessibleDistribution}.${metadata.length === 0 ? '' : ` ${metadata.join(', ')}.`}`;
+  const sparkline = buckets
+    .map(
+      (bucket) =>
+        `${bucket.grade === 'G' ? 'P' : bucket.grade === 'H' ? 'F' : bucket.grade} ${sparkBar(bucket.percentage, maxPercentage)}`,
+    )
+    .join('  ');
+
+  return h.figure(
+    [
+      h.Class(outcomeStateClass),
+      h.Role('img'),
+      h.AriaLabel(translate(locale, 'outcomes.chartLabel', { summary: accessibleSummary })),
+    ],
+    [
+      h.div(
+        [h.Class('flex flex-wrap items-start justify-between gap-x-3 gap-y-1')],
+        [
+          h.div(
+            [h.Class('grid gap-0.5')],
+            [
+              h.figcaption([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
+              h.p([h.Class('m-0 text-[0.78rem] font-[750]')], [scale]),
+            ],
+          ),
+          h.span(
+            [h.Class('text-[0.72rem] font-[800] tracking-[0.04em] uppercase')],
+            [translate(locale, 'outcomes.source')],
+          ),
+        ],
+      ),
+      h.p(
+        [
+          h.Class(
+            'm-0 overflow-hidden text-[1rem] font-[750] font-mono tracking-[0.03em] whitespace-nowrap',
+          ),
+          h.AriaHidden(true),
+          h.Title(accessibleDistribution),
+        ],
+        [sparkline],
+      ),
+      metadata.length === 0
+        ? h.empty
+        : h.p([h.Class('m-0 text-[0.75rem] font-[650] leading-[1.35]')], [metadata.join(' · ')]),
+    ],
+  );
 };
 
 const selectedCourseView = (model: Model): Html => {
@@ -1479,15 +1870,18 @@ const selectedCourseView = (model: Model): Html => {
         type: 'button',
         onClick: ClosedCourse(),
         toView: (attributes) =>
-          h.button([...attributes.button, h.Class(backButtonClass)], ['← Back to course results']),
+          h.button(
+            [...attributes.button, h.Class(backButtonClass)],
+            [translate(model.locale, 'course.back')],
+          ),
       }),
-      detailResultView(model.detail),
-      productFooter(),
+      detailResultView(model.detail, model.locale),
+      lazyDetailFooter(productFooter, [model.locale]),
     ],
   );
 };
 
-const productFooter = (): Html => {
+const productFooter = (locale: Locale): Html => {
   const h = html<Message>();
   const externalLink = (url: string, label: string): Html =>
     h.a(
@@ -1504,29 +1898,44 @@ const productFooter = (): Html => {
       h.p(
         [],
         [
-          'Copyright © Course Data Platform contributors. Free software licensed under ',
-          externalLink('https://www.gnu.org/licenses/agpl-3.0.html', 'AGPL-3.0-only'),
-          '; provided without warranty.',
+          translate(locale, 'footer.licensePrefix'),
+          externalLink(
+            'https://www.gnu.org/licenses/agpl-3.0.html',
+            translate(locale, 'footer.licenseName'),
+          ),
+          translate(locale, 'footer.licenseSuffix'),
         ],
       ),
-      ...(sourceUrl === null ? [] : [h.p([], [externalLink(sourceUrl, 'View source code')])]),
+      ...(sourceUrl === null
+        ? []
+        : [h.p([], [externalLink(sourceUrl, translate(locale, 'footer.source'))])]),
       ...(tipUrl === null
         ? []
         : [
             h.p(
               [],
               [
-                'Found this useful? ',
-                externalLink(tipUrl, 'Support the project'),
-                ' — completely optional.',
+                translate(locale, 'footer.useful'),
+                externalLink(tipUrl, translate(locale, 'footer.tip')),
+                translate(locale, 'footer.optional'),
               ],
             ),
           ]),
+      selectControl(
+        'interface-language',
+        translate(locale, 'locale.label'),
+        locale,
+        ChangedLocale,
+        [
+          ['en', translate(locale, 'locale.en')],
+          ['nb', translate(locale, 'locale.nb')],
+        ],
+      ),
     ],
   );
 };
 
-const detailResultView = (detail: DetailResult): Html => {
+const detailResultView = (detail: DetailResult, locale: Locale): Html => {
   const h = html<Message>();
   switch (detail._tag) {
     case 'DetailClosed':
@@ -1536,38 +1945,31 @@ const detailResultView = (detail: DetailResult): Html => {
         [h.Class(stateCardBase), h.Role('status'), h.AriaLive('polite')],
         [
           h.div([h.Class(loadingIndicatorClass), h.AriaHidden(true)], []),
-          h.h2([h.Class(stateCardH2Class)], ['Gathering course evidence']),
-          h.p(
-            [h.Class(stateCardPClass)],
-            ['Official course details and historical outcomes load independently.'],
-          ),
+          h.h2([h.Class(stateCardH2Class)], [translate(locale, 'detail.loading')]),
+          h.p([h.Class(stateCardPClass)], [translate(locale, 'detail.loadingHelp')]),
         ],
       );
     case 'DetailFailure':
       return h.section(
         [h.Class(stateCardFailure), h.Role('alert')],
         [
-          h.p([h.Class(statusLabelErrorClass)], ['Course unavailable']),
-          h.h2([h.Class(stateCardH2Class)], ['We could not load this course']),
+          h.p([h.Class(statusLabelErrorClass)], [translate(locale, 'detail.unavailable')]),
+          h.h2([h.Class(stateCardH2Class)], [translate(locale, 'detail.loadFailed')]),
           h.p([h.Class(stateCardFailurePClass)], [detail.error]),
         ],
       );
     case 'DetailPartial':
-      return courseInsightView(detail.response, true);
+      return courseInsightView(detail.response, true, locale);
     case 'DetailSuccess':
-      return courseInsightView(detail.response, false);
+      return courseInsightView(detail.response, false, locale);
   }
 };
 
-const formatOfferingPeriod = (academicYear: number, season: string): string => {
+const formatOfferingPeriod = (academicYear: number, season: string, locale: Locale): string => {
   const academicYearLabel = `${academicYear}/${String(academicYear + 1).slice(-2)}`;
-  if (season === 'full-year') return `Academic year ${academicYearLabel}`;
+  if (season === 'full-year') {
+    return translate(locale, 'offering.academicYear', { year: academicYearLabel });
+  }
   const calendarYear = season === 'autumn' ? academicYear : academicYear + 1;
-  return `${formatToken(season)} ${calendarYear} · ${academicYearLabel}`;
+  return `${translateToken(locale, season)} ${calendarYear} · ${academicYearLabel}`;
 };
-
-const formatToken = (value: string): string =>
-  value
-    .split('-')
-    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join(' ');

@@ -37,6 +37,20 @@ describe('browse-first catalogue scene', () => {
     );
   });
 
+  test('Norwegian Bokmål localizes interface chrome while retaining the same catalogue state', () => {
+    const norwegian = initForHref('http://course-lens.local/?lang=nb')[0];
+    Scene.scene(
+      { update, view },
+      Scene.with(norwegian),
+      Scene.expect(Scene.role('heading', { name: 'Utforsk emner før du velger.' })).toExist(),
+      Scene.expect(Scene.label('Søk i emner')).toExist(),
+      Scene.expect(Scene.label('Studiested')).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Utforsk' })).toExist(),
+      Scene.expect(Scene.text('Laster NTNUs emnekatalog')).toExist(),
+      Scene.expect(Scene.label('Språk')).toExist(),
+    );
+  });
+
   test('official results are semantic links into existing course detail', () => {
     Scene.scene(
       { update, view },
@@ -69,7 +83,13 @@ describe('browse-first catalogue scene', () => {
         visibleCount: 1,
       }),
       Scene.expect(Scene.text('Historical outcomes')).toExist(),
-      Scene.expect(Scene.text('Letter grades · 10.7% failed · 1951 results · 2022–2025')).toExist(),
+      Scene.expect(
+        Scene.role('img', {
+          name: /HK-dir DBH historical outcomes\. Letter grades\./,
+        }),
+      ).toExist(),
+      Scene.expect(Scene.text('Letter grades')).toExist(),
+      Scene.expect(Scene.text('10.7% failed · n=1,951 · 2022–2025')).toExist(),
     );
   });
 
@@ -107,6 +127,23 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.role('article', { name: 'TDT4136 course details' })).toExist(),
       Scene.expect(Scene.text('Partial result')).toExist(),
       Scene.expect(Scene.text('Inferred')).toExist(),
+    );
+  });
+
+  test('selected course detail uses the active Norwegian interface locale', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...initForHref('http://course-lens.local/?lang=nb')[0],
+        catalogue: CatalogueInitialLoading(),
+        nextPage: NextPageIdle(),
+        selectedCode: 'TDT4136',
+        detail: DetailPartial({ response: partialCourseInsightFixture }),
+      }),
+      Scene.expect(Scene.role('article', { name: 'Emnedetaljer for TDT4136' })).toExist(),
+      Scene.expect(Scene.text('Delvis resultat')).toExist(),
+      Scene.expect(Scene.text('Vurdering og obligatorisk arbeid')).toExist(),
+      Scene.expect(Scene.text('Kilder og ferskhet')).toExist(),
     );
   });
 

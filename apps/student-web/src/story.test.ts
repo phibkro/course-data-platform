@@ -3,6 +3,7 @@ import { expect, test } from 'vitest';
 
 import { fixtureGradeSummariesResponse, fixtureSearchResponse } from './course-client';
 import {
+  ChangedLocale,
   CatalogueEmpty,
   CompletedNavigation,
   FailedCourseSearch,
@@ -29,6 +30,17 @@ test('external product links accept only absolute HTTPS destinations', () => {
   expect(parseExternalHttpsUrl('/relative')).toBeNull();
   expect(parseExternalHttpsUrl('not a url')).toBeNull();
   expect(parseExternalHttpsUrl(undefined)).toBeNull();
+});
+
+test('locale is explicit URL-backed state and changes do not refetch the catalogue', () => {
+  const initial = initialModel();
+  const [localized, commands] = update(initial, ChangedLocale({ value: 'nb' }));
+
+  expect(localized.locale).toBe('nb');
+  expect(commands.map((command) => command.name)).toEqual(['PersistLocale', 'Navigate']);
+  expect(commands.some((command) => command.name === 'FetchCourseSearch')).toBe(false);
+  expect(initForHref('http://course-lens.local/?lang=nb')[0].locale).toBe('nb');
+  expect(initForHref('http://course-lens.local/?lang=unsupported')[0].locale).toBe('en');
 });
 
 test('a catalogue response makes official courses available without opening detail', () => {

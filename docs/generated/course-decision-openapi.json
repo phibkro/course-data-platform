@@ -1943,6 +1943,7 @@
                           "courseCode",
                           "period",
                           "sampleSize",
+                          "distribution",
                           "failureRatePercent",
                           "gradingScale",
                           "evidence"
@@ -2336,6 +2337,226 @@
                                               "type": "integer"
                                             }
                                           ]
+                                        },
+                                        "evidenceIds": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "distribution": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "value",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "known",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "grade",
+                                        "count",
+                                        "percentage"
+                                      ],
+                                      "properties": {
+                                        "grade": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "count": {
+                                          "minimum": 0,
+                                          "anyOf": [
+                                            {
+                                              "format": "integer",
+                                              "default": 0,
+                                              "type": "string"
+                                            },
+                                            {
+                                              "minimum": 0,
+                                              "type": "integer"
+                                            }
+                                          ]
+                                        },
+                                        "percentage": {
+                                          "minimum": 0,
+                                          "maximum": 100,
+                                          "type": "number"
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "evidenceIds": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unknown",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "unavailable",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "suppressed",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "evidenceIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "state",
+                                  "reason",
+                                  "candidates",
+                                  "evidenceIds"
+                                ],
+                                "properties": {
+                                  "state": {
+                                    "const": "conflicting",
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "candidates": {
+                                    "minItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "evidenceIds"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "object",
+                                            "required": [
+                                              "grade",
+                                              "count",
+                                              "percentage"
+                                            ],
+                                            "properties": {
+                                              "grade": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "count": {
+                                                "minimum": 0,
+                                                "anyOf": [
+                                                  {
+                                                    "format": "integer",
+                                                    "default": 0,
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "minimum": 0,
+                                                    "type": "integer"
+                                                  }
+                                                ]
+                                              },
+                                              "percentage": {
+                                                "minimum": 0,
+                                                "maximum": 100,
+                                                "type": "number"
+                                              }
+                                            }
+                                          }
                                         },
                                         "evidenceIds": {
                                           "minItems": 1,

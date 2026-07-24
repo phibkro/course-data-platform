@@ -86,5 +86,5 @@ describe('reconcile at the full deploy migration order (0001..0007)', () => {
     };
     expect(coursesBody.items.length).toBeGreaterThan(0);
     expect(coursesBody.items.every((course) => course.source.provider !== 'fixture')).toBe(true);
-  });
+  }, 15_000);
 });

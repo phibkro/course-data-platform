@@ -13,7 +13,7 @@ describe('fetchDbhGradeSummaries', () => {
           selection: { filter: string; values: ReadonlyArray<string> };
         }>;
       };
-      expect(request.groupBy).toEqual(['Emnekode', 'Karakter']);
+      expect(request.groupBy).toEqual(['Emnekode', 'Karakter', 'Årstall', 'Semester']);
       expect(request.filter).toContainEqual({
         variabel: 'Emnekode',
         selection: { filter: 'like', values: ['TDT4136-%', 'TDT4100-%'] },
@@ -22,6 +22,8 @@ describe('fetchDbhGradeSummaries', () => {
         {
           Emnekode: 'TDT4136-1',
           Karakter: 'A',
+          Årstall: '2024',
+          Semester: '3',
           'Antall kandidater totalt': '10',
         },
       ]);

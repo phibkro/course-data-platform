@@ -10,6 +10,7 @@ import { evo } from 'foldkit/struct';
 import { Button, Input } from '@foldkit/ui';
 
 import { courseClient } from './course-client';
+import { localeTag, translate, translateToken, type Locale } from './i18n';
 import { desktopNavigation, mobileNavigation } from './navigation';
 
 type CourseInsightResponse = CourseInsightResponseDtoType;
@@ -397,10 +398,17 @@ const resultView = (result: SearchResult): Html => {
   }
 };
 
-export const courseInsightView = (response: CourseInsightResponse, partial: boolean): Html => {
+export const courseInsightView = (
+  response: CourseInsightResponse,
+  partial: boolean,
+  locale: Locale = 'en',
+): Html => {
   const h = html<Message>();
   const course = response.item;
-  const title = course.title.state === 'known' ? course.title.value : 'Course title unavailable';
+  const title =
+    course.title.state === 'known'
+      ? course.title.value
+      : translate(locale, 'detail.titleUnavailable');
   const inferenceEvidenceIds = new Set(
     course.evidence
       .filter((evidence) => evidence.kind === 'inference')
@@ -410,10 +418,10 @@ export const courseInsightView = (response: CourseInsightResponse, partial: bool
     label: string,
     fact: ProtocolFact<A>,
     renderKnown: (value: A) => Html,
-  ): Html => factView(label, fact, renderKnown, inferenceEvidenceIds);
+  ): Html => factView(label, fact, renderKnown, locale, inferenceEvidenceIds);
 
   return h.article(
-    [h.Class('grid gap-4'), h.AriaLabel(`${course.code} course details`)],
+    [h.Class('grid gap-4'), h.AriaLabel(translate(locale, 'detail.aria', { code: course.code }))],
     [
       partial
         ? h.div(
@@ -431,14 +439,9 @@ export const courseInsightView = (response: CourseInsightResponse, partial: bool
                     'mb-1! text-warning text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
                   ),
                 ],
-                ['Partial result'],
+                [translate(locale, 'detail.partial')],
               ),
-              h.p(
-                [],
-                [
-                  'One source is unavailable. Course details from other sources are still shown, and missing outcomes are not treated as zero.',
-                ],
-              ),
+              h.p([], [translate(locale, 'detail.partialHelp')]),
             ],
           )
         : h.div(
@@ -448,7 +451,7 @@ export const courseInsightView = (response: CourseInsightResponse, partial: bool
               ),
               h.Role('status'),
             ],
-            ['All configured sources responded.'],
+            [translate(locale, 'detail.complete')],
           ),
       h.header(
         [
@@ -478,57 +481,93 @@ export const courseInsightView = (response: CourseInsightResponse, partial: bool
           h.div(
             [h.Class('flex flex-wrap gap-3 m-0')],
             [
-              compactFact('Credits', course.credits, (value) => `${value}`),
-              compactFact('Level', course.level, formatToken),
-              compactFact('Language', course.teachingLanguage, String),
+              compactFact(
+                translate(locale, 'detail.credits'),
+                course.credits,
+                (value) => `${value}`,
+                locale,
+              ),
+              compactFact(
+                translate(locale, 'detail.level'),
+                course.level,
+                (value) => translateToken(locale, value),
+                locale,
+              ),
+              compactFact(
+                translate(locale, 'detail.language'),
+                course.teachingLanguage,
+                String,
+                locale,
+              ),
             ],
           ),
           evidenceLinks(
             course.title.evidenceIds,
+            locale,
             'text-on-primary [&_a]:text-on-primary [@media(min-width:64rem)]:col-span-full',
           ),
         ],
       ),
-      decisionSection('Availability', 'When and where the course is offered.', [
-        decisionFact('Teaching term and location', course.offerings, (offerings) =>
-          offeringList(offerings),
+      decisionSection(
+        translate(locale, 'detail.availability'),
+        translate(locale, 'detail.availabilityHelp'),
+        [
+          decisionFact(translate(locale, 'detail.termLocation'), course.offerings, (offerings) =>
+            offeringList(offerings, locale),
+          ),
+        ],
+      ),
+      decisionSection(translate(locale, 'detail.learn'), translate(locale, 'detail.learnHelp'), [
+        decisionFact(translate(locale, 'detail.content'), course.content, paragraph),
+        decisionFact(
+          translate(locale, 'detail.learningOutcomes'),
+          course.learningOutcomes,
+          paragraph,
         ),
       ]),
-      decisionSection('What you will learn', 'Course content and intended learning outcomes.', [
-        decisionFact('Content', course.content, paragraph),
-        decisionFact('Learning outcomes', course.learningOutcomes, paragraph),
+      decisionSection(translate(locale, 'detail.works'), translate(locale, 'detail.worksHelp'), [
+        decisionFact(
+          translate(locale, 'detail.teachingMethods'),
+          course.teachingMethods,
+          paragraph,
+        ),
+        decisionFact(translate(locale, 'detail.workForms'), course.workForms, (forms) =>
+          chipList(forms.map((form) => translateToken(locale, form))),
+        ),
+        decisionFact(translate(locale, 'detail.collaboration'), course.collaboration, (value) =>
+          paragraph(translateToken(locale, value)),
+        ),
+        decisionFact(translate(locale, 'detail.attendance'), course.attendance, (value) =>
+          paragraph(translateToken(locale, value)),
+        ),
+        decisionFact(translate(locale, 'detail.online'), course.onlineParticipation, (value) =>
+          paragraph(translateToken(locale, value)),
+        ),
       ]),
       decisionSection(
-        'How the course works',
-        'Teaching, collaboration, attendance, and participation evidence.',
+        translate(locale, 'detail.assessment'),
+        translate(locale, 'detail.assessmentHelp'),
         [
-          decisionFact('Teaching methods', course.teachingMethods, paragraph),
-          decisionFact('Work forms', course.workForms, (forms) => chipList(forms.map(formatToken))),
-          decisionFact('Collaboration', course.collaboration, (value) =>
-            paragraph(formatToken(value)),
+          decisionFact(translate(locale, 'detail.assessmentFact'), course.assessment, (parts) =>
+            assessmentList(parts, locale),
           ),
-          decisionFact('Attendance', course.attendance, (value) => paragraph(formatToken(value))),
-          decisionFact('Online participation', course.onlineParticipation, (value) =>
-            paragraph(formatToken(value)),
+          decisionFact(
+            translate(locale, 'detail.obligatory'),
+            course.obligatoryActivities,
+            (items) => stringList(items, locale),
           ),
         ],
       ),
       decisionSection(
-        'Assessment and obligatory work',
-        'What counts toward the grade and what must be approved first.',
+        translate(locale, 'detail.requirements'),
+        translate(locale, 'detail.requirementsHelp'),
         [
-          decisionFact('Assessment', course.assessment, assessmentList),
-          decisionFact('Obligatory activities', course.obligatoryActivities, (items) =>
-            stringList(items),
-          ),
+          decisionFact(translate(locale, 'detail.prerequisites'), course.prerequisites, paragraph),
+          decisionFact(translate(locale, 'detail.access'), course.accessRestrictions, paragraph),
         ],
       ),
-      decisionSection('Requirements', 'Recommended background and access constraints.', [
-        decisionFact('Prerequisites', course.prerequisites, paragraph),
-        decisionFact('Access restrictions', course.accessRestrictions, paragraph),
-      ]),
-      gradeSection(course),
-      sourceSection(course),
+      gradeSection(course, locale),
+      sourceSection(course, locale),
     ],
   );
 };
@@ -537,6 +576,7 @@ const compactFact = <A>(
   label: string,
   fact: ProtocolFact<A>,
   format: (value: A) => string,
+  locale: Locale,
 ): Html => {
   const h = html<Message>();
   return h.div(
@@ -553,8 +593,8 @@ const compactFact = <A>(
           fact.state === 'known'
             ? format(fact.value)
             : fact.state === 'conflicting'
-              ? 'Conflicting'
-              : formatToken(fact.state),
+              ? translate(locale, 'detail.conflicting')
+              : translateToken(locale, fact.state),
         ],
       ),
     ],
@@ -576,6 +616,7 @@ const factView = <A>(
   label: string,
   fact: ProtocolFact<A>,
   renderKnown: (value: A) => Html,
+  locale: Locale,
   inferenceEvidenceIds: ReadonlySet<string> = new Set(),
 ): Html => {
   const h = html<Message>();
@@ -591,11 +632,13 @@ const factView = <A>(
           [h.Class('flex items-start justify-between gap-3')],
           [
             h.h3([], [label]),
-            inferred ? h.span([h.Class(uncertainFactStateClass)], ['Inferred']) : h.empty,
+            inferred
+              ? h.span([h.Class(uncertainFactStateClass)], [translate(locale, 'detail.inferred')])
+              : h.empty,
           ],
         ),
         renderKnown(fact.value),
-        evidenceLinks(fact.evidenceIds),
+        evidenceLinks(fact.evidenceIds, locale),
       ],
     );
   }
@@ -606,7 +649,10 @@ const factView = <A>(
       [
         h.div(
           [h.Class('flex items-start justify-between gap-3')],
-          [h.h3([], [label]), h.span([h.Class(uncertainFactStateClass)], ['Conflicting'])],
+          [
+            h.h3([], [label]),
+            h.span([h.Class(uncertainFactStateClass)], [translate(locale, 'detail.conflicting')]),
+          ],
         ),
         h.p([], [fact.reason]),
         h.ul(
@@ -616,10 +662,10 @@ const factView = <A>(
             ),
           ],
           fact.candidates.map((candidate) =>
-            h.li([], [renderKnown(candidate.value), evidenceLinks(candidate.evidenceIds)]),
+            h.li([], [renderKnown(candidate.value), evidenceLinks(candidate.evidenceIds, locale)]),
           ),
         ),
-        evidenceLinks(fact.evidenceIds),
+        evidenceLinks(fact.evidenceIds, locale),
       ],
     );
   }
@@ -629,15 +675,18 @@ const factView = <A>(
     [
       h.div(
         [h.Class('flex items-start justify-between gap-3')],
-        [h.h3([], [label]), h.span([h.Class(uncertainFactStateClass)], [formatToken(fact.state)])],
+        [
+          h.h3([], [label]),
+          h.span([h.Class(uncertainFactStateClass)], [translateToken(locale, fact.state)]),
+        ],
       ),
       h.p([], [fact.reason]),
-      evidenceLinks(fact.evidenceIds),
+      evidenceLinks(fact.evidenceIds, locale),
     ],
   );
 };
 
-const gradeSection = (course: CourseInsight): Html => {
+const gradeSection = (course: CourseInsight, locale: Locale): Html => {
   const h = html<Message>();
   const grades = course.gradeOutcomes;
 
@@ -647,28 +696,57 @@ const gradeSection = (course: CourseInsight): Html => {
       h.header(
         [h.Class(sectionHeadingClass)],
         [
-          h.h2([], ['Grade outcomes']),
-          h.p(
-            [],
-            [
-              'Historical outcomes describe past cohorts; they do not predict an individual result.',
-            ],
-          ),
+          h.h2([], [translate(locale, 'detail.gradeOutcomes')]),
+          h.p([], [translate(locale, 'detail.gradeHelp')]),
         ],
       ),
       h.div(
         [h.Class(`${factGridClass} mb-3`)],
         [
-          factView('Covered period', grades.period, (period) =>
-            paragraph(`${period.fromYear}–${period.toYear}`),
+          factView(
+            translate(locale, 'detail.coveredPeriod'),
+            grades.period,
+            (period) => paragraph(`${period.fromYear}–${period.toYear}`),
+            locale,
           ),
-          factView('Sample size', grades.sampleSize, (value) => paragraph(`${value} results`)),
-          factView('Failure rate', grades.failureRatePercent, (value) => paragraph(`${value}%`)),
-          factView('Average grade', grades.averageGrade, paragraph),
-          factView('Median grade', grades.medianGrade, paragraph),
+          factView(
+            translate(locale, 'detail.sampleSize'),
+            grades.sampleSize,
+            (value) =>
+              paragraph(
+                translate(locale, 'detail.results', {
+                  count: value.toLocaleString(localeTag(locale)),
+                }),
+              ),
+            locale,
+          ),
+          factView(
+            translate(locale, 'detail.failureRate'),
+            grades.failureRatePercent,
+            (value) =>
+              paragraph(
+                new Intl.NumberFormat(localeTag(locale), {
+                  style: 'percent',
+                  maximumFractionDigits: 1,
+                }).format(value / 100),
+              ),
+            locale,
+          ),
+          factView(
+            translate(locale, 'detail.averageGrade'),
+            grades.averageGrade,
+            paragraph,
+            locale,
+          ),
+          factView(translate(locale, 'detail.medianGrade'), grades.medianGrade, paragraph, locale),
         ],
       ),
-      factView('Grade distribution', grades.distribution, gradeDistribution),
+      factView(
+        translate(locale, 'detail.distribution'),
+        grades.distribution,
+        (distribution) => gradeDistribution(distribution, locale),
+        locale,
+      ),
     ],
   );
 };
@@ -677,6 +755,7 @@ const gradeDistribution = (
   distribution: CourseInsight['gradeOutcomes']['distribution'] extends ProtocolFact<infer A>
     ? A
     : never,
+  locale: Locale,
 ): Html => {
   const h = html<Message>();
   return h.div(
@@ -689,16 +768,16 @@ const gradeDistribution = (
           ),
         ],
         [
-          h.caption([h.Class('sr-only')], ['Historical grade distribution']),
+          h.caption([h.Class('sr-only')], [translate(locale, 'detail.distributionCaption')]),
           h.thead(
             [],
             [
               h.tr(
                 [],
                 [
-                  h.th([h.Scope('col')], ['Grade']),
-                  h.th([h.Scope('col')], ['Count']),
-                  h.th([h.Scope('col')], ['Share']),
+                  h.th([h.Scope('col')], [translate(locale, 'detail.grade')]),
+                  h.th([h.Scope('col')], [translate(locale, 'detail.count')]),
+                  h.th([h.Scope('col')], [translate(locale, 'detail.share')]),
                 ],
               ),
             ],
@@ -722,7 +801,7 @@ const gradeDistribution = (
   );
 };
 
-const sourceSection = (course: CourseInsight): Html => {
+const sourceSection = (course: CourseInsight, locale: Locale): Html => {
   const h = html<Message>();
   return h.section(
     [h.Class(decisionSectionClass)],
@@ -730,13 +809,8 @@ const sourceSection = (course: CourseInsight): Html => {
       h.header(
         [h.Class(sectionHeadingClass)],
         [
-          h.h2([], ['Sources and freshness']),
-          h.p(
-            [],
-            [
-              'Each fact links to the live source capture or derivation used for this response. Fixture data is labelled explicitly.',
-            ],
-          ),
+          h.h2([], [translate(locale, 'detail.sources')]),
+          h.p([], [translate(locale, 'detail.sourcesHelp')]),
         ],
       ),
       h.div(
@@ -755,12 +829,19 @@ const sourceSection = (course: CourseInsight): Html => {
                 [h.Class('flex items-start justify-between gap-3')],
                 [
                   h.h3([], [source.provider]),
-                  h.span([h.Class(factStateClass)], [formatToken(source.status)]),
+                  h.span([h.Class(factStateClass)], [translateToken(locale, source.status)]),
                 ],
               ),
               source.observedAt === null
-                ? h.p([], ['No observation time'])
-                : h.p([], [`Observed ${formatTimestamp(source.observedAt)}`]),
+                ? h.p([], [translate(locale, 'detail.noObservation')])
+                : h.p(
+                    [],
+                    [
+                      translate(locale, 'detail.observed', {
+                        date: formatTimestamp(source.observedAt, locale),
+                      }),
+                    ],
+                  ),
               source.warning === null ? h.empty : h.p([], [source.warning]),
             ],
           ),
@@ -782,20 +863,23 @@ const sourceSection = (course: CourseInsight): Html => {
                 [h.Class('flex items-start justify-between gap-3')],
                 [
                   h.strong([], [evidence.provider]),
-                  h.span([h.Class(factStateClass)], [formatToken(evidence.kind)]),
+                  h.span([h.Class(factStateClass)], [translateToken(locale, evidence.kind)]),
                 ],
               ),
               h.p(
                 [],
                 [
-                  `${evidence.sourcePeriod ?? 'No source period'} · observed ${formatTimestamp(evidence.observedAt)}`,
+                  translate(locale, 'detail.observedInline', {
+                    period: evidence.sourcePeriod ?? translate(locale, 'detail.noSourcePeriod'),
+                    date: formatTimestamp(evidence.observedAt, locale),
+                  }),
                 ],
               ),
               evidence.excerpt === null ? h.empty : h.p([], [evidence.excerpt]),
               evidence.sourceUrl === null
                 ? h.span(
                     [h.Class('text-on-surface-variant text-[0.82rem] italic')],
-                    ['No external source link'],
+                    [translate(locale, 'detail.noExternalLink')],
                   )
                 : h.a(
                     [
@@ -804,7 +888,7 @@ const sourceSection = (course: CourseInsight): Html => {
                       h.Rel('noreferrer'),
                       h.Class('text-[0.82rem]'),
                     ],
-                    ['Open source ↗'],
+                    [translate(locale, 'detail.openSource')],
                   ),
             ],
           ),
@@ -814,12 +898,16 @@ const sourceSection = (course: CourseInsight): Html => {
   );
 };
 
-const evidenceLinks = (evidenceIds: ReadonlyArray<string>, contextClass = ''): Html => {
+const evidenceLinks = (
+  evidenceIds: ReadonlyArray<string>,
+  locale: Locale,
+  contextClass = '',
+): Html => {
   const h = html<Message>();
   if (evidenceIds.length === 0) {
     return h.span(
       [h.Class(`text-on-surface-variant text-xs italic ${contextClass}`)],
-      ['No supporting evidence'],
+      [translate(locale, 'detail.noEvidence')],
     );
   }
   return h.div(
@@ -827,11 +915,17 @@ const evidenceLinks = (evidenceIds: ReadonlyArray<string>, contextClass = ''): H
       h.Class(
         `flex flex-wrap gap-[0.4rem] mt-[0.8rem] text-xs [&_a]:underline-offset-[0.2rem] ${contextClass}`,
       ),
-      h.AriaLabel('Supporting evidence'),
+      h.AriaLabel(translate(locale, 'detail.supportingEvidence')),
     ],
     [
       ...evidenceIds.map((id) =>
-        h.a([h.Href(`#evidence-${id}`), h.AriaLabel(`View evidence ${id}`)], ['View evidence']),
+        h.a(
+          [
+            h.Href(`#evidence-${id}`),
+            h.AriaLabel(translate(locale, 'detail.viewEvidenceLabel', { id })),
+          ],
+          [translate(locale, 'detail.viewEvidence')],
+        ),
       ),
     ],
   );
@@ -839,21 +933,26 @@ const evidenceLinks = (evidenceIds: ReadonlyArray<string>, contextClass = ''): H
 
 const offeringList = (
   offerings: CourseInsight['offerings'] extends ProtocolFact<infer A> ? A : never,
+  locale: Locale,
 ): Html =>
   stringList(
     offerings.map((offering) => {
       const location =
-        offering.campuses.length === 0 ? 'Campus not reported' : offering.campuses.join(', ');
+        offering.campuses.length === 0
+          ? translate(locale, 'course.campusUnreported')
+          : offering.campuses.join(', ');
       const delivery =
         offering.deliveryModes.length === 0
-          ? 'Delivery mode unknown'
-          : offering.deliveryModes.map(formatToken).join(', ');
-      return `${formatOfferingPeriod(offering.academicYear, offering.season)} · ${location} · ${delivery}`;
+          ? translate(locale, 'detail.deliveryUnknown')
+          : offering.deliveryModes.map((mode) => translateToken(locale, mode)).join(', ');
+      return `${formatOfferingPeriod(offering.academicYear, offering.season, locale)} · ${location} · ${delivery}`;
     }),
+    locale,
   );
 
 const assessmentList = (
   assessment: CourseInsight['assessment'] extends ProtocolFact<infer A> ? A : never,
+  locale: Locale,
 ): Html => {
   const h = html<Message>();
   return h.ul(
@@ -862,7 +961,7 @@ const assessmentList = (
       h.li(
         [],
         [
-          h.strong([], [formatToken(part.form)]),
+          h.strong([], [translateToken(locale, part.form)]),
           h.span(
             [],
             [
@@ -880,10 +979,10 @@ const paragraph = (value: string): Html => {
   return h.p([], [value]);
 };
 
-const stringList = (items: ReadonlyArray<string>): Html => {
+const stringList = (items: ReadonlyArray<string>, locale: Locale): Html => {
   const h = html<Message>();
   if (items.length === 0) {
-    return h.p([], ['None reported.']);
+    return h.p([], [translate(locale, 'detail.noneReported')]);
   }
   return h.ul(
     [h.Class('mt-[0.35rem] mr-0 mb-0 ml-0 pl-[1.2rem] [&_li]:my-[0.35rem] [&_li]:leading-[1.5]')],
@@ -903,21 +1002,17 @@ const chipList = (items: ReadonlyArray<string>): Html => {
   );
 };
 
-const formatOfferingPeriod = (academicYear: number, season: string): string => {
+const formatOfferingPeriod = (academicYear: number, season: string, locale: Locale): string => {
   const academicYearLabel = `${academicYear}/${String(academicYear + 1).slice(-2)}`;
-  if (season === 'full-year') return `Academic year ${academicYearLabel}`;
+  if (season === 'full-year') {
+    return translate(locale, 'offering.academicYear', { year: academicYearLabel });
+  }
   const calendarYear = season === 'autumn' ? academicYear : academicYear + 1;
-  return `${formatToken(season)} ${calendarYear} · ${academicYearLabel}`;
+  return `${translateToken(locale, season)} ${calendarYear} · ${academicYearLabel}`;
 };
 
-const formatToken = (value: string): string =>
-  value
-    .split('-')
-    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join(' ');
-
-const formatTimestamp = (value: string): string =>
-  new Intl.DateTimeFormat('en-GB', {
+const formatTimestamp = (value: string, locale: Locale): string =>
+  new Intl.DateTimeFormat(localeTag(locale), {
     dateStyle: 'medium',
     timeZone: 'Europe/Oslo',
   }).format(new Date(value));

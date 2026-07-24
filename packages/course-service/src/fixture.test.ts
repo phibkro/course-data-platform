@@ -54,7 +54,9 @@ describe('fixtureCourseDecisionService', () => {
 
     expect(result.items).toHaveLength(2);
     expect(result.items[0]?.sampleSize).toMatchObject({ state: 'known', value: 1951 });
+    expect(result.items[0]?.distribution.state).toBe('unavailable');
     expect(result.items[1]?.sampleSize.state).toBe('unavailable');
+    expect(result.items[1]?.distribution.state).toBe('unavailable');
   });
 
   it('fails explicitly for an absent course', async () => {

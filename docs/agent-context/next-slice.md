@@ -1,5 +1,7 @@
 # Next vertical slice: decision signals while browsing
 
+> Execution anchor: [`../product/scan-and-persist-design.md`](../product/scan-and-persist-design.md)
+
 ## Goal
 
 Let a student scan a broad NTNU catalogue and see the first decision-relevant

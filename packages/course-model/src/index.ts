@@ -176,6 +176,7 @@ export const CourseGradeSummarySchema = Schema.Struct({
   courseCode: NonEmptyString,
   period: makeFactSchema(GradePeriodSchema),
   sampleSize: makeFactSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
+  distribution: makeFactSchema(Schema.Array(GradeBucketSchema)),
   failureRatePercent: PercentageFactSchema,
   gradingScale: makeFactSchema(GradingScaleSchema),
   evidence: Schema.Array(EvidenceSchema),

@@ -188,6 +188,10 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
               courseCode,
               period: known({ fromYear: 2022, toYear: 2025 }, [gradesEvidenceId]),
               sampleSize: known(1951, [gradesEvidenceId]),
+              distribution: unavailable(
+                'The captured prototype observation did not retain grade buckets.',
+                [gradesEvidenceId],
+              ),
               failureRatePercent: known(10.7, [gradesEvidenceId]),
               gradingScale: known('letter', [gradesEvidenceId]),
               evidence: [gradesEvidence],
@@ -196,6 +200,7 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
               courseCode,
               period: unavailable(missingReason),
               sampleSize: unavailable(missingReason),
+              distribution: unavailable(missingReason),
               failureRatePercent: unavailable(missingReason),
               gradingScale: unavailable(missingReason),
               evidence: [],

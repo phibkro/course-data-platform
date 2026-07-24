@@ -129,6 +129,20 @@ export const fixtureGradeSummariesResponse = (
         sampleSize: available
           ? { state: 'known', value: 1951, evidenceIds: [evidenceId] }
           : { state: 'unavailable', reason, evidenceIds: [] },
+        distribution: available
+          ? {
+              state: 'known',
+              value: [
+                { grade: 'A', count: 200, percentage: 10.25 },
+                { grade: 'B', count: 430, percentage: 22.04 },
+                { grade: 'C', count: 650, percentage: 33.32 },
+                { grade: 'D', count: 350, percentage: 17.94 },
+                { grade: 'E', count: 112, percentage: 5.74 },
+                { grade: 'F', count: 209, percentage: 10.71 },
+              ],
+              evidenceIds: [evidenceId],
+            }
+          : { state: 'unavailable', reason, evidenceIds: [] },
         failureRatePercent: available
           ? { state: 'known', value: 10.7, evidenceIds: [evidenceId] }
           : { state: 'unavailable', reason, evidenceIds: [] },
