@@ -94,6 +94,26 @@ Cloudflare authentication. `deploy:prod` refuses to run unless the checkout is
 clean, on `main`, and exactly matches `origin/main`; production releases are
 explicit even though `main` is the canonical production source.
 
+PR previews use isolated Alchemy stages rather than a long-lived deployment
+branch. From a clean, pushed PR branch, deploy PR 6 with:
+
+```sh
+bun run deploy:preview -- 6
+```
+
+This creates or updates the `pr-6` stage and prints its public `workers.dev`
+URL. Preview source links point to the exact deployed commit. The production
+custom domain is attached only to the `prod` stage, so previews cannot claim
+`planner.phibkro.org`. Destroy the isolated stage after the PR closes:
+
+```sh
+bunx alchemy destroy --stage pr-6 alchemy.run.ts
+```
+
+Preview deployment is manual until Cloudflare and Alchemy CI credentials are
+configured deliberately; opening a PR does not create a failing or
+over-privileged GitHub workflow.
+
 ## Architecture
 
 ```text

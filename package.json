@@ -21,6 +21,7 @@
     "infra:plan:prod": "alchemy plan --stage prod alchemy.run.ts",
     "infra:dev": "alchemy dev alchemy.run.ts",
     "deploy": "alchemy deploy alchemy.run.ts",
+    "deploy:preview": "bun scripts/deploy-preview.ts",
     "deploy:prod": "bun scripts/deploy-prod.ts",
     "validate": "bash scripts/validate.sh",
     "legacy:dev": "bun run --cwd legacy/ntnu-course-search dev",
