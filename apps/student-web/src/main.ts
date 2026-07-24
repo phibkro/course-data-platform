@@ -2098,16 +2098,20 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
       [
         h.Class(
           grouped
-            ? `flex min-w-0 items-center justify-center gap-1.5 px-2.5 py-1.5 bg-secondary text-on-secondary text-[0.76rem] font-[750] ${
-                index === 0 ? '' : 'border-l border-on-secondary/30'
+            ? `flex w-full items-center justify-between gap-2 bg-secondary px-3 py-2 text-left text-on-secondary text-[0.76rem] font-[750] leading-[1.25] @min-[28rem]:w-auto @min-[28rem]:justify-center @min-[28rem]:px-2.5 @min-[28rem]:py-1.5 @min-[28rem]:text-center ${
+                index === 0
+                  ? ''
+                  : 'border-t border-on-secondary/30 @min-[28rem]:border-t-0 @min-[28rem]:border-l'
               }`
             : 'inline-flex min-h-8 items-center gap-1.5 rounded-full bg-secondary px-2.5 text-on-secondary text-[0.76rem] font-[750]',
         ),
-        ...(grouped && hasProportionalWeights && part.weightPercent.state === 'known'
+        ...(grouped
           ? [
               h.Style({
-                flexBasis: '0',
-                flexGrow: String(part.weightPercent.value),
+                flexGrow:
+                  hasProportionalWeights && part.weightPercent.state === 'known'
+                    ? String(part.weightPercent.value)
+                    : '1',
               }),
             ]
           : []),
@@ -2119,7 +2123,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
           assessmentIconName(part.form),
           'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
         ),
-        h.span([h.Class('min-w-0')], [label]),
+        h.span([h.Class('flex-1 @min-[28rem]:flex-none')], [label]),
         weight === null ? h.empty : h.span([h.Class('shrink-0 font-[850] tabular-nums')], [weight]),
       ],
     );
@@ -2133,7 +2137,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
           : h.ul(
               [
                 h.Class(
-                  'flex w-full max-w-full overflow-hidden rounded-full border border-secondary p-0 list-none',
+                  'flex w-full max-w-full flex-col overflow-hidden rounded-m3-medium border border-secondary p-0 list-none @min-[28rem]:flex-row @min-[28rem]:rounded-full',
                 ),
                 h.AriaLabel(translate(locale, 'signals.gradedAssessment')),
               ],
@@ -2283,12 +2287,6 @@ const gradeScaleLabel = (summary: CourseGradeSummaryDtoType, locale: Locale): st
 const formatPercentage = (value: number, locale: Locale): string =>
   new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 }).format(value);
 
-const sparkBar = (percentage: number, maximum: number): string => {
-  const bars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'] as const;
-  const normalized = Math.max(percentage / maximum, 0);
-  return bars[Math.min(Math.floor(normalized * (bars.length - 1)), bars.length - 1)] ?? '▁';
-};
-
 const distributionStateMessage = (
   distribution: CourseGradeSummaryDtoType['distribution'],
   locale: Locale,
@@ -2371,12 +2369,111 @@ const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): H
     )
     .join(', ');
   const accessibleSummary = `${scale}. ${accessibleDistribution}.${metadata.length === 0 ? '' : ` ${metadata.join(', ')}.`}`;
-  const sparkline = buckets
-    .map(
-      (bucket) =>
-        `${bucket.grade === 'G' ? 'P' : bucket.grade === 'H' ? 'F' : bucket.grade} ${sparkBar(bucket.percentage, maxPercentage)}`,
-    )
-    .join('  ');
+  const passBucket = buckets.find((bucket) => bucket.grade === 'G');
+  const failBucket = buckets.find((bucket) => bucket.grade === 'H');
+  const isPassFail =
+    summary.gradingScale.state === 'known' &&
+    summary.gradingScale.value === 'pass-fail' &&
+    buckets.length === 2 &&
+    passBucket !== undefined &&
+    failBucket !== undefined;
+  const distributionChart = isPassFail
+    ? (() => {
+        const total = Math.max(passBucket.percentage + failBucket.percentage, 1);
+        const passShare = Math.max(0, Math.min((passBucket.percentage / total) * 100, 100));
+        const legendItem = (colorClass: string, label: string, percentage: number): Html =>
+          h.div(
+            [h.Class('grid grid-cols-[0.75rem_minmax(0,1fr)_auto] items-center gap-2')],
+            [
+              h.span([h.Class(`size-3 rounded-full ${colorClass}`)], []),
+              h.span([h.Class('text-[0.78rem] font-[750]')], [label]),
+              h.span(
+                [h.Class('text-[0.78rem] font-[850] tabular-nums')],
+                [`${formatPercentage(percentage, locale)}%`],
+              ),
+            ],
+          );
+
+        return h.div(
+          [
+            h.Class('grid grid-cols-[4.75rem_minmax(0,1fr)] items-center gap-4 py-1'),
+            h.AriaHidden(true),
+          ],
+          [
+            h.div(
+              [
+                h.Class(
+                  'grid size-19 place-items-center rounded-full shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--md-sys-color-outline-variant)_65%,transparent)]',
+                ),
+                h.Style({
+                  backgroundImage: `conic-gradient(var(--color-valid) 0 ${passShare}%, var(--color-danger) ${passShare}% 100%)`,
+                }),
+              ],
+              [h.span([h.Class('size-11 rounded-full bg-primary-container')], [])],
+            ),
+            h.div(
+              [h.Class('grid gap-2')],
+              [
+                legendItem(
+                  'bg-valid',
+                  gradeDisplayLabel(passBucket.grade, locale),
+                  passBucket.percentage,
+                ),
+                legendItem(
+                  'bg-danger',
+                  gradeDisplayLabel(failBucket.grade, locale),
+                  failBucket.percentage,
+                ),
+              ],
+            ),
+          ],
+        );
+      })()
+    : h.div(
+        [
+          h.Class('grid items-end gap-x-1 gap-y-1'),
+          h.Style({
+            gridTemplateColumns: `repeat(${buckets.length}, minmax(1.75rem, 1fr))`,
+          }),
+          h.AriaHidden(true),
+        ],
+        [
+          ...buckets.map((bucket) =>
+            h.div(
+              [
+                h.Class('flex h-14 items-end justify-center'),
+                h.Title(
+                  translate(locale, 'outcomes.percent', {
+                    label: gradeDisplayLabel(bucket.grade, locale),
+                    value: formatPercentage(bucket.percentage, locale),
+                  }),
+                ),
+              ],
+              [
+                h.span(
+                  [
+                    h.Class(
+                      `block min-h-1 w-[clamp(0.6rem,48%,1.35rem)] rounded-t-sm ${
+                        bucket.grade === 'F' || bucket.grade === 'H' ? 'bg-danger' : 'bg-valid'
+                      }`,
+                    ),
+                    h.Style({
+                      height: `${Math.max((bucket.percentage / maxPercentage) * 100, 4)}%`,
+                    }),
+                  ],
+                  [],
+                ),
+              ],
+            ),
+          ),
+          ...buckets.map((bucket) =>
+            h.span(
+              [h.Class('text-center text-[0.72rem] font-[850] leading-none')],
+              [gradeDisplayLabel(bucket.grade, locale)],
+            ),
+          ),
+        ],
+      );
 
   return h.figure(
     [
@@ -2401,16 +2498,7 @@ const gradeSummaryView = (summary: CourseGradeSummaryDtoType, locale: Locale): H
           ),
         ],
       ),
-      h.p(
-        [
-          h.Class(
-            'm-0 overflow-hidden text-[1rem] font-[750] font-mono tracking-[0.03em] whitespace-nowrap',
-          ),
-          h.AriaHidden(true),
-          h.Title(accessibleDistribution),
-        ],
-        [sparkline],
-      ),
+      distributionChart,
       metadata.length === 0
         ? h.empty
         : h.p([h.Class('m-0 text-[0.75rem] font-[650] leading-[1.35]')], [metadata.join(' · ')]),

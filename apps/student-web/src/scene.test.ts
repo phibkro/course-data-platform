@@ -103,6 +103,54 @@ describe('browse-first catalogue scene', () => {
     );
   });
 
+  test('pass/fail outcomes use a ratio summary instead of letter-grade columns', () => {
+    const response = fixtureGradeSummariesResponse(['TDT4136']);
+    const summary = response.items[0]!;
+    const passFail = {
+      ...response,
+      items: [
+        {
+          ...summary,
+          gradingScale: {
+            state: 'known' as const,
+            value: 'pass-fail' as const,
+            evidenceIds: summary.gradingScale.evidenceIds,
+          },
+          distribution: {
+            state: 'known' as const,
+            value: [
+              { grade: 'G', count: 80, percentage: 80 },
+              { grade: 'H', count: 20, percentage: 20 },
+            ],
+            evidenceIds: summary.distribution.evidenceIds,
+          },
+          failureRatePercent: {
+            state: 'known' as const,
+            value: 20,
+            evidenceIds: summary.failureRatePercent.evidenceIds,
+          },
+        },
+      ],
+    };
+
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        gradeSignals: GradeSignalsSuccess({ response: passFail }),
+        visibleCount: 1,
+      }),
+      Scene.expect(
+        Scene.role('img', {
+          name: /Pass\/fail\. Pass 80 percent, Fail 20 percent/,
+        }),
+      ).toExist(),
+      Scene.expect(Scene.text('Pass')).toExist(),
+      Scene.expect(Scene.text('Fail')).toExist(),
+    );
+  });
+
   test('assessment and work signals are scannable without opening course detail', () => {
     Scene.scene(
       { update, view },
