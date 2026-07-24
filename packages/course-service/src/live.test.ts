@@ -292,7 +292,10 @@ describe('live course decision service', () => {
     expect(result.items).toHaveLength(9);
     expect(maximumInFlight).toBe(4);
     expect(result.items[0]).toMatchObject({
-      assessmentSignals: { state: 'known', value: ['project', 'oral-exam'] },
+      assessment: {
+        state: 'known',
+        value: [{ form: 'project' }, { form: 'oral-exam' }],
+      },
       collaboration: { state: 'known', value: 'group' },
     });
   });
@@ -316,13 +319,13 @@ describe('live course decision service', () => {
       service.getDecisionSignals({ courseCodes: ['TST200', 'TST404'] }),
     );
 
-    expect(result.items[0]?.assessmentSignals).toMatchObject({
+    expect(result.items[0]?.assessment).toMatchObject({
       state: 'known',
-      value: ['written-exam'],
+      value: [{ form: 'written-exam' }],
     });
     expect(result.items[1]).toMatchObject({
       courseCode: 'TST404',
-      assessmentSignals: { state: 'unavailable' },
+      assessment: { state: 'unavailable' },
       sourceStatus: { status: 'failed' },
     });
   });

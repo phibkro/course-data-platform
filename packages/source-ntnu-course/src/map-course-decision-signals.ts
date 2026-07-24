@@ -7,6 +7,7 @@ import {
 } from '@course-data/course-model';
 
 import type { ValidatedNtnuCourseDetail } from './detail';
+import { mapNtnuAssessment, mapNtnuObligatoryActivities } from './map-assessment';
 
 const academicPeriod = (academicYear: number, season: 'spring' | 'autumn'): string =>
   `${academicYear}/${academicYear + 1} · ${season}`;
@@ -22,7 +23,7 @@ export const mapNtnuDetailToCourseDecisionSignals = (
     const reason = 'NTNU course-detail page was not available for this course.';
     return decodeCourseDecisionSignals({
       courseCode,
-      assessmentSignals: unavailable(reason),
+      assessment: unavailable(reason),
       workFormSignals: unavailable(reason),
       obligatoryActivities: unavailable(reason),
       collaboration: unavailable(reason),
@@ -68,17 +69,7 @@ export const mapNtnuDetailToCourseDecisionSignals = (
     },
   ];
 
-  const assessmentSignals =
-    detail.assessmentText.state !== 'known'
-      ? unavailable<ReadonlyArray<(typeof detail.assessmentFormGuesses)[number]>>(
-          detail.assessmentText.reason,
-        )
-      : known(
-          detail.assessmentFormGuesses.length > 0
-            ? detail.assessmentFormGuesses
-            : (['other'] as const),
-          [inferenceEvidenceId],
-        );
+  const assessment = mapNtnuAssessment(detail, factEvidenceId, inferenceEvidenceId);
 
   const workFormSignals =
     detail.teachingMethods.state !== 'known'
@@ -91,10 +82,11 @@ export const mapNtnuDetailToCourseDecisionSignals = (
             'No recognizable work-form keywords were found in the teaching-methods text.',
           );
 
-  const obligatoryActivities =
-    detail.obligatoryActivities.state === 'known'
-      ? known(detail.obligatoryActivities.items, [factEvidenceId])
-      : unavailable<ReadonlyArray<string>>(detail.obligatoryActivities.reason);
+  const obligatoryActivities = mapNtnuObligatoryActivities(
+    detail,
+    factEvidenceId,
+    inferenceEvidenceId,
+  );
 
   const collaboration =
     detail.collaborationSignal === null
@@ -119,7 +111,7 @@ export const mapNtnuDetailToCourseDecisionSignals = (
 
   return decodeCourseDecisionSignals({
     courseCode,
-    assessmentSignals,
+    assessment,
     workFormSignals,
     obligatoryActivities,
     collaboration,

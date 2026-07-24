@@ -23,6 +23,18 @@ describe('mapNtnuDetailToCourseDecisionSignals', () => {
           <p>Prosjektrapport og muntlig eksamen.</p>
           <h2>Obligatoriske aktiviteter</h2>
           <p>Godkjent prosjektpresentasjon.</p>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Prosjektrapport</h5>
+            <span class="exam-fact-label">Vekting</span><span>60/100</span>
+          </div>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Muntlig eksamen</h5>
+            <span class="exam-fact-label">Vekting</span><span>40/100</span>
+            <span class="exam-fact-label">Varighet</span><span>30 minutter</span>
+            <span class="exam-fact-label">Eksamenssystem</span><span>Inspera</span>
+          </div>
         </body></html>
       `,
       capture,
@@ -36,9 +48,16 @@ describe('mapNtnuDetailToCourseDecisionSignals', () => {
       null,
     );
 
-    expect(signals.assessmentSignals).toMatchObject({
+    expect(signals.assessment).toMatchObject({
       state: 'known',
-      value: ['project', 'oral-exam'],
+      value: [
+        { form: 'project', weightPercent: { state: 'known', value: 60 } },
+        {
+          form: 'oral-exam',
+          weightPercent: { state: 'known', value: 40 },
+          duration: { state: 'known', value: '30 minutter' },
+        },
+      ],
     });
     expect(signals.obligatoryActivities).toMatchObject({ state: 'known' });
     expect(signals.collaboration).toMatchObject({ state: 'known', value: 'group' });
@@ -63,7 +82,7 @@ describe('mapNtnuDetailToCourseDecisionSignals', () => {
       'NTNU returned HTTP 503.',
     );
 
-    expect(signals.assessmentSignals.state).toBe('unavailable');
+    expect(signals.assessment.state).toBe('unavailable');
     expect(signals.obligatoryActivities.state).toBe('unavailable');
     expect(signals.sourceStatus).toMatchObject({
       status: 'failed',

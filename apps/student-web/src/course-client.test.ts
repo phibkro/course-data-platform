@@ -142,11 +142,11 @@ describe('makeCourseClient', () => {
       makeCourseClient('http://course-api.test', true).getDecisionSignals(['TDT4136', 'NORESULT']),
     );
 
-    expect(result.items[0]?.assessmentSignals).toMatchObject({
+    expect(result.items[0]?.assessment).toMatchObject({
       state: 'known',
-      value: ['written-exam'],
+      value: [{ form: 'written-exam', weightPercent: { state: 'known', value: 100 } }],
     });
-    expect(result.items[1]?.assessmentSignals.state).toBe('unavailable');
+    expect(result.items[1]?.assessment.state).toBe('unavailable');
   });
 
   it('posts visible course codes and the selected term to the decision-signal endpoint', async () => {

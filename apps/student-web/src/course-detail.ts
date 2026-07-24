@@ -554,7 +554,7 @@ export const courseInsightView = (
           decisionFact(
             translate(locale, 'detail.obligatory'),
             course.obligatoryActivities,
-            (items) => stringList(items, locale),
+            (items) => obligatoryActivityList(items, locale),
           ),
         ],
       ),
@@ -965,12 +965,41 @@ const assessmentList = (
           h.span(
             [],
             [
-              ` — ${part.description}${part.weightPercent === null ? '' : ` · ${part.weightPercent}%`}${part.duration === null ? '' : ` · ${part.duration}`}`,
+              ` — ${part.description}${part.weightPercent.state === 'known' ? ` · ${part.weightPercent.value}%` : ''}${part.duration.state === 'known' ? ` · ${part.duration.value}` : ''}`,
             ],
           ),
         ],
       ),
     ),
+  );
+};
+
+const obligatoryActivityList = (
+  activities: CourseInsight['obligatoryActivities'] extends ProtocolFact<infer A> ? A : never,
+  locale: Locale,
+): Html => {
+  const h = html<Message>();
+  if (activities.length === 0) {
+    return h.p([], [translate(locale, 'detail.noneReported')]);
+  }
+  return h.div(
+    [h.Class('grid gap-3')],
+    [
+      h.p(
+        [h.Class('m-0 text-sm font-[750] text-on-surface-variant')],
+        [
+          `${translate(locale, 'signals.required')} · ${translate(locale, 'signals.ungraded')} · ${translate(locale, 'detail.approvalGate')}`,
+        ],
+      ),
+      h.ul(
+        [
+          h.Class(
+            'mt-[0.35rem] mr-0 mb-0 ml-0 pl-[1.2rem] [&_li]:my-[0.35rem] [&_li]:leading-[1.5]',
+          ),
+        ],
+        activities.map((activity) => h.li([], [activity.description])),
+      ),
+    ],
   );
 };
 

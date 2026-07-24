@@ -147,12 +147,15 @@ describe('course decision API', () => {
       items: [
         {
           courseCode: 'TDT4136',
-          assessmentSignals: { state: 'known', value: ['written-exam'] },
+          assessment: {
+            state: 'known',
+            value: [{ form: 'written-exam', weightPercent: { state: 'known', value: 100 } }],
+          },
           obligatoryActivities: { state: 'known' },
         },
         {
           courseCode: 'NORESULT',
-          assessmentSignals: { state: 'unavailable' },
+          assessment: { state: 'unavailable' },
           sourceStatus: { status: 'unavailable' },
         },
       ],

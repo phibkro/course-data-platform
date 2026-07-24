@@ -2031,42 +2031,84 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
     );
   }
 
-  const forms = signal.assessmentSignals.state === 'known' ? signal.assessmentSignals.value : [];
+  const parts = signal.assessment.state === 'known' ? signal.assessment.value : [];
   const assessment =
-    signal.assessmentSignals.state === 'known'
-      ? forms.length === 0
+    signal.assessment.state === 'known'
+      ? parts.length === 0
         ? h.p([h.Class('m-0 text-[0.84rem]')], [translate(locale, 'signals.noneReported')])
         : h.ul(
             [h.Class('flex flex-wrap gap-1.5 p-0 list-none')],
-            forms.map((form) => {
-              const label = assessmentLabel(form, locale);
+            parts.map((part) => {
+              const label = assessmentLabel(part.form, locale);
+              const weight =
+                part.weightPercent.state === 'known' ? `${part.weightPercent.value}%` : null;
+              const accessibleLabel =
+                weight === null
+                  ? label
+                  : `${label}, ${weight} ${translate(locale, 'signals.graded')}`;
               return h.li(
                 [
                   h.Class(
                     'inline-flex items-center gap-1.5 min-h-8 px-2.5 rounded-full bg-secondary text-on-secondary text-[0.76rem] font-[750]',
                   ),
-                  h.Title(label),
+                  h.Title(accessibleLabel),
                 ],
                 [
                   icon<Message>(
-                    assessmentIconName(form),
+                    assessmentIconName(part.form),
                     'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
                   ),
                   h.span([], [label]),
+                  weight === null
+                    ? h.empty
+                    : h.span([h.Class('font-[850] tabular-nums')], [weight]),
                 ],
               );
             }),
           )
-      : h.p(
-          [h.Class('m-0 text-[0.84rem]')],
-          [factStateLabel(signal.assessmentSignals.state, locale)],
-        );
+      : h.p([h.Class('m-0 text-[0.84rem]')], [factStateLabel(signal.assessment.state, locale)]);
   const obligatory =
     signal.obligatoryActivities.state === 'known'
       ? signal.obligatoryActivities.value.length > 0
-        ? translate(locale, 'signals.required')
-        : translate(locale, 'signals.noneReported')
-      : factStateLabel(signal.obligatoryActivities.state, locale);
+        ? h.div(
+            [h.Class('flex flex-wrap items-center gap-1.5')],
+            [
+              h.span(
+                [
+                  h.Class(
+                    'inline-flex min-h-7 items-center rounded-full bg-tertiary-container px-2.5 text-[0.75rem] font-[800] text-on-tertiary-container',
+                  ),
+                ],
+                [translate(locale, 'signals.required')],
+              ),
+              h.span(
+                [
+                  h.Class(
+                    'inline-flex min-h-7 items-center rounded-full bg-surface-container-highest px-2.5 text-[0.75rem] font-[800] text-on-surface-variant',
+                  ),
+                ],
+                [translate(locale, 'signals.ungraded')],
+              ),
+              h.span(
+                [h.Class('text-[0.78rem] font-[700]')],
+                [
+                  signal.obligatoryActivities.value.length === 1
+                    ? translate(locale, 'signals.oneActivity')
+                    : translate(locale, 'signals.activityCount', {
+                        count: signal.obligatoryActivities.value.length,
+                      }),
+                ],
+              ),
+            ],
+          )
+        : h.p(
+            [h.Class('m-0 text-[0.84rem] font-[700]')],
+            [translate(locale, 'signals.noneReported')],
+          )
+      : h.p(
+          [h.Class('m-0 text-[0.84rem] font-[700]')],
+          [factStateLabel(signal.obligatoryActivities.state, locale)],
+        );
   const collaboration =
     signal.collaboration.state === 'known'
       ? collaborationLabel(signal.collaboration.value, locale)
@@ -2097,7 +2139,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
           h.div(
             [],
             [
-              h.dt([h.Class(factDtClass)], [translate(locale, 'detail.assessmentFact')]),
+              h.dt([h.Class(factDtClass)], [translate(locale, 'signals.gradedAssessment')]),
               h.dd([h.Class('mt-1')], [assessment]),
             ],
           ),
@@ -2105,7 +2147,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
             [h.Class('grid grid-cols-[minmax(7.5rem,0.8fr)_minmax(0,1fr)] gap-3')],
             [
               h.dt([h.Class(factDtClass)], [translate(locale, 'signals.obligatory')]),
-              h.dd([h.Class('m-0 text-[0.84rem] font-[700]')], [obligatory]),
+              h.dd([h.Class('m-0')], [obligatory]),
             ],
           ),
           h.div(

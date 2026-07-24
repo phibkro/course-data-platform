@@ -101,6 +101,64 @@ describe('parseNtnuCourseDetail', () => {
     expect(result.accepted?.assessmentFormGuesses).toEqual(expected);
   });
 
+  it('extracts ordinary assessment weights and duration without merging the resit arrangement', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <h2>Vurderingsordning</h2><p>Samlet karakter</p>
+          <div class="exam-element">
+            <h4 class="h3 course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="h4 exam-form">Prosjektoppgave</h5>
+            <div class="exam-container">
+              <span class="exam-item exam-fact-label">Vekting</span>
+              <span class="exam-item">60/100</span>
+            </div>
+          </div>
+          <div class="exam-element">
+            <h4 class="h3 course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="h4 exam-form">Muntlig eksamen</h5>
+            <div class="exam-container">
+              <span class="exam-item exam-fact-label">Vekting</span>
+              <span class="exam-item">40/100</span>
+              <span class="exam-item exam-fact-label">Varighet</span>
+              <span class="exam-item">30 minutter</span>
+              <span class="exam-item exam-fact-label">Eksamenssystem</span>
+              <span class="exam-item">Inspera</span>
+            </div>
+          </div>
+          <div class="exam-element">
+            <h4 class="h3 course-exam-heading2">Utsatt eksamen - Sommer 2027</h4>
+            <h5 class="h4 exam-form">Skriftlig skoleeksamen</h5>
+            <div class="exam-container">
+              <span class="exam-item exam-fact-label">Vekting</span>
+              <span class="exam-item">100/100</span>
+            </div>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.assessmentParts).toEqual({
+      state: 'known',
+      items: [
+        {
+          form: 'project',
+          description: 'Prosjektoppgave',
+          weightPercent: 60,
+          duration: null,
+        },
+        {
+          form: 'oral-exam',
+          description: 'Muntlig eksamen',
+          weightPercent: 40,
+          duration: '30 minutter',
+        },
+      ],
+    });
+  });
+
   it('recognizes observed Norwegian collaboration and attendance phrases in obligatory work', () => {
     const result = parseNtnuCourseDetail(
       `

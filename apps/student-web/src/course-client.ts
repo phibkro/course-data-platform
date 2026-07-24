@@ -205,14 +205,9 @@ export const fixtureDecisionSignalsResponse = (
       const reason = 'The fixture contains no NTNU decision signals for this course.';
       return {
         courseCode: normalizedCode,
-        assessmentSignals:
-          available && partialCourseInsightFixture.item.assessment.state === 'known'
-            ? {
-                state: 'known' as const,
-                value: partialCourseInsightFixture.item.assessment.value.map((part) => part.form),
-                evidenceIds: partialCourseInsightFixture.item.assessment.evidenceIds,
-              }
-            : { state: 'unavailable' as const, reason, evidenceIds: [] },
+        assessment: available
+          ? partialCourseInsightFixture.item.assessment
+          : { state: 'unavailable' as const, reason, evidenceIds: [] },
         workFormSignals: available
           ? partialCourseInsightFixture.item.workForms
           : { state: 'unavailable' as const, reason, evidenceIds: [] },

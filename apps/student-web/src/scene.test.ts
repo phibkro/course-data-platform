@@ -115,9 +115,12 @@ describe('browse-first catalogue scene', () => {
         visibleCount: 1,
       }),
       Scene.expect(Scene.text('Assessment & work')).toExist(),
+      Scene.expect(Scene.text('Graded assessment')).toExist(),
       Scene.expect(Scene.text('Written exam')).toExist(),
+      Scene.expect(Scene.text('100%')).toExist(),
       Scene.expect(Scene.text('Obligatory work')).toExist(),
       Scene.expect(Scene.text('Required')).toExist(),
+      Scene.expect(Scene.text('Ungraded')).toExist(),
       Scene.expect(Scene.text('Collaboration')).toExist(),
       Scene.expect(Scene.text('Unknown', { exact: true })).toExist(),
     );

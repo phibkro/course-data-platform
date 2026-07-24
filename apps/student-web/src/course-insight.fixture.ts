@@ -68,15 +68,47 @@ export const fullCourseInsightFixture = {
         {
           form: 'written-exam',
           description: 'Individual written school exam',
-          weightPercent: 100,
-          duration: '4 hours',
+          requirement: {
+            state: 'unknown',
+            reason: 'The fixture does not state the component requirement rule.',
+            evidenceIds: [],
+          },
+          weightPercent: {
+            state: 'known',
+            value: 100,
+            evidenceIds: ['ntnu-assessment'],
+          },
+          duration: {
+            state: 'known',
+            value: '4 hours',
+            evidenceIds: ['ntnu-assessment'],
+          },
+          workloadPattern: {
+            state: 'unknown',
+            reason: 'The fixture does not state the workload timing.',
+            evidenceIds: [],
+          },
         },
       ],
       evidenceIds: ['ntnu-assessment'],
     },
     obligatoryActivities: {
       state: 'known',
-      value: ['Approved exercises'],
+      value: [
+        {
+          description: 'Approved exercises',
+          form: {
+            state: 'known',
+            value: 'assignment',
+            evidenceIds: ['ntnu-assessment'],
+          },
+          workloadPattern: {
+            state: 'unknown',
+            reason: 'The fixture does not state the workload timing.',
+            evidenceIds: [],
+          },
+        },
+      ],
       evidenceIds: ['ntnu-assessment'],
     },
     collaboration: {

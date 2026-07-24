@@ -82,14 +82,28 @@ const encodedInsight = {
       {
         form: 'written-exam' as const,
         description: 'Written school examination',
-        weightPercent: 100,
-        duration: null,
+        requirement: missing<'required' | 'optional' | 'choice' | 'conditional'>(
+          'The fixture does not state a component requirement rule.',
+        ),
+        weightPercent: known(100, [coursePageEvidenceId]),
+        duration: missing<string>('The fixture does not state a duration.'),
+        workloadPattern: missing<'distributed' | 'concentrated' | 'recurring' | 'milestone'>(
+          'The fixture does not state a workload pattern.',
+        ),
       },
     ],
     [coursePageEvidenceId],
   ),
   obligatoryActivities: known(
-    ['Exercises must be approved before assessment.'],
+    [
+      {
+        description: 'Exercises must be approved before assessment.',
+        form: known('assignment' as const, [coursePageEvidenceId]),
+        workloadPattern: missing<'distributed' | 'concentrated' | 'recurring' | 'milestone'>(
+          'The fixture does not state a workload pattern.',
+        ),
+      },
+    ],
     [coursePageEvidenceId],
   ),
   collaboration: missing<'individual' | 'group' | 'mixed'>(
@@ -237,7 +251,7 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
         courseCode === 'TDT4136'
           ? decodeCourseDecisionSignals({
               courseCode,
-              assessmentSignals: known(['written-exam'], [coursePageEvidenceId]),
+              assessment: encodedInsight.assessment,
               workFormSignals: encodedInsight.workForms,
               obligatoryActivities: encodedInsight.obligatoryActivities,
               collaboration: encodedInsight.collaboration,
@@ -253,7 +267,7 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
             })
           : decodeCourseDecisionSignals({
               courseCode,
-              assessmentSignals: unavailable(missingReason),
+              assessment: unavailable(missingReason),
               workFormSignals: unavailable(missingReason),
               obligatoryActivities: unavailable(missingReason),
               collaboration: unavailable(missingReason),
