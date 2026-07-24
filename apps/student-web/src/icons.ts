@@ -1,6 +1,8 @@
 import bookmarkSimple from '@phosphor-icons/core/regular/bookmark-simple.svg?raw';
 import briefcase from '@phosphor-icons/core/regular/briefcase.svg?raw';
 import calendarDots from '@phosphor-icons/core/regular/calendar-dots.svg?raw';
+import caretDown from '@phosphor-icons/core/regular/caret-down.svg?raw';
+import check from '@phosphor-icons/core/regular/check.svg?raw';
 import checkSquare from '@phosphor-icons/core/regular/check-square.svg?raw';
 import compass from '@phosphor-icons/core/regular/compass.svg?raw';
 import dotsThree from '@phosphor-icons/core/regular/dots-three.svg?raw';
@@ -9,6 +11,7 @@ import folderOpen from '@phosphor-icons/core/regular/folder-open.svg?raw';
 import graduationCap from '@phosphor-icons/core/regular/graduation-cap.svg?raw';
 import houseLine from '@phosphor-icons/core/regular/house-line.svg?raw';
 import microphone from '@phosphor-icons/core/regular/microphone.svg?raw';
+import palette from '@phosphor-icons/core/regular/palette.svg?raw';
 import pencilLine from '@phosphor-icons/core/regular/pencil-line.svg?raw';
 import question from '@phosphor-icons/core/regular/question.svg?raw';
 import sidebarSimple from '@phosphor-icons/core/regular/sidebar-simple.svg?raw';
@@ -28,6 +31,8 @@ export type AppIcon =
   | 'assessment-practical'
   | 'assessment-project'
   | 'assessment-written'
+  | 'caret-down'
+  | 'check'
   | 'close'
   | 'collaboration'
   | 'degree'
@@ -35,6 +40,7 @@ export type AppIcon =
   | 'list'
   | 'more'
   | 'obligatory-work'
+  | 'appearance'
   | 'refine'
   | 'schedule'
   | 'sidebar';
@@ -48,6 +54,8 @@ const icons: Readonly<Record<AppIcon, string>> = {
   'assessment-practical': wrench,
   'assessment-project': briefcase,
   'assessment-written': pencilLine,
+  'caret-down': caretDown,
+  check,
   close: x,
   collaboration: usersThree,
   degree: graduationCap,
@@ -55,6 +63,7 @@ const icons: Readonly<Record<AppIcon, string>> = {
   list: bookmarkSimple,
   more: dotsThree,
   'obligatory-work': checkSquare,
+  appearance: palette,
   refine: slidersHorizontal,
   schedule: calendarDots,
   sidebar: sidebarSimple,

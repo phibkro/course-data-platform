@@ -1,5 +1,6 @@
 /* oxlint-disable vitest/expect-expect -- Foldkit Scene.expect performs the assertions. */
 import { Scene } from 'foldkit';
+import { Dialog } from '@foldkit/ui';
 import { describe, test } from 'vitest';
 
 import {
@@ -16,6 +17,7 @@ import {
   DetailPartial,
   DecisionSignalsSuccess,
   GradeSignalsSuccess,
+  GotAppearanceDialogMessage,
   NextPageIdle,
   type Model,
   initForHref,
@@ -34,6 +36,7 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.label('Search courses')).toExist(),
       Scene.expect(Scene.label('Campus')).toExist(),
       Scene.expect(Scene.role('button', { name: 'Refine' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Open appearance settings' })).toExist(),
       Scene.expect(Scene.label('Study level')).toBeAbsent(),
       Scene.expect(Scene.label('Sort')).toBeAbsent(),
       Scene.expect(Scene.role('link', { name: 'Explore' })).toExist(),
@@ -41,6 +44,24 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.text('Schedule')).toExist(),
       Scene.expect(Scene.text('Degree')).toExist(),
       Scene.expect(Scene.text('Loading the NTNU catalogue')).toExist(),
+    );
+  });
+
+  test('appearance settings expose Nordic palettes and explicit light modes', () => {
+    const [open] = update(
+      baseModel(),
+      GotAppearanceDialogMessage({ message: Dialog.RequestedOpen() }),
+    );
+    Scene.scene(
+      { update, view },
+      Scene.with(open),
+      Scene.expect(Scene.role('dialog')).toExist(),
+      Scene.expect(Scene.role('heading', { name: 'Theme lab' })).toExist(),
+      Scene.expect(Scene.role('button', { name: /Fjord/ })).toExist(),
+      Scene.expect(Scene.role('button', { name: /Pine/ })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'System' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Light' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Dark' })).toExist(),
     );
   });
 

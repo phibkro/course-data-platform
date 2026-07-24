@@ -4,7 +4,7 @@ import type {
   CourseInsightResponseDtoType,
   CourseSearchItemDtoType,
 } from '@course-data/contracts';
-import { Effect, Match as M, Schema as S } from 'effect';
+import { Effect, Match as M, Option, Schema as S } from 'effect';
 import { Command, Navigation, Runtime, Url } from 'foldkit';
 import type { Document, Html } from 'foldkit/html';
 import { createKeyedLazy, createLazy, html } from 'foldkit/html';
@@ -12,7 +12,7 @@ import { m } from 'foldkit/message';
 import { ts } from 'foldkit/schema';
 import { evo } from 'foldkit/struct';
 
-import { Button, Checkbox, Dialog, Input, Select } from '@foldkit/ui';
+import { Button, Checkbox, Dialog, Input } from '@foldkit/ui';
 
 import {
   CourseDecisionSignalsResponseSchema,
@@ -30,6 +30,27 @@ import { courseInsightView } from './course-detail';
 import { isLocale, localeTag, translate, translateToken, type Locale } from './i18n';
 import { icon, type AppIcon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
+import {
+  initSelectField,
+  selectField,
+  SelectFieldMessage,
+  SelectFieldModel,
+  updateSelectField,
+  type SelectOption,
+} from './select-field';
+import {
+  colorModes,
+  decodeThemePreference,
+  defaultThemePreference,
+  persistThemePreference,
+  presetPreference,
+  readThemePreference,
+  selectedPresetId,
+  themePresets,
+  type ColorMode,
+  type ThemePreference,
+  type ThemePresetId,
+} from './theme';
 
 const DISPLAY_CHUNK = 20;
 const DEFAULT_TERM = '2026-autumn';
@@ -40,6 +61,7 @@ const lazyMobileNavigation = createLazy();
 const lazyCatalogueHeader = createLazy();
 const lazyCatalogueControls = createLazy();
 const lazyCatalogueRefineDialog = createLazy();
+const lazyAppearanceDialog = createLazy();
 const lazyCatalogueFooter = createLazy();
 const lazyDetailFooter = createLazy();
 
@@ -64,6 +86,44 @@ const LevelSchema = S.Literals(['all', 'bachelor', 'master', 'phd']);
 const OutcomeViewSchema = S.Literals(['letter', 'pass-fail']);
 const SortSchema = S.Literals(['relevance', 'title-asc', 'title-desc', 'code-asc', 'code-desc']);
 const LocaleSchema = S.Literals(['en', 'nb']);
+const BaseColorSchema = S.Literals(['mist', 'zinc', 'stone', 'mauve', 'olive', 'neutral']);
+const ThemeColorSchema = S.Literals(['blue', 'violet', 'amber', 'rose', 'emerald', 'sky']);
+const ChartColorSchema = S.Literals(['sky', 'violet', 'emerald', 'rose', 'indigo', 'amber']);
+const ColorModeSchema = S.Literals(colorModes);
+const ThemePresetIdSchema = S.Literals([
+  'fjord',
+  'aurora',
+  'birch',
+  'heather',
+  'pine',
+  'polar-night',
+]);
+const ThemePreferenceSchema = S.Struct({
+  version: S.Literal(1),
+  baseColor: BaseColorSchema,
+  themeColor: ThemeColorSchema,
+  chartColor: ChartColorSchema,
+  mode: ColorModeSchema,
+});
+const SelectControlIdSchema = S.Literals([
+  'campus-inline',
+  'term-refine',
+  'campus-refine',
+  'level-refine',
+  'sort-refine',
+  'language-desktop',
+  'language-mobile',
+]);
+type SelectControlId = typeof SelectControlIdSchema.Type;
+const SelectFieldModels = S.Struct({
+  campusInline: SelectFieldModel,
+  termRefine: SelectFieldModel,
+  campusRefine: SelectFieldModel,
+  levelRefine: SelectFieldModel,
+  sortRefine: SelectFieldModel,
+  languageDesktop: SelectFieldModel,
+  languageMobile: SelectFieldModel,
+});
 
 export const CatalogueInitialLoading = ts('CatalogueInitialLoading');
 export const CatalogueSuccess = ts('CatalogueSuccess', { response: CourseSearchResponseSchema });
@@ -202,6 +262,9 @@ export const Model = S.Struct({
   detail: DetailResult,
   sidebarCollapsed: S.Boolean,
   refineDialog: Dialog.Model,
+  appearanceDialog: Dialog.Model,
+  themePreference: ThemePreferenceSchema,
+  selectFields: SelectFieldModels,
 });
 
 type SchemaModel = typeof Model.Type;
@@ -277,6 +340,18 @@ export const FailedSidebarPreferencePersistence = m('FailedSidebarPreferencePers
 export const GotRefineDialogMessage = m('GotRefineDialogMessage', {
   message: Dialog.Message,
 });
+export const GotAppearanceDialogMessage = m('GotAppearanceDialogMessage', {
+  message: Dialog.Message,
+});
+export const ChangedThemePreset = m('ChangedThemePreset', { value: ThemePresetIdSchema });
+export const ChangedColorMode = m('ChangedColorMode', { value: ColorModeSchema });
+export const ResetThemePreference = m('ResetThemePreference');
+export const PersistedThemePreference = m('PersistedThemePreference');
+export const FailedThemePreferencePersistence = m('FailedThemePreferencePersistence');
+export const GotSelectFieldMessage = m('GotSelectFieldMessage', {
+  id: SelectControlIdSchema,
+  message: SelectFieldMessage,
+});
 
 export const Message = S.Union([
   UpdatedQuery,
@@ -309,6 +384,13 @@ export const Message = S.Union([
   PersistedSidebarPreference,
   FailedSidebarPreferencePersistence,
   GotRefineDialogMessage,
+  GotAppearanceDialogMessage,
+  ChangedThemePreset,
+  ChangedColorMode,
+  ResetThemePreference,
+  PersistedThemePreference,
+  FailedThemePreferencePersistence,
+  GotSelectFieldMessage,
 ]);
 export type Message = typeof Message.Type;
 
@@ -474,6 +556,21 @@ export const PersistSidebarPreference = Command.define(
   }).pipe(
     Effect.as(PersistedSidebarPreference()),
     Effect.catch(() => Effect.succeed(FailedSidebarPreferencePersistence())),
+  ),
+);
+
+export const PersistThemePreference = Command.define(
+  'PersistThemePreference',
+  { preference: ThemePreferenceSchema },
+  PersistedThemePreference,
+  FailedThemePreferencePersistence,
+)(({ preference }) =>
+  Effect.try({
+    try: () => persistThemePreference(preference),
+    catch: () => new Error('Theme preference could not be persisted'),
+  }).pipe(
+    Effect.as(PersistedThemePreference()),
+    Effect.catch(() => Effect.succeed(FailedThemePreferencePersistence())),
   ),
 );
 
@@ -726,6 +823,91 @@ const locationMatchesModel = (location: ParsedLocation, model: Model): boolean =
   location.sort === model.sort &&
   location.openOnly === model.openOnly &&
   location.englishOnly === model.englishOnly;
+
+const selectFieldModel = (
+  fields: Model['selectFields'],
+  id: SelectControlId,
+): typeof fields.campusInline => {
+  switch (id) {
+    case 'campus-inline':
+      return fields.campusInline;
+    case 'term-refine':
+      return fields.termRefine;
+    case 'campus-refine':
+      return fields.campusRefine;
+    case 'level-refine':
+      return fields.levelRefine;
+    case 'sort-refine':
+      return fields.sortRefine;
+    case 'language-desktop':
+      return fields.languageDesktop;
+    case 'language-mobile':
+      return fields.languageMobile;
+  }
+};
+
+const replaceSelectFieldModel = (
+  fields: Model['selectFields'],
+  id: SelectControlId,
+  field: typeof fields.campusInline,
+): Model['selectFields'] => {
+  switch (id) {
+    case 'campus-inline':
+      return { ...fields, campusInline: field };
+    case 'term-refine':
+      return { ...fields, termRefine: field };
+    case 'campus-refine':
+      return { ...fields, campusRefine: field };
+    case 'level-refine':
+      return { ...fields, levelRefine: field };
+    case 'sort-refine':
+      return { ...fields, sortRefine: field };
+    case 'language-desktop':
+      return { ...fields, languageDesktop: field };
+    case 'language-mobile':
+      return { ...fields, languageMobile: field };
+  }
+};
+
+const applySelectValue = (
+  model: Model,
+  id: SelectControlId,
+  value: string,
+): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+  switch (id) {
+    case 'campus-inline':
+    case 'campus-refine':
+      return startCatalogue(model, {
+        campus: oneOf(value, ['all', 'trondheim', 'gjovik', 'alesund'], 'all'),
+      });
+    case 'term-refine':
+      return startCatalogue(model, { term: value });
+    case 'level-refine':
+      return startCatalogue(model, {
+        level: oneOf(value, ['all', 'bachelor', 'master', 'phd'], 'all'),
+      });
+    case 'sort-refine':
+      return startCatalogue(model, {
+        sort: oneOf(
+          value,
+          ['relevance', 'title-asc', 'title-desc', 'code-asc', 'code-desc'],
+          'relevance',
+        ),
+      });
+    case 'language-desktop':
+    case 'language-mobile': {
+      const locale = isLocale(value) ? value : 'en';
+      const next = { ...model, locale };
+      return [
+        next,
+        [
+          PersistLocale({ locale }),
+          Navigate({ href: normalizedUrl(next, next.selectedCode), mode: 'replace' }),
+        ],
+      ];
+    }
+  }
+};
 
 export const update = (
   model: Model,
@@ -1020,6 +1202,53 @@ export const update = (
           Command.mapMessages(commands, (message) => GotRefineDialogMessage({ message })),
         ];
       },
+      GotAppearanceDialogMessage: ({ message: dialogMessage }) => {
+        const [appearanceDialog, commands] = Dialog.update(model.appearanceDialog, dialogMessage);
+        return [
+          { ...model, appearanceDialog },
+          Command.mapMessages(commands, (message) => GotAppearanceDialogMessage({ message })),
+        ];
+      },
+      ChangedThemePreset: ({ value }) => {
+        const themePreference = presetPreference(value, model.themePreference.mode);
+        return [
+          { ...model, themePreference },
+          [PersistThemePreference({ preference: themePreference })],
+        ];
+      },
+      ChangedColorMode: ({ value }) => {
+        const themePreference = decodeThemePreference({ ...model.themePreference, mode: value });
+        return [
+          { ...model, themePreference },
+          [PersistThemePreference({ preference: themePreference })],
+        ];
+      },
+      ResetThemePreference: () => [
+        { ...model, themePreference: defaultThemePreference },
+        [PersistThemePreference({ preference: defaultThemePreference })],
+      ],
+      PersistedThemePreference: () => [model, []],
+      FailedThemePreferencePersistence: () => [model, []],
+      GotSelectFieldMessage: ({ id, message: selectMessage }) => {
+        const [field, commands, maybeSelection] = updateSelectField(
+          selectFieldModel(model.selectFields, id),
+          selectMessage,
+        );
+        const next = {
+          ...model,
+          selectFields: replaceSelectFieldModel(model.selectFields, id, field),
+        };
+        const selectCommands = Command.mapMessages(commands, (message) =>
+          GotSelectFieldMessage({ id, message }),
+        );
+        return Option.match(maybeSelection, {
+          onNone: () => [next, selectCommands],
+          onSome: ({ value }) => {
+            const [selected, domainCommands] = applySelectValue(next, id, value);
+            return [selected, [...selectCommands, ...domainCommands]];
+          },
+        });
+      },
     }),
   );
 
@@ -1027,6 +1256,7 @@ export const initForHref = (
   href: string,
   fallbackLocale: Locale = 'en',
   sidebarCollapsed = false,
+  themePreference: ThemePreference = defaultThemePreference,
 ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
   const location = parseLocation(href, fallbackLocale);
   const base: Model = {
@@ -1053,6 +1283,21 @@ export const initForHref = (
       isAnimated: true,
       focusSelector: '#catalogue-refine-close',
     }),
+    appearanceDialog: Dialog.init({
+      id: 'appearance-settings',
+      isAnimated: true,
+      focusSelector: '#appearance-settings-close',
+    }),
+    themePreference: decodeThemePreference(themePreference),
+    selectFields: {
+      campusInline: initSelectField('campus-inline'),
+      termRefine: initSelectField('term-refine'),
+      campusRefine: initSelectField('campus-refine'),
+      levelRefine: initSelectField('level-refine'),
+      sortRefine: initSelectField('sort-refine'),
+      languageDesktop: initSelectField('language-desktop'),
+      languageMobile: initSelectField('language-mobile'),
+    },
   };
   const request = searchRequest(base, 1);
   const key = requestKey(request);
@@ -1073,10 +1318,16 @@ export const init: Runtime.ApplicationInit<Model, Message> = () =>
     typeof window === 'undefined' ? 'http://course-lens.local/' : window.location.href,
     browserPreferredLocale(),
     browserSidebarCollapsed(),
+    readThemePreference(),
   );
 
 export const routingInit: Runtime.RoutingApplicationInit<Model, Message> = (url) =>
-  initForHref(Url.toString(url), browserPreferredLocale(), browserSidebarCollapsed());
+  initForHref(
+    Url.toString(url),
+    browserPreferredLocale(),
+    browserSidebarCollapsed(),
+    readThemePreference(),
+  );
 
 const browserPreferredLocale = (): Locale => {
   if (typeof window === 'undefined') return 'en';
@@ -1148,7 +1399,13 @@ const appView = (model: Model): Html => {
         model.locale,
         model.sidebarCollapsed,
         ToggledSidebar(),
-        (value: string) => ChangedLocale({ value }),
+        GotAppearanceDialogMessage({ message: Dialog.RequestedOpen() }),
+        languageSelectControl(
+          model.selectFields,
+          'language-desktop',
+          model.locale,
+          model.sidebarCollapsed,
+        ),
       ]),
       h.main(
         [h.Class(mainContentClass(model.sidebarCollapsed))],
@@ -1165,8 +1422,17 @@ const appView = (model: Model): Html => {
         model.englishOnly,
         model.catalogue._tag === 'CatalogueInitialLoading',
         model.refineDialog,
+        model.selectFields,
       ]),
-      lazyMobileNavigation(mobileNavigation<Message>, [model.locale]),
+      lazyAppearanceDialog(appearanceDialogFromValues, [
+        model.locale,
+        model.themePreference,
+        model.appearanceDialog,
+      ]),
+      lazyMobileNavigation(mobileNavigation<Message>, [
+        model.locale,
+        GotAppearanceDialogMessage({ message: Dialog.RequestedOpen() }),
+      ]),
     ],
   );
 };
@@ -1187,10 +1453,11 @@ const catalogueView = (model: Model): Html => {
         model.openOnly,
         model.englishOnly,
         model.catalogue._tag === 'CatalogueInitialLoading',
+        model.selectFields,
       ]),
       catalogueRefineAction(model),
       catalogueResultView(model),
-      lazyCatalogueFooter(productFooter, [model.locale]),
+      lazyCatalogueFooter(productFooter, [model.locale, model.selectFields]),
     ],
   );
 };
@@ -1227,6 +1494,7 @@ interface CatalogueControlsState {
   readonly openOnly: boolean;
   readonly englishOnly: boolean;
   readonly loading: boolean;
+  readonly selectFields: Model['selectFields'];
 }
 
 const catalogueControlsFromValues = (
@@ -1239,6 +1507,7 @@ const catalogueControlsFromValues = (
   openOnly: boolean,
   englishOnly: boolean,
   loading: boolean,
+  selectFields: Model['selectFields'],
 ): Html =>
   catalogueControls({
     locale,
@@ -1250,6 +1519,7 @@ const catalogueControlsFromValues = (
     openOnly,
     englishOnly,
     loading,
+    selectFields,
   });
 
 const catalogueRefineDialogFromValues = (
@@ -1263,6 +1533,7 @@ const catalogueRefineDialogFromValues = (
   englishOnly: boolean,
   loading: boolean,
   refineDialog: Model['refineDialog'],
+  selectFields: Model['selectFields'],
 ): Html =>
   catalogueRefineDialog(
     {
@@ -1275,6 +1546,7 @@ const catalogueRefineDialogFromValues = (
       openOnly,
       englishOnly,
       loading,
+      selectFields,
     },
     refineDialog,
   );
@@ -1359,10 +1631,10 @@ const catalogueControls = (
         isDialog
           ? [
               selectControl(
-                `${idPrefix}term`,
+                model.selectFields,
+                'term-refine',
                 translate(model.locale, 'catalogue.term'),
                 model.term,
-                ChangedTerm,
                 [
                   ['2026-autumn', formatOfferingPeriod(2026, 'autumn', model.locale)],
                   ['2026-spring', formatOfferingPeriod(2026, 'spring', model.locale)],
@@ -1371,10 +1643,10 @@ const catalogueControls = (
                 ],
               ),
               selectControl(
-                `${idPrefix}campus`,
+                model.selectFields,
+                'campus-refine',
                 translate(model.locale, 'catalogue.campus'),
                 model.campus,
-                ChangedCampus,
                 [
                   ['all', translate(model.locale, 'catalogue.allCampuses')],
                   ['trondheim', translate(model.locale, 'catalogue.trondheim')],
@@ -1383,10 +1655,10 @@ const catalogueControls = (
                 ],
               ),
               selectControl(
-                `${idPrefix}level`,
+                model.selectFields,
+                'level-refine',
                 translate(model.locale, 'catalogue.level'),
                 model.level,
-                ChangedLevel,
                 [
                   ['all', translate(model.locale, 'catalogue.allLevels')],
                   ['bachelor', translate(model.locale, 'catalogue.bachelor')],
@@ -1395,10 +1667,10 @@ const catalogueControls = (
                 ],
               ),
               selectControl(
-                `${idPrefix}sort`,
+                model.selectFields,
+                'sort-refine',
                 translate(model.locale, 'catalogue.sort'),
                 model.sort,
-                ChangedSort,
                 [
                   ['relevance', translate(model.locale, 'catalogue.relevance')],
                   ['title-asc', translate(model.locale, 'catalogue.titleAsc')],
@@ -1410,10 +1682,10 @@ const catalogueControls = (
             ]
           : [
               selectControl(
-                `${idPrefix}campus`,
+                model.selectFields,
+                'campus-inline',
                 translate(model.locale, 'catalogue.campus'),
                 model.campus,
-                ChangedCampus,
                 [
                   ['all', translate(model.locale, 'catalogue.allCampuses')],
                   ['trondheim', translate(model.locale, 'catalogue.trondheim')],
@@ -1623,38 +1895,386 @@ const catalogueRefineDialog = (
   });
 };
 
-const selectControl = (
-  id: string,
-  label: string,
-  value: string,
-  message: (input: { readonly value: string }) => Message,
-  options: ReadonlyArray<readonly [string, string]>,
-): Html => {
+const appearanceDialogFromValues = (
+  locale: Locale,
+  themePreference: ThemePreference,
+  appearanceDialog: Model['appearanceDialog'],
+): Html => appearanceDialogView(locale, themePreference, appearanceDialog);
+
+const themePresetName = (locale: Locale, presetId: ThemePresetId): string => {
+  switch (presetId) {
+    case 'fjord':
+      return translate(locale, 'appearance.fjord');
+    case 'aurora':
+      return translate(locale, 'appearance.aurora');
+    case 'birch':
+      return translate(locale, 'appearance.birch');
+    case 'heather':
+      return translate(locale, 'appearance.heather');
+    case 'pine':
+      return translate(locale, 'appearance.pine');
+    case 'polar-night':
+      return translate(locale, 'appearance.polarNight');
+  }
+};
+
+const themePresetDescription = (locale: Locale, presetId: ThemePresetId): string => {
+  switch (presetId) {
+    case 'fjord':
+      return translate(locale, 'appearance.fjordDescription');
+    case 'aurora':
+      return translate(locale, 'appearance.auroraDescription');
+    case 'birch':
+      return translate(locale, 'appearance.birchDescription');
+    case 'heather':
+      return translate(locale, 'appearance.heatherDescription');
+    case 'pine':
+      return translate(locale, 'appearance.pineDescription');
+    case 'polar-night':
+      return translate(locale, 'appearance.polarNightDescription');
+  }
+};
+
+const colorModeLabel = (locale: Locale, mode: ColorMode): string => {
+  switch (mode) {
+    case 'system':
+      return translate(locale, 'appearance.system');
+    case 'light':
+      return translate(locale, 'appearance.light');
+    case 'dark':
+      return translate(locale, 'appearance.dark');
+  }
+};
+
+const themePreview = (locale: Locale): Html => {
   const h = html<Message>();
-  return Select.view<Message>({
-    id,
-    value,
-    onChange: (next) => message({ value: next }),
-    toView: (attributes) =>
-      h.div(
-        [],
+  return h.section(
+    [
+      h.Class(
+        'grid overflow-hidden border border-outline-variant rounded-m3-large bg-surface-container-low shadow-m3-1',
+      ),
+      h.AriaLabel(translate(locale, 'appearance.preview')),
+    ],
+    [
+      h.header(
+        [h.Class('grid gap-2 p-4 bg-primary-container text-on-primary-container')],
         [
-          h.label([...attributes.label, h.Class(fieldLabelClass)], [label]),
-          h.select(
+          h.div(
+            [h.Class('flex items-center justify-between gap-3')],
             [
-              ...attributes.select,
-              h.Class(
-                'w-full min-h-12 pr-10 pl-[0.85rem] border border-outline rounded-m3-medium outline-0 bg-surface text-on-surface [font:inherit] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]',
+              h.span(
+                [h.Class('text-xs font-[800] tracking-[0.08em] uppercase')],
+                [translate(locale, 'appearance.previewTerm')],
+              ),
+              h.span(
+                [h.Class('rounded-full border border-current/40 py-1 px-2.5 text-xs font-[750]')],
+                [translate(locale, 'appearance.previewCredits')],
               ),
             ],
-            options.map(([optionValue, text]) =>
-              h.option([h.Value(optionValue), h.Selected(optionValue === value)], [text]),
-            ),
+          ),
+          h.h3(
+            [h.Class('text-[1.2rem] tracking-[-0.025em]')],
+            [translate(locale, 'appearance.previewCourse')],
           ),
         ],
       ),
+      h.div(
+        [h.Class('grid gap-4 p-4')],
+        [
+          h.div(
+            [h.Class('grid h-18 grid-cols-5 items-end gap-2'), h.AriaHidden(true)],
+            [
+              h.span([h.Class('h-[38%] rounded-t-md bg-chart-1')], []),
+              h.span([h.Class('h-[72%] rounded-t-md bg-chart-2')], []),
+              h.span([h.Class('h-[54%] rounded-t-md bg-chart-3')], []),
+              h.span([h.Class('h-full rounded-t-md bg-chart-4')], []),
+              h.span([h.Class('h-[63%] rounded-t-md bg-chart-5')], []),
+            ],
+          ),
+          h.div(
+            [h.Class('flex flex-wrap gap-2 text-xs font-[750]')],
+            [
+              h.span(
+                [h.Class('rounded-full bg-constraint py-1.5 px-3 text-on-constraint')],
+                [translate(locale, 'appearance.previewRequired')],
+              ),
+              h.span(
+                [h.Class('rounded-full bg-valid py-1.5 px-3 text-on-valid')],
+                [translate(locale, 'appearance.previewValid')],
+              ),
+              h.span(
+                [
+                  h.Class(
+                    'rounded-full bg-warning-container py-1.5 px-3 text-on-warning-container',
+                  ),
+                ],
+                [translate(locale, 'appearance.previewWarning')],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+};
+
+const appearanceDialogView = (
+  locale: Locale,
+  preference: ThemePreference,
+  appearanceDialog: Model['appearanceDialog'],
+): Html => {
+  const h = html<Message>();
+  const selectedPreset = selectedPresetId(preference);
+  return h.submodel({
+    slotId: 'appearance-settings-dialog',
+    model: appearanceDialog,
+    view: Dialog.view,
+    viewInputs: {
+      toView: ({
+        dialog,
+        backdrop,
+        panel,
+        title,
+        description,
+        initialFocus,
+        closeButton,
+        isVisible,
+      }) =>
+        h.dialog(
+          [...dialog, h.Class('text-on-surface')],
+          isVisible
+            ? [
+                h.div(
+                  [
+                    ...backdrop,
+                    h.Class(
+                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 [transition:opacity_180ms_ease] data-closed:opacity-0',
+                    ),
+                  ],
+                  [],
+                ),
+                h.section(
+                  [
+                    ...panel,
+                    h.Class(
+                      'fixed right-0 bottom-0 left-0 grid max-h-[min(94svh,60rem)] gap-5 overflow-y-auto rounded-t-m3-extra-large border border-outline-variant bg-surface pt-5 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] shadow-m3-2 [transform:translateY(0)] [transition:transform_180ms_ease] data-closed:[transform:translateY(100%)] [@media(min-width:48rem)_and_(min-height:34rem)]:top-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:left-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-3rem),58rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:p-6 [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-m3-extra-large [@media(min-width:48rem)_and_(min-height:34rem)]:[transform:translate(-50%,-50%)] [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:opacity-0 [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:[transform:translate(-50%,-47%)_scale(0.98)]',
+                    ),
+                  ],
+                  [
+                    h.header(
+                      [h.Class('flex items-start justify-between gap-4')],
+                      [
+                        h.div(
+                          [],
+                          [
+                            h.p([h.Class(eyebrowClass)], [translate(locale, 'appearance.label')]),
+                            h.h2(
+                              [
+                                ...title,
+                                h.Class('text-[clamp(1.6rem,6vw,2.25rem)] tracking-[-0.035em]'),
+                              ],
+                              [translate(locale, 'appearance.heading')],
+                            ),
+                            h.p(
+                              [
+                                ...description,
+                                h.Class(
+                                  'mt-[0.4rem] max-w-168 text-on-surface-variant leading-[1.5]',
+                                ),
+                              ],
+                              [translate(locale, 'appearance.description')],
+                            ),
+                          ],
+                        ),
+                        h.button(
+                          [
+                            ...closeButton,
+                            ...initialFocus,
+                            h.Id('appearance-settings-close'),
+                            h.Class(
+                              'grid size-11 flex-none place-items-center rounded-full border-0 bg-surface-container text-on-surface cursor-pointer',
+                            ),
+                            h.Type('button'),
+                            h.AriaLabel(translate(locale, 'appearance.close')),
+                          ],
+                          [icon<Message>('close')],
+                        ),
+                      ],
+                    ),
+                    h.div(
+                      [
+                        h.Class(
+                          'grid gap-5 [@media(min-width:48rem)]:grid-cols-[minmax(0,1.45fr)_minmax(16rem,0.8fr)]',
+                        ),
+                      ],
+                      [
+                        h.div(
+                          [h.Class('grid gap-3')],
+                          [
+                            h.h3(
+                              [h.Class('text-sm font-[800]')],
+                              [translate(locale, 'appearance.palettes')],
+                            ),
+                            h.div(
+                              [
+                                h.Class(
+                                  'grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3',
+                                ),
+                                h.Role('group'),
+                                h.AriaLabel(translate(locale, 'appearance.palettes')),
+                              ],
+                              themePresets.map((preset) => {
+                                const isSelected = selectedPreset === preset.id;
+                                return h.button(
+                                  [
+                                    h.Type('button'),
+                                    h.Class(
+                                      `theme-preset-card theme-preset-card--${preset.id} relative grid min-h-28 gap-2 overflow-hidden rounded-m3-large border p-3 text-left [font:inherit] cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
+                                        isSelected
+                                          ? 'border-primary shadow-[0_0_0_2px_var(--md-sys-color-primary)]'
+                                          : 'border-outline-variant'
+                                      }`,
+                                    ),
+                                    h.OnClick(ChangedThemePreset({ value: preset.id })),
+                                    h.AriaPressed(String(isSelected)),
+                                  ],
+                                  [
+                                    h.span(
+                                      [
+                                        h.Class(
+                                          'theme-preset-card__swatch h-10 rounded-m3-medium border border-black/10',
+                                        ),
+                                        h.AriaHidden(true),
+                                      ],
+                                      [],
+                                    ),
+                                    h.span(
+                                      [h.Class('flex items-center justify-between gap-2')],
+                                      [
+                                        h.span(
+                                          [h.Class('font-[800]')],
+                                          [themePresetName(locale, preset.id)],
+                                        ),
+                                        isSelected
+                                          ? icon<Message>(
+                                              'check',
+                                              'block size-5 text-primary [&_svg]:block [&_svg]:size-full',
+                                            )
+                                          : h.empty,
+                                      ],
+                                    ),
+                                    h.span(
+                                      [h.Class('text-xs text-on-surface-variant leading-[1.4]')],
+                                      [themePresetDescription(locale, preset.id)],
+                                    ),
+                                  ],
+                                );
+                              }),
+                            ),
+                            h.div(
+                              [
+                                h.Class('grid gap-2 pt-1'),
+                                h.Role('group'),
+                                h.AriaLabel(translate(locale, 'appearance.mode')),
+                              ],
+                              [
+                                h.h3(
+                                  [h.Class('text-sm font-[800]')],
+                                  [translate(locale, 'appearance.mode')],
+                                ),
+                                h.div(
+                                  [
+                                    h.Class(
+                                      'grid grid-cols-3 overflow-hidden rounded-m3-medium border border-outline',
+                                    ),
+                                  ],
+                                  colorModes.map((mode) =>
+                                    h.button(
+                                      [
+                                        h.Type('button'),
+                                        h.Class(
+                                          `min-h-11 border-0 border-r border-outline last:border-r-0 [font:inherit] font-[750] cursor-pointer ${
+                                            preference.mode === mode
+                                              ? 'bg-primary text-on-primary'
+                                              : 'bg-surface-container text-on-surface'
+                                          }`,
+                                        ),
+                                        h.OnClick(ChangedColorMode({ value: mode })),
+                                        h.AriaPressed(String(preference.mode === mode)),
+                                      ],
+                                      [colorModeLabel(locale, mode)],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        h.div(
+                          [h.Class('grid content-start gap-3')],
+                          [
+                            themePreview(locale),
+                            h.button(
+                              [
+                                h.Type('button'),
+                                h.Class(buttonSecondary),
+                                h.OnClick(ResetThemePreference()),
+                              ],
+                              [translate(locale, 'appearance.reset')],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ]
+            : [],
+        ),
+    },
+    toParentMessage: (message) => GotAppearanceDialogMessage({ message }),
   });
 };
+
+const selectControl = (
+  fields: Model['selectFields'],
+  id: SelectControlId,
+  label: string,
+  value: string,
+  options: ReadonlyArray<readonly [string, string]>,
+  compact = false,
+): Html =>
+  selectField<Message>({
+    model: selectFieldModel(fields, id),
+    label,
+    value,
+    options: options.map(
+      ([optionValue, optionLabel]): SelectOption => ({
+        value: optionValue,
+        label: optionLabel,
+      }),
+    ),
+    compact,
+    toParentMessage: (message) => GotSelectFieldMessage({ id, message }),
+  });
+
+const languageSelectControl = (
+  fields: Model['selectFields'],
+  id: 'language-desktop' | 'language-mobile',
+  locale: Locale,
+  compact = false,
+): Html =>
+  selectControl(
+    fields,
+    id,
+    translate(locale, 'locale.label'),
+    locale,
+    [
+      ['en', compact ? 'EN' : translate(locale, 'locale.en')],
+      ['nb', compact ? 'NO' : translate(locale, 'locale.nb')],
+    ],
+    compact,
+  );
 
 const checkboxControl = (
   id: string,
@@ -2617,12 +3237,12 @@ const selectedCourseView = (model: Model): Html => {
           ),
       }),
       detailResultView(model.detail, model.locale),
-      lazyDetailFooter(productFooter, [model.locale]),
+      lazyDetailFooter(productFooter, [model.locale, model.selectFields]),
     ],
   );
 };
 
-const productFooter = (locale: Locale): Html => {
+const productFooter = (locale: Locale, selectFields: Model['selectFields']): Html => {
   const h = html<Message>();
   const externalLink = (url: string, label: string): Html =>
     h.a(
@@ -2666,10 +3286,10 @@ const productFooter = (locale: Locale): Html => {
         [h.Class('w-full [@media(min-width:48rem)_and_(min-height:34rem)]:hidden')],
         [
           selectControl(
-            'interface-language',
+            selectFields,
+            'language-mobile',
             translate(locale, 'locale.label'),
             locale,
-            ChangedLocale,
             [
               ['en', translate(locale, 'locale.en')],
               ['nb', translate(locale, 'locale.nb')],

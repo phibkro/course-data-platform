@@ -44,6 +44,26 @@ test('open Refine dialog has no detectable WCAG A/AA violations', async ({ page 
   await expectNoAxeViolations(page);
 });
 
+test('custom course filter listbox has no detectable WCAG A/AA violations', async ({ page }) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Campus' }).click();
+  await expect(page.getByRole('listbox')).toBeVisible();
+  await expect(page.getByRole('option', { name: 'All campuses' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expectNoAxeViolations(page);
+});
+
+test('Theme Lab has no detectable WCAG A/AA violations', async ({ page }) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Open appearance settings' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Theme lab' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close appearance settings' })).toBeFocused();
+  await expectNoAxeViolations(page);
+});
+
 test('course Inspect view has no detectable WCAG A/AA violations', async ({ page }) => {
   await page.goto('/?course=TDT4136');
   await expect(page.getByRole('article', { name: 'TDT4136 course details' })).toBeVisible();
@@ -62,4 +82,29 @@ test('desktop sidebar collapse preference survives reload', async ({ page }, tes
 
   await page.reload();
   await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+});
+
+test('theme preference applies immediately and survives reload', async ({ page }) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Open appearance settings' }).click();
+  await page.getByRole('button', { name: /Pine/ }).click();
+  await page.getByRole('button', { name: 'Dark' }).click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        theme: document.documentElement.dataset.themeColor,
+        mode: document.documentElement.dataset.colorMode,
+        dark: document.documentElement.classList.contains('dark'),
+      })),
+    )
+    .toEqual({ theme: 'emerald', mode: 'dark', dark: true });
+
+  await page.reload();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.themeColor))
+    .toBe('emerald');
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')))
+    .toBe(true);
 });

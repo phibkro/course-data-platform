@@ -1,8 +1,6 @@
 import type { Html } from 'foldkit/html';
 import { html } from 'foldkit/html';
 
-import { Select } from '@foldkit/ui';
-
 import { translate, type Locale } from './i18n';
 import { icon, type AppIcon } from './icons';
 
@@ -113,13 +111,29 @@ const mobileItemIcon = (isPrimary: boolean): string =>
     ? 'grid size-15 place-items-center rounded-full bg-primary text-on-primary shadow-m3-2 p-4 leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full'
     : 'grid size-8 place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
 
-const mobileItem = <Message>(locale: Locale, item: NavigationItem): Html => {
+const mobileItem = <Message>(
+  locale: Locale,
+  item: NavigationItem,
+  onAppearance?: Message,
+): Html => {
   const h = html<Message>();
   const itemClass = mobileItemLayout(item.isPrimary);
   const children = [
     icon<Message>(item.icon, mobileItemIcon(item.isPrimary)),
     h.span([h.Class('max-w-full truncate')], [item.label]),
   ];
+
+  if (item.id === 'more' && onAppearance !== undefined) {
+    return h.button(
+      [
+        h.Type('button'),
+        h.Class(`${itemClass} border-0 bg-transparent cursor-pointer [font:inherit]`),
+        h.OnClick(onAppearance),
+        h.AriaLabel(translate(locale, 'appearance.open')),
+      ],
+      children,
+    );
+  }
 
   return item.href === null
     ? h.span(
@@ -142,63 +156,12 @@ const mobileItem = <Message>(locale: Locale, item: NavigationItem): Html => {
       );
 };
 
-const desktopLanguageControl = <Message>(
-  locale: Locale,
-  collapsed: boolean,
-  onLocaleChange: (value: string) => Message,
-): Html => {
-  const h = html<Message>();
-  return Select.view<Message>({
-    id: 'sidebar-interface-language',
-    value: locale,
-    onChange: onLocaleChange,
-    toView: (attributes) =>
-      h.div(
-        [h.Class('grid gap-1.5')],
-        [
-          h.label(
-            [
-              ...attributes.label,
-              h.Class(
-                collapsed
-                  ? 'sr-only'
-                  : 'px-1 text-[0.72rem] font-[750] uppercase tracking-[0.08em] text-on-surface-variant',
-              ),
-            ],
-            [translate(locale, 'locale.label')],
-          ),
-          h.select(
-            [
-              ...attributes.select,
-              h.Class(
-                collapsed
-                  ? 'min-h-11 w-full rounded-m3-medium border border-outline bg-surface px-1 text-center text-on-surface [font:inherit] text-[0.72rem] font-[800] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2'
-                  : 'min-h-11 w-full rounded-m3-medium border border-outline bg-surface px-3 text-on-surface [font:inherit] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2',
-              ),
-              h.AriaLabel(translate(locale, 'locale.label')),
-              h.Title(translate(locale, 'locale.label')),
-            ],
-            [
-              h.option(
-                [h.Value('en'), h.Selected(locale === 'en')],
-                [collapsed ? 'EN' : translate(locale, 'locale.en')],
-              ),
-              h.option(
-                [h.Value('nb'), h.Selected(locale === 'nb')],
-                [collapsed ? 'NO' : translate(locale, 'locale.nb')],
-              ),
-            ],
-          ),
-        ],
-      ),
-  });
-};
-
 export const desktopNavigation = <Message>(
   locale: Locale = 'en',
   collapsed = false,
   onToggle?: Message,
-  onLocaleChange?: (value: string) => Message,
+  onAppearance?: Message,
+  languageControl?: Html,
 ): Html => {
   const h = html<Message>();
   const items = primaryNavigation(locale);
@@ -270,16 +233,36 @@ export const desktopNavigation = <Message>(
                 [h.Class('m-0 text-on-surface-variant text-sm leading-[1.5]')],
                 [translate(locale, 'nav.claim')],
               ),
-          onLocaleChange === undefined
+          onAppearance === undefined
             ? h.empty
-            : desktopLanguageControl(locale, collapsed, onLocaleChange),
+            : h.button(
+                [
+                  h.Type('button'),
+                  h.Class(
+                    `flex min-h-11 w-full items-center gap-3 border-0 rounded-m3-medium bg-transparent text-on-surface cursor-pointer [font:inherit] font-[650] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
+                      collapsed ? 'justify-center px-2' : 'px-3'
+                    }`,
+                  ),
+                  h.OnClick(onAppearance),
+                  h.AriaLabel(translate(locale, 'appearance.open')),
+                  h.Title(translate(locale, 'appearance.label')),
+                ],
+                [
+                  icon<Message>('appearance', 'block size-5 [&_svg]:block [&_svg]:size-full'),
+                  h.span(
+                    [h.Class(collapsed ? 'sr-only' : '')],
+                    [translate(locale, 'appearance.label')],
+                  ),
+                ],
+              ),
+          languageControl ?? h.empty,
         ],
       ),
     ],
   );
 };
 
-export const mobileNavigation = <Message>(locale: Locale = 'en'): Html => {
+export const mobileNavigation = <Message>(locale: Locale = 'en', onAppearance?: Message): Html => {
   const h = html<Message>();
   return h.nav(
     [
@@ -288,6 +271,6 @@ export const mobileNavigation = <Message>(locale: Locale = 'en'): Html => {
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
-    primaryNavigation(locale).map((item) => mobileItem<Message>(locale, item)),
+    primaryNavigation(locale).map((item) => mobileItem<Message>(locale, item, onAppearance)),
   );
 };

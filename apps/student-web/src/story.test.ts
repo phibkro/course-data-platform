@@ -7,8 +7,10 @@ import {
   fixtureSearchResponse,
 } from './course-client';
 import {
+  ChangedColorMode,
   ChangedLocale,
   ChangedCampus,
+  ChangedThemePreset,
   CatalogueEmpty,
   CompletedNavigation,
   FailedCourseSearch,
@@ -60,6 +62,25 @@ test('sidebar density is a local preference and does not alter catalogue state',
   expect(collapsed.query).toBe(initial.query);
   expect(collapsed.activeRequestKey).toBe(initial.activeRequestKey);
   expect(initForHref('http://course-lens.local/', 'en', true)[0].sidebarCollapsed).toBe(true);
+});
+
+test('Nordic palettes and appearance are local preferences and do not refetch data', () => {
+  const initial = initialModel();
+  const [pine, presetCommands] = update(initial, ChangedThemePreset({ value: 'pine' }));
+  const [dark, modeCommands] = update(pine, ChangedColorMode({ value: 'dark' }));
+
+  expect(pine.themePreference).toMatchObject({
+    baseColor: 'olive',
+    themeColor: 'emerald',
+    chartColor: 'indigo',
+    mode: 'system',
+  });
+  expect(dark.themePreference.mode).toBe('dark');
+  expect(presetCommands.map((command) => command.name)).toEqual(['PersistThemePreference']);
+  expect(modeCommands.map((command) => command.name)).toEqual(['PersistThemePreference']);
+  expect(
+    [...presetCommands, ...modeCommands].some(({ name }) => name === 'FetchCourseSearch'),
+  ).toBe(false);
 });
 
 test('a catalogue response makes official courses available without opening detail', () => {
