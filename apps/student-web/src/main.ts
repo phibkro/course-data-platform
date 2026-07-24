@@ -793,14 +793,49 @@ export const view = (model: Model): Document => ({
   body: appView(model),
 });
 
+const eyebrowClass = 'mb-2 text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase';
+
+const fieldLabelClass =
+  'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-[0.85rem] font-[650]';
+
+const mainContentClass =
+  'w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66 [@media(min-width:64rem)]:px-10';
+
+const buttonBase =
+  'cursor-pointer [transition:box-shadow_140ms_ease,transform_140ms_ease] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] [@media(max-width:37rem)]:w-full';
+
+const buttonPrimary = `${buttonBase} min-h-14 px-5 border-0 rounded-[1.75rem] font-[720] bg-primary text-on-primary shadow-m3-1 not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px`;
+
+const buttonSecondary = `${buttonBase} min-h-12 px-[1.15rem] border border-outline rounded-[1.5rem] bg-surface-container text-primary font-[700]`;
+
+const backButtonClass =
+  'min-h-12 px-[1.15rem] border border-outline rounded-[1.5rem] bg-surface-container text-primary font-[700] cursor-pointer justify-self-start';
+
+const stateCardBase =
+  'grid min-h-68 place-items-center content-center p-[clamp(2rem,6vw,4rem)] border border-outline-variant rounded-m3-extra-large bg-surface-container-low text-center';
+
+const stateCardFailure = `${stateCardBase} border-error bg-error-container text-on-error-container`;
+
+const stateCardH2Class = 'mt-3 mb-2 text-[clamp(1.4rem,3vw,2rem)]';
+
+const stateCardPClass = 'max-w-144 mx-auto my-1 text-on-surface-variant leading-[1.6]';
+
+const stateCardFailurePClass = 'max-w-144 mx-auto my-1 leading-[1.6] text-inherit';
+
+const statusLabelErrorClass =
+  'mb-2 text-[0.78rem] font-[800] tracking-[0.1em] uppercase text-error';
+
+const loadingIndicatorClass =
+  'size-12 border-[0.3rem] border-primary-container border-t-primary rounded-full animate-[spin_850ms_linear_infinite] motion-reduce:[animation-duration:1.8s]';
+
 const appView = (model: Model): Html => {
   const h = html<Message>();
   return h.div(
-    [h.Class('app-shell')],
+    [h.Class('min-h-screen')],
     [
       desktopNavigation<Message>(),
       h.main(
-        [h.Class('main-content')],
+        [h.Class(mainContentClass)],
         [model.selectedCode === null ? catalogueView(model) : selectedCourseView(model)],
       ),
       catalogueRefineDialog(model),
@@ -812,15 +847,22 @@ const appView = (model: Model): Html => {
 const catalogueView = (model: Model): Html => {
   const h = html<Message>();
   return h.div(
-    [h.Class('catalogue')],
+    [h.Class('grid gap-6')],
     [
       h.header(
-        [h.Class('catalogue-hero')],
+        [h.Class('pt-[clamp(2rem,5vw,3.5rem)] pb-2')],
         [
-          h.p([h.Class('eyebrow')], ['NTNU course catalogue']),
-          h.h1([], ['Browse courses before you choose.']),
+          h.p([h.Class(eyebrowClass)], ['NTNU course catalogue']),
+          h.h1(
+            [
+              h.Class(
+                'max-w-[22ch] text-[clamp(2.1rem,6vw,4rem)] font-[720] tracking-[-0.05em] leading-none',
+              ),
+            ],
+            ['Browse courses before you choose.'],
+          ),
           h.p(
-            [h.Class('catalogue-hero__lede')],
+            [h.Class('max-w-192 mt-4 text-on-surface-variant text-[1.05rem] leading-[1.6]')],
             [
               'Scan official NTNU offerings, narrow the catalogue, then open a course for assessment, work-form, and grade evidence.',
             ],
@@ -841,22 +883,27 @@ interface CatalogueControlsOptions {
   readonly initialFocus?: ReadonlyArray<ChildAttribute>;
 }
 
+const catalogueControlsFrameClass =
+  'grid gap-4 p-[clamp(1rem,3vw,1.5rem)] border border-outline-variant rounded-m3-extra-large bg-surface-container-low shadow-m3-1';
+
+const catalogueControlsSearchClass =
+  'flex items-end gap-3 [@media(max-width:37rem)]:items-stretch [@media(max-width:37rem)]:flex-col';
+
 const catalogueControls = (model: Model, options: CatalogueControlsOptions = {}): Html => {
   const h = html<Message>();
   const loading = model.catalogue._tag === 'CatalogueInitialLoading';
   const idPrefix = options.idPrefix ?? '';
+  const isDialog = options.className === 'catalogue-controls--dialog';
   return h.form(
     [
-      h.Class(
-        `catalogue-controls${options.className === undefined ? '' : ` ${options.className}`}`,
-      ),
+      h.Class(isDialog ? 'grid gap-4' : catalogueControlsFrameClass),
       h.Role('search'),
       h.OnSubmit(SubmittedSearch()),
       h.AriaLabel('Find and filter NTNU courses'),
     ],
     [
       h.div(
-        [h.Class('catalogue-controls__search')],
+        [h.Class(catalogueControlsSearchClass)],
         [
           Input.view<Message>({
             id: `${idPrefix}course-query`,
@@ -865,13 +912,15 @@ const catalogueControls = (model: Model, options: CatalogueControlsOptions = {})
             onInput: (value) => UpdatedQuery({ value }),
             toView: (attributes) =>
               h.div(
-                [h.Class('field')],
+                [h.Class('flex-1')],
                 [
-                  h.label([...attributes.label, h.Class('field__label')], ['Search courses']),
+                  h.label([...attributes.label, h.Class(fieldLabelClass)], ['Search courses']),
                   h.input([
                     ...attributes.input,
                     ...(options.initialFocus ?? []),
-                    h.Class('field__input'),
+                    h.Class(
+                      'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[1.05rem] normal-case [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
+                    ),
                     h.Autocomplete('off'),
                   ]),
                 ],
@@ -882,14 +931,14 @@ const catalogueControls = (model: Model, options: CatalogueControlsOptions = {})
             isDisabled: loading,
             toView: (attributes) =>
               h.button(
-                [...attributes.button, h.Class('button button--primary')],
+                [...attributes.button, h.Class(buttonPrimary)],
                 [loading ? 'Searching…' : 'Search'],
               ),
           }),
         ],
       ),
       h.div(
-        [h.Class('catalogue-filters')],
+        [h.Class('grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]')],
         [
           selectControl(`${idPrefix}term`, 'Term', model.term, ChangedTerm, [
             ['2026-autumn', 'Autumn 2026 · 2026/27'],
@@ -919,7 +968,7 @@ const catalogueControls = (model: Model, options: CatalogueControlsOptions = {})
         ],
       ),
       h.div(
-        [h.Class('catalogue-toggles')],
+        [h.Class('flex flex-wrap gap-3')],
         [
           checkboxControl(
             `${idPrefix}open-admission`,
@@ -950,42 +999,60 @@ const activeRefinementCount = (model: Model): number =>
     model.englishOnly,
   ].filter(Boolean).length;
 
+const catalogueRefineActionClass =
+  'fixed z-11 right-[max(1rem,env(safe-area-inset-right))] bottom-[calc(6rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:sticky [@media(min-width:48rem)_and_(min-height:34rem)]:z-5 [@media(min-width:48rem)_and_(min-height:34rem)]:top-4 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:min-h-17 [@media(min-width:48rem)_and_(min-height:34rem)]:items-center [@media(min-width:48rem)_and_(min-height:34rem)]:justify-between [@media(min-width:48rem)_and_(min-height:34rem)]:gap-4 [@media(min-width:48rem)_and_(min-height:34rem)]:py-[0.65rem] [@media(min-width:48rem)_and_(min-height:34rem)]:pr-3 [@media(min-width:48rem)_and_(min-height:34rem)]:pl-4 [@media(min-width:48rem)_and_(min-height:34rem)]:border [@media(min-width:48rem)_and_(min-height:34rem)]:border-outline-variant [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-[1.5rem] [@media(min-width:48rem)_and_(min-height:34rem)]:bg-[color-mix(in_srgb,var(--md-sys-color-surface-container)_92%,transparent)] [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-m3-1 [@media(min-width:48rem)_and_(min-height:34rem)]:backdrop-blur-[1rem]';
+
+const catalogueRefineActionSummaryClass =
+  'hidden [@media(min-width:48rem)_and_(min-height:34rem)]:grid [@media(min-width:48rem)_and_(min-height:34rem)]:min-w-0 [@media(min-width:48rem)_and_(min-height:34rem)]:gap-[0.15rem]';
+
+const catalogueRefineActionButtonClass = `${buttonBase} inline-flex min-h-12 items-center gap-[0.55rem] py-3 px-4 border border-outline-variant rounded-[1.5rem] bg-primary-container shadow-m3-2 text-on-primary-container font-[750] [@media(min-width:48rem)_and_(min-height:34rem)]:flex-none [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-none`;
+
 const catalogueRefineAction = (model: Model): Html => {
   const h = html<Message>();
   const count = activeRefinementCount(model);
   return h.div(
-    [h.Class('catalogue-refine-action')],
+    [h.Class(catalogueRefineActionClass)],
     [
       h.div(
-        [h.Class('catalogue-refine-action__summary')],
+        [h.Class(catalogueRefineActionSummaryClass)],
         [
           h.span(
-            [],
+            [h.Class('[@media(min-width:48rem)_and_(min-height:34rem)]:font-[750]')],
             [
               count === 0
                 ? 'All NTNU courses'
                 : `${count} active refinement${count === 1 ? '' : 's'}`,
             ],
           ),
-          h.span([], ['Change search, filters, or sorting from anywhere in the list.']),
+          h.span(
+            [
+              h.Class(
+                '[@media(min-width:48rem)_and_(min-height:34rem)]:overflow-hidden [@media(min-width:48rem)_and_(min-height:34rem)]:text-on-surface-variant [@media(min-width:48rem)_and_(min-height:34rem)]:text-[0.8rem] [@media(min-width:48rem)_and_(min-height:34rem)]:text-ellipsis [@media(min-width:48rem)_and_(min-height:34rem)]:whitespace-nowrap',
+              ),
+            ],
+            ['Change search, filters, or sorting from anywhere in the list.'],
+          ),
         ],
       ),
       h.button(
         [
-          h.Class('button catalogue-refine-action__button'),
+          h.Class(catalogueRefineActionButtonClass),
           h.Type('button'),
           h.OnClick(GotRefineDialogMessage({ message: Dialog.RequestedOpen() })),
           h.AriaHasPopup('dialog'),
           h.AriaControls('catalogue-refine'),
         ],
         [
-          icon<Message>('refine', 'button__icon'),
+          icon<Message>('refine', 'block size-5 [&_svg]:block [&_svg]:w-full [&_svg]:h-full'),
           h.span([], [count === 0 ? 'Refine' : `Refine · ${count}`]),
         ],
       ),
     ],
   );
 };
+
+const refineDialogPanelClass =
+  'fixed right-0 bottom-0 left-0 grid max-h-[min(92svh,52rem)] gap-5 pt-5 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] overflow-y-auto border border-outline-variant rounded-t-m3-extra-large bg-surface shadow-m3-2 [transform:translateY(0)] [transition:transform_180ms_ease] data-closed:[transform:translateY(100%)] [@media(min-width:48rem)_and_(min-height:34rem)]:top-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:left-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-3rem),44rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:p-6 [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-m3-extra-large [@media(min-width:48rem)_and_(min-height:34rem)]:[transform:translate(-50%,-50%)] [@media(min-width:48rem)_and_(min-height:34rem)]:[transition:opacity_160ms_ease,transform_180ms_ease] [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:opacity-0 [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:[transform:translate(-50%,-47%)_scale(0.98)]';
 
 const catalogueRefineDialog = (model: Model): Html => {
   const h = html<Message>();
@@ -1005,23 +1072,40 @@ const catalogueRefineDialog = (model: Model): Html => {
         isVisible,
       }) =>
         h.dialog(
-          [...dialog, h.Class('refine-dialog')],
+          [...dialog, h.Class('text-on-surface')],
           isVisible
             ? [
-                h.div([...backdrop, h.Class('refine-dialog__backdrop')], []),
+                h.div(
+                  [
+                    ...backdrop,
+                    h.Class(
+                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 [transition:opacity_180ms_ease] data-closed:opacity-0',
+                    ),
+                  ],
+                  [],
+                ),
                 h.section(
-                  [...panel, h.Class('refine-dialog__panel')],
+                  [...panel, h.Class(refineDialogPanelClass)],
                   [
                     h.header(
-                      [h.Class('refine-dialog__header')],
+                      [h.Class('flex items-start justify-between gap-4')],
                       [
                         h.div(
                           [],
                           [
-                            h.p([h.Class('eyebrow')], ['Explore']),
-                            h.h2([...title], ['Refine courses']),
+                            h.p([h.Class(eyebrowClass)], ['Explore']),
+                            h.h2(
+                              [
+                                ...title,
+                                h.Class('text-[clamp(1.6rem,6vw,2.25rem)] tracking-[-0.035em]'),
+                              ],
+                              ['Refine courses'],
+                            ),
                             h.p(
-                              [...description, h.Class('refine-dialog__description')],
+                              [
+                                ...description,
+                                h.Class('mt-[0.4rem] text-on-surface-variant leading-[1.5]'),
+                              ],
                               ['Changes apply immediately and stay in the shareable URL.'],
                             ),
                           ],
@@ -1029,7 +1113,9 @@ const catalogueRefineDialog = (model: Model): Html => {
                         h.button(
                           [
                             ...closeButton,
-                            h.Class('refine-dialog__close'),
+                            h.Class(
+                              'grid size-11 flex-none p-[0.7rem] place-items-center border-0 rounded-full bg-surface-container text-on-surface cursor-pointer',
+                            ),
                             h.Type('button'),
                             h.AriaLabel('Close course refinements'),
                           ],
@@ -1043,12 +1129,12 @@ const catalogueRefineDialog = (model: Model): Html => {
                       initialFocus,
                     }),
                     h.footer(
-                      [h.Class('refine-dialog__footer')],
+                      [h.Class('flex justify-end')],
                       [
                         h.button(
                           [
                             ...closeButton,
-                            h.Class('button button--primary refine-dialog__done'),
+                            h.Class(`${buttonPrimary} min-w-[min(100%,12rem)]`),
                             h.Type('button'),
                           ],
                           ['View results'],
@@ -1079,11 +1165,16 @@ const selectControl = (
     onChange: (next) => message({ value: next }),
     toView: (attributes) =>
       h.div(
-        [h.Class('select-field')],
+        [],
         [
-          h.label([...attributes.label, h.Class('field__label')], [label]),
+          h.label([...attributes.label, h.Class(fieldLabelClass)], [label]),
           h.select(
-            [...attributes.select, h.Class('select-field__control')],
+            [
+              ...attributes.select,
+              h.Class(
+                'w-full min-h-12 pr-10 pl-[0.85rem] border border-outline rounded-m3-medium outline-0 bg-surface text-on-surface [font:inherit] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]',
+              ),
+            ],
             options.map(([optionValue, text]) =>
               h.option([h.Value(optionValue), h.Selected(optionValue === value)], [text]),
             ),
@@ -1106,9 +1197,22 @@ const checkboxControl = (
     onToggle,
     toView: (attributes) =>
       h.label(
-        [...attributes.label, h.Class('filter-checkbox')],
         [
-          h.span([...attributes.checkbox, h.Class('filter-checkbox__box')], [isChecked ? '✓' : '']),
+          ...attributes.label,
+          h.Class(
+            'inline-flex items-center gap-[0.55rem] min-h-11 py-[0.45rem] px-[0.85rem] border border-outline rounded-[1.5rem] text-on-surface-variant cursor-pointer has-[[data-checked]]:border-secondary-container has-[[data-checked]]:bg-secondary-container has-[[data-checked]]:text-on-secondary-container',
+          ),
+        ],
+        [
+          h.span(
+            [
+              ...attributes.checkbox,
+              h.Class(
+                'grid w-[1.2rem] h-[1.2rem] place-items-center border-2 border-current rounded-[0.3rem] text-[0.75rem] leading-none',
+              ),
+            ],
+            [isChecked ? '✓' : ''],
+          ),
           h.span([], [label]),
         ],
       ),
@@ -1120,29 +1224,35 @@ const catalogueResultView = (model: Model): Html => {
   switch (model.catalogue._tag) {
     case 'CatalogueInitialLoading':
       return h.section(
-        [h.Class('state-card state-card--loading'), h.Role('status'), h.AriaLive('polite')],
+        [h.Class(stateCardBase), h.Role('status'), h.AriaLive('polite')],
         [
-          h.div([h.Class('loading-indicator'), h.AriaHidden(true)], []),
-          h.h2([], ['Loading the NTNU catalogue']),
-          h.p([], ['Official course summaries appear before deeper evidence is loaded.']),
+          h.div([h.Class(loadingIndicatorClass), h.AriaHidden(true)], []),
+          h.h2([h.Class(stateCardH2Class)], ['Loading the NTNU catalogue']),
+          h.p(
+            [h.Class(stateCardPClass)],
+            ['Official course summaries appear before deeper evidence is loaded.'],
+          ),
         ],
       );
     case 'CatalogueFailure':
       return h.section(
-        [h.Class('state-card state-card--failure'), h.Role('alert')],
+        [h.Class(stateCardFailure), h.Role('alert')],
         [
-          h.p([h.Class('status-label status-label--error')], ['Catalogue unavailable']),
-          h.h2([], ['We could not load courses']),
-          h.p([], [model.catalogue.error]),
-          h.p([], ['Your filters are preserved. Submit the search to try again.']),
+          h.p([h.Class(statusLabelErrorClass)], ['Catalogue unavailable']),
+          h.h2([h.Class(stateCardH2Class)], ['We could not load courses']),
+          h.p([h.Class(stateCardFailurePClass)], [model.catalogue.error]),
+          h.p(
+            [h.Class(stateCardFailurePClass)],
+            ['Your filters are preserved. Submit the search to try again.'],
+          ),
         ],
       );
     case 'CatalogueEmpty':
       return h.section(
-        [h.Class('state-card'), h.Role('status')],
+        [h.Class(stateCardBase), h.Role('status')],
         [
-          h.h2([], ['No courses match these filters']),
-          h.p([], ['Try another phrase, campus, term, or study level.']),
+          h.h2([h.Class(stateCardH2Class)], ['No courses match these filters']),
+          h.p([h.Class(stateCardPClass)], ['Try another phrase, campus, term, or study level.']),
         ],
       );
     case 'CataloguePartial':
@@ -1159,42 +1269,54 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
   const canFetch = response.meta.hasMore;
   return h.section(
     [
-      h.Class('catalogue-results'),
+      h.Class('grid gap-4'),
       h.AriaLabel('Course results'),
       h.AriaBusy(model.nextPage._tag === 'NextPageLoading'),
     ],
     [
       partial
         ? h.div(
-            [h.Class('partial-banner'), h.Role('status')],
+            [
+              h.Class('py-4 px-5 rounded-m3-medium bg-warning-container text-on-warning-container'),
+              h.Role('status'),
+            ],
             [
               'Some catalogue data could not be used. Official results that were validated remain visible.',
             ],
           )
         : h.empty,
       h.header(
-        [h.Class('catalogue-results__header')],
+        [
+          h.Class(
+            'flex items-end justify-between gap-4 py-2 px-1 border-b border-outline-variant [@media(max-width:37rem)]:items-start [@media(max-width:37rem)]:flex-col',
+          ),
+        ],
         [
           h.div(
             [],
             [
               h.h2([], ['Courses']),
               h.p(
-                [h.AriaLive('polite')],
+                [h.AriaLive('polite'), h.Class('text-on-surface-variant text-[0.88rem]')],
                 [`Showing ${shown.length} of ${response.meta.total} courses`],
               ),
             ],
           ),
-          h.p([h.Class('catalogue-results__source')], ['Official NTNU catalogue']),
+          h.p([h.Class('text-on-surface-variant text-[0.88rem]')], ['Official NTNU catalogue']),
         ],
       ),
       h.ol(
-        [h.Class('course-list')],
+        [h.Class('grid gap-3 p-0 list-none')],
         shown.map((course) => courseCard(model, course)),
       ),
       model.nextPage._tag === 'NextPageFailure'
         ? h.div(
-            [h.Class('inline-error'), h.Role('alert')],
+            [
+              h.Class(
+                'py-[0.9rem] px-4 border border-error rounded-m3-medium bg-error-container text-on-error-container',
+              ),
+              h.Role('alert'),
+            ],
             [
               h.strong([], ['More courses could not be loaded.']),
               h.span([], [` ${model.nextPage.error}`]),
@@ -1208,7 +1330,10 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
             onClick: RequestedMoreCourses(),
             toView: (attributes) =>
               h.button(
-                [...attributes.button, h.Class('button button--secondary load-more')],
+                [
+                  ...attributes.button,
+                  h.Class(`${buttonSecondary} justify-self-center min-w-[min(100%,18rem)]`),
+                ],
                 [
                   model.nextPage._tag === 'NextPageLoading'
                     ? 'Loading more courses…'
@@ -1216,10 +1341,17 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
                 ],
               ),
           })
-        : h.p([h.Class('catalogue-end')], ['End of results']),
+        : h.p([h.Class('m-0 text-on-surface-variant text-center')], ['End of results']),
     ],
   );
 };
+
+const courseCardClass =
+  'relative grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low [transition:border-color_140ms_ease,box-shadow_140ms_ease] has-[a:hover]:border-primary has-[a:hover]:shadow-m3-1 has-[a:focus-visible]:border-primary has-[a:focus-visible]:shadow-m3-1 [@media(min-width:64rem)]:items-center [@media(min-width:64rem)]:grid-cols-[minmax(0,1.4fr)_minmax(20rem,1fr)]';
+
+const factDtClass = 'text-on-surface-variant text-[0.75rem] font-[700] tracking-[0.05em] uppercase';
+
+const factDdClass = 'mt-[0.2rem] text-[0.9rem] leading-[1.35] [overflow-wrap:anywhere]';
 
 const courseCard = (model: Model, course: CourseSearchItemDtoType): Html => {
   const h = html<Message>();
@@ -1238,22 +1370,32 @@ const courseCard = (model: Model, course: CourseSearchItemDtoType): Html => {
       : formatOfferingPeriod(offering.academicYear, offering.season);
   const gradeSignal = gradeSignalFor(model.gradeSignals, course.code);
   return h.li(
-    [h.Class('course-list__item')],
+    [],
     [
       h.article(
-        [h.Class('course-card')],
+        [h.Class(courseCardClass)],
         [
           h.div(
-            [h.Class('course-card__identity')],
+            [],
             [
-              h.p([h.Class('course-code')], [course.code]),
+              h.p(
+                [
+                  h.Class(
+                    'mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
+                  ),
+                ],
+                [course.code],
+              ),
               h.h3(
-                [],
+                [h.Class('text-[1.1rem] leading-[1.35]')],
                 [
                   h.a(
                     [
                       h.Href(normalizedUrl(model, course.code)),
                       h.AriaLabel(`Open ${course.code}: ${title}`),
+                      h.Class(
+                        "text-on-surface no-underline after:absolute after:inset-0 after:content-['']",
+                      ),
                     ],
                     [title],
                   ),
@@ -1262,11 +1404,27 @@ const courseCard = (model: Model, course: CourseSearchItemDtoType): Html => {
             ],
           ),
           h.dl(
-            [h.Class('course-card__facts')],
             [
-              h.div([], [h.dt([], ['Term']), h.dd([], [term])]),
-              h.div([], [h.dt([], ['Campus']), h.dd([], [place])]),
-              h.div([], [h.dt([], ['Historical outcomes']), h.dd([], [gradeSignal])]),
+              h.Class(
+                'grid gap-3 grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] [@media(max-width:37rem)]:grid-cols-1',
+              ),
+            ],
+            [
+              h.div(
+                [h.Class('min-w-0')],
+                [h.dt([h.Class(factDtClass)], ['Term']), h.dd([h.Class(factDdClass)], [term])],
+              ),
+              h.div(
+                [h.Class('min-w-0')],
+                [h.dt([h.Class(factDtClass)], ['Campus']), h.dd([h.Class(factDdClass)], [place])],
+              ),
+              h.div(
+                [h.Class('min-w-0')],
+                [
+                  h.dt([h.Class(factDtClass)], ['Historical outcomes']),
+                  h.dd([h.Class(factDdClass)], [gradeSignal]),
+                ],
+              ),
             ],
           ),
         ],
@@ -1315,13 +1473,13 @@ const formatGradeSignal = (summary: CourseGradeSummaryDtoType): string => {
 const selectedCourseView = (model: Model): Html => {
   const h = html<Message>();
   return h.div(
-    [h.Class('selected-course')],
+    [h.Class('grid gap-4 pt-4')],
     [
       Button.view<Message>({
         type: 'button',
         onClick: ClosedCourse(),
         toView: (attributes) =>
-          h.button([...attributes.button, h.Class('back-button')], ['← Back to course results']),
+          h.button([...attributes.button, h.Class(backButtonClass)], ['← Back to course results']),
       }),
       detailResultView(model.detail),
       productFooter(),
@@ -1332,9 +1490,16 @@ const selectedCourseView = (model: Model): Html => {
 const productFooter = (): Html => {
   const h = html<Message>();
   const externalLink = (url: string, label: string): Html =>
-    h.a([h.Href(url), h.Target('_blank'), h.Rel('noreferrer')], [label]);
+    h.a(
+      [h.Href(url), h.Target('_blank'), h.Rel('noreferrer'), h.Class('relative font-[650]')],
+      [label],
+    );
   return h.footer(
-    [h.Class('product-footer')],
+    [
+      h.Class(
+        'flex flex-wrap gap-y-[0.35rem] gap-x-4 pt-6 pb-2 border-t border-outline-variant text-on-surface-variant text-[0.82rem] leading-[1.5]',
+      ),
+    ],
     [
       h.p(
         [],
@@ -1368,20 +1533,23 @@ const detailResultView = (detail: DetailResult): Html => {
       return h.empty;
     case 'DetailLoading':
       return h.section(
-        [h.Class('state-card state-card--loading'), h.Role('status'), h.AriaLive('polite')],
+        [h.Class(stateCardBase), h.Role('status'), h.AriaLive('polite')],
         [
-          h.div([h.Class('loading-indicator'), h.AriaHidden(true)], []),
-          h.h2([], ['Gathering course evidence']),
-          h.p([], ['Official course details and historical outcomes load independently.']),
+          h.div([h.Class(loadingIndicatorClass), h.AriaHidden(true)], []),
+          h.h2([h.Class(stateCardH2Class)], ['Gathering course evidence']),
+          h.p(
+            [h.Class(stateCardPClass)],
+            ['Official course details and historical outcomes load independently.'],
+          ),
         ],
       );
     case 'DetailFailure':
       return h.section(
-        [h.Class('state-card state-card--failure'), h.Role('alert')],
+        [h.Class(stateCardFailure), h.Role('alert')],
         [
-          h.p([h.Class('status-label status-label--error')], ['Course unavailable']),
-          h.h2([], ['We could not load this course']),
-          h.p([], [detail.error]),
+          h.p([h.Class(statusLabelErrorClass)], ['Course unavailable']),
+          h.h2([h.Class(stateCardH2Class)], ['We could not load this course']),
+          h.p([h.Class(stateCardFailurePClass)], [detail.error]),
         ],
       );
     case 'DetailPartial':

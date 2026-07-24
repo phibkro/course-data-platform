@@ -186,6 +186,46 @@ export const init: Runtime.ApplicationInit<Model, Message> = () => {
   ];
 };
 
+const mainContentClass =
+  'w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66 [@media(min-width:64rem)]:px-10';
+
+const eyebrowClass = 'mb-2 text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase';
+
+const fieldLabelClass =
+  'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-[0.85rem] font-[650]';
+
+const fieldInputClass =
+  'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[1.05rem] uppercase [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70';
+
+const buttonPrimaryClass =
+  'min-h-14 px-5 border-0 rounded-[1.75rem] bg-primary text-on-primary shadow-m3-1 font-[720] cursor-pointer [transition:box-shadow_140ms_ease,transform_140ms_ease] not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] [@media(max-width:37rem)]:w-full';
+
+const stateCardClass =
+  'grid min-h-68 place-items-center content-center p-[clamp(2rem,6vw,4rem)] border border-outline-variant rounded-m3-extra-large bg-surface-container-low text-center [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-[clamp(1.4rem,3vw,2rem)] [&_p]:max-w-144 [&_p]:mx-auto [&_p]:my-1 [&_p]:text-on-surface-variant [&_p]:leading-[1.6]';
+
+const stateCardFailureClass =
+  'grid min-h-68 place-items-center content-center p-[clamp(2rem,6vw,4rem)] border border-error rounded-m3-extra-large bg-error-container text-on-error-container text-center [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-[clamp(1.4rem,3vw,2rem)] [&_p]:max-w-144 [&_p]:mx-auto [&_p]:my-1 [&_p]:text-inherit [&_p]:leading-[1.6]';
+
+const decisionSectionClass =
+  'p-[clamp(1.25rem,4vw,2.25rem)] border border-outline-variant rounded-m3-large bg-surface-container-low';
+
+const sectionHeadingClass =
+  'grid gap-[0.35rem] mb-5 [&_h2]:m-0 [&_h2]:text-[clamp(1.35rem,3vw,1.8rem)] [&_h2]:tracking-[-0.025em] [&_p]:max-w-192 [&_p]:m-0 [&_p]:text-on-surface-variant [&_p]:leading-[1.5]';
+
+const factGridClass = 'grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))]';
+
+const factCardClass =
+  'min-w-0 p-4 rounded-m3-medium bg-surface [&_h3]:mt-0 [&_h3]:mr-0 [&_h3]:mb-[0.55rem] [&_h3]:ml-0 [&_h3]:text-[0.95rem] [&_p]:my-1 [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:leading-[1.55]';
+
+const factCardUncertainClass =
+  'min-w-0 p-4 border border-dashed border-outline rounded-m3-medium bg-surface [&_h3]:mt-0 [&_h3]:mr-0 [&_h3]:mb-[0.55rem] [&_h3]:ml-0 [&_h3]:text-[0.95rem] [&_p]:my-1 [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:leading-[1.55]';
+
+const factStateClass =
+  'inline-flex items-center min-h-[1.7rem] py-[0.2rem] px-[0.65rem] rounded-[1rem] bg-surface-container-highest text-on-surface-variant text-[0.72rem] font-[750] whitespace-nowrap';
+
+const uncertainFactStateClass =
+  'inline-flex items-center min-h-[1.7rem] py-[0.2rem] px-[0.65rem] rounded-[1rem] bg-tertiary-container text-on-tertiary-container text-[0.72rem] font-[750] whitespace-nowrap';
+
 export const view = (model: Model): Document => {
   const h = html<Message>();
   const loading = model.result._tag === 'SearchLoading';
@@ -196,25 +236,42 @@ export const view = (model: Model): Document => {
         ? `${model.result.response.item.code} · Course lens`
         : 'Course lens · NTNU course decisions',
     body: h.div(
-      [h.Class('app-shell')],
+      [h.Class('min-h-screen')],
       [
         desktopNavigation<Message>(),
         h.main(
-          [h.Class('main-content')],
+          [h.Class(mainContentClass)],
           [
             h.header(
-              [h.Class('hero')],
+              [h.Class('py-[clamp(2rem,7vw,5rem)]')],
               [
-                h.p([h.Class('eyebrow')], ['NTNU course decisions']),
-                h.h1([], ['Understand a course before you choose it.']),
+                h.p([h.Class(eyebrowClass)], ['NTNU course decisions']),
+                h.h1(
+                  [
+                    h.Class(
+                      'max-w-[15ch] m-0 text-[clamp(2.25rem,7vw,4.75rem)] font-[720] tracking-[-0.055em] leading-[0.99]',
+                    ),
+                  ],
+                  ['Understand a course before you choose it.'],
+                ),
                 h.p(
-                  [h.Class('hero__lede')],
+                  [
+                    h.Class(
+                      'max-w-172 mt-5 mr-0 mb-8 ml-0 text-on-surface-variant text-[clamp(1rem,2vw,1.15rem)] leading-[1.65]',
+                    ),
+                  ],
                   [
                     'Search an exact course code to combine content, work form, assessment, requirements, and outcomes with explicit evidence.',
                   ],
                 ),
                 searchForm(model.query, loading),
-                h.p([h.Class('search-hint'), h.Id('search-hint')], ['Try a real course: TDT4136']),
+                h.p(
+                  [
+                    h.Class('mt-[0.65rem] mr-0 mb-0 ml-1 text-on-surface-variant text-[0.85rem]'),
+                    h.Id('search-hint'),
+                  ],
+                  ['Try a real course: TDT4136'],
+                ),
               ],
             ),
             resultView(model.result),
@@ -230,7 +287,9 @@ const searchForm = (query: string, loading: boolean): Html => {
   const h = html<Message>();
   return h.form(
     [
-      h.Class('search-form'),
+      h.Class(
+        'flex items-end gap-3 w-[min(100%,39rem)] [@media(max-width:37rem)]:items-stretch [@media(max-width:37rem)]:flex-col',
+      ),
       h.Id('explore'),
       h.OnSubmit(SubmittedSearch()),
       h.AriaDescribedBy('search-hint'),
@@ -244,12 +303,12 @@ const searchForm = (query: string, loading: boolean): Html => {
         isDisabled: loading,
         toView: (attributes) =>
           h.div(
-            [h.Class('field')],
+            [h.Class('flex-1')],
             [
-              h.label([...attributes.label, h.Class('field__label')], ['Course code']),
+              h.label([...attributes.label, h.Class(fieldLabelClass)], ['Course code']),
               h.input([
                 ...attributes.input,
-                h.Class('field__input'),
+                h.Class(fieldInputClass),
                 h.Autocomplete('off'),
                 h.InputMode('text'),
                 h.AriaLabel('Course code'),
@@ -262,7 +321,7 @@ const searchForm = (query: string, loading: boolean): Html => {
         isDisabled: loading,
         toView: (attributes) =>
           h.button(
-            [...attributes.button, h.Class('button button--primary')],
+            [...attributes.button, h.Class(buttonPrimaryClass)],
             [loading ? 'Looking up course…' : 'Find course'],
           ),
       }),
@@ -276,9 +335,17 @@ const resultView = (result: SearchResult): Html => {
   switch (result._tag) {
     case 'SearchIdle':
       return h.section(
-        [h.Class('state-card state-card--idle'), h.AriaLabel('Search guidance')],
+        [h.Class(stateCardClass), h.AriaLabel('Search guidance')],
         [
-          h.div([h.Class('state-card__icon'), h.AriaHidden(true)], ['⌕']),
+          h.div(
+            [
+              h.Class(
+                'grid size-16 place-items-center rounded-[1.25rem] bg-tertiary-container text-on-tertiary-container text-[2rem]',
+              ),
+              h.AriaHidden(true),
+            ],
+            ['⌕'],
+          ),
           h.h2([], ['Start with one course']),
           h.p(
             [],
@@ -290,9 +357,17 @@ const resultView = (result: SearchResult): Html => {
       );
     case 'SearchLoading':
       return h.section(
-        [h.Class('state-card state-card--loading'), h.Role('status'), h.AriaLive('polite')],
+        [h.Class(stateCardClass), h.Role('status'), h.AriaLive('polite')],
         [
-          h.div([h.Class('loading-indicator'), h.AriaHidden(true)], []),
+          h.div(
+            [
+              h.Class(
+                'size-12 border-[0.3rem] border-primary-container border-t-primary rounded-full animate-[spin_850ms_linear_infinite] motion-reduce:[animation-duration:1.8s]',
+              ),
+              h.AriaHidden(true),
+            ],
+            [],
+          ),
           h.h2([], ['Gathering course evidence']),
           h.p(
             [],
@@ -304,9 +379,12 @@ const resultView = (result: SearchResult): Html => {
       );
     case 'SearchFailure':
       return h.section(
-        [h.Class('state-card state-card--failure'), h.Role('alert')],
+        [h.Class(stateCardFailureClass), h.Role('alert')],
         [
-          h.p([h.Class('status-label status-label--error')], ['Lookup failed']),
+          h.p(
+            [h.Class('mb-2 text-error text-[0.78rem] font-[800] tracking-[0.1em] uppercase')],
+            ['Lookup failed'],
+          ),
           h.h2([], ['We could not load that course']),
           h.p([], [result.error]),
           h.p([], ['Check the course code and try again.']),
@@ -335,13 +413,26 @@ export const courseInsightView = (response: CourseInsightResponse, partial: bool
   ): Html => factView(label, fact, renderKnown, inferenceEvidenceIds);
 
   return h.article(
-    [h.Class('course-detail'), h.AriaLabel(`${course.code} course details`)],
+    [h.Class('grid gap-4'), h.AriaLabel(`${course.code} course details`)],
     [
       partial
         ? h.div(
-            [h.Class('partial-banner'), h.Role('status'), h.AriaLive('polite')],
             [
-              h.p([h.Class('status-label status-label--warning')], ['Partial result']),
+              h.Class(
+                'py-4 px-5 rounded-m3-medium bg-warning-container text-on-warning-container [&_p]:m-0 [&_p]:leading-[1.5]',
+              ),
+              h.Role('status'),
+              h.AriaLive('polite'),
+            ],
+            [
+              h.p(
+                [
+                  h.Class(
+                    'mb-1! text-warning text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
+                  ),
+                ],
+                ['Partial result'],
+              ),
               h.p(
                 [],
                 [
@@ -351,22 +442,51 @@ export const courseInsightView = (response: CourseInsightResponse, partial: bool
             ],
           )
         : h.div(
-            [h.Class('complete-banner'), h.Role('status')],
+            [
+              h.Class(
+                'py-4 px-5 rounded-m3-medium bg-primary-container text-on-primary-container font-[650] leading-[1.5]',
+              ),
+              h.Role('status'),
+            ],
             ['All configured sources responded.'],
           ),
       h.header(
-        [h.Class('course-header')],
         [
-          h.div([], [h.p([h.Class('course-code')], [course.code]), h.h2([], [title])]),
+          h.Class(
+            'grid gap-6 p-[clamp(1.5rem,5vw,3rem)] rounded-m3-extra-large bg-primary text-on-primary [@media(min-width:64rem)]:grid-cols-[minmax(0,1fr)_auto]',
+          ),
+        ],
+        [
           h.div(
-            [h.Class('course-header__facts')],
+            [
+              h.Class(
+                '[&_h2]:max-w-[22ch] [&_h2]:m-0 [&_h2]:text-[clamp(2rem,5vw,3.75rem)] [&_h2]:tracking-[-0.045em] [&_h2]:leading-[1.05]',
+              ),
+            ],
+            [
+              h.p(
+                [
+                  h.Class(
+                    'mb-2 text-on-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
+                  ),
+                ],
+                [course.code],
+              ),
+              h.h2([], [title]),
+            ],
+          ),
+          h.div(
+            [h.Class('flex flex-wrap gap-3 m-0')],
             [
               compactFact('Credits', course.credits, (value) => `${value}`),
               compactFact('Level', course.level, formatToken),
               compactFact('Language', course.teachingLanguage, String),
             ],
           ),
-          evidenceLinks(course.title.evidenceIds),
+          evidenceLinks(
+            course.title.evidenceIds,
+            'text-on-primary [&_a]:text-on-primary [@media(min-width:64rem)]:col-span-full',
+          ),
         ],
       ),
       decisionSection('Availability', 'When and where the course is offered.', [
@@ -420,7 +540,11 @@ const compactFact = <A>(
 ): Html => {
   const h = html<Message>();
   return h.div(
-    [h.Class('compact-fact')],
+    [
+      h.Class(
+        'min-w-28 py-3 px-4 border border-[color-mix(in_srgb,currentcolor_35%,transparent)] rounded-m3-medium [&_dt]:mb-[0.2rem] [&_dt]:text-xs [&_dt]:opacity-80 [&_dd]:m-0 [&_dd]:font-[750]',
+      ),
+    ],
     [
       h.dt([], [label]),
       h.dd(
@@ -440,10 +564,10 @@ const compactFact = <A>(
 const decisionSection = (title: string, description: string, facts: ReadonlyArray<Html>): Html => {
   const h = html<Message>();
   return h.section(
-    [h.Class('decision-section')],
+    [h.Class(decisionSectionClass)],
     [
-      h.header([h.Class('section-heading')], [h.h2([], [title]), h.p([], [description])]),
-      h.div([h.Class('fact-grid')], [...facts]),
+      h.header([h.Class(sectionHeadingClass)], [h.h2([], [title]), h.p([], [description])]),
+      h.div([h.Class(factGridClass)], [...facts]),
     ],
   );
 };
@@ -461,13 +585,13 @@ const factView = <A>(
       fact.evidenceIds.length > 0 &&
       fact.evidenceIds.every((evidenceId) => inferenceEvidenceIds.has(evidenceId));
     return h.div(
-      [h.Class('fact-card')],
+      [h.Class(factCardClass)],
       [
         h.div(
-          [h.Class('fact-card__heading')],
+          [h.Class('flex items-start justify-between gap-3')],
           [
             h.h3([], [label]),
-            inferred ? h.span([h.Class('fact-state fact-state--inferred')], ['Inferred']) : h.empty,
+            inferred ? h.span([h.Class(uncertainFactStateClass)], ['Inferred']) : h.empty,
           ],
         ),
         renderKnown(fact.value),
@@ -478,18 +602,19 @@ const factView = <A>(
 
   if (fact.state === 'conflicting') {
     return h.div(
-      [h.Class('fact-card fact-card--uncertain')],
+      [h.Class(factCardUncertainClass)],
       [
         h.div(
-          [h.Class('fact-card__heading')],
-          [
-            h.h3([], [label]),
-            h.span([h.Class('fact-state fact-state--conflicting')], ['Conflicting']),
-          ],
+          [h.Class('flex items-start justify-between gap-3')],
+          [h.h3([], [label]), h.span([h.Class(uncertainFactStateClass)], ['Conflicting'])],
         ),
         h.p([], [fact.reason]),
         h.ul(
-          [h.Class('candidate-list')],
+          [
+            h.Class(
+              'mt-[0.35rem] mr-0 mb-0 ml-0 pl-[1.2rem] [&_li]:my-[0.35rem] [&_li]:leading-[1.5]',
+            ),
+          ],
           fact.candidates.map((candidate) =>
             h.li([], [renderKnown(candidate.value), evidenceLinks(candidate.evidenceIds)]),
           ),
@@ -500,14 +625,11 @@ const factView = <A>(
   }
 
   return h.div(
-    [h.Class('fact-card fact-card--uncertain')],
+    [h.Class(factCardUncertainClass)],
     [
       h.div(
-        [h.Class('fact-card__heading')],
-        [
-          h.h3([], [label]),
-          h.span([h.Class(`fact-state fact-state--${fact.state}`)], [formatToken(fact.state)]),
-        ],
+        [h.Class('flex items-start justify-between gap-3')],
+        [h.h3([], [label]), h.span([h.Class(uncertainFactStateClass)], [formatToken(fact.state)])],
       ),
       h.p([], [fact.reason]),
       evidenceLinks(fact.evidenceIds),
@@ -520,10 +642,10 @@ const gradeSection = (course: CourseInsight): Html => {
   const grades = course.gradeOutcomes;
 
   return h.section(
-    [h.Class('decision-section')],
+    [h.Class(decisionSectionClass)],
     [
       h.header(
-        [h.Class('section-heading')],
+        [h.Class(sectionHeadingClass)],
         [
           h.h2([], ['Grade outcomes']),
           h.p(
@@ -535,7 +657,7 @@ const gradeSection = (course: CourseInsight): Html => {
         ],
       ),
       h.div(
-        [h.Class('fact-grid fact-grid--metrics')],
+        [h.Class(`${factGridClass} mb-3`)],
         [
           factView('Covered period', grades.period, (period) =>
             paragraph(`${period.fromYear}–${period.toYear}`),
@@ -558,12 +680,16 @@ const gradeDistribution = (
 ): Html => {
   const h = html<Message>();
   return h.div(
-    [h.Class('table-wrap')],
+    [h.Class('overflow-x-auto')],
     [
       h.table(
-        [],
         [
-          h.caption([h.Class('visually-hidden')], ['Historical grade distribution']),
+          h.Class(
+            'w-full border-collapse [&_th]:py-[0.65rem] [&_th]:px-3 [&_th]:border-b [&_th]:border-outline-variant [&_th]:text-left [&_td]:py-[0.65rem] [&_td]:px-3 [&_td]:border-b [&_td]:border-outline-variant [&_td]:text-left [&_thead_th]:text-on-surface-variant [&_thead_th]:text-[0.78rem]',
+          ),
+        ],
+        [
+          h.caption([h.Class('sr-only')], ['Historical grade distribution']),
           h.thead(
             [],
             [
@@ -599,10 +725,10 @@ const gradeDistribution = (
 const sourceSection = (course: CourseInsight): Html => {
   const h = html<Message>();
   return h.section(
-    [h.Class('decision-section sources-section')],
+    [h.Class(decisionSectionClass)],
     [
       h.header(
-        [h.Class('section-heading')],
+        [h.Class(sectionHeadingClass)],
         [
           h.h2([], ['Sources and freshness']),
           h.p(
@@ -614,16 +740,22 @@ const sourceSection = (course: CourseInsight): Html => {
         ],
       ),
       h.div(
-        [h.Class('source-statuses')],
+        [h.Class('grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))]')],
         course.sourceStatuses.map((source) =>
           h.div(
-            [h.Class(`source-status source-status--${source.status}`)],
+            [
+              h.Class(
+                source.status === 'failed'
+                  ? 'p-4 border-l-[0.3rem] border-l-error rounded-m3-medium bg-surface [&_h3]:m-0 [&_h3]:text-[0.95rem] [&_p]:mt-[0.45rem] [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-on-surface-variant [&_p]:text-[0.85rem] [&_p]:leading-[1.45]'
+                  : 'p-4 border-l-[0.3rem] border-l-primary rounded-m3-medium bg-surface [&_h3]:m-0 [&_h3]:text-[0.95rem] [&_p]:mt-[0.45rem] [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-on-surface-variant [&_p]:text-[0.85rem] [&_p]:leading-[1.45]',
+              ),
+            ],
             [
               h.div(
-                [],
+                [h.Class('flex items-start justify-between gap-3')],
                 [
                   h.h3([], [source.provider]),
-                  h.span([h.Class('fact-state')], [formatToken(source.status)]),
+                  h.span([h.Class(factStateClass)], [formatToken(source.status)]),
                 ],
               ),
               source.observedAt === null
@@ -635,17 +767,22 @@ const sourceSection = (course: CourseInsight): Html => {
         ),
       ),
       h.ol(
-        [h.Class('evidence-list')],
+        [h.Class('grid gap-3 mt-5 mr-0 mb-0 ml-0 p-0 list-none')],
         course.evidence.map((evidence) =>
           h.keyed('li')(
             evidence.id,
-            [h.Id(`evidence-${evidence.id}`)],
+            [
+              h.Id(`evidence-${evidence.id}`),
+              h.Class(
+                'scroll-mt-4 p-4 rounded-m3-medium bg-surface-container [&_p]:my-[0.45rem] [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:text-[0.85rem] [&_p]:leading-[1.5]',
+              ),
+            ],
             [
               h.div(
-                [h.Class('evidence-list__heading')],
+                [h.Class('flex items-start justify-between gap-3')],
                 [
                   h.strong([], [evidence.provider]),
-                  h.span([h.Class('fact-state')], [formatToken(evidence.kind)]),
+                  h.span([h.Class(factStateClass)], [formatToken(evidence.kind)]),
                 ],
               ),
               h.p(
@@ -656,13 +793,16 @@ const sourceSection = (course: CourseInsight): Html => {
               ),
               evidence.excerpt === null ? h.empty : h.p([], [evidence.excerpt]),
               evidence.sourceUrl === null
-                ? h.span([h.Class('source-unlinked')], ['No external source link'])
+                ? h.span(
+                    [h.Class('text-on-surface-variant text-[0.82rem] italic')],
+                    ['No external source link'],
+                  )
                 : h.a(
                     [
                       h.Href(evidence.sourceUrl),
                       h.Target('_blank'),
                       h.Rel('noreferrer'),
-                      h.Class('source-link'),
+                      h.Class('text-[0.82rem]'),
                     ],
                     ['Open source ↗'],
                   ),
@@ -674,13 +814,21 @@ const sourceSection = (course: CourseInsight): Html => {
   );
 };
 
-const evidenceLinks = (evidenceIds: ReadonlyArray<string>): Html => {
+const evidenceLinks = (evidenceIds: ReadonlyArray<string>, contextClass = ''): Html => {
   const h = html<Message>();
   if (evidenceIds.length === 0) {
-    return h.span([h.Class('evidence-empty')], ['No supporting evidence']);
+    return h.span(
+      [h.Class(`text-on-surface-variant text-xs italic ${contextClass}`)],
+      ['No supporting evidence'],
+    );
   }
   return h.div(
-    [h.Class('evidence-links'), h.AriaLabel('Supporting evidence')],
+    [
+      h.Class(
+        `flex flex-wrap gap-[0.4rem] mt-[0.8rem] text-xs [&_a]:underline-offset-[0.2rem] ${contextClass}`,
+      ),
+      h.AriaLabel('Supporting evidence'),
+    ],
     [
       ...evidenceIds.map((id) =>
         h.a([h.Href(`#evidence-${id}`), h.AriaLabel(`View evidence ${id}`)], ['View evidence']),
@@ -709,7 +857,7 @@ const assessmentList = (
 ): Html => {
   const h = html<Message>();
   return h.ul(
-    [h.Class('plain-list')],
+    [h.Class('mt-[0.35rem] mr-0 mb-0 ml-0 pl-[1.2rem] [&_li]:my-[0.35rem] [&_li]:leading-[1.5]')],
     assessment.map((part) =>
       h.li(
         [],
@@ -738,7 +886,7 @@ const stringList = (items: ReadonlyArray<string>): Html => {
     return h.p([], ['None reported.']);
   }
   return h.ul(
-    [h.Class('plain-list')],
+    [h.Class('mt-[0.35rem] mr-0 mb-0 ml-0 pl-[1.2rem] [&_li]:my-[0.35rem] [&_li]:leading-[1.5]')],
     items.map((item) => h.li([], [item])),
   );
 };
@@ -746,7 +894,11 @@ const stringList = (items: ReadonlyArray<string>): Html => {
 const chipList = (items: ReadonlyArray<string>): Html => {
   const h = html<Message>();
   return h.ul(
-    [h.Class('chip-list')],
+    [
+      h.Class(
+        'flex flex-wrap gap-[0.45rem] mt-2 mr-0 mb-0 ml-0 p-0 list-none [&_li]:py-[0.4rem] [&_li]:px-3 [&_li]:border [&_li]:border-outline [&_li]:rounded-[1rem] [&_li]:text-on-surface-variant [&_li]:text-[0.8rem]',
+      ),
+    ],
     items.map((item) => h.li([], [item])),
   );
 };

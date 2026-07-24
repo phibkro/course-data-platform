@@ -25,7 +25,10 @@ const icons: Readonly<Record<AppIcon, string>> = {
  * boundary here means product views consume semantic icons without importing
  * the icon package or handling arbitrary HTML.
  */
-export const icon = <Message>(name: AppIcon, className = 'app-icon'): Html => {
+export const icon = <Message>(
+  name: AppIcon,
+  className = '[&_svg]:block [&_svg]:w-full [&_svg]:h-full',
+): Html => {
   const h = html<Message>();
   return h.span([h.Class(className), h.AriaHidden(true), h.InnerHTML(icons[name])], []);
 };
