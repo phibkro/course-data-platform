@@ -23,6 +23,7 @@ import {
   SucceededCourseSearch,
   SucceededDecisionSignals,
   SucceededGradeSignals,
+  ToggledSidebar,
   UpdatedQuery,
   initForHref,
   parseExternalHttpsUrl,
@@ -48,6 +49,17 @@ test('locale is explicit URL-backed state and changes do not refetch the catalog
   expect(commands.some((command) => command.name === 'FetchCourseSearch')).toBe(false);
   expect(initForHref('http://course-lens.local/?lang=nb')[0].locale).toBe('nb');
   expect(initForHref('http://course-lens.local/?lang=unsupported')[0].locale).toBe('en');
+});
+
+test('sidebar density is a local preference and does not alter catalogue state', () => {
+  const initial = initialModel();
+  const [collapsed, commands] = update(initial, ToggledSidebar());
+
+  expect(collapsed.sidebarCollapsed).toBe(true);
+  expect(commands.map((command) => command.name)).toEqual(['PersistSidebarPreference']);
+  expect(collapsed.query).toBe(initial.query);
+  expect(collapsed.activeRequestKey).toBe(initial.activeRequestKey);
+  expect(initForHref('http://course-lens.local/', 'en', true)[0].sidebarCollapsed).toBe(true);
 });
 
 test('a catalogue response makes official courses available without opening detail', () => {

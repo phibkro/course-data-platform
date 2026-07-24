@@ -113,6 +113,23 @@ Refine presents sections in student-decision order:
    fields;
 5. **Advanced ordering** — alphabetical and course-code ordering.
 
+Programme-aware filters must not collapse distinct questions into a single
+“available to my degree” boolean:
+
+- **curriculum membership** says that a course occurs in a specific, versioned
+  programme curriculum;
+- **requirement relation** says whether it is required, one option in an
+  elective group, recommended, or otherwise permitted;
+- **access eligibility** says whether enrolment is open, restricted, or
+  conflicting for the student's context;
+- **offering availability** says whether that course is actually offered in the
+  selected period and location.
+
+The first programme-backed Explore slice selects one explicit programme version,
+then offers `In this curriculum`, `Required`, and `Elective` filters. Restricted
+access and unknown eligibility remain visible findings rather than silently
+removing courses. Every relation carries its source and data revision.
+
 Text queries rank by textual relevance. With programme context, ranking starts
 with requirement relationship, then schedule fit, future paths unlocked,
 offering certainty, and decision usefulness. Ranking reasons must be visible.

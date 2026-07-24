@@ -10,7 +10,13 @@
     in {
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
-          packages = with pkgs; [ bun nodejs_24 just git direnv ];
+          packages = with pkgs;
+            [ bun nodejs_24 just git direnv ]
+            ++ lib.optionals stdenv.isLinux [ chromium ];
+
+          shellHook = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+            export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${pkgs.chromium}/bin/chromium"
+          '';
         };
       });
     };

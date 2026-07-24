@@ -27,6 +27,13 @@
   --color-warning: var(--md-sys-color-warning);
   --color-warning-container: var(--md-sys-color-warning-container);
   --color-on-warning-container: var(--md-sys-color-on-warning-container);
+  --color-valid: var(--md-sys-color-primary);
+  --color-on-valid: var(--md-sys-color-on-primary);
+  --color-danger: var(--md-sys-color-error);
+  --color-danger-container: var(--md-sys-color-error-container);
+  --color-on-danger-container: var(--md-sys-color-on-error-container);
+  --color-constraint: var(--md-sys-color-on-surface);
+  --color-on-constraint: var(--md-sys-color-surface);
   --radius-m3-small: var(--md-sys-shape-corner-small);
   --radius-m3-medium: var(--md-sys-shape-corner-medium);
   --radius-m3-large: var(--md-sys-shape-corner-large);

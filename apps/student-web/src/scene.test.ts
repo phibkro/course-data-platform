@@ -126,6 +126,53 @@ describe('browse-first catalogue scene', () => {
     );
   });
 
+  test('multiple weighted assessments remain one scannable segmented group', () => {
+    const response = fixtureDecisionSignalsResponse(['TDT4136']);
+    const item = response.items[0]!;
+    const assessment = item.assessment;
+    const written = assessment.state === 'known' ? assessment.value[0]! : undefined;
+    if (assessment.state !== 'known' || written === undefined) {
+      throw new Error('The decision fixture must contain one known assessment.');
+    }
+    const combined = {
+      ...response,
+      items: [
+        {
+          ...item,
+          assessment: {
+            ...assessment,
+            value: [
+              {
+                ...written,
+                weightPercent: { ...written.weightPercent, value: 60 },
+              },
+              {
+                ...written,
+                form: 'project' as const,
+                description: 'Individual project',
+                weightPercent: { ...written.weightPercent, value: 40 },
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        decisionSignals: DecisionSignalsSuccess({ response: combined }),
+        visibleCount: 1,
+      }),
+      Scene.expect(Scene.text('Written exam')).toExist(),
+      Scene.expect(Scene.text('60%')).toExist(),
+      Scene.expect(Scene.text('Project')).toExist(),
+      Scene.expect(Scene.text('40%')).toExist(),
+    );
+  });
+
   test('an empty response is not rendered as a source failure', () => {
     Scene.scene(
       { update, view },

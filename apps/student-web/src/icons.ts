@@ -11,6 +11,7 @@ import houseLine from '@phosphor-icons/core/regular/house-line.svg?raw';
 import microphone from '@phosphor-icons/core/regular/microphone.svg?raw';
 import pencilLine from '@phosphor-icons/core/regular/pencil-line.svg?raw';
 import question from '@phosphor-icons/core/regular/question.svg?raw';
+import sidebarSimple from '@phosphor-icons/core/regular/sidebar-simple.svg?raw';
 import slidersHorizontal from '@phosphor-icons/core/regular/sliders-horizontal.svg?raw';
 import usersThree from '@phosphor-icons/core/regular/users-three.svg?raw';
 import wrench from '@phosphor-icons/core/regular/wrench.svg?raw';
@@ -35,7 +36,8 @@ export type AppIcon =
   | 'more'
   | 'obligatory-work'
   | 'refine'
-  | 'schedule';
+  | 'schedule'
+  | 'sidebar';
 
 const icons: Readonly<Record<AppIcon, string>> = {
   'assessment-assignment': fileText,
@@ -55,6 +57,7 @@ const icons: Readonly<Record<AppIcon, string>> = {
   'obligatory-work': checkSquare,
   refine: slidersHorizontal,
   schedule: calendarDots,
+  sidebar: sidebarSimple,
 };
 
 /**

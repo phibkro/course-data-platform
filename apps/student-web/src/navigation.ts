@@ -1,6 +1,8 @@
 import type { Html } from 'foldkit/html';
 import { html } from 'foldkit/html';
 
+import { Select } from '@foldkit/ui';
+
 import { translate, type Locale } from './i18n';
 import { icon, type AppIcon } from './icons';
 
@@ -67,14 +69,20 @@ const desktopItemBase =
 const desktopItemIcon =
   'grid size-6 flex-none place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
 
-const desktopItem = <Message>(locale: Locale, item: NavigationItem): Html => {
+const desktopItem = <Message>(locale: Locale, item: NavigationItem, collapsed: boolean): Html => {
   const h = html<Message>();
-  const children = [icon<Message>(item.icon, desktopItemIcon), h.span([], [item.label])];
+  const children = [
+    icon<Message>(item.icon, desktopItemIcon),
+    h.span([h.Class(collapsed ? 'sr-only' : '')], [item.label]),
+  ];
+  const layoutClass = collapsed ? 'justify-center px-3' : '';
 
   return item.href === null
     ? h.span(
         [
-          h.Class(`${desktopItemBase} text-on-surface-variant cursor-not-allowed opacity-[0.52]`),
+          h.Class(
+            `${desktopItemBase} ${layoutClass} text-on-surface-variant cursor-not-allowed opacity-[0.52]`,
+          ),
           h.AriaDisabled(true),
           h.AriaLabel(translate(locale, 'nav.planned', { label: item.accessibleLabel })),
           h.Title(translate(locale, 'nav.plannedTitle', { label: item.accessibleLabel })),
@@ -84,9 +92,12 @@ const desktopItem = <Message>(locale: Locale, item: NavigationItem): Html => {
     : h.a(
         [
           h.Href(item.href),
-          h.Class(`${desktopItemBase} bg-secondary-container text-on-secondary-container`),
+          h.Class(
+            `${desktopItemBase} ${layoutClass} bg-secondary-container text-on-secondary-container`,
+          ),
           h.AriaCurrent('page'),
           h.AriaLabel(item.accessibleLabel),
+          ...(collapsed ? [h.Title(item.accessibleLabel)] : []),
         ],
         children,
       );
@@ -131,13 +142,70 @@ const mobileItem = <Message>(locale: Locale, item: NavigationItem): Html => {
       );
 };
 
-export const desktopNavigation = <Message>(locale: Locale = 'en'): Html => {
+const desktopLanguageControl = <Message>(
+  locale: Locale,
+  collapsed: boolean,
+  onLocaleChange: (value: string) => Message,
+): Html => {
+  const h = html<Message>();
+  return Select.view<Message>({
+    id: 'sidebar-interface-language',
+    value: locale,
+    onChange: onLocaleChange,
+    toView: (attributes) =>
+      h.div(
+        [h.Class('grid gap-1.5')],
+        [
+          h.label(
+            [
+              ...attributes.label,
+              h.Class(
+                collapsed
+                  ? 'sr-only'
+                  : 'px-1 text-[0.72rem] font-[750] uppercase tracking-[0.08em] text-on-surface-variant',
+              ),
+            ],
+            [translate(locale, 'locale.label')],
+          ),
+          h.select(
+            [
+              ...attributes.select,
+              h.Class(
+                collapsed
+                  ? 'min-h-11 w-full rounded-m3-medium border border-outline bg-surface px-1 text-center text-on-surface [font:inherit] text-[0.72rem] font-[800] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2'
+                  : 'min-h-11 w-full rounded-m3-medium border border-outline bg-surface px-3 text-on-surface [font:inherit] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2',
+              ),
+              h.AriaLabel(translate(locale, 'locale.label')),
+              h.Title(translate(locale, 'locale.label')),
+            ],
+            [
+              h.option(
+                [h.Value('en'), h.Selected(locale === 'en')],
+                [collapsed ? 'EN' : translate(locale, 'locale.en')],
+              ),
+              h.option(
+                [h.Value('nb'), h.Selected(locale === 'nb')],
+                [collapsed ? 'NO' : translate(locale, 'locale.nb')],
+              ),
+            ],
+          ),
+        ],
+      ),
+  });
+};
+
+export const desktopNavigation = <Message>(
+  locale: Locale = 'en',
+  collapsed = false,
+  onToggle?: Message,
+  onLocaleChange?: (value: string) => Message,
+): Html => {
   const h = html<Message>();
   const items = primaryNavigation(locale);
   return h.aside(
     [
       h.Class(
-        'fixed inset-y-0 left-0 hidden w-66 py-6 px-4 bg-surface-container-low border-r border-outline-variant [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:flex-col',
+        `fixed inset-y-0 left-0 hidden ${collapsed ? 'w-20 px-2' : 'w-66 px-4'} py-6 bg-surface-container-low border-r border-outline-variant [transition:width_180ms_ease] [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:flex-col`,
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
@@ -145,7 +213,9 @@ export const desktopNavigation = <Message>(locale: Locale = 'en'): Html => {
       h.div(
         [
           h.Class(
-            'flex items-center gap-3 pt-2 px-3 pb-8 text-[1.125rem] font-[750] tracking-[-0.02em]',
+            collapsed
+              ? 'flex flex-col items-center gap-2 pt-2 pb-7'
+              : 'flex items-center gap-3 pt-2 px-3 pb-8 text-[1.125rem] font-[750] tracking-[-0.02em]',
           ),
         ],
         [
@@ -158,16 +228,52 @@ export const desktopNavigation = <Message>(locale: Locale = 'en'): Html => {
             ],
             ['C'],
           ),
-          h.span([], [translate(locale, 'app.name')]),
+          h.span(
+            [h.Class(collapsed ? 'sr-only' : 'min-w-0 flex-1')],
+            [translate(locale, 'app.name')],
+          ),
+          onToggle === undefined
+            ? h.empty
+            : h.button(
+                [
+                  h.Type('button'),
+                  h.Class(
+                    'grid size-10 flex-none place-items-center rounded-full border-0 bg-surface-container-high text-on-surface cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2',
+                  ),
+                  h.OnClick(onToggle),
+                  h.AriaLabel(translate(locale, collapsed ? 'nav.expand' : 'nav.collapse')),
+                  h.Title(translate(locale, collapsed ? 'nav.expand' : 'nav.collapse')),
+                ],
+                [
+                  icon<Message>(
+                    'sidebar',
+                    `block size-5 [&_svg]:block [&_svg]:size-full ${collapsed ? '-scale-x-100' : ''}`,
+                  ),
+                ],
+              ),
         ],
       ),
       h.nav(
         [h.Class('grid gap-1')],
-        items.map((item) => desktopItem<Message>(locale, item)),
+        items.map((item) => desktopItem<Message>(locale, item, collapsed)),
       ),
-      h.p(
-        [h.Class('mt-auto mx-3 mb-0 text-on-surface-variant text-sm leading-[1.5]')],
-        [translate(locale, 'nav.claim')],
+      h.div(
+        [
+          h.Class(
+            `mt-auto grid gap-4 border-t border-outline-variant pt-4 ${collapsed ? '' : 'mx-3'}`,
+          ),
+        ],
+        [
+          collapsed
+            ? h.empty
+            : h.p(
+                [h.Class('m-0 text-on-surface-variant text-sm leading-[1.5]')],
+                [translate(locale, 'nav.claim')],
+              ),
+          onLocaleChange === undefined
+            ? h.empty
+            : desktopLanguageControl(locale, collapsed, onLocaleChange),
+        ],
       ),
     ],
   );

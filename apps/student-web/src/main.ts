@@ -6,7 +6,7 @@ import type {
 } from '@course-data/contracts';
 import { Effect, Match as M, Schema as S } from 'effect';
 import { Command, Navigation, Runtime, Url } from 'foldkit';
-import type { ChildAttribute, Document, Html } from 'foldkit/html';
+import type { Document, Html } from 'foldkit/html';
 import { createKeyedLazy, createLazy, html } from 'foldkit/html';
 import { m } from 'foldkit/message';
 import { ts } from 'foldkit/schema';
@@ -197,6 +197,7 @@ export const Model = S.Struct({
   nextPage: NextPageState,
   selectedCode: S.NullOr(S.String),
   detail: DetailResult,
+  sidebarCollapsed: S.Boolean,
   refineDialog: Dialog.Model,
 });
 
@@ -266,6 +267,9 @@ export const CompletedNavigation = m('CompletedNavigation');
 export const FailedNavigation = m('FailedNavigation', { error: S.String });
 export const PersistedLocale = m('PersistedLocale');
 export const FailedLocalePersistence = m('FailedLocalePersistence');
+export const ToggledSidebar = m('ToggledSidebar');
+export const PersistedSidebarPreference = m('PersistedSidebarPreference');
+export const FailedSidebarPreferencePersistence = m('FailedSidebarPreferencePersistence');
 export const GotRefineDialogMessage = m('GotRefineDialogMessage', {
   message: Dialog.Message,
 });
@@ -296,6 +300,9 @@ export const Message = S.Union([
   FailedNavigation,
   PersistedLocale,
   FailedLocalePersistence,
+  ToggledSidebar,
+  PersistedSidebarPreference,
+  FailedSidebarPreferencePersistence,
   GotRefineDialogMessage,
 ]);
 export type Message = typeof Message.Type;
@@ -445,6 +452,23 @@ export const PersistLocale = Command.define(
   }).pipe(
     Effect.as(PersistedLocale()),
     Effect.catch(() => Effect.succeed(FailedLocalePersistence())),
+  ),
+);
+
+export const PersistSidebarPreference = Command.define(
+  'PersistSidebarPreference',
+  { collapsed: S.Boolean },
+  PersistedSidebarPreference,
+  FailedSidebarPreferencePersistence,
+)(({ collapsed }) =>
+  Effect.try({
+    try: () => {
+      localStorage.setItem('course-lens:sidebar-collapsed', collapsed ? '1' : '0');
+    },
+    catch: () => new Error('Sidebar preference could not be persisted'),
+  }).pipe(
+    Effect.as(PersistedSidebarPreference()),
+    Effect.catch(() => Effect.succeed(FailedSidebarPreferencePersistence())),
   ),
 );
 
@@ -717,6 +741,13 @@ export const update = (
           ],
         ];
       },
+      ToggledSidebar: () => {
+        const sidebarCollapsed = !model.sidebarCollapsed;
+        return [
+          { ...model, sidebarCollapsed },
+          [PersistSidebarPreference({ collapsed: sidebarCollapsed })],
+        ];
+      },
       SubmittedSearch: () =>
         startCatalogue(model, {
           query: model.query.trim(),
@@ -971,6 +1002,8 @@ export const update = (
       FailedNavigation: () => [model, []],
       PersistedLocale: () => [model, []],
       FailedLocalePersistence: () => [model, []],
+      PersistedSidebarPreference: () => [model, []],
+      FailedSidebarPreferencePersistence: () => [model, []],
       GotRefineDialogMessage: ({ message: dialogMessage }) => {
         const [refineDialog, commands] = Dialog.update(model.refineDialog, dialogMessage);
         return [
@@ -984,6 +1017,7 @@ export const update = (
 export const initForHref = (
   href: string,
   fallbackLocale: Locale = 'en',
+  sidebarCollapsed = false,
 ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
   const location = parseLocation(href, fallbackLocale);
   const base: Model = {
@@ -1003,10 +1037,11 @@ export const initForHref = (
     nextPage: NextPageIdle(),
     selectedCode: location.selectedCode,
     detail: location.selectedCode === null ? DetailClosed() : DetailLoading(),
+    sidebarCollapsed,
     refineDialog: Dialog.init({
       id: 'catalogue-refine',
       isAnimated: true,
-      focusSelector: '#refine-course-query',
+      focusSelector: '#catalogue-refine-close',
     }),
   };
   const request = searchRequest(base, 1);
@@ -1027,10 +1062,11 @@ export const init: Runtime.ApplicationInit<Model, Message> = () =>
   initForHref(
     typeof window === 'undefined' ? 'http://course-lens.local/' : window.location.href,
     browserPreferredLocale(),
+    browserSidebarCollapsed(),
   );
 
 export const routingInit: Runtime.RoutingApplicationInit<Model, Message> = (url) =>
-  initForHref(Url.toString(url), browserPreferredLocale());
+  initForHref(Url.toString(url), browserPreferredLocale(), browserSidebarCollapsed());
 
 const browserPreferredLocale = (): Locale => {
   if (typeof window === 'undefined') return 'en';
@@ -1039,6 +1075,11 @@ const browserPreferredLocale = (): Locale => {
   return navigator.languages.some((language) => language.toLowerCase().startsWith('nb'))
     ? 'nb'
     : 'en';
+};
+
+const browserSidebarCollapsed = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem('course-lens:sidebar-collapsed') === '1';
 };
 
 export const view = (model: Model): Document => ({
@@ -1054,8 +1095,12 @@ const eyebrowClass = 'mb-2 text-primary text-[0.78rem] font-[800] tracking-[0.1e
 const fieldLabelClass =
   'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-[0.85rem] font-[650]';
 
-const mainContentClass =
-  'w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66 [@media(min-width:64rem)]:px-10';
+const mainContentClass = (sidebarCollapsed: boolean): string =>
+  `w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:64rem)]:px-10 ${
+    sidebarCollapsed
+      ? '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-20'
+      : '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66'
+  }`;
 
 const buttonBase =
   'cursor-pointer [transition:box-shadow_140ms_ease,transform_140ms_ease] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] [@media(max-width:37rem)]:w-full';
@@ -1089,9 +1134,14 @@ const appView = (model: Model): Html => {
   return h.div(
     [h.Class('min-h-screen')],
     [
-      lazyDesktopNavigation(desktopNavigation<Message>, [model.locale]),
+      lazyDesktopNavigation(desktopNavigation<Message>, [
+        model.locale,
+        model.sidebarCollapsed,
+        ToggledSidebar(),
+        (value: string) => ChangedLocale({ value }),
+      ]),
       h.main(
-        [h.Class(mainContentClass)],
+        [h.Class(mainContentClass(model.sidebarCollapsed))],
         [model.selectedCode === null ? catalogueView(model) : selectedCourseView(model)],
       ),
       lazyCatalogueRefineDialog(catalogueRefineDialogFromValues, [
@@ -1222,7 +1272,6 @@ const catalogueRefineDialogFromValues = (
 interface CatalogueControlsOptions {
   readonly className?: string;
   readonly idPrefix?: string;
-  readonly initialFocus?: ReadonlyArray<ChildAttribute>;
 }
 
 const catalogueControlsFrameClass =
@@ -1265,7 +1314,6 @@ const catalogueControls = (
                   ),
                   h.input([
                     ...attributes.input,
-                    ...(options.initialFocus ?? []),
                     h.Placeholder(translate(model.locale, 'catalogue.searchPlaceholder')),
                     h.Class(
                       'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[1.05rem] normal-case [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
@@ -1526,6 +1574,8 @@ const catalogueRefineDialog = (
                         h.button(
                           [
                             ...closeButton,
+                            ...initialFocus,
+                            h.Id('catalogue-refine-close'),
                             h.Class(
                               'grid size-11 flex-none p-[0.7rem] place-items-center border-0 rounded-full bg-surface-container text-on-surface cursor-pointer',
                             ),
@@ -1539,7 +1589,6 @@ const catalogueRefineDialog = (
                     catalogueControls(model, {
                       className: 'catalogue-controls--dialog',
                       idPrefix: 'refine-',
-                      initialFocus,
                     }),
                     h.footer(
                       [h.Class('flex justify-end')],
@@ -2003,7 +2052,7 @@ const collaborationLabel = (
 const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
   const h = html<Message>();
   const stateClass =
-    'grid min-w-0 content-start gap-3 p-3 rounded-m3-medium bg-secondary-container text-on-secondary-container';
+    '@container grid min-w-0 content-start gap-3 p-3 rounded-m3-medium bg-secondary-container text-on-secondary-container';
   if (typeof signal === 'string') {
     const message = M.value(signal).pipe(
       M.when('loading', () => translate(locale, 'signals.checking')),
@@ -2032,40 +2081,64 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
   }
 
   const parts = signal.assessment.state === 'known' ? signal.assessment.value : [];
+  const hasProportionalWeights =
+    parts.length > 1 &&
+    parts.every((part) => part.weightPercent.state === 'known') &&
+    parts.reduce(
+      (total, part) =>
+        total + (part.weightPercent.state === 'known' ? part.weightPercent.value : 0),
+      0,
+    ) > 0;
+  const assessmentPart = (part: (typeof parts)[number], index: number, grouped: boolean): Html => {
+    const label = assessmentLabel(part.form, locale);
+    const weight = part.weightPercent.state === 'known' ? `${part.weightPercent.value}%` : null;
+    const accessibleLabel =
+      weight === null ? label : `${label}, ${weight} ${translate(locale, 'signals.graded')}`;
+    return h.li(
+      [
+        h.Class(
+          grouped
+            ? `flex min-w-0 items-center justify-center gap-1.5 px-2.5 py-1.5 bg-secondary text-on-secondary text-[0.76rem] font-[750] ${
+                index === 0 ? '' : 'border-l border-on-secondary/30'
+              }`
+            : 'inline-flex min-h-8 items-center gap-1.5 rounded-full bg-secondary px-2.5 text-on-secondary text-[0.76rem] font-[750]',
+        ),
+        ...(grouped && hasProportionalWeights && part.weightPercent.state === 'known'
+          ? [
+              h.Style({
+                flexBasis: '0',
+                flexGrow: String(part.weightPercent.value),
+              }),
+            ]
+          : []),
+        h.Title(accessibleLabel),
+        h.AriaLabel(accessibleLabel),
+      ],
+      [
+        icon<Message>(
+          assessmentIconName(part.form),
+          'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
+        ),
+        h.span([h.Class('min-w-0')], [label]),
+        weight === null ? h.empty : h.span([h.Class('shrink-0 font-[850] tabular-nums')], [weight]),
+      ],
+    );
+  };
   const assessment =
     signal.assessment.state === 'known'
       ? parts.length === 0
         ? h.p([h.Class('m-0 text-[0.84rem]')], [translate(locale, 'signals.noneReported')])
-        : h.ul(
-            [h.Class('flex flex-wrap gap-1.5 p-0 list-none')],
-            parts.map((part) => {
-              const label = assessmentLabel(part.form, locale);
-              const weight =
-                part.weightPercent.state === 'known' ? `${part.weightPercent.value}%` : null;
-              const accessibleLabel =
-                weight === null
-                  ? label
-                  : `${label}, ${weight} ${translate(locale, 'signals.graded')}`;
-              return h.li(
-                [
-                  h.Class(
-                    'inline-flex items-center gap-1.5 min-h-8 px-2.5 rounded-full bg-secondary text-on-secondary text-[0.76rem] font-[750]',
-                  ),
-                  h.Title(accessibleLabel),
-                ],
-                [
-                  icon<Message>(
-                    assessmentIconName(part.form),
-                    'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
-                  ),
-                  h.span([], [label]),
-                  weight === null
-                    ? h.empty
-                    : h.span([h.Class('font-[850] tabular-nums')], [weight]),
-                ],
-              );
-            }),
-          )
+        : parts.length === 1
+          ? h.ul([h.Class('flex flex-wrap p-0 list-none')], [assessmentPart(parts[0]!, 0, false)])
+          : h.ul(
+              [
+                h.Class(
+                  'flex w-full max-w-full overflow-hidden rounded-full border border-secondary p-0 list-none',
+                ),
+                h.AriaLabel(translate(locale, 'signals.gradedAssessment')),
+              ],
+              parts.map((part, index) => assessmentPart(part, index, true)),
+            )
       : h.p([h.Class('m-0 text-[0.84rem]')], [factStateLabel(signal.assessment.state, locale)]);
   const obligatory =
     signal.obligatoryActivities.state === 'known'
@@ -2076,7 +2149,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
               h.span(
                 [
                   h.Class(
-                    'inline-flex min-h-7 items-center rounded-full bg-tertiary-container px-2.5 text-[0.75rem] font-[800] text-on-tertiary-container',
+                    'inline-flex min-h-7 items-center rounded-full bg-constraint px-2.5 text-[0.75rem] font-[800] text-on-constraint',
                   ),
                 ],
                 [translate(locale, 'signals.required')],
@@ -2114,6 +2187,8 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
       ? collaborationLabel(signal.collaboration.value, locale)
       : factStateLabel(signal.collaboration.state, locale);
   const inferred = signal.evidence.some((evidence) => evidence.kind === 'inference');
+  const factRowClass =
+    'grid gap-1.5 @min-[24rem]:grid-cols-[minmax(7.5rem,0.8fr)_minmax(0,1fr)] @min-[24rem]:gap-3';
 
   return h.div(
     [h.Class(stateClass)],
@@ -2137,21 +2212,21 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
         [h.Class('grid gap-2.5')],
         [
           h.div(
-            [],
+            [h.Class(factRowClass)],
             [
               h.dt([h.Class(factDtClass)], [translate(locale, 'signals.gradedAssessment')]),
-              h.dd([h.Class('mt-1')], [assessment]),
+              h.dd([h.Class('m-0 min-w-0')], [assessment]),
             ],
           ),
           h.div(
-            [h.Class('grid grid-cols-[minmax(7.5rem,0.8fr)_minmax(0,1fr)] gap-3')],
+            [h.Class(factRowClass)],
             [
               h.dt([h.Class(factDtClass)], [translate(locale, 'signals.obligatory')]),
               h.dd([h.Class('m-0')], [obligatory]),
             ],
           ),
           h.div(
-            [h.Class('grid grid-cols-[minmax(7.5rem,0.8fr)_minmax(0,1fr)] gap-3')],
+            [h.Class(factRowClass)],
             [
               h.dt([h.Class(factDtClass)], [translate(locale, 'detail.collaboration')]),
               h.dd([h.Class('m-0 text-[0.84rem] font-[700]')], [collaboration]),
@@ -2403,14 +2478,19 @@ const productFooter = (locale: Locale): Html => {
               ],
             ),
           ]),
-      selectControl(
-        'interface-language',
-        translate(locale, 'locale.label'),
-        locale,
-        ChangedLocale,
+      h.div(
+        [h.Class('w-full [@media(min-width:48rem)_and_(min-height:34rem)]:hidden')],
         [
-          ['en', translate(locale, 'locale.en')],
-          ['nb', translate(locale, 'locale.nb')],
+          selectControl(
+            'interface-language',
+            translate(locale, 'locale.label'),
+            locale,
+            ChangedLocale,
+            [
+              ['en', translate(locale, 'locale.en')],
+              ['nb', translate(locale, 'locale.nb')],
+            ],
+          ),
         ],
       ),
     ],

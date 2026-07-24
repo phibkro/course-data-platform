@@ -37,7 +37,10 @@ test('loaded Explore catalogue has no detectable WCAG A/AA violations', async ({
 test('open Refine dialog has no detectable WCAG A/AA violations', async ({ page }) => {
   await waitForEnrichedCatalogue(page);
   await page.getByRole('button', { name: 'Refine' }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close course refinements' })).toBeFocused();
+  await expect(dialog.getByLabel('Search courses')).not.toBeFocused();
   await expectNoAxeViolations(page);
 });
 
@@ -45,4 +48,18 @@ test('course Inspect view has no detectable WCAG A/AA violations', async ({ page
   await page.goto('/?course=TDT4136');
   await expect(page.getByRole('article', { name: 'TDT4136 course details' })).toBeVisible();
   await expectNoAxeViolations(page);
+});
+
+test('desktop sidebar collapse preference survives reload', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium');
+  await waitForEnrichedCatalogue(page);
+
+  await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+  await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('course-lens:sidebar-collapsed')))
+    .toBe('1');
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
 });
