@@ -33,7 +33,7 @@ import { desktopNavigation, mobileNavigation } from './navigation';
 
 const DISPLAY_CHUNK = 20;
 const DEFAULT_TERM = '2026-autumn';
-const DEFAULT_SORT: CourseSearchSort = 'title-asc';
+const DEFAULT_SORT: CourseSearchSort = 'relevance';
 const lazyCourseCard = createKeyedLazy();
 const lazyDesktopNavigation = createLazy();
 const lazyMobileNavigation = createLazy();
@@ -1291,76 +1291,99 @@ const catalogueControls = (
         ],
       ),
       h.div(
-        [h.Class('grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]')],
         [
-          selectControl(
-            `${idPrefix}term`,
-            translate(model.locale, 'catalogue.term'),
-            model.term,
-            ChangedTerm,
-            [
-              ['2026-autumn', formatOfferingPeriod(2026, 'autumn', model.locale)],
-              ['2026-spring', formatOfferingPeriod(2026, 'spring', model.locale)],
-              ['2027-autumn', formatOfferingPeriod(2027, 'autumn', model.locale)],
-              ['2027-spring', formatOfferingPeriod(2027, 'spring', model.locale)],
-            ],
-          ),
-          selectControl(
-            `${idPrefix}campus`,
-            translate(model.locale, 'catalogue.campus'),
-            model.campus,
-            ChangedCampus,
-            [
-              ['all', translate(model.locale, 'catalogue.allCampuses')],
-              ['trondheim', translate(model.locale, 'catalogue.trondheim')],
-              ['gjovik', translate(model.locale, 'catalogue.gjovik')],
-              ['alesund', translate(model.locale, 'catalogue.alesund')],
-            ],
-          ),
-          selectControl(
-            `${idPrefix}level`,
-            translate(model.locale, 'catalogue.level'),
-            model.level,
-            ChangedLevel,
-            [
-              ['all', translate(model.locale, 'catalogue.allLevels')],
-              ['bachelor', translate(model.locale, 'catalogue.bachelor')],
-              ['master', translate(model.locale, 'catalogue.master')],
-              ['phd', translate(model.locale, 'catalogue.phd')],
-            ],
-          ),
-          selectControl(
-            `${idPrefix}sort`,
-            translate(model.locale, 'catalogue.sort'),
-            model.sort,
-            ChangedSort,
-            [
-              ['relevance', translate(model.locale, 'catalogue.relevance')],
-              ['title-asc', translate(model.locale, 'catalogue.titleAsc')],
-              ['title-desc', translate(model.locale, 'catalogue.titleDesc')],
-              ['code-asc', translate(model.locale, 'catalogue.codeAsc')],
-              ['code-desc', translate(model.locale, 'catalogue.codeDesc')],
-            ],
+          h.Class(
+            isDialog
+              ? 'grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]'
+              : 'grid max-w-80',
           ),
         ],
+        isDialog
+          ? [
+              selectControl(
+                `${idPrefix}term`,
+                translate(model.locale, 'catalogue.term'),
+                model.term,
+                ChangedTerm,
+                [
+                  ['2026-autumn', formatOfferingPeriod(2026, 'autumn', model.locale)],
+                  ['2026-spring', formatOfferingPeriod(2026, 'spring', model.locale)],
+                  ['2027-autumn', formatOfferingPeriod(2027, 'autumn', model.locale)],
+                  ['2027-spring', formatOfferingPeriod(2027, 'spring', model.locale)],
+                ],
+              ),
+              selectControl(
+                `${idPrefix}campus`,
+                translate(model.locale, 'catalogue.campus'),
+                model.campus,
+                ChangedCampus,
+                [
+                  ['all', translate(model.locale, 'catalogue.allCampuses')],
+                  ['trondheim', translate(model.locale, 'catalogue.trondheim')],
+                  ['gjovik', translate(model.locale, 'catalogue.gjovik')],
+                  ['alesund', translate(model.locale, 'catalogue.alesund')],
+                ],
+              ),
+              selectControl(
+                `${idPrefix}level`,
+                translate(model.locale, 'catalogue.level'),
+                model.level,
+                ChangedLevel,
+                [
+                  ['all', translate(model.locale, 'catalogue.allLevels')],
+                  ['bachelor', translate(model.locale, 'catalogue.bachelor')],
+                  ['master', translate(model.locale, 'catalogue.master')],
+                  ['phd', translate(model.locale, 'catalogue.phd')],
+                ],
+              ),
+              selectControl(
+                `${idPrefix}sort`,
+                translate(model.locale, 'catalogue.sort'),
+                model.sort,
+                ChangedSort,
+                [
+                  ['relevance', translate(model.locale, 'catalogue.relevance')],
+                  ['title-asc', translate(model.locale, 'catalogue.titleAsc')],
+                  ['title-desc', translate(model.locale, 'catalogue.titleDesc')],
+                  ['code-asc', translate(model.locale, 'catalogue.codeAsc')],
+                  ['code-desc', translate(model.locale, 'catalogue.codeDesc')],
+                ],
+              ),
+            ]
+          : [
+              selectControl(
+                `${idPrefix}campus`,
+                translate(model.locale, 'catalogue.campus'),
+                model.campus,
+                ChangedCampus,
+                [
+                  ['all', translate(model.locale, 'catalogue.allCampuses')],
+                  ['trondheim', translate(model.locale, 'catalogue.trondheim')],
+                  ['gjovik', translate(model.locale, 'catalogue.gjovik')],
+                  ['alesund', translate(model.locale, 'catalogue.alesund')],
+                ],
+              ),
+            ],
       ),
-      h.div(
-        [h.Class('flex flex-wrap gap-3')],
-        [
-          checkboxControl(
-            `${idPrefix}open-admission`,
-            translate(model.locale, 'catalogue.openAdmission'),
-            model.openOnly,
-            (isChecked) => ToggledOpen({ isChecked }),
-          ),
-          checkboxControl(
-            `${idPrefix}english`,
-            translate(model.locale, 'catalogue.english'),
-            model.englishOnly,
-            (isChecked) => ToggledEnglish({ isChecked }),
-          ),
-        ],
-      ),
+      isDialog
+        ? h.div(
+            [h.Class('flex flex-wrap gap-3')],
+            [
+              checkboxControl(
+                `${idPrefix}open-admission`,
+                translate(model.locale, 'catalogue.openAdmission'),
+                model.openOnly,
+                (isChecked) => ToggledOpen({ isChecked }),
+              ),
+              checkboxControl(
+                `${idPrefix}english`,
+                translate(model.locale, 'catalogue.english'),
+                model.englishOnly,
+                (isChecked) => ToggledEnglish({ isChecked }),
+              ),
+            ],
+          )
+        : h.empty,
     ],
   );
 };
@@ -1748,9 +1771,9 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
 };
 
 const courseCardClass =
-  'relative grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low [transition:border-color_140ms_ease,box-shadow_140ms_ease] has-[a:hover]:border-primary has-[a:hover]:shadow-m3-1 has-[a:focus-visible]:border-primary has-[a:focus-visible]:shadow-m3-1 [@media(min-width:64rem)]:items-center [@media(min-width:64rem)]:grid-cols-[minmax(0,1.4fr)_minmax(20rem,1fr)]';
+  'relative grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low [transition:border-color_140ms_ease,box-shadow_140ms_ease] has-[a:hover]:border-primary has-[a:hover]:shadow-m3-1 has-[a:focus-visible]:border-primary has-[a:focus-visible]:shadow-m3-1 [@media(min-width:64rem)]:items-stretch [@media(min-width:64rem)]:grid-cols-[minmax(16rem,0.85fr)_minmax(0,1.65fr)]';
 
-const factDtClass = 'text-on-surface-variant text-[0.75rem] font-[700] tracking-[0.05em] uppercase';
+const factDtClass = 'text-current text-[0.75rem] font-[750] tracking-[0.05em] uppercase';
 
 const factDdClass = 'mt-[0.2rem] text-[0.9rem] leading-[1.35] [overflow-wrap:anywhere]';
 
@@ -1794,6 +1817,8 @@ const gradeSignalForCourse = (state: GradeSignalsResult, courseCode: string): Gr
   );
 };
 
+const factStateLabel = (state: string, locale: Locale): string => translateToken(locale, state);
+
 const courseCard = (
   href: string,
   course: CourseSearchItemDtoType,
@@ -1811,13 +1836,31 @@ const courseCard = (
       ? (course.offerings.value[0] ?? null)
       : null;
   const place =
-    offering === null || offering.campuses.length === 0
-      ? translate(locale, 'course.campusUnreported')
-      : offering.campuses.join(', ');
+    offering === null
+      ? course.offerings.state === 'known'
+        ? translate(locale, 'course.campusUnreported')
+        : factStateLabel(course.offerings.state, locale)
+      : offering.campuses.length === 0
+        ? translate(locale, 'course.campusUnreported')
+        : offering.campuses.join(', ');
   const term =
     offering === null
-      ? translate(locale, 'course.termUnavailable')
+      ? course.offerings.state === 'known'
+        ? translate(locale, 'course.termUnavailable')
+        : factStateLabel(course.offerings.state, locale)
       : formatOfferingPeriod(offering.academicYear, offering.season, locale);
+  const credits =
+    course.credits.state === 'known'
+      ? translate(locale, 'course.creditsValue', {
+          value: new Intl.NumberFormat(localeTag(locale), {
+            maximumFractionDigits: 1,
+          }).format(course.credits.value),
+        })
+      : factStateLabel(course.credits.state, locale);
+  const level =
+    course.level.state === 'known'
+      ? translateToken(locale, course.level.value)
+      : factStateLabel(course.level.state, locale);
   return h.li(
     [],
     [
@@ -1825,39 +1868,59 @@ const courseCard = (
         [h.Class(courseCardClass)],
         [
           h.div(
-            [],
             [
-              h.p(
-                [
-                  h.Class(
-                    'mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
-                  ),
-                ],
-                [course.code],
-              ),
-              h.h3(
-                [h.Class('text-[1.1rem] leading-[1.35]')],
-                [
-                  h.a(
-                    [
-                      h.Href(href),
-                      h.AriaLabel(translate(locale, 'course.open', { code: course.code, title })),
-                      h.Class(
-                        "text-on-surface no-underline after:absolute after:inset-0 after:content-['']",
-                      ),
-                    ],
-                    [title],
-                  ),
-                ],
+              h.Class(
+                'grid min-w-0 content-start gap-3 [@media(min-width:64rem)]:pr-5 [@media(min-width:64rem)]:border-r [@media(min-width:64rem)]:border-outline-variant',
               ),
             ],
-          ),
-          h.div(
-            [h.Class('grid gap-3')],
             [
-              h.dl(
-                [h.Class('grid gap-3 grid-cols-2')],
+              h.div(
+                [],
                 [
+                  h.p(
+                    [
+                      h.Class(
+                        'mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
+                      ),
+                    ],
+                    [course.code],
+                  ),
+                  h.h3(
+                    [h.Class('text-[1.1rem] leading-[1.35]')],
+                    [
+                      h.a(
+                        [
+                          h.Href(href),
+                          h.AriaLabel(
+                            translate(locale, 'course.open', { code: course.code, title }),
+                          ),
+                          h.Class(
+                            "text-on-surface no-underline after:absolute after:inset-0 after:content-['']",
+                          ),
+                        ],
+                        [title],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              h.dl(
+                [h.Class('grid gap-x-4 gap-y-3 grid-cols-2')],
+                [
+                  h.div(
+                    [h.Class('min-w-0')],
+                    [
+                      h.dt([h.Class(factDtClass)], [translate(locale, 'detail.credits')]),
+                      h.dd([h.Class(factDdClass)], [credits]),
+                    ],
+                  ),
+                  h.div(
+                    [h.Class('min-w-0')],
+                    [
+                      h.dt([h.Class(factDtClass)], [translate(locale, 'detail.level')]),
+                      h.dd([h.Class(factDdClass)], [level]),
+                    ],
+                  ),
                   h.div(
                     [h.Class('min-w-0')],
                     [
@@ -1874,9 +1937,15 @@ const courseCard = (
                   ),
                 ],
               ),
-              decisionSignalView(decisionSignal, locale),
-              gradeSignalView(gradeSignal, locale),
             ],
+          ),
+          h.div(
+            [
+              h.Class(
+                'grid min-w-0 gap-3 [@media(min-width:80rem)]:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]',
+              ),
+            ],
+            [decisionSignalView(decisionSignal, locale), gradeSignalView(gradeSignal, locale)],
           ),
         ],
       ),
@@ -1934,13 +2003,13 @@ const collaborationLabel = (
 const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
   const h = html<Message>();
   const stateClass =
-    'grid gap-2 min-w-0 p-3 rounded-m3-medium bg-secondary-container text-on-secondary-container';
+    'grid min-w-0 content-start gap-3 p-3 rounded-m3-medium bg-secondary-container text-on-secondary-container';
   if (typeof signal === 'string') {
     const message = M.value(signal).pipe(
       M.when('loading', () => translate(locale, 'signals.checking')),
       M.when('failure', () => translate(locale, 'signals.failed')),
       M.when('idle', () => translate(locale, 'signals.waiting')),
-      M.when('missing', () => translate(locale, 'signals.missing')),
+      M.when('missing', () => translateToken(locale, 'unknown')),
       M.exhaustive,
     );
     return h.div(
@@ -1963,30 +2032,10 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
   }
 
   const forms = signal.assessmentSignals.state === 'known' ? signal.assessmentSignals.value : [];
-  const hasObligatory =
-    signal.obligatoryActivities.state === 'known'
-      ? signal.obligatoryActivities.value.length > 0
-      : null;
-  const collaboration = signal.collaboration.state === 'known' ? signal.collaboration.value : null;
-
-  return h.div(
-    [h.Class(stateClass)],
-    [
-      h.div(
-        [h.Class('flex items-baseline justify-between gap-3')],
-        [
-          h.p([h.Class(factDtClass)], [translate(locale, 'signals.heading')]),
-          h.p(
-            [
-              h.Class('m-0 shrink-0 text-[0.68rem] font-[700] text-on-secondary-container/80'),
-              h.Title(translate(locale, 'signals.inferred')),
-            ],
-            [translate(locale, 'detail.inferred')],
-          ),
-        ],
-      ),
-      forms.length === 0
-        ? h.p([h.Class('m-0 text-[0.84rem]')], [translate(locale, 'signals.missing')])
+  const assessment =
+    signal.assessmentSignals.state === 'known'
+      ? forms.length === 0
+        ? h.p([h.Class('m-0 text-[0.84rem]')], [translate(locale, 'signals.noneReported')])
         : h.ul(
             [h.Class('flex flex-wrap gap-1.5 p-0 list-none')],
             forms.map((form) => {
@@ -2007,44 +2056,67 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
                 ],
               );
             }),
-          ),
-      hasObligatory === null && collaboration === null
-        ? h.empty
-        : h.div(
-            [h.Class('flex flex-wrap gap-x-3 gap-y-1 text-[0.78rem] font-[700]')],
+          )
+      : h.p(
+          [h.Class('m-0 text-[0.84rem]')],
+          [factStateLabel(signal.assessmentSignals.state, locale)],
+        );
+  const obligatory =
+    signal.obligatoryActivities.state === 'known'
+      ? signal.obligatoryActivities.value.length > 0
+        ? translate(locale, 'signals.required')
+        : translate(locale, 'signals.noneReported')
+      : factStateLabel(signal.obligatoryActivities.state, locale);
+  const collaboration =
+    signal.collaboration.state === 'known'
+      ? collaborationLabel(signal.collaboration.value, locale)
+      : factStateLabel(signal.collaboration.state, locale);
+  const inferred = signal.evidence.some((evidence) => evidence.kind === 'inference');
+
+  return h.div(
+    [h.Class(stateClass)],
+    [
+      h.div(
+        [h.Class('flex items-baseline justify-between gap-3')],
+        [
+          h.p([h.Class(factDtClass)], [translate(locale, 'signals.heading')]),
+          inferred
+            ? h.p(
+                [
+                  h.Class('m-0 shrink-0 text-[0.68rem] font-[750]'),
+                  h.Title(translate(locale, 'signals.inferred')),
+                ],
+                [translate(locale, 'detail.inferred')],
+              )
+            : h.empty,
+        ],
+      ),
+      h.dl(
+        [h.Class('grid gap-2.5')],
+        [
+          h.div(
+            [],
             [
-              ...(hasObligatory === null
-                ? []
-                : [
-                    h.span(
-                      [h.Class('inline-flex items-center gap-1.5')],
-                      [
-                        icon<Message>(
-                          'obligatory-work',
-                          'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
-                        ),
-                        hasObligatory
-                          ? translate(locale, 'signals.obligatory')
-                          : translate(locale, 'signals.noObligatory'),
-                      ],
-                    ),
-                  ]),
-              ...(collaboration === null
-                ? []
-                : [
-                    h.span(
-                      [h.Class('inline-flex items-center gap-1.5')],
-                      [
-                        icon<Message>(
-                          'collaboration',
-                          'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
-                        ),
-                        collaborationLabel(collaboration, locale),
-                      ],
-                    ),
-                  ]),
+              h.dt([h.Class(factDtClass)], [translate(locale, 'detail.assessmentFact')]),
+              h.dd([h.Class('mt-1')], [assessment]),
             ],
           ),
+          h.div(
+            [h.Class('grid grid-cols-[minmax(7.5rem,0.8fr)_minmax(0,1fr)] gap-3')],
+            [
+              h.dt([h.Class(factDtClass)], [translate(locale, 'signals.obligatory')]),
+              h.dd([h.Class('m-0 text-[0.84rem] font-[700]')], [obligatory]),
+            ],
+          ),
+          h.div(
+            [h.Class('grid grid-cols-[minmax(7.5rem,0.8fr)_minmax(0,1fr)] gap-3')],
+            [
+              h.dt([h.Class(factDtClass)], [translate(locale, 'detail.collaboration')]),
+              h.dd([h.Class('m-0 text-[0.84rem] font-[700]')], [collaboration]),
+            ],
+          ),
+        ],
+      ),
     ],
   );
 };

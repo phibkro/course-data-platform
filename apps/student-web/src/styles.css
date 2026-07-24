@@ -6,6 +6,7 @@
   --color-primary-container: var(--md-sys-color-primary-container);
   --color-on-primary-container: var(--md-sys-color-on-primary-container);
   --color-secondary: var(--md-sys-color-secondary);
+  --color-on-secondary: var(--md-sys-color-on-secondary);
   --color-secondary-container: var(--md-sys-color-secondary-container);
   --color-on-secondary-container: var(--md-sys-color-on-secondary-container);
   --color-tertiary: var(--md-sys-color-tertiary);
@@ -52,6 +53,7 @@
   --md-sys-color-primary-container: #8df8cd;
   --md-sys-color-on-primary-container: #002117;
   --md-sys-color-secondary: #4c6359;
+  --md-sys-color-on-secondary: #ffffff;
   --md-sys-color-secondary-container: #cee9db;
   --md-sys-color-on-secondary-container: #092018;
   --md-sys-color-tertiary: #485d92;
@@ -88,6 +90,7 @@
     --md-sys-color-primary-container: #00513b;
     --md-sys-color-on-primary-container: #8df8cd;
     --md-sys-color-secondary: #b2ccc0;
+    --md-sys-color-on-secondary: #1f352c;
     --md-sys-color-secondary-container: #354b41;
     --md-sys-color-on-secondary-container: #cee9db;
     --md-sys-color-tertiary: #b3c5ff;

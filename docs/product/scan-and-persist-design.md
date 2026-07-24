@@ -3,6 +3,8 @@
 - Status: Active execution anchor
 - Date: 2026-07-24
 - Product loop: `Explore -> Inspect -> List -> Compare`
+- Shared interaction contract:
+  [`student-experience-contract.md`](./student-experience-contract.md)
 - Current milestone: `Scan -> Save -> Compare`
 - Delivered: outcome strip and English/Norwegian interface (`main`, 2026-07-24)
 - In progress: assessment scan signals

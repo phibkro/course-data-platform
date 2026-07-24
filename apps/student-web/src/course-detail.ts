@@ -478,7 +478,7 @@ export const courseInsightView = (
               h.h2([], [title]),
             ],
           ),
-          h.div(
+          h.dl(
             [h.Class('flex flex-wrap gap-3 m-0')],
             [
               compactFact(

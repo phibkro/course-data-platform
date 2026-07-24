@@ -49,6 +49,17 @@ bun run build
 bun run dev
 ```
 
+Accessibility checks run against the fixture-backed production PWA in real
+Chromium at phone and desktop widths:
+
+```sh
+bunx playwright install chromium
+bun run test:a11y
+```
+
+Pull requests and pushes to `main` run both the validation suite and this axe
+browser gate.
+
 The combined development command starts the active product:
 
 - Student web: `http://localhost:5173`

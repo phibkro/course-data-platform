@@ -33,7 +33,9 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.role('heading', { name: 'Browse courses before you choose.' })).toExist(),
       Scene.expect(Scene.label('Search courses')).toExist(),
       Scene.expect(Scene.label('Campus')).toExist(),
-      Scene.expect(Scene.label('Study level')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Refine' })).toExist(),
+      Scene.expect(Scene.label('Study level')).toBeAbsent(),
+      Scene.expect(Scene.label('Sort')).toBeAbsent(),
       Scene.expect(Scene.role('link', { name: 'Explore' })).toExist(),
       Scene.expect(Scene.text('List')).toExist(),
       Scene.expect(Scene.text('Schedule')).toExist(),
@@ -71,6 +73,9 @@ describe('browse-first catalogue scene', () => {
         }),
       ).toExist(),
       Scene.expect(Scene.text('Showing 1 of 1 courses')).toExist(),
+      Scene.expect(Scene.text('Credits', { exact: true })).toExist(),
+      Scene.expect(Scene.text('7.5 credits', { exact: true })).toExist(),
+      Scene.expect(Scene.text('Level', { exact: true })).toExist(),
       Scene.expect(Scene.text('Campus', { exact: true })).toExist(),
       Scene.expect(Scene.text('Load when opened')).toBeAbsent(),
     );
@@ -112,7 +117,9 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.text('Assessment & work')).toExist(),
       Scene.expect(Scene.text('Written exam')).toExist(),
       Scene.expect(Scene.text('Obligatory work')).toExist(),
-      Scene.expect(Scene.text('Inferred')).toExist(),
+      Scene.expect(Scene.text('Required')).toExist(),
+      Scene.expect(Scene.text('Collaboration')).toExist(),
+      Scene.expect(Scene.text('Unknown', { exact: true })).toExist(),
     );
   });
 

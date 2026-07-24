@@ -28,6 +28,11 @@ research and reusable domain code, but it no longer determines delivery order.
 
 ## Product surfaces
 
+The canonical navigation and interaction vocabulary is defined in
+[`student-experience-contract.md`](./student-experience-contract.md). In that
+contract, Discover maps to Explore, Understand maps to Inspect, and
+Shortlist/Compare live within List.
+
 ### Discover
 
 Fast course search with filters for teaching term, campus, level, language,

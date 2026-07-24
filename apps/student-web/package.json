@@ -7,7 +7,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:a11y": "vite build --mode a11y",
+    "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "i18n:check": "bun scripts/validate-i18n.ts",
+    "test:a11y": "playwright test --config playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -21,7 +24,9 @@
     "foldkit": "0.131.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
     "@foldkit/vite-plugin": "0.11.0",
+    "@playwright/test": "1.61.1",
     "@tailwindcss/vite": "4.3.3",
     "happy-dom": "20.10.4",
     "tailwindcss": "4.3.3",
