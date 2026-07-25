@@ -542,3 +542,40 @@ test('removing a selection asks first, then undo restores the courses and their 
   await expect(page.getByRole('button', { name: /^Autumn/ })).toBeVisible();
   await expectNoAxeViolations(page);
 });
+
+test('the undo toast sits above the bottom bar and never moves the page', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium');
+  await waitForEnrichedCatalogue(page);
+
+  // Document-relative: clicking scrolls the viewport, which is not a layout
+  // change, so a viewport-relative box would report movement that never
+  // happened.
+  const headingTop = (): Promise<number> =>
+    page.evaluate(() => {
+      const node = document.querySelector('h1');
+      return node === null ? -1 : Math.round(node.getBoundingClientRect().top + window.scrollY);
+    });
+  const before = await headingTop();
+
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  const toast = page.getByRole('status').filter({ hasText: 'TDT4136 saved to List.' });
+  await expect(toast).toBeVisible();
+
+  // Reporting something that already happened must not push the page around.
+  expect(await headingTop()).toBe(before);
+
+  const gap = await page.evaluate(() => {
+    const status = [...document.querySelectorAll('[role="status"]')].find((node) =>
+      node.textContent?.includes('saved to List'),
+    );
+    const bar = document.querySelector('nav[aria-label="Primary navigation"]');
+    if (!status || !bar) return null;
+    return Math.round(bar.getBoundingClientRect().top - status.getBoundingClientRect().bottom);
+  });
+
+  expect(gap).not.toBeNull();
+  expect(gap!).toBeGreaterThanOrEqual(0);
+  expect(gap!).toBeLessThan(40);
+});

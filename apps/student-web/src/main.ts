@@ -2437,13 +2437,18 @@ const fieldLabelClass =
   'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-sm font-semibold';
 
 /**
+ * The column reserves room below its content for the bottom bar *and* for the
+ * notice stack that hovers above it. Reserving it unconditionally is what lets
+ * the stack appear without reflowing anything: nothing moves when a notice
+ * arrives, and the last row can still be scrolled clear of one that stays.
+ *
  * The sidebar is fixed, so the main column is offset to clear it. That offset
  * has to be a margin, and an explicit `margin-left` beats `margin-left: auto`
  * — so capping the width here left every spare pixel on the right instead of
  * splitting it. The offset stays, and the cap moves inside.
  */
 const mainContentClass = (sidebarCollapsed: boolean): string =>
-  `w-full pt-4 px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:64rem)]:px-10 ${
+  `w-full pt-4 px-4 pb-[calc(12rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-40 [@media(min-width:64rem)]:px-10 ${
     sidebarCollapsed
       ? '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[calc(100%-5rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-20'
       : '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[calc(100%-16.5rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66'
@@ -2510,7 +2515,6 @@ const appView = (model: Model): Html => {
             [h.Class(mainColumnClass)],
             [
               savedCoursesPersistenceAlert(model),
-              savedListActionStatus(model),
               model.route === 'appearance'
                 ? lazyAppearancePage(appearancePageFromValues, [
                     model.locale,
@@ -2539,6 +2543,7 @@ const appView = (model: Model): Html => {
         model.refineDialog,
         model.selectFields,
       ]),
+      bottomStackView(model, selectedSavedCourses(model)),
       model.route === 'list' ? labelDialogView(model) : h.empty,
       lazyMobileNavigation(mobileNavigation<Message>, [
         model.locale,
@@ -2594,11 +2599,22 @@ const savedListActionStatus = (model: Model): Html => {
           [translate(model.locale, 'list.undo')],
         ),
     });
+  /**
+   * The banner reports something that already happened, so it must not push
+   * the page around to say so: it is positioned rather than in flow. It also
+   * never times out — an undo the student blinked past is an undo they do not
+   * have — so it stays until dismissed or until the next action replaces it.
+   *
+   * Placement follows where the eye already is. On the narrow layout that is
+   * the bottom bar, so the banner sits directly above it, clearing the
+   * selection tray when that is showing too. On a wide layout it settles into
+   * the bottom-right corner, out of the reading column entirely.
+   */
   const banner = (message: string, undoLabel: string): Html =>
     h.div(
       [
         h.Class(
-          'mb-4 flex flex-wrap items-center justify-between gap-3 py-[0.9rem] px-4 border border-outline rounded-m3-medium bg-surface-container text-on-surface',
+          'pointer-events-auto flex flex-wrap items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface-container py-[0.9rem] px-4 text-on-surface shadow-m3-2',
         ),
         h.Role('status'),
         h.AriaLive('polite'),
@@ -5394,7 +5410,37 @@ const labelDialogAction = (courseCodes: ReadonlyArray<string>, locale: Locale): 
 };
 
 const selectionTrayClass =
-  'sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-9 flex flex-wrap items-center justify-between gap-3 p-3 border border-outline rounded-[1.5rem] bg-surface-container-high shadow-m3-2 [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-4';
+  'pointer-events-auto flex flex-wrap items-center justify-between gap-3 p-3 border border-outline rounded-[1.5rem] bg-surface-container-high shadow-m3-2';
+
+/**
+ * Everything that hovers over the page bottom shares one stack, so the pieces
+ * space themselves instead of each guessing the other's height — a guess that
+ * breaks the moment a message wraps to a second line. The container ignores
+ * pointer events; the cards inside take them back, so the page underneath
+ * stays clickable through the gaps.
+ *
+ * It clears the bottom bar on the narrow layout and settles into the corner on
+ * a wide one, where a full-width bar would be a banner across the reading
+ * column rather than a notice beside it.
+ */
+const bottomStackClass =
+  'pointer-events-none fixed inset-x-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-11 grid justify-items-stretch gap-2 [@media(min-width:48rem)_and_(min-height:34rem)]:inset-x-auto [@media(min-width:48rem)_and_(min-height:34rem)]:right-4 [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-4 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-2rem),28rem)]';
+
+/** The selected saved courses, resolved once for whatever needs to act on them. */
+const selectedSavedCourses = (model: Model): ReadonlyArray<SavedCourse> => {
+  const state = savedListState(model.savedCourses);
+  if (state === null) return [];
+  const selectedCodes = new Set(model.selectedCourseCodes);
+  return savedCoursesNewestFirst(state).filter((course) => selectedCodes.has(course.courseCode));
+};
+
+const bottomStackView = (model: Model, selected: ReadonlyArray<SavedCourse>): Html => {
+  const h = html<Message>();
+  const status = savedListActionStatus(model);
+  const tray = selectionTrayView(model, selected);
+  if (status === h.empty && tray === h.empty) return h.empty;
+  return h.div([h.Class(bottomStackClass)], [status, tray]);
+};
 
 /**
  * Selection is distinct from saving and stays ephemeral: it lives only in the
@@ -5630,7 +5676,6 @@ const savedCourseListView = (model: Model, state: SavedListState, repaired: numb
   const total = savedCoursesNewestFirst(state);
   const courses = filterSavedCourses(state, model.labelFilter);
   const selectedCodes = new Set(model.selectedCourseCodes);
-  const selected = total.filter((course) => selectedCodes.has(course.courseCode));
   const filterActive = isLabelFilterActive(model.labelFilter);
   if (total.length === 0) {
     return h.section(
@@ -5715,7 +5760,6 @@ const savedCourseListView = (model: Model, state: SavedListState, repaired: numb
               ]),
             ),
           ),
-      selectionTrayView(model, selected),
     ],
   );
 };
