@@ -1,5 +1,36 @@
 @import 'tailwindcss';
 
+/**
+ * Appearance token source.
+ *
+ * The vocabulary is Material Design 3 colour roles, not a palette. A role
+ * names a job — `primary`, `surface`, `error-container` — and every role that
+ * can carry text ships with the foreground chosen for it, spelled `on-<role>`.
+ * That pairing is the point: `primary` alone says nothing about what is
+ * legible on top of it, and `on-primary` is the answer.
+ *
+ *   roles and their pairing   https://m3.material.io/styles/color/roles
+ *   how the system is built   https://m3.material.io/styles/color/system/overview
+ *
+ * Values are authored in OKLCH, whose lightness, chroma, and hue are
+ * separable, so a tonal step is legible as a number instead of having to be
+ * decoded from three channels. Converted from the original sRGB hex exactly —
+ * every value round-trips to the byte it came from.
+ *
+ *   oklch()                   https://www.w3.org/TR/css-color-4/#ok-lab
+ *
+ * Every `on-<role>` / `<role>` pair is required to reach WCAG 2.2 AA contrast
+ * (4.5:1), checked exhaustively across each preset in both modes by
+ * `tests/architecture.test.ts`. It is a gate, not a guideline: a colour that
+ * cannot carry its own foreground fails the suite.
+ *
+ *   contrast minimum          https://www.w3.org/TR/WCAG22/#contrast-minimum
+ *
+ * `@theme inline` below republishes those roles as Tailwind `--color-*`, which
+ * is why components write `bg-primary` and never a palette name. Product
+ * components are held to that by the same test.
+ */
+
 @theme inline {
   --color-primary: var(--md-sys-color-primary);
   --color-on-primary: var(--md-sys-color-on-primary);

@@ -223,8 +223,10 @@ describe('styling belongs to Tailwind', () => {
 describe('colour contrast', () => {
   /**
    * Material's roles come in pairs: every `on-x` is the foreground that `x`
-   * was chosen to carry. That pairing is the whole reason the token layer
-   * exists, and it is only worth anything if the pair actually meets WCAG AA.
+   * was chosen to carry (https://m3.material.io/styles/color/roles). That
+   * pairing is the whole reason the token layer exists, and it is only worth
+   * anything if the pair actually meets WCAG 2.2 AA — 4.5:1 for body text
+   * (https://www.w3.org/TR/WCAG22/#contrast-minimum).
    *
    * axe checks contrast on rendered pages, which means it only sees the theme
    * a test happened to select. Contrast is a pure function of two colours, so
