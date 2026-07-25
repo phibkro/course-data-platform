@@ -715,3 +715,42 @@ test('the selection tray belongs to the saved list and does not follow the stude
   await page.getByRole('link', { name: 'Saved' }).click();
   await expect(tray).toHaveCount(0);
 });
+
+test('a saved row stacks first and becomes a line only when it has the width', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium');
+  await page.setViewportSize({ width: 320, height: 900 });
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Save SKOLE6119 to List' }).click();
+  await page.goto('/list');
+  await expect(page.getByText('Den nasjonale', { exact: false }).first()).toBeVisible();
+
+  /**
+   * The arrangement answers to the row's own width, not the viewport's, so the
+   * same rule holds inside the sidebar-offset column as on a phone. Narrow: the
+   * controls take the line below, leaving the title the full width. Wide: they
+   * take the far side of the same line.
+   */
+  const geometry = async (): Promise<{ titleWidth: number; stacked: boolean }> =>
+    page.evaluate(() => {
+      const title = document.querySelector('h3');
+      const row = title?.closest('article');
+      const actions = row?.querySelector('[class*="col-span-2"]');
+      const identity = title?.parentElement;
+      if (!title || !actions || !identity) return { titleWidth: 0, stacked: false };
+      return {
+        titleWidth: Math.round(title.getBoundingClientRect().width),
+        stacked: actions.getBoundingClientRect().top >= identity.getBoundingClientRect().bottom - 1,
+      };
+    });
+
+  const narrow = await geometry();
+  expect(narrow.stacked).toBe(true);
+
+  await page.setViewportSize({ width: 900, height: 900 });
+  await page.waitForTimeout(300);
+  const wide = await geometry();
+  expect(wide.stacked).toBe(false);
+  expect(wide.titleWidth).toBeGreaterThan(narrow.titleWidth);
+});

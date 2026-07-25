@@ -4909,7 +4909,24 @@ const labelCountBadge = (count: number, locale: Locale): Html => {
 };
 
 const savedRowClass =
-  'grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low';
+  '@container grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low';
+
+/**
+ * A saved row is a single column first, and becomes a row only once it has the
+ * width for one.
+ *
+ * The arrangement answers to the row's own width rather than the viewport's,
+ * so it holds inside the sidebar-offset column and inside a comparison just as
+ * it does on a phone. Selection and identity stay adjacent because they name
+ * the same thing; the controls that act on the course take the far side when
+ * there is a far side, and the line below it when there is not — which is what
+ * keeps a long title from having to share a line it cannot fit on.
+ */
+const savedRowHeaderClass =
+  'grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 @min-[30rem]:grid-cols-[auto_minmax(0,1fr)_auto]';
+
+const savedRowActionsClass =
+  'col-span-2 flex flex-wrap items-center gap-2 @min-[30rem]:col-span-1 @min-[30rem]:col-start-3 @min-[30rem]:row-start-1 @min-[30rem]:justify-end';
 
 const rowCheckboxClass =
   'grid size-6 flex-none place-items-center rounded-[0.4rem] border-2 border-outline text-sm leading-none cursor-pointer has-[[data-checked]]:border-primary';
@@ -5037,7 +5054,7 @@ const savedCourseRow = (
 
   /** Both controls that act on this row, kept together at its end. */
   const rowActions = h.div(
-    [h.Class('flex flex-wrap items-center gap-2')],
+    [h.Class(savedRowActionsClass)],
     [labelsAction, savedCourseToggle(course.courseCode, true, 'ready', locale, '', 'destructive')],
   );
   /**
@@ -5055,10 +5072,7 @@ const savedCourseRow = (
         h.article(
           [h.Class(`${savedRowClass} gap-2 p-[0.8rem]`)],
           [
-            h.div(
-              [h.Class('flex flex-wrap items-start justify-between gap-3')],
-              [selectionCheckbox, identityBlock, rowActions],
-            ),
+            h.div([h.Class(savedRowHeaderClass)], [selectionCheckbox, identityBlock, rowActions]),
             h.p(
               [h.Class('m-0 text-on-surface-variant text-sm leading-[1.4]')],
               [
@@ -5079,10 +5093,7 @@ const savedCourseRow = (
       h.article(
         [h.Class(savedRowClass)],
         [
-          h.div(
-            [h.Class('flex flex-wrap items-start justify-between gap-3')],
-            [selectionCheckbox, identityBlock, rowActions],
-          ),
+          h.div([h.Class(savedRowHeaderClass)], [selectionCheckbox, identityBlock, rowActions]),
           labelsBlock,
           item === null
             ? h.div(
