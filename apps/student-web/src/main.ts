@@ -2601,6 +2601,9 @@ const mainColumnClass = 'mx-auto w-full max-w-[76rem]';
 const buttonBase =
   'cursor-pointer transition-[box-shadow,transform] duration-150 ease-in-out focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] [@media(max-width:37rem)]:w-full';
 
+const compactButtonBase =
+  'cursor-pointer transition-[box-shadow,background-color] duration-150 ease-in-out focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-[0.65]';
+
 const buttonPrimary = `${buttonBase} min-h-14 px-5 border-0 rounded-[1.75rem] font-bold bg-primary text-on-primary shadow-m3-1 not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px`;
 
 const buttonSecondary = `${buttonBase} min-h-12 px-[1.15rem] border border-outline rounded-[1.5rem] bg-surface-container text-primary font-bold`;
@@ -2843,7 +2846,6 @@ const catalogueView = (model: Model): Html => {
         model.catalogue._tag === 'CatalogueInitialLoading',
         model.selectFields,
       ]),
-      catalogueRefineAction(model),
       catalogueResultView(model),
     ],
   );
@@ -3137,12 +3139,12 @@ const activeRefinementCount = (model: Model): number =>
   ].filter(Boolean).length;
 
 const catalogueRefineActionClass =
-  'fixed z-11 right-[max(1rem,env(safe-area-inset-right))] bottom-[calc(5rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:sticky [@media(min-width:48rem)_and_(min-height:34rem)]:z-5 [@media(min-width:48rem)_and_(min-height:34rem)]:top-4 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:min-h-17 [@media(min-width:48rem)_and_(min-height:34rem)]:items-center [@media(min-width:48rem)_and_(min-height:34rem)]:justify-between [@media(min-width:48rem)_and_(min-height:34rem)]:gap-4 [@media(min-width:48rem)_and_(min-height:34rem)]:py-[0.65rem] [@media(min-width:48rem)_and_(min-height:34rem)]:pr-3 [@media(min-width:48rem)_and_(min-height:34rem)]:pl-4 [@media(min-width:48rem)_and_(min-height:34rem)]:border [@media(min-width:48rem)_and_(min-height:34rem)]:border-outline-variant [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-[1.5rem] [@media(min-width:48rem)_and_(min-height:34rem)]:bg-[color-mix(in_srgb,var(--md-sys-color-surface-container)_92%,transparent)] [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-m3-1 [@media(min-width:48rem)_and_(min-height:34rem)]:backdrop-blur-[1rem]';
+  'pointer-events-auto flex justify-center [@media(min-width:48rem)_and_(min-height:34rem)]:sticky [@media(min-width:48rem)_and_(min-height:34rem)]:z-5 [@media(min-width:48rem)_and_(min-height:34rem)]:top-4 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:min-h-17 [@media(min-width:48rem)_and_(min-height:34rem)]:items-center [@media(min-width:48rem)_and_(min-height:34rem)]:justify-between [@media(min-width:48rem)_and_(min-height:34rem)]:gap-4 [@media(min-width:48rem)_and_(min-height:34rem)]:py-[0.65rem] [@media(min-width:48rem)_and_(min-height:34rem)]:pr-3 [@media(min-width:48rem)_and_(min-height:34rem)]:pl-4 [@media(min-width:48rem)_and_(min-height:34rem)]:border [@media(min-width:48rem)_and_(min-height:34rem)]:border-outline-variant [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-[1.5rem] [@media(min-width:48rem)_and_(min-height:34rem)]:bg-[color-mix(in_srgb,var(--md-sys-color-surface-container)_92%,transparent)] [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-m3-1 [@media(min-width:48rem)_and_(min-height:34rem)]:backdrop-blur-[1rem]';
 
 const catalogueRefineActionSummaryClass =
   'hidden [@media(min-width:48rem)_and_(min-height:34rem)]:grid [@media(min-width:48rem)_and_(min-height:34rem)]:min-w-0 [@media(min-width:48rem)_and_(min-height:34rem)]:gap-[0.15rem]';
 
-const catalogueRefineActionButtonClass = `${buttonBase} inline-flex min-h-12 items-center gap-[0.55rem] py-3 px-4 border border-outline-variant rounded-[1.5rem] bg-primary-container shadow-m3-2 text-on-primary-container font-bold [@media(min-width:48rem)_and_(min-height:34rem)]:flex-none [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-none`;
+const catalogueRefineActionButtonClass = `${compactButtonBase} inline-flex min-h-12 items-center gap-[0.55rem] py-3 px-4 border border-outline-variant rounded-[1.5rem] bg-primary-container shadow-m3-2 text-on-primary-container font-bold [@media(min-width:48rem)_and_(min-height:34rem)]:flex-none [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-none`;
 
 const catalogueRefineAction = (model: Model): Html => {
   const h = html<Message>();
@@ -3811,9 +3813,6 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
   );
 };
 
-const compactButtonBase =
-  'cursor-pointer transition-[box-shadow,background-color] duration-150 ease-in-out focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-[0.65]';
-
 /**
  * A course card's title anchor carries a whole-card `after:absolute
  * after:inset-0` overlay so the entire card opens Inspect. Any explicit
@@ -3893,7 +3892,7 @@ const savedCourseToggle = (
 };
 
 const courseCardClass =
-  'relative grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low transition-[border-color,box-shadow] duration-150 ease-in-out has-[a:hover]:border-primary has-[a:hover]:shadow-m3-1 has-[a:focus-visible]:border-primary has-[a:focus-visible]:shadow-m3-1 [@media(min-width:64rem)]:items-stretch [@media(min-width:64rem)]:grid-cols-[minmax(16rem,0.85fr)_minmax(0,1.65fr)]';
+  '@container relative grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low transition-[border-color,box-shadow] duration-150 ease-in-out has-[a:hover]:border-primary has-[a:hover]:shadow-m3-1 has-[a:focus-visible]:border-primary has-[a:focus-visible]:shadow-m3-1 [@media(min-width:64rem)]:items-stretch [@media(min-width:64rem)]:grid-cols-[minmax(16rem,0.85fr)_minmax(0,1.65fr)]';
 
 const factDtClass = 'text-current text-xs font-bold tracking-[0.05em] uppercase';
 
@@ -4034,7 +4033,7 @@ const courseIdentityFacts = (
   const h = html<Message>();
   const { offering, place, term, credits } = courseOfferingFacts(course, decisionSignal, locale);
   return h.dl(
-    [h.Class('grid gap-x-4 gap-y-3 grid-cols-2')],
+    [h.Class('grid gap-x-4 gap-y-3 @min-[22rem]:grid-cols-2')],
     [
       h.div(
         [h.Class('min-w-0')],
@@ -4099,7 +4098,7 @@ const courseCard = (
             ],
             [
               h.div(
-                [h.Class('flex items-start justify-between gap-3')],
+                [h.Class('grid items-start gap-3 @min-[26rem]:grid-cols-[minmax(0,1fr)_auto]')],
                 [
                   h.div(
                     [h.Class('min-w-0')],
@@ -4113,7 +4112,7 @@ const courseCard = (
                         [course.code],
                       ),
                       h.h3(
-                        [h.Class('text-lg leading-[1.35]')],
+                        [h.Class('text-lg leading-[1.35] [overflow-wrap:anywhere]')],
                         [
                           h.a(
                             [
@@ -5651,8 +5650,17 @@ const bottomStackView = (model: Model, selected: ReadonlyArray<SavedCourse>): Ht
   const h = html<Message>();
   const status = savedListActionStatus(model);
   const tray = selectionTrayView(model, selected);
-  if (status === h.empty && tray === h.empty) return h.empty;
-  return h.div([h.Class(bottomStackClass)], [status, tray]);
+  /**
+   * Refine floats over the same region, so it belongs to the same stack.
+   * Centred in its own fixed box it landed on top of a notice; here the stack
+   * spaces them, and the rule stays "one owner of the page bottom".
+   */
+  const refine =
+    model.route === 'explore' && model.selectedCode === null
+      ? catalogueRefineAction(model)
+      : h.empty;
+  if (status === h.empty && tray === h.empty && refine === h.empty) return h.empty;
+  return h.div([h.Class(bottomStackClass)], [status, tray, refine]);
 };
 
 /**

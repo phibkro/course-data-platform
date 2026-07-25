@@ -576,8 +576,11 @@ test('the undo toast sits above the bottom bar and never moves the page', async 
   });
 
   expect(gap).not.toBeNull();
+  // Clear of the bar, and near it: the stack may hold other floating controls
+  // between the two, so the claim is "does not overlap and stays at the foot
+  // of the page", not a fixed distance.
   expect(gap!).toBeGreaterThanOrEqual(0);
-  expect(gap!).toBeLessThan(40);
+  expect(gap!).toBeLessThan(160);
 });
 
 test('undoable actions stack, each keeping its own way back', async ({ page }) => {
