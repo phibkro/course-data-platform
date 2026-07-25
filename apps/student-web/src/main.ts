@@ -4908,8 +4908,19 @@ const labelCountBadge = (count: number, locale: Locale): Html => {
   );
 };
 
-const savedRowClass =
-  '@container grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low';
+/**
+ * A saved row is selectable, and looks it. Selection used to be reported only
+ * by a small box at the row's edge, which left the row reading as a static
+ * item that happened to have a control on it. The whole row carries the state
+ * now — border and surface — so what is selected is legible from a glance down
+ * the column rather than from the checkboxes alone.
+ */
+const savedRowClass = (isSelected: boolean): string =>
+  `@container grid gap-4 p-[1.1rem] rounded-m3-large border transition-[background-color,border-color] duration-150 ease-in-out ${
+    isSelected
+      ? 'border-primary bg-primary-container/40'
+      : 'border-outline-variant bg-surface-container-low'
+  }`;
 
 /**
  * A saved row is a single column first, and becomes a row only once it has the
@@ -5070,7 +5081,7 @@ const savedCourseRow = (
       [],
       [
         h.article(
-          [h.Class(`${savedRowClass} gap-2 p-[0.8rem]`)],
+          [h.Class(`${savedRowClass(isSelected)} gap-2 p-[0.8rem]`)],
           [
             h.div([h.Class(savedRowHeaderClass)], [selectionCheckbox, identityBlock, rowActions]),
             h.p(
@@ -5091,7 +5102,7 @@ const savedCourseRow = (
     [],
     [
       h.article(
-        [h.Class(savedRowClass)],
+        [h.Class(savedRowClass(isSelected))],
         [
           h.div([h.Class(savedRowHeaderClass)], [selectionCheckbox, identityBlock, rowActions]),
           labelsBlock,
@@ -5598,7 +5609,20 @@ const labelDialogAction = (courseCodes: ReadonlyArray<string>, locale: Locale): 
 };
 
 const selectionTrayClass =
-  'pointer-events-auto flex flex-wrap items-center justify-between gap-3 p-3 border border-outline rounded-[1.5rem] bg-surface-container-high shadow-m3-2';
+  '@container pointer-events-auto grid gap-3 p-3 border border-outline rounded-[1.5rem] bg-surface-container-high shadow-m3-2 @min-[26rem]:flex @min-[26rem]:flex-wrap @min-[26rem]:items-center @min-[26rem]:justify-between';
+
+/**
+ * A group of controls: one full-width column first, a row once the container
+ * has the width for one.
+ *
+ * Stacked, buttons share a width and centre their labels, so the column reads
+ * as one block of choices rather than a ragged edge of differently sized
+ * pills. Side by side they take only the width their labels need. Either way
+ * the group answers to its own container, so the same rule holds in a tray
+ * pinned above the bottom bar and in a panel inside the reading column.
+ */
+const controlGroupClass =
+  'grid gap-2 [&>*]:w-full [&>*]:justify-center @min-[26rem]:flex @min-[26rem]:flex-wrap @min-[26rem]:items-center @min-[26rem]:[&>*]:w-auto';
 
 /**
  * Everything that hovers over the page bottom shares one stack, so the pieces
@@ -5663,7 +5687,7 @@ const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): 
       ),
       model.selectionRemovePending
         ? h.div(
-            [h.Class('flex flex-wrap items-center gap-2'), h.Role('group')],
+            [h.Class(`${controlGroupClass} @container`), h.Role('group')],
             [
               h.p(
                 [h.Class('m-0 basis-full text-sm leading-[1.45]'), h.Role('status')],
@@ -5698,7 +5722,7 @@ const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): 
             ],
           )
         : h.div(
-            [h.Class('flex flex-wrap items-center gap-2')],
+            [h.Class(controlGroupClass)],
             [
               selected.length < compareMinimum || selected.length > compareMaximum
                 ? h.empty
@@ -6659,7 +6683,11 @@ const compareView = (model: Model, courses: ReadonlyArray<SavedCourse>): Html =>
     ],
     [
       h.div(
-        [h.Class('flex flex-wrap items-start justify-between gap-3')],
+        [
+          h.Class(
+            'grid gap-3 @min-[34rem]:flex @min-[34rem]:items-start @min-[34rem]:justify-between',
+          ),
+        ],
         [
           h.div(
             [],
@@ -6672,7 +6700,7 @@ const compareView = (model: Model, courses: ReadonlyArray<SavedCourse>): Html =>
             ],
           ),
           h.div(
-            [h.Class('flex flex-wrap items-center gap-2')],
+            [h.Class(controlGroupClass)],
             [
               Checkbox.view<Message>({
                 id: 'compare-differences-only',
