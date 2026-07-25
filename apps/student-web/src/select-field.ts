@@ -61,7 +61,7 @@ export const selectField = <Message>({
         [
           h.Id(labelId),
           h.For(Listbox.buttonId(model.id)),
-          h.Class(compact ? 'sr-only' : 'ml-1 text-[0.85rem] font-[650] text-on-surface-variant'),
+          h.Class(compact ? 'sr-only' : 'ml-1 text-sm font-semibold text-on-surface-variant'),
         ],
         [label],
       ),
@@ -78,7 +78,7 @@ export const selectField = <Message>({
           anchor: { placement: 'bottom-start', gap: 6, padding: 8, portal },
           className: 'relative min-w-0',
           buttonClassName: `flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface px-3 text-left text-on-surface [font:inherit] cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 data-[open]:border-primary ${
-            compact ? 'min-h-11 gap-1 px-1.5 text-xs font-[800]' : ''
+            compact ? 'min-h-11 gap-1 px-1.5 text-xs font-extrabold' : ''
           }`,
           buttonContent: h.span(
             [
@@ -112,7 +112,7 @@ export const selectField = <Message>({
           itemToConfig: (item, { isActive, isSelected }) => ({
             className: `flex min-h-11 items-center justify-between gap-3 rounded-m3-small px-3 text-sm cursor-pointer ${
               isActive ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'
-            } ${isSelected ? 'font-[800]' : ''}`,
+            } ${isSelected ? 'font-extrabold' : ''}`,
             content: h.span(
               [h.Class('flex min-w-0 flex-1 items-center gap-3')],
               [

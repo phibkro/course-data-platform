@@ -12,7 +12,6 @@ export interface NavigationItem {
   readonly accessibleLabel: string;
   readonly icon: AppIcon;
   readonly href: string | null;
-  readonly isPrimary: boolean;
   readonly isCurrent: boolean;
 }
 
@@ -33,7 +32,6 @@ export const primaryNavigation = (
     accessibleLabel: translate(locale, 'nav.list'),
     icon: 'list',
     href: listHref,
-    isPrimary: false,
     isCurrent: route === 'list',
   },
   {
@@ -42,7 +40,6 @@ export const primaryNavigation = (
     accessibleLabel: translate(locale, 'nav.schedule'),
     icon: 'schedule',
     href: null,
-    isPrimary: false,
     isCurrent: false,
   },
   {
@@ -51,7 +48,6 @@ export const primaryNavigation = (
     accessibleLabel: translate(locale, 'nav.explore'),
     icon: 'explore',
     href: exploreHref,
-    isPrimary: true,
     isCurrent: route === 'explore',
   },
   {
@@ -60,7 +56,6 @@ export const primaryNavigation = (
     accessibleLabel: translate(locale, 'nav.degreeAccessible'),
     icon: 'degree',
     href: null,
-    isPrimary: false,
     isCurrent: false,
   },
   {
@@ -69,13 +64,12 @@ export const primaryNavigation = (
     accessibleLabel: translate(locale, 'nav.more'),
     icon: 'more',
     href: null,
-    isPrimary: false,
     isCurrent: false,
   },
 ];
 
 const desktopItemBase =
-  'flex items-center gap-3 min-h-14 py-3 px-4 rounded-[1.75rem] font-[650] no-underline';
+  'flex items-center gap-3 min-h-14 py-3 px-4 rounded-[1.75rem] font-semibold no-underline';
 
 const desktopItemIcon =
   'grid size-6 flex-none place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
@@ -120,18 +114,29 @@ const desktopItem = <Message>(locale: Locale, item: NavigationItem, collapsed: b
 
 /**
  * Every destination shares one vertical rhythm: the same box, the same
- * alignment, and the same baseline for its label. Explore stays visually
- * distinct through its filled icon, not by protruding above its peers.
+ * alignment, and the same baseline for its label.
+ *
+ * The filled pill marks the *current* destination, and nothing else. Only one
+ * fact may own a strong visual channel: a mark that means both "important" and
+ * "where you are" can say neither, because a permanently marked destination
+ * reads as permanently active. Activeness owns it here because it is the fact
+ * that changes; Explore's standing is carried by its centre position.
  */
-const mobileItemLayout = (isPrimary: boolean, isCurrent = false): string =>
+const mobileItemLayout = (isCurrent: boolean): string =>
   `flex min-w-0 min-h-13 items-center justify-center gap-[0.2rem] flex-col ${
-    isPrimary || isCurrent ? 'text-primary font-[800]' : 'text-on-surface-variant font-[650]'
+    isCurrent ? 'text-primary font-extrabold' : 'text-on-surface-variant font-semibold'
   } text-xs leading-none no-underline [-webkit-tap-highlight-color:transparent]`;
 
-const mobileItemIcon = (isPrimary: boolean): string =>
-  isPrimary
-    ? 'grid size-8 place-items-center rounded-full bg-primary text-on-primary p-1.5 leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full'
-    : 'grid size-8 place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
+/**
+ * The glyph is the same size in every state and only the pill behind it
+ * changes. Sizing the glyph from the indicator meant the padded active icon
+ * rendered at 1.25rem while every unpadded peer filled the full 2rem box, so
+ * the icons disagreed with each other and with the label beneath them.
+ */
+const mobileItemIcon = (isCurrent: boolean): string =>
+  `grid size-8 place-items-center rounded-full leading-none [&_svg]:block [&_svg]:size-5 ${
+    isCurrent ? 'bg-primary text-on-primary' : ''
+  }`;
 
 const mobileItem = <Message>(
   locale: Locale,
@@ -139,9 +144,9 @@ const mobileItem = <Message>(
   onAppearance?: Message,
 ): Html => {
   const h = html<Message>();
-  const itemClass = mobileItemLayout(item.isPrimary, item.isCurrent);
+  const itemClass = mobileItemLayout(item.isCurrent);
   const children = [
-    icon<Message>(item.icon, mobileItemIcon(item.isPrimary)),
+    icon<Message>(item.icon, mobileItemIcon(item.isCurrent)),
     h.span([h.Class('max-w-full truncate')], [item.label]),
   ];
 
@@ -210,7 +215,7 @@ export const desktopNavigation = <Message>(
           h.Class(
             collapsed
               ? 'flex min-h-10 items-center justify-center pt-2 pb-8'
-              : 'flex min-h-10 items-center gap-3 pt-2 px-3 pb-8 text-[1.125rem] font-[750] tracking-[-0.02em]',
+              : 'flex min-h-10 items-center gap-3 pt-2 px-3 pb-8 text-lg font-bold tracking-[-0.02em]',
           ),
         ],
         [
@@ -262,7 +267,7 @@ export const desktopNavigation = <Message>(
                 [
                   h.Type('button'),
                   h.Class(
-                    `flex min-h-11 w-full items-center gap-3 border-0 rounded-m3-medium bg-transparent text-on-surface cursor-pointer [font:inherit] font-[650] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
+                    `flex min-h-11 w-full items-center gap-3 border-0 rounded-m3-medium bg-transparent text-on-surface cursor-pointer [font:inherit] font-semibold focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
                       collapsed ? 'justify-center px-2' : 'px-3'
                     }`,
                   ),

@@ -191,16 +191,16 @@ export const init: Runtime.ApplicationInit<Model, Message> = () => {
 const mainContentClass =
   'w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66 [@media(min-width:64rem)]:px-10';
 
-const eyebrowClass = 'mb-2 text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase';
+const eyebrowClass = 'mb-2 text-primary text-xs font-extrabold tracking-[0.1em] uppercase';
 
 const fieldLabelClass =
-  'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-[0.85rem] font-[650]';
+  'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-sm font-semibold';
 
 const fieldInputClass =
-  'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[1.05rem] uppercase [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70';
+  'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base uppercase [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70';
 
 const buttonPrimaryClass =
-  'min-h-14 px-5 border-0 rounded-[1.75rem] bg-primary text-on-primary shadow-m3-1 font-[720] cursor-pointer [transition:box-shadow_140ms_ease,transform_140ms_ease] not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] [@media(max-width:37rem)]:w-full';
+  'min-h-14 px-5 border-0 rounded-[1.75rem] bg-primary text-on-primary shadow-m3-1 font-bold cursor-pointer [transition:box-shadow_140ms_ease,transform_140ms_ease] not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] [@media(max-width:37rem)]:w-full';
 
 const stateCardClass =
   'grid min-h-68 place-items-center content-center p-[clamp(2rem,6vw,4rem)] border border-outline-variant rounded-m3-extra-large bg-surface-container-low text-center [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-[clamp(1.4rem,3vw,2rem)] [&_p]:max-w-144 [&_p]:mx-auto [&_p]:my-1 [&_p]:text-on-surface-variant [&_p]:leading-[1.6]';
@@ -217,16 +217,16 @@ const sectionHeadingClass =
 const factGridClass = 'grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))]';
 
 const factCardClass =
-  'min-w-0 p-4 rounded-m3-medium bg-surface [&_h3]:mt-0 [&_h3]:mr-0 [&_h3]:mb-[0.55rem] [&_h3]:ml-0 [&_h3]:text-[0.95rem] [&_p]:my-1 [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:leading-[1.55]';
+  'min-w-0 p-4 rounded-m3-medium bg-surface [&_h3]:mt-0 [&_h3]:mr-0 [&_h3]:mb-[0.55rem] [&_h3]:ml-0 [&_h3]:text-base [&_p]:my-1 [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:leading-[1.55]';
 
 const factCardUncertainClass =
-  'min-w-0 p-4 border border-dashed border-outline rounded-m3-medium bg-surface [&_h3]:mt-0 [&_h3]:mr-0 [&_h3]:mb-[0.55rem] [&_h3]:ml-0 [&_h3]:text-[0.95rem] [&_p]:my-1 [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:leading-[1.55]';
+  'min-w-0 p-4 border border-dashed border-outline rounded-m3-medium bg-surface [&_h3]:mt-0 [&_h3]:mr-0 [&_h3]:mb-[0.55rem] [&_h3]:ml-0 [&_h3]:text-base [&_p]:my-1 [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:leading-[1.55]';
 
 const factStateClass =
-  'inline-flex items-center min-h-[1.7rem] py-[0.2rem] px-[0.65rem] rounded-[1rem] bg-surface-container-highest text-on-surface-variant text-[0.72rem] font-[750] whitespace-nowrap';
+  'inline-flex items-center min-h-[1.7rem] py-[0.2rem] px-[0.65rem] rounded-[1rem] bg-surface-container-highest text-on-surface-variant text-xs font-bold whitespace-nowrap';
 
 const uncertainFactStateClass =
-  'inline-flex items-center min-h-[1.7rem] py-[0.2rem] px-[0.65rem] rounded-[1rem] bg-tertiary-container text-on-tertiary-container text-[0.72rem] font-[750] whitespace-nowrap';
+  'inline-flex items-center min-h-[1.7rem] py-[0.2rem] px-[0.65rem] rounded-[1rem] bg-tertiary-container text-on-tertiary-container text-xs font-bold whitespace-nowrap';
 
 export const view = (model: Model): Document => {
   const h = html<Message>();
@@ -251,7 +251,7 @@ export const view = (model: Model): Document => {
                 h.h1(
                   [
                     h.Class(
-                      'max-w-[15ch] m-0 text-[clamp(2.25rem,7vw,4.75rem)] font-[720] tracking-[-0.055em] leading-[0.99]',
+                      'max-w-[15ch] m-0 text-[clamp(2.25rem,7vw,4.75rem)] font-bold tracking-[-0.055em] leading-[0.99]',
                     ),
                   ],
                   ['Understand a course before you choose it.'],
@@ -269,7 +269,7 @@ export const view = (model: Model): Document => {
                 searchForm(model.query, loading),
                 h.p(
                   [
-                    h.Class('mt-[0.65rem] mr-0 mb-0 ml-1 text-on-surface-variant text-[0.85rem]'),
+                    h.Class('mt-[0.65rem] mr-0 mb-0 ml-1 text-on-surface-variant text-sm'),
                     h.Id('search-hint'),
                   ],
                   ['Try a real course: TDT4136'],
@@ -342,7 +342,7 @@ const resultView = (result: SearchResult): Html => {
           h.div(
             [
               h.Class(
-                'grid size-16 place-items-center rounded-[1.25rem] bg-tertiary-container text-on-tertiary-container text-[2rem]',
+                'grid size-16 place-items-center rounded-[1.25rem] bg-tertiary-container text-on-tertiary-container text-3xl',
               ),
               h.AriaHidden(true),
             ],
@@ -384,7 +384,7 @@ const resultView = (result: SearchResult): Html => {
         [h.Class(stateCardFailureClass), h.Role('alert')],
         [
           h.p(
-            [h.Class('mb-2 text-error text-[0.78rem] font-[800] tracking-[0.1em] uppercase')],
+            [h.Class('mb-2 text-error text-xs font-extrabold tracking-[0.1em] uppercase')],
             ['Lookup failed'],
           ),
           h.h2([], ['We could not load that course']),
@@ -435,11 +435,7 @@ export const courseInsightView = (
             ],
             [
               h.p(
-                [
-                  h.Class(
-                    'mb-1! text-warning text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
-                  ),
-                ],
+                [h.Class('mb-1! text-warning text-xs font-extrabold tracking-[0.1em] uppercase')],
                 [translate(locale, 'detail.partial')],
               ),
               h.p([], [translate(locale, 'detail.partialHelp')]),
@@ -448,7 +444,7 @@ export const courseInsightView = (
         : h.div(
             [
               h.Class(
-                'py-4 px-5 rounded-m3-medium bg-primary-container text-on-primary-container font-[650] leading-[1.5]',
+                'py-4 px-5 rounded-m3-medium bg-primary-container text-on-primary-container font-semibold leading-[1.5]',
               ),
               h.Role('status'),
             ],
@@ -469,11 +465,7 @@ export const courseInsightView = (
             ],
             [
               h.p(
-                [
-                  h.Class(
-                    'mb-2 text-on-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
-                  ),
-                ],
+                [h.Class('mb-2 text-on-primary text-xs font-extrabold tracking-[0.1em] uppercase')],
                 [course.code],
               ),
               h.h2([], [title]),
@@ -583,7 +575,7 @@ const compactFact = <A>(
   return h.div(
     [
       h.Class(
-        'min-w-28 py-3 px-4 border border-[color-mix(in_srgb,currentcolor_35%,transparent)] rounded-m3-medium [&_dt]:mb-[0.2rem] [&_dt]:text-xs [&_dt]:opacity-80 [&_dd]:m-0 [&_dd]:font-[750]',
+        'min-w-28 py-3 px-4 border border-[color-mix(in_srgb,currentcolor_35%,transparent)] rounded-m3-medium [&_dt]:mb-[0.2rem] [&_dt]:text-xs [&_dt]:opacity-80 [&_dd]:m-0 [&_dd]:font-bold',
       ),
     ],
     [
@@ -765,7 +757,7 @@ const gradeDistribution = (
       h.table(
         [
           h.Class(
-            'w-full border-collapse [&_th]:py-[0.65rem] [&_th]:px-3 [&_th]:border-b [&_th]:border-outline-variant [&_th]:text-left [&_td]:py-[0.65rem] [&_td]:px-3 [&_td]:border-b [&_td]:border-outline-variant [&_td]:text-left [&_thead_th]:text-on-surface-variant [&_thead_th]:text-[0.78rem]',
+            'w-full border-collapse [&_th]:py-[0.65rem] [&_th]:px-3 [&_th]:border-b [&_th]:border-outline-variant [&_th]:text-left [&_td]:py-[0.65rem] [&_td]:px-3 [&_td]:border-b [&_td]:border-outline-variant [&_td]:text-left [&_thead_th]:text-on-surface-variant [&_thead_th]:text-xs',
           ),
         ],
         [
@@ -821,8 +813,8 @@ const sourceSection = (course: CourseInsight, locale: Locale): Html => {
             [
               h.Class(
                 source.status === 'failed'
-                  ? 'p-4 border-l-[0.3rem] border-l-error rounded-m3-medium bg-surface [&_h3]:m-0 [&_h3]:text-[0.95rem] [&_p]:mt-[0.45rem] [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-on-surface-variant [&_p]:text-[0.85rem] [&_p]:leading-[1.45]'
-                  : 'p-4 border-l-[0.3rem] border-l-primary rounded-m3-medium bg-surface [&_h3]:m-0 [&_h3]:text-[0.95rem] [&_p]:mt-[0.45rem] [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-on-surface-variant [&_p]:text-[0.85rem] [&_p]:leading-[1.45]',
+                  ? 'p-4 border-l-[0.3rem] border-l-error rounded-m3-medium bg-surface [&_h3]:m-0 [&_h3]:text-base [&_p]:mt-[0.45rem] [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-on-surface-variant [&_p]:text-sm [&_p]:leading-[1.45]'
+                  : 'p-4 border-l-[0.3rem] border-l-primary rounded-m3-medium bg-surface [&_h3]:m-0 [&_h3]:text-base [&_p]:mt-[0.45rem] [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-on-surface-variant [&_p]:text-sm [&_p]:leading-[1.45]',
               ),
             ],
             [
@@ -856,7 +848,7 @@ const sourceSection = (course: CourseInsight, locale: Locale): Html => {
             [
               h.Id(`evidence-${evidence.id}`),
               h.Class(
-                'scroll-mt-4 p-4 rounded-m3-medium bg-surface-container [&_p]:my-[0.45rem] [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:text-[0.85rem] [&_p]:leading-[1.5]',
+                'scroll-mt-4 p-4 rounded-m3-medium bg-surface-container [&_p]:my-[0.45rem] [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:text-sm [&_p]:leading-[1.5]',
               ),
             ],
             [
@@ -879,7 +871,7 @@ const sourceSection = (course: CourseInsight, locale: Locale): Html => {
               evidence.excerpt === null ? h.empty : h.p([], [evidence.excerpt]),
               evidence.sourceUrl === null
                 ? h.span(
-                    [h.Class('text-on-surface-variant text-[0.82rem] italic')],
+                    [h.Class('text-on-surface-variant text-sm italic')],
                     [translate(locale, 'detail.noExternalLink')],
                   )
                 : h.a(
@@ -887,7 +879,7 @@ const sourceSection = (course: CourseInsight, locale: Locale): Html => {
                       h.Href(evidence.sourceUrl),
                       h.Target('_blank'),
                       h.Rel('noreferrer'),
-                      h.Class('text-[0.82rem]'),
+                      h.Class('text-sm'),
                     ],
                     [translate(locale, 'detail.openSource')],
                   ),
@@ -1004,7 +996,7 @@ const obligatoryActivityList = (
     [h.Class('grid gap-3')],
     [
       h.p(
-        [h.Class('m-0 text-sm font-[750] text-on-surface-variant')],
+        [h.Class('m-0 text-sm font-bold text-on-surface-variant')],
         [
           `${translate(locale, 'signals.required')} · ${translate(locale, 'signals.ungraded')} · ${translate(locale, 'detail.approvalGate')}`,
         ],
@@ -1034,7 +1026,7 @@ const collaborationPill = (
   return h.span(
     [
       h.Class(
-        'mt-2 inline-flex min-h-8 items-center gap-2 rounded-full border border-outline bg-surface-container-high px-3 text-[0.82rem] font-[750] text-on-surface',
+        'mt-2 inline-flex min-h-8 items-center gap-2 rounded-full border border-outline bg-surface-container-high px-3 text-sm font-bold text-on-surface',
       ),
     ],
     [
@@ -1052,7 +1044,7 @@ const chipList = (items: ReadonlyArray<string>): Html => {
   return h.ul(
     [
       h.Class(
-        'flex flex-wrap gap-[0.45rem] mt-2 mr-0 mb-0 ml-0 p-0 list-none [&_li]:py-[0.4rem] [&_li]:px-3 [&_li]:border [&_li]:border-outline [&_li]:rounded-[1rem] [&_li]:text-on-surface-variant [&_li]:text-[0.8rem]',
+        'flex flex-wrap gap-[0.45rem] mt-2 mr-0 mb-0 ml-0 p-0 list-none [&_li]:py-[0.4rem] [&_li]:px-3 [&_li]:border [&_li]:border-outline [&_li]:rounded-[1rem] [&_li]:text-on-surface-variant [&_li]:text-sm',
       ),
     ],
     items.map((item) => h.li([], [item])),

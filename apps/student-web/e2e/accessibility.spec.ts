@@ -62,7 +62,7 @@ test('Refine listboxes remain interactive above the dialog', async ({ page }) =>
   const term = dialog.getByRole('button', { name: 'Term' });
 
   await term.click();
-  await page.getByRole('option', { name: 'Spring 2027 · 2026/27' }).click();
+  await page.getByRole('option', { name: 'Spring 2027' }).click();
 
   await expect(term).toContainText('Spring 2027');
 });

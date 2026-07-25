@@ -169,6 +169,174 @@ describe('appearance tokens', () => {
   });
 });
 
+describe('styling belongs to Tailwind', () => {
+  /**
+   * Tailwind's scale is the type system for appearance: `text-sm` names a step
+   * every other call site shares, while `text-[0.82rem]` names a number only
+   * this call site knows. Nineteen hand-written sizes once sat within a
+   * 2.6-pixel band, which is not a hierarchy — it is drift with no way to
+   * disagree loudly. Arbitrary values stay available for genuinely one-off
+   * geometry (`rounded-[1.5rem]`); only the type axes are constrained, because
+   * those are the ones that must agree across surfaces.
+   */
+  const arbitraryTypeUtility = /\b(?:text-\[[0-9.]+rem\]|font-\[[0-9]+\])/;
+
+  /**
+   * A style object is CSS smuggled past the scale. The exceptions are real but
+   * narrow: a value computed from data at render time (a bar's height, a
+   * gradient's sweep) cannot be a static class, because Tailwind's scanner
+   * only sees source text. Those sites declare themselves, so the rule stays
+   * total and every remaining escape is a deliberate, readable one.
+   */
+  const exemption = 'tailwind-exempt:';
+
+  const styledComponents = walk('apps/student-web/src', isProductSource);
+
+  test('the scan actually covers the student-web components', () => {
+    expect(styledComponents.length).toBeGreaterThan(0);
+  });
+
+  test('components size type from the Tailwind scale', () => {
+    const offenders = styledComponents
+      .filter((path) => arbitraryTypeUtility.test(withoutComments(readFileSync(path, 'utf8'))))
+      .map(relative);
+
+    expect(offenders).toEqual([]);
+  });
+
+  test('every inline style declares why Tailwind cannot express it', () => {
+    const offenders = styledComponents.flatMap((path) => {
+      const lines = readFileSync(path, 'utf8').split('\n');
+      return lines.flatMap((line, index) => {
+        if (!line.includes('h.Style(')) return [];
+        // The marker sits in the comment immediately above the call, so the
+        // reason travels with the exception instead of living in a registry.
+        const preceding = lines.slice(Math.max(0, index - 3), index).join('\n');
+        return preceding.includes(exemption) ? [] : [`${relative(path)}:${index + 1}`];
+      });
+    });
+
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe('theme preset swatches', () => {
+  /**
+   * A preset swatch exists to show what selecting the preset will do. Its
+   * colours were painted by hand into `--preset-*`, which makes them a second
+   * copy of values the token blocks already own: change a token and the
+   * preview keeps advertising the old theme, with nothing failing.
+   *
+   * The top rung would be deriving the swatch from the tokens themselves, so
+   * disagreement could not be written down. That needs the theme selectors to
+   * apply below `:root`, and a browser to confirm the cascade still resolves —
+   * which no check in this repository can currently do. This is the rung below
+   * it: the copy stays, and drift fails here instead of shipping silently.
+   */
+  const stylesheet = readFileSync(join(repoRoot, 'apps/student-web/src/styles.css'), 'utf8');
+  const themeSource = readFileSync(join(repoRoot, 'apps/student-web/src/theme.ts'), 'utf8');
+
+  const presets = [
+    ...themeSource.matchAll(
+      /\{ id: '([^']+)', baseColor: '([^']+)', themeColor: '([^']+)', chartColor: '([^']+)' \}/g,
+    ),
+  ].flatMap(([, id, baseColor, themeColor, chartColor]) =>
+    // A capture group that matched is a string; narrowing here keeps the rest
+    // of the rule free of assertions.
+    id === undefined ||
+    baseColor === undefined ||
+    themeColor === undefined ||
+    chartColor === undefined
+      ? []
+      : [{ id, baseColor, themeColor, chartColor }],
+  );
+
+  const declarations = (selector: string): ReadonlyMap<string, string> => {
+    const opening = stylesheet.indexOf(`${selector} {`);
+    if (opening === -1) return new Map();
+    const body = stylesheet.slice(opening, stylesheet.indexOf('}', opening));
+    return new Map(
+      body
+        .slice(body.indexOf('{') + 1)
+        .split(';')
+        .flatMap((declaration) => {
+          const separator = declaration.indexOf(':');
+          if (separator === -1) return [];
+          const name = declaration.slice(0, separator).trim();
+          return name.startsWith('--')
+            ? ([[name, declaration.slice(separator + 1).trim()]] as const)
+            : [];
+        }),
+    );
+  };
+
+  /** A variant block only overrides what it names; the rest stays `:root`. */
+  const token = (selector: string, name: string): string | undefined =>
+    declarations(selector).get(name) ?? declarations(':root').get(name);
+
+  /**
+   * Polar Night's swatch is painted from the *dark* neutral surface, but
+   * `ThemePreset` carries no mode, so choosing it in light mode applies the
+   * light neutral surface instead. The preview promises a theme the preset
+   * does not apply. Recorded rather than silently excluded: whether Polar
+   * Night should set dark mode, or show its light surface, is a product
+   * decision.
+   */
+  const knownDisagreements: readonly string[] = ['polar-night'];
+
+  test('the scan actually found the presets', () => {
+    expect(presets.map((preset) => preset.id)).toContain('fjord');
+    expect(presets.length).toBeGreaterThan(1);
+  });
+
+  test('every swatch shows the tokens its preset actually applies', () => {
+    const offenders = presets
+      .filter((preset) => !knownDisagreements.includes(preset.id))
+      .flatMap((preset) => {
+        const swatch = declarations(`.theme-preset-card--${preset.id}`);
+        const accent = token(
+          `:root[data-theme-color='${preset.themeColor}']`,
+          '--md-sys-color-primary',
+        );
+        /**
+         * The swatch shows four distinguishable bands, so its chart stripe
+         * takes the palette's first chart colour unless that repeats the
+         * accent it sits beside — three of the six presets pair a theme and a
+         * chart palette that share a first colour, and each reaches for the
+         * second instead.
+         */
+        const chartSelector = `:root[data-chart-color='${preset.chartColor}']`;
+        const firstChart = token(chartSelector, '--chart-1');
+        const expected = {
+          '--preset-surface': token(
+            `:root[data-base-color='${preset.baseColor}']`,
+            '--md-sys-color-surface',
+          ),
+          '--preset-accent': accent,
+          '--preset-accent-container': token(
+            `:root[data-theme-color='${preset.themeColor}']`,
+            '--md-sys-color-primary-container',
+          ),
+          '--preset-chart': firstChart === accent ? token(chartSelector, '--chart-2') : firstChart,
+        };
+
+        return Object.entries(expected).flatMap(([name, value]) =>
+          swatch.get(name) === value
+            ? []
+            : [`${preset.id} ${name}: swatch ${swatch.get(name)} vs token ${value}`],
+        );
+      });
+
+    expect(offenders).toEqual([]);
+  });
+
+  test('every recorded disagreement is still a real preset', () => {
+    for (const id of knownDisagreements) {
+      expect(presets.map((preset) => preset.id)).toContain(id);
+    }
+  });
+});
+
 describe('dependency direction', () => {
   /**
    * `apps -> infrastructure packages -> application -> domain`. Encoded as a

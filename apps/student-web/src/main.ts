@@ -2434,10 +2434,10 @@ export const view = (model: Model): Document => ({
   body: appView(model),
 });
 
-const eyebrowClass = 'mb-2 text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase';
+const eyebrowClass = 'mb-2 text-primary text-xs font-extrabold tracking-[0.1em] uppercase';
 
 const fieldLabelClass =
-  'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-[0.85rem] font-[650]';
+  'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-sm font-semibold';
 
 const mainContentClass = (sidebarCollapsed: boolean): string =>
   `w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:64rem)]:px-10 ${
@@ -2449,12 +2449,12 @@ const mainContentClass = (sidebarCollapsed: boolean): string =>
 const buttonBase =
   'cursor-pointer [transition:box-shadow_140ms_ease,transform_140ms_ease] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] [@media(max-width:37rem)]:w-full';
 
-const buttonPrimary = `${buttonBase} min-h-14 px-5 border-0 rounded-[1.75rem] font-[720] bg-primary text-on-primary shadow-m3-1 not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px`;
+const buttonPrimary = `${buttonBase} min-h-14 px-5 border-0 rounded-[1.75rem] font-bold bg-primary text-on-primary shadow-m3-1 not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px`;
 
-const buttonSecondary = `${buttonBase} min-h-12 px-[1.15rem] border border-outline rounded-[1.5rem] bg-surface-container text-primary font-[700]`;
+const buttonSecondary = `${buttonBase} min-h-12 px-[1.15rem] border border-outline rounded-[1.5rem] bg-surface-container text-primary font-bold`;
 
 const backButtonClass =
-  'min-h-12 px-[1.15rem] border border-outline rounded-[1.5rem] bg-surface-container text-primary font-[700] cursor-pointer justify-self-start';
+  'min-h-12 px-[1.15rem] border border-outline rounded-[1.5rem] bg-surface-container text-primary font-bold cursor-pointer justify-self-start';
 
 const stateCardBase =
   'grid min-h-68 place-items-center content-center p-[clamp(2rem,6vw,4rem)] border border-outline-variant rounded-m3-extra-large bg-surface-container-low text-center';
@@ -2467,8 +2467,7 @@ const stateCardPClass = 'max-w-144 mx-auto my-1 text-on-surface-variant leading-
 
 const stateCardFailurePClass = 'max-w-144 mx-auto my-1 leading-[1.6] text-inherit';
 
-const statusLabelErrorClass =
-  'mb-2 text-[0.78rem] font-[800] tracking-[0.1em] uppercase text-error';
+const statusLabelErrorClass = 'mb-2 text-xs font-extrabold tracking-[0.1em] uppercase text-error';
 
 const loadingIndicatorClass =
   'size-12 border-[0.3rem] border-primary-container border-t-primary rounded-full animate-[spin_850ms_linear_infinite] motion-reduce:[animation-duration:1.8s]';
@@ -2644,13 +2643,13 @@ const catalogueHeader = (locale: Locale): Html => {
       h.h1(
         [
           h.Class(
-            'max-w-[22ch] text-[clamp(2.1rem,6vw,4rem)] font-[720] tracking-[-0.05em] leading-none',
+            'max-w-[22ch] text-[clamp(2.1rem,6vw,4rem)] font-bold tracking-[-0.05em] leading-none',
           ),
         ],
         [translate(locale, 'catalogue.heading')],
       ),
       h.p(
-        [h.Class('max-w-192 mt-4 text-on-surface-variant text-[1.05rem] leading-[1.6]')],
+        [h.Class('max-w-192 mt-4 text-on-surface-variant text-base leading-[1.6]')],
         [translate(locale, 'catalogue.intro')],
       ),
     ],
@@ -2771,7 +2770,7 @@ const catalogueControls = (
                     ...attributes.input,
                     h.Placeholder(translate(model.locale, 'catalogue.searchPlaceholder')),
                     h.Class(
-                      'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[1.05rem] normal-case [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
+                      'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base normal-case [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
                     ),
                     h.Autocomplete('off'),
                   ]),
@@ -2928,7 +2927,7 @@ const catalogueRefineActionClass =
 const catalogueRefineActionSummaryClass =
   'hidden [@media(min-width:48rem)_and_(min-height:34rem)]:grid [@media(min-width:48rem)_and_(min-height:34rem)]:min-w-0 [@media(min-width:48rem)_and_(min-height:34rem)]:gap-[0.15rem]';
 
-const catalogueRefineActionButtonClass = `${buttonBase} inline-flex min-h-12 items-center gap-[0.55rem] py-3 px-4 border border-outline-variant rounded-[1.5rem] bg-primary-container shadow-m3-2 text-on-primary-container font-[750] [@media(min-width:48rem)_and_(min-height:34rem)]:flex-none [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-none`;
+const catalogueRefineActionButtonClass = `${buttonBase} inline-flex min-h-12 items-center gap-[0.55rem] py-3 px-4 border border-outline-variant rounded-[1.5rem] bg-primary-container shadow-m3-2 text-on-primary-container font-bold [@media(min-width:48rem)_and_(min-height:34rem)]:flex-none [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-none`;
 
 const catalogueRefineAction = (model: Model): Html => {
   const h = html<Message>();
@@ -2940,7 +2939,7 @@ const catalogueRefineAction = (model: Model): Html => {
         [h.Class(catalogueRefineActionSummaryClass)],
         [
           h.span(
-            [h.Class('[@media(min-width:48rem)_and_(min-height:34rem)]:font-[750]')],
+            [h.Class('[@media(min-width:48rem)_and_(min-height:34rem)]:font-bold')],
             [
               count === 0
                 ? translate(model.locale, 'catalogue.allCourses')
@@ -2953,7 +2952,7 @@ const catalogueRefineAction = (model: Model): Html => {
           h.span(
             [
               h.Class(
-                '[@media(min-width:48rem)_and_(min-height:34rem)]:overflow-hidden [@media(min-width:48rem)_and_(min-height:34rem)]:text-on-surface-variant [@media(min-width:48rem)_and_(min-height:34rem)]:text-[0.8rem] [@media(min-width:48rem)_and_(min-height:34rem)]:text-ellipsis [@media(min-width:48rem)_and_(min-height:34rem)]:whitespace-nowrap',
+                '[@media(min-width:48rem)_and_(min-height:34rem)]:overflow-hidden [@media(min-width:48rem)_and_(min-height:34rem)]:text-on-surface-variant [@media(min-width:48rem)_and_(min-height:34rem)]:text-sm [@media(min-width:48rem)_and_(min-height:34rem)]:text-ellipsis [@media(min-width:48rem)_and_(min-height:34rem)]:whitespace-nowrap',
               ),
             ],
             [translate(model.locale, 'catalogue.refineHelp')],
@@ -3156,17 +3155,17 @@ const themePreview = (locale: Locale): Html => {
             [h.Class('flex items-center justify-between gap-3')],
             [
               h.span(
-                [h.Class('text-xs font-[800] tracking-[0.08em] uppercase')],
+                [h.Class('text-xs font-extrabold tracking-[0.08em] uppercase')],
                 [translate(locale, 'appearance.previewTerm')],
               ),
               h.span(
-                [h.Class('rounded-full border border-current/40 py-1 px-2.5 text-xs font-[750]')],
+                [h.Class('rounded-full border border-current/40 py-1 px-2.5 text-xs font-bold')],
                 [translate(locale, 'appearance.previewCredits')],
               ),
             ],
           ),
           h.h3(
-            [h.Class('text-[1.2rem] tracking-[-0.025em]')],
+            [h.Class('text-xl tracking-[-0.025em]')],
             [translate(locale, 'appearance.previewCourse')],
           ),
         ],
@@ -3185,7 +3184,7 @@ const themePreview = (locale: Locale): Html => {
             ],
           ),
           h.div(
-            [h.Class('flex flex-wrap gap-2 text-xs font-[750]')],
+            [h.Class('flex flex-wrap gap-2 text-xs font-bold')],
             [
               h.span(
                 [h.Class('rounded-full bg-constraint py-1.5 px-3 text-on-constraint')],
@@ -3305,7 +3304,7 @@ const appearanceDialogView = (
                           [h.Class('grid gap-3')],
                           [
                             h.h3(
-                              [h.Class('text-sm font-[800]')],
+                              [h.Class('text-sm font-extrabold')],
                               [translate(locale, 'appearance.palettes')],
                             ),
                             h.div(
@@ -3345,7 +3344,7 @@ const appearanceDialogView = (
                                       [h.Class('flex items-center justify-between gap-2')],
                                       [
                                         h.span(
-                                          [h.Class('font-[800]')],
+                                          [h.Class('font-extrabold')],
                                           [themePresetName(locale, preset.id)],
                                         ),
                                         isSelected
@@ -3372,7 +3371,7 @@ const appearanceDialogView = (
                               ],
                               [
                                 h.h3(
-                                  [h.Class('text-sm font-[800]')],
+                                  [h.Class('text-sm font-extrabold')],
                                   [translate(locale, 'appearance.mode')],
                                 ),
                                 h.div(
@@ -3386,7 +3385,7 @@ const appearanceDialogView = (
                                       [
                                         h.Type('button'),
                                         h.Class(
-                                          `min-h-11 border-0 border-r border-outline last:border-r-0 [font:inherit] font-[750] cursor-pointer ${
+                                          `min-h-11 border-0 border-r border-outline last:border-r-0 [font:inherit] font-bold cursor-pointer ${
                                             preference.mode === mode
                                               ? 'bg-primary text-on-primary'
                                               : 'bg-surface-container text-on-surface'
@@ -3495,7 +3494,7 @@ const checkboxControl = (
             [
               ...attributes.checkbox,
               h.Class(
-                'grid w-[1.2rem] h-[1.2rem] place-items-center border-2 border-current rounded-[0.3rem] text-[0.75rem] leading-none',
+                'grid w-[1.2rem] h-[1.2rem] place-items-center border-2 border-current rounded-[0.3rem] text-xs leading-none',
               ),
             ],
             [isChecked ? '✓' : ''],
@@ -3576,7 +3575,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
             [
               h.h2([], [translate(model.locale, 'catalogue.courses')]),
               h.p(
-                [h.AriaLive('polite'), h.Class('text-on-surface-variant text-[0.88rem]')],
+                [h.AriaLive('polite'), h.Class('text-on-surface-variant text-sm')],
                 [
                   translate(model.locale, 'catalogue.showing', {
                     shown: shown.length,
@@ -3587,7 +3586,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
             ],
           ),
           h.p(
-            [h.Class('text-on-surface-variant text-[0.88rem]')],
+            [h.Class('text-on-surface-variant text-sm')],
             [translate(model.locale, 'catalogue.official')],
           ),
         ],
@@ -3660,7 +3659,7 @@ const compactButtonBase =
 const aboveCardOverlayClass = 'relative z-[2]';
 
 const savedToggleClass = (saved: boolean): string =>
-  `${compactButtonBase} ${aboveCardOverlayClass} inline-flex min-h-11 flex-none items-center gap-2 rounded-[1.5rem] border px-3 text-[0.85rem] font-[750] ${
+  `${compactButtonBase} ${aboveCardOverlayClass} inline-flex min-h-11 flex-none items-center gap-2 rounded-[1.5rem] border px-3 text-sm font-bold ${
     saved
       ? 'border-secondary bg-secondary-container text-on-secondary-container'
       : 'border-outline bg-surface-container text-primary'
@@ -3717,10 +3716,7 @@ const savedCourseToggle = (
     [
       button,
       h.a(
-        [
-          h.Href(recoveryHref),
-          h.Class('text-[0.78rem] leading-[1.3] underline text-on-surface-variant'),
-        ],
+        [h.Href(recoveryHref), h.Class('text-xs leading-[1.3] underline text-on-surface-variant')],
         [translate(locale, 'list.savePausedLink')],
       ),
     ],
@@ -3730,9 +3726,9 @@ const savedCourseToggle = (
 const courseCardClass =
   'relative grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low [transition:border-color_140ms_ease,box-shadow_140ms_ease] has-[a:hover]:border-primary has-[a:hover]:shadow-m3-1 has-[a:focus-visible]:border-primary has-[a:focus-visible]:shadow-m3-1 [@media(min-width:64rem)]:items-stretch [@media(min-width:64rem)]:grid-cols-[minmax(16rem,0.85fr)_minmax(0,1.65fr)]';
 
-const factDtClass = 'text-current text-[0.75rem] font-[750] tracking-[0.05em] uppercase';
+const factDtClass = 'text-current text-xs font-bold tracking-[0.05em] uppercase';
 
-const factDdClass = 'mt-[0.2rem] text-[0.9rem] leading-[1.35] [overflow-wrap:anywhere]';
+const factDdClass = 'mt-[0.2rem] text-sm leading-[1.35] [overflow-wrap:anywhere]';
 
 type GradeSignal =
   | CourseGradeSummaryDtoType
@@ -3942,13 +3938,13 @@ const courseCard = (
                       h.p(
                         [
                           h.Class(
-                            'mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
+                            'mb-[0.3rem] text-primary text-xs font-extrabold tracking-[0.1em] uppercase',
                           ),
                         ],
                         [course.code],
                       ),
                       h.h3(
-                        [h.Class('text-[1.1rem] leading-[1.35]')],
+                        [h.Class('text-lg leading-[1.35]')],
                         [
                           h.a(
                             [
@@ -4055,7 +4051,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
       [h.Class(`${stateClass} bg-surface-container text-on-surface-variant`)],
       [
         h.p([h.Class(factDtClass)], [translate(locale, 'signals.heading')]),
-        h.p([h.Class('m-0 text-[0.84rem] leading-[1.4]')], [message]),
+        h.p([h.Class('m-0 text-sm leading-[1.4]')], [message]),
       ],
     );
   }
@@ -4065,7 +4061,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
       [h.Class(`${stateClass} bg-surface-container text-on-surface-variant`)],
       [
         h.p([h.Class(factDtClass)], [translate(locale, 'signals.heading')]),
-        h.p([h.Class('m-0 text-[0.84rem] leading-[1.4]')], [translate(locale, 'signals.failed')]),
+        h.p([h.Class('m-0 text-sm leading-[1.4]')], [translate(locale, 'signals.failed')]),
       ],
     );
   }
@@ -4091,15 +4087,17 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
       [
         h.Class(
           grouped
-            ? `flex w-full items-center justify-between gap-2 bg-secondary px-3 py-2 text-left text-on-secondary text-[0.76rem] font-[750] leading-[1.25] @min-[28rem]:w-auto @min-[28rem]:justify-center @min-[28rem]:px-2.5 @min-[28rem]:py-1.5 @min-[28rem]:text-center ${
+            ? `flex w-full items-center justify-between gap-2 bg-secondary px-3 py-2 text-left text-on-secondary text-xs font-bold leading-[1.25] @min-[28rem]:w-auto @min-[28rem]:justify-center @min-[28rem]:px-2.5 @min-[28rem]:py-1.5 @min-[28rem]:text-center ${
                 index === 0
                   ? ''
                   : 'border-t border-on-secondary/30 @min-[28rem]:border-t-0 @min-[28rem]:border-l'
               }`
-            : 'inline-flex min-h-8 items-center gap-1.5 rounded-full bg-secondary px-2.5 text-on-secondary text-[0.76rem] font-[750]',
+            : 'inline-flex min-h-8 items-center gap-1.5 rounded-full bg-secondary px-2.5 text-on-secondary text-xs font-bold',
         ),
         ...(grouped
           ? [
+              // tailwind-exempt: the growth factor is the assessment part's own
+              // weight, so it exists only at render time.
               h.Style({
                 flexGrow:
                   hasProportionalWeights && part.weightPercent.state === 'known'
@@ -4117,14 +4115,16 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
           'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
         ),
         h.span([h.Class('flex-1 @min-[28rem]:flex-none')], [label]),
-        weight === null ? h.empty : h.span([h.Class('shrink-0 font-[850] tabular-nums')], [weight]),
+        weight === null
+          ? h.empty
+          : h.span([h.Class('shrink-0 font-extrabold tabular-nums')], [weight]),
       ],
     );
   };
   const assessment =
     signal.assessment.state === 'known'
       ? parts.length === 0
-        ? h.p([h.Class('m-0 text-[0.84rem]')], [translate(locale, 'signals.noneReported')])
+        ? h.p([h.Class('m-0 text-sm')], [translate(locale, 'signals.noneReported')])
         : parts.length === 1
           ? h.ul([h.Class('flex flex-wrap p-0 list-none')], [assessmentPart(parts[0]!, 0, false)])
           : h.ul(
@@ -4136,7 +4136,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
               ],
               parts.map((part, index) => assessmentPart(part, index, true)),
             )
-      : h.p([h.Class('m-0 text-[0.84rem]')], [factStateLabel(signal.assessment.state, locale)]);
+      : h.p([h.Class('m-0 text-sm')], [factStateLabel(signal.assessment.state, locale)]);
   const obligatory =
     signal.obligatoryActivities.state === 'known'
       ? signal.obligatoryActivities.value.length > 0
@@ -4146,7 +4146,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
               h.span(
                 [
                   h.Class(
-                    'inline-flex min-h-7 items-center rounded-full bg-constraint px-2.5 text-[0.75rem] font-[800] text-on-constraint',
+                    'inline-flex min-h-7 items-center rounded-full bg-constraint px-2.5 text-xs font-extrabold text-on-constraint',
                   ),
                 ],
                 [translate(locale, 'signals.required')],
@@ -4154,13 +4154,13 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
               h.span(
                 [
                   h.Class(
-                    'inline-flex min-h-7 items-center rounded-full bg-surface-container-highest px-2.5 text-[0.75rem] font-[800] text-on-surface-variant',
+                    'inline-flex min-h-7 items-center rounded-full bg-surface-container-highest px-2.5 text-xs font-extrabold text-on-surface-variant',
                   ),
                 ],
                 [translate(locale, 'signals.ungraded')],
               ),
               h.span(
-                [h.Class('text-[0.78rem] font-[700]')],
+                [h.Class('text-xs font-bold')],
                 [
                   signal.obligatoryActivities.value.length === 1
                     ? translate(locale, 'signals.oneActivity')
@@ -4171,12 +4171,9 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
               ),
             ],
           )
-        : h.p(
-            [h.Class('m-0 text-[0.84rem] font-[700]')],
-            [translate(locale, 'signals.noneReported')],
-          )
+        : h.p([h.Class('m-0 text-sm font-bold')], [translate(locale, 'signals.noneReported')])
       : h.p(
-          [h.Class('m-0 text-[0.84rem] font-[700]')],
+          [h.Class('m-0 text-sm font-bold')],
           [factStateLabel(signal.obligatoryActivities.state, locale)],
         );
   const collaboration =
@@ -4184,7 +4181,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
       ? h.span(
           [
             h.Class(
-              'inline-flex min-h-7 items-center gap-1.5 rounded-full bg-surface-container-highest px-2.5 text-[0.76rem] font-[800] text-on-surface',
+              'inline-flex min-h-7 items-center gap-1.5 rounded-full bg-surface-container-highest px-2.5 text-xs font-extrabold text-on-surface',
             ),
           ],
           [
@@ -4210,7 +4207,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
           inferred
             ? h.p(
                 [
-                  h.Class('m-0 shrink-0 text-[0.68rem] font-[750]'),
+                  h.Class('m-0 shrink-0 text-xs font-bold'),
                   h.Title(translate(locale, 'signals.inferred')),
                 ],
                 [translate(locale, 'detail.inferred')],
@@ -4239,7 +4236,7 @@ const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
             [h.Class(factRowClass)],
             [
               h.dt([h.Class(factDtClass)], [translate(locale, 'detail.collaboration')]),
-              h.dd([h.Class('m-0 text-[0.84rem] font-[700]')], [collaboration]),
+              h.dd([h.Class('m-0 text-sm font-bold')], [collaboration]),
             ],
           ),
         ],
@@ -4266,7 +4263,7 @@ const gradeSignalView = (signal: GradeSignal, locale: Locale, outcomeView: Outco
     [h.Class(`${outcomeStateClass} bg-surface-container text-on-surface-variant`)],
     [
       h.p([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
-      h.p([h.Class('m-0 text-[0.88rem] leading-[1.4]')], [message]),
+      h.p([h.Class('m-0 text-sm leading-[1.4]')], [message]),
     ],
   );
 };
@@ -4366,11 +4363,11 @@ const gradeSummaryView = (
           [h.Class('flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1')],
           [
             h.p([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
-            h.p([h.Class('m-0 text-[0.72rem] font-[750]')], [translate(locale, 'outcomes.source')]),
+            h.p([h.Class('m-0 text-xs font-bold')], [translate(locale, 'outcomes.source')]),
           ],
         ),
         h.p(
-          [h.Class('m-0 text-[0.88rem] leading-[1.4]')],
+          [h.Class('m-0 text-sm leading-[1.4]')],
           [
             metadata.length === 0
               ? distributionStateMessage(summary.distribution, locale)
@@ -4436,9 +4433,9 @@ const gradeSummaryView = (
             [h.Class('grid grid-cols-[0.75rem_minmax(0,1fr)_auto] items-center gap-2')],
             [
               h.span([h.Class(`size-3 rounded-full ${colorClass}`)], []),
-              h.span([h.Class('text-[0.78rem] font-[750]')], [label]),
+              h.span([h.Class('text-xs font-bold')], [label]),
               h.span(
-                [h.Class('text-[0.78rem] font-[850] tabular-nums')],
+                [h.Class('text-xs font-extrabold tabular-nums')],
                 [`${formatPercentage(percentage, locale)}%`],
               ),
             ],
@@ -4455,6 +4452,7 @@ const gradeSummaryView = (
                 h.Class(
                   'grid size-19 place-items-center rounded-full shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--md-sys-color-outline-variant)_65%,transparent)]',
                 ),
+                // tailwind-exempt: the sweep angle is the observed pass share.
                 h.Style({
                   backgroundImage: `conic-gradient(var(--color-valid) 0 ${passShare}%, var(--color-danger) ${passShare}% 100%)`,
                 }),
@@ -4482,6 +4480,7 @@ const gradeSummaryView = (
     : h.div(
         [
           h.Class('grid items-end gap-x-1 gap-y-1'),
+          // tailwind-exempt: one column per observed grade bucket.
           h.Style({
             gridTemplateColumns: `repeat(${buckets.length}, minmax(1.75rem, 1fr))`,
           }),
@@ -4507,6 +4506,8 @@ const gradeSummaryView = (
                         bucket.grade === 'F' || bucket.grade === 'H' ? 'bg-danger' : 'bg-valid'
                       }`,
                     ),
+                    // tailwind-exempt: bar height is this bucket's share of the
+                    // tallest observed bucket.
                     h.Style({
                       height: `${Math.max((bucket.percentage / maxPercentage) * 100, 4)}%`,
                     }),
@@ -4518,7 +4519,7 @@ const gradeSummaryView = (
           ),
           ...buckets.map((bucket) =>
             h.span(
-              [h.Class('text-center text-[0.72rem] font-[850] leading-none')],
+              [h.Class('text-center text-xs font-extrabold leading-none')],
               [gradeDisplayLabel(bucket.grade, locale)],
             ),
           ),
@@ -4529,7 +4530,7 @@ const gradeSummaryView = (
     ? h.div(
         [
           h.Class(
-            'grid grid-cols-2 overflow-hidden rounded-full border border-outline bg-surface-container-low',
+            `${aboveCardOverlayClass} grid grid-cols-2 overflow-hidden rounded-full border border-outline bg-surface-container-low`,
           ),
           h.Role('group'),
           h.AriaLabel(translate(locale, 'outcomes.view')),
@@ -4539,7 +4540,7 @@ const gradeSummaryView = (
             [
               h.Type('button'),
               h.Class(
-                `min-h-9 cursor-pointer border-0 px-3 text-[0.75rem] font-[800] ${
+                `min-h-11 cursor-pointer border-0 px-3 text-xs font-extrabold ${
                   selectedScale === view
                     ? 'bg-primary text-on-primary'
                     : 'bg-transparent text-on-surface-variant'
@@ -4564,11 +4565,11 @@ const gradeSummaryView = (
             [h.Class('grid gap-0.5')],
             [
               h.p([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
-              h.p([h.Class('m-0 text-[0.78rem] font-[750]')], [scale]),
+              h.p([h.Class('m-0 text-xs font-bold')], [scale]),
             ],
           ),
           h.span(
-            [h.Class('text-[0.72rem] font-[800] tracking-[0.04em] uppercase')],
+            [h.Class('text-xs font-extrabold tracking-[0.04em] uppercase')],
             [translate(locale, 'outcomes.source')],
           ),
         ],
@@ -4584,10 +4585,7 @@ const gradeSummaryView = (
           distributionChart,
           metadata.length === 0
             ? h.empty
-            : h.p(
-                [h.Class('m-0 text-[0.75rem] font-[650] leading-[1.35]')],
-                [metadata.join(' · ')],
-              ),
+            : h.p([h.Class('m-0 text-xs font-semibold leading-[1.35]')], [metadata.join(' · ')]),
         ],
       ),
     ],
@@ -4601,7 +4599,18 @@ const selectedCourseView = (model: Model): Html => {
     [h.Class('grid gap-4 pt-4')],
     [
       h.div(
-        [h.Class('flex flex-wrap items-center justify-between gap-3')],
+        [
+          /**
+           * Saving is the decision this page exists to support, so it stays
+           * reachable while the evidence below is read rather than only at the
+           * top of a long scroll. The row sits above the whole-card overlay
+           * (z-2) and below the fixed dialogs, and carries the surface colour
+           * so content passes beneath it instead of through it.
+           */
+          h.Class(
+            'sticky top-0 z-[3] flex flex-wrap items-center justify-between gap-3 bg-surface py-2',
+          ),
+        ],
         [
           Button.view<Message>({
             type: 'button',
@@ -4641,13 +4650,13 @@ const listHeader = (locale: Locale, exploreHref: string): Html => {
           h.h1(
             [
               h.Class(
-                'max-w-[22ch] text-[clamp(2rem,5vw,3.25rem)] font-[720] tracking-[-0.05em] leading-none',
+                'max-w-[22ch] text-[clamp(2rem,5vw,3.25rem)] font-bold tracking-[-0.05em] leading-none',
               ),
             ],
             [translate(locale, 'list.heading')],
           ),
           h.p(
-            [h.Class('max-w-192 mt-4 text-on-surface-variant text-[1.05rem] leading-[1.6]')],
+            [h.Class('max-w-192 mt-4 text-on-surface-variant text-base leading-[1.6]')],
             [translate(locale, 'list.intro')],
           ),
         ],
@@ -4696,7 +4705,7 @@ const labelColorName = (color: LabelColor, locale: Locale): string =>
   );
 
 const labelChipClass = (color: LabelColor): string =>
-  `inline-flex min-h-7 items-center gap-1.5 rounded-full border border-outline-variant px-2.5 text-[0.78rem] font-[750] ${labelChipTone(color)}`;
+  `inline-flex min-h-7 items-center gap-1.5 rounded-full border border-outline-variant px-2.5 text-xs font-bold ${labelChipTone(color)}`;
 
 const labelChip = (label: Label, id: string | null = null): Html => {
   const h = html<Message>();
@@ -4739,10 +4748,10 @@ const savedRowClass =
   'grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low';
 
 const rowCheckboxClass =
-  'grid size-6 flex-none place-items-center rounded-[0.4rem] border-2 border-outline text-[0.8rem] leading-none cursor-pointer has-[[data-checked]]:border-primary';
+  'grid size-6 flex-none place-items-center rounded-[0.4rem] border-2 border-outline text-sm leading-none cursor-pointer has-[[data-checked]]:border-primary';
 
 const noteFieldClass =
-  'w-full min-h-20 p-3 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[0.95rem] leading-[1.45] [font:inherit] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]';
+  'w-full min-h-20 p-3 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base leading-[1.45] [font:inherit] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]';
 
 /**
  * A saved row shows the student's own material (identity, note, actions) plus
@@ -4798,7 +4807,7 @@ const savedCourseRow = (
         [
           ...attributes.button,
           h.Class(
-            `${compactButtonBase} inline-flex min-h-11 items-center gap-1.5 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-[0.8rem] font-[750] text-primary`,
+            `${compactButtonBase} inline-flex min-h-11 items-center gap-1.5 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-sm font-bold text-primary`,
           ),
           h.AriaLabel(translate(locale, 'list.editLabelsFor', { code: course.courseCode })),
           h.AriaHasPopup('dialog'),
@@ -4811,14 +4820,15 @@ const savedCourseRow = (
     [h.Class('min-w-0 flex-1')],
     [
       h.p(
-        [h.Class('mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase')],
+        [h.Class('mb-[0.3rem] text-primary text-xs font-extrabold tracking-[0.1em] uppercase')],
         [course.courseCode],
       ),
       h.h3(
         [
-          h.Class(
-            density === 'compact' ? 'text-[1rem] leading-[1.3]' : 'text-[1.1rem] leading-[1.35]',
-          ),
+          // Density changes how much surrounds a saved course, never how
+          // legible it is: compact buys its scan line from padding and gaps,
+          // so the title keeps one size in both views.
+          h.Class('text-lg'),
         ],
         [
           h.a(
@@ -4850,7 +4860,7 @@ const savedCourseRow = (
       ...labels.map((label) => labelChip(label)),
       labels.length === 0
         ? h.span(
-            [h.Class('text-on-surface-variant text-[0.8rem]')],
+            [h.Class('text-on-surface-variant text-sm')],
             [translate(locale, 'list.rowNoLabels')],
           )
         : h.empty,
@@ -4881,7 +4891,7 @@ const savedCourseRow = (
               ],
             ),
             h.p(
-              [h.Class('m-0 text-on-surface-variant text-[0.82rem] leading-[1.4]')],
+              [h.Class('m-0 text-on-surface-variant text-sm leading-[1.4]')],
               [
                 facts === null
                   ? translate(locale, 'list.factsNotLoaded')
@@ -4919,7 +4929,7 @@ const savedCourseRow = (
                 [
                   h.p([h.Class(factDtClass)], [translate(locale, 'list.factsNotLoaded')]),
                   h.p(
-                    [h.Class('m-0 text-[0.84rem] leading-[1.4]')],
+                    [h.Class('m-0 text-sm leading-[1.4]')],
                     [translate(locale, 'list.factsNotLoadedHelp')],
                   ),
                 ],
@@ -4965,10 +4975,7 @@ const savedCourseRow = (
                 [],
               ),
               h.p(
-                [
-                  h.Id(noteHelpId),
-                  h.Class('m-0 text-on-surface-variant text-[0.78rem] leading-[1.4]'),
-                ],
+                [h.Id(noteHelpId), h.Class('m-0 text-on-surface-variant text-xs leading-[1.4]')],
                 [translate(locale, 'list.noteHelp')],
               ),
               h.div(
@@ -5056,7 +5063,7 @@ const labelFilterSummary = (state: SavedListState, filter: LabelFilter, locale: 
 };
 
 const labelFilterChipClass = (included: boolean): string =>
-  `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border px-3 text-[0.85rem] font-[750] ${
+  `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border px-3 text-sm font-bold ${
     included
       ? 'border-primary bg-primary-container text-on-primary-container'
       : 'border-outline bg-surface-container text-on-surface'
@@ -5084,7 +5091,7 @@ const excludeCheckbox = (
         [
           ...attributes.label,
           h.Class(
-            'inline-flex min-h-11 items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-[0.82rem] text-on-surface-variant cursor-pointer has-[[data-checked]]:border-error has-[[data-checked]]:bg-error-container has-[[data-checked]]:text-on-error-container',
+            'inline-flex min-h-11 items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm text-on-surface-variant cursor-pointer has-[[data-checked]]:border-error has-[[data-checked]]:bg-error-container has-[[data-checked]]:text-on-error-container',
           ),
         ],
         [
@@ -5092,7 +5099,7 @@ const excludeCheckbox = (
             [
               ...attributes.checkbox,
               h.Class(
-                'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-[0.7rem] leading-none',
+                'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
               ),
             ],
             [isExcluded ? '✓' : ''],
@@ -5124,7 +5131,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
       [
         h.p([h.Class(factDtClass)], [translate(locale, 'list.labelsHeading')]),
         h.p(
-          [h.Class('m-0 text-on-surface-variant text-[0.85rem] leading-[1.45]')],
+          [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]')],
           [translate(locale, 'list.noLabels')],
         ),
         h.div([h.Class('flex')], [labelDialogAction([], locale)]),
@@ -5166,7 +5173,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
           labelCountBadge(unlabeledCourseCount(state), locale),
           filter.excludeUnlabeled
             ? h.span(
-                [h.Class('text-[0.72rem] font-[800] uppercase')],
+                [h.Class('text-xs font-extrabold uppercase')],
                 [translate(locale, 'list.filterExcludedBadge')],
               )
             : h.empty,
@@ -5215,7 +5222,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
                     labelCountBadge(labelCourseCount(state, label.id), locale),
                     excluded.has(label.id)
                       ? h.span(
-                          [h.Class('text-[0.72rem] font-[800] uppercase')],
+                          [h.Class('text-xs font-extrabold uppercase')],
                           [translate(locale, 'list.filterExcludedBadge')],
                         )
                       : h.empty,
@@ -5238,7 +5245,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
                 [
                   ...button,
                   h.Class(
-                    `${compactButtonBase} inline-flex min-h-11 w-fit items-center gap-2 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-[0.82rem] font-[750] text-primary`,
+                    `${compactButtonBase} inline-flex min-h-11 w-fit items-center gap-2 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-sm font-bold text-primary`,
                   ),
                 ],
                 [translate(locale, 'list.filterCombine')],
@@ -5279,7 +5286,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
                                   [
                                     ...option.option,
                                     h.Class(
-                                      `min-h-11 cursor-pointer border-0 px-4 text-[0.82rem] font-[800] ${
+                                      `min-h-11 cursor-pointer border-0 px-4 text-sm font-extrabold ${
                                         option.isSelected
                                           ? 'bg-primary text-on-primary'
                                           : 'bg-surface-container text-on-surface'
@@ -5339,10 +5346,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
           ),
       }),
       h.p(
-        [
-          h.Class('m-0 text-on-surface-variant text-[0.85rem] leading-[1.45]'),
-          h.AriaLive('polite'),
-        ],
+        [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]'), h.AriaLive('polite')],
         [labelFilterSummary(state, filter, locale)],
       ),
       contradictory.length === 0
@@ -5350,7 +5354,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
         : h.p(
             [
               h.Class(
-                'm-0 py-2 px-3 rounded-m3-medium bg-warning-container text-on-warning-container text-[0.82rem] leading-[1.4]',
+                'm-0 py-2 px-3 rounded-m3-medium bg-warning-container text-on-warning-container text-sm leading-[1.4]',
               ),
               h.Role('status'),
             ],
@@ -5368,7 +5372,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
         ? h.p(
             [
               h.Class(
-                'm-0 py-2 px-3 rounded-m3-medium bg-warning-container text-on-warning-container text-[0.82rem] leading-[1.4]',
+                'm-0 py-2 px-3 rounded-m3-medium bg-warning-container text-on-warning-container text-sm leading-[1.4]',
               ),
               h.Role('status'),
             ],
@@ -5380,7 +5384,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
         : h.p(
             [
               h.Class(
-                'm-0 py-2 px-3 rounded-m3-medium bg-warning-container text-on-warning-container text-[0.82rem] leading-[1.4]',
+                'm-0 py-2 px-3 rounded-m3-medium bg-warning-container text-on-warning-container text-sm leading-[1.4]',
               ),
               h.Role('status'),
             ],
@@ -5415,7 +5419,7 @@ const labelDialogAction = (courseCodes: ReadonlyArray<string>, locale: Locale): 
         [
           ...attributes.button,
           h.Class(
-            `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-[0.82rem] font-[750] text-primary`,
+            `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-sm font-bold text-primary`,
           ),
           h.AriaHasPopup('dialog'),
           h.AriaControls('saved-course-labels'),
@@ -5446,7 +5450,7 @@ const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): 
     ],
     [
       h.p(
-        [h.Class('m-0 font-[750]'), h.AriaLive('polite')],
+        [h.Class('m-0 font-bold'), h.AriaLive('polite')],
         [
           selected.length === 1
             ? translate(locale, 'list.selectionCountOne')
@@ -5520,24 +5524,24 @@ const savedCoursesRecoveryView = (
             [h.Class('rounded-m3-medium bg-surface-container-low text-on-surface p-3')],
             [
               h.summary(
-                [h.Class('cursor-pointer font-[700]')],
+                [h.Class('cursor-pointer font-bold')],
                 [translate(locale, 'list.recoveryShowStored')],
               ),
               h.p(
-                [h.Class('mt-2 mb-1 text-on-surface-variant text-[0.82rem] leading-[1.4]')],
+                [h.Class('mt-2 mb-1 text-on-surface-variant text-sm leading-[1.4]')],
                 [translate(locale, 'list.recoveryKept')],
               ),
               h.pre(
                 [
                   h.Class(
-                    'max-h-60 overflow-auto m-0 p-2 rounded-m3-medium bg-surface-container text-[0.78rem] whitespace-pre-wrap [overflow-wrap:anywhere]',
+                    'max-h-60 overflow-auto m-0 p-2 rounded-m3-medium bg-surface-container text-xs whitespace-pre-wrap [overflow-wrap:anywhere]',
                   ),
                 ],
                 [recovery.raw],
               ),
             ],
           ),
-      h.p([h.Class('m-0 text-[0.85rem] leading-[1.4]')], [translate(locale, 'list.resetHelp')]),
+      h.p([h.Class('m-0 text-sm leading-[1.4]')], [translate(locale, 'list.resetHelp')]),
       Button.view<Message>({
         type: 'button',
         onClick: RequestedSavedCoursesReset(),
@@ -5580,7 +5584,7 @@ const listDensityChoice = (density: ListDensity, locale: Locale): Html => {
               ...option.option,
               h.Type('button'),
               h.Class(
-                `min-h-11 cursor-pointer border-0 px-3 text-[0.8rem] font-[750] ${
+                `min-h-11 cursor-pointer border-0 px-3 text-sm font-bold ${
                   option.isSelected
                     ? 'bg-primary text-on-primary'
                     : 'bg-surface-container text-on-surface'
@@ -5639,7 +5643,7 @@ const savedCourseListView = (model: Model, state: SavedListState, repaired: numb
         [h.Class('flex items-end justify-between gap-4 py-2 px-1 border-b border-outline-variant')],
         [
           h.p(
-            [h.AriaLive('polite'), h.Class('m-0 text-on-surface-variant text-[0.88rem]')],
+            [h.AriaLive('polite'), h.Class('m-0 text-on-surface-variant text-sm')],
             [
               filterActive
                 ? translate(model.locale, 'list.filteredCount', {
@@ -5741,7 +5745,7 @@ const labelDialogView = (model: Model): Html => {
     const matched = targets.filter((identity) => hasLabel(state, label.id, identity)).length;
     return { matched, all: matched === targets.length, some: matched > 0 };
   };
-  const deleteLabelButtonClass = `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-[0.82rem] font-[750] text-on-error-container`;
+  const deleteLabelButtonClass = `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-sm font-bold text-on-error-container`;
   const labelRow = (label: Label): Html => {
     const attachment = attachmentOf(label);
     const count = state === null ? 0 : labelCourseCount(state, label.id);
@@ -5774,7 +5778,7 @@ const labelDialogView = (model: Model): Html => {
                 h.Id(confirmPromptId),
                 h.Role('status'),
                 h.AriaLive('polite'),
-                h.Class('text-error text-[0.8rem]'),
+                h.Class('text-error text-sm'),
               ],
               [translate(locale, 'list.deleteLabelConfirm', { name: label.name })],
             ),
@@ -5857,7 +5861,7 @@ const labelDialogView = (model: Model): Html => {
                   ),
                   labelChip(label, labelNameId),
                   h.span(
-                    [h.Class('text-on-surface-variant text-[0.78rem]')],
+                    [h.Class('text-on-surface-variant text-xs')],
                     [
                       attachment.all && targets.length === 1
                         ? translate(locale, 'list.labelOnCourse', {
@@ -5903,7 +5907,7 @@ const labelDialogView = (model: Model): Html => {
                   // browsing colours would create, rename, and attach labels.
                   h.Type('button'),
                   h.Class(
-                    `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border px-3 text-[0.8rem] font-[750] ${labelChipTone(option.value)} ${
+                    `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border px-3 text-sm font-bold ${labelChipTone(option.value)} ${
                       option.isSelected ? 'border-primary' : 'border-outline-variant'
                     }`,
                   ),
@@ -5939,7 +5943,7 @@ const labelDialogView = (model: Model): Html => {
                 ...attributes.input,
                 h.Placeholder(translate(locale, 'list.labelNamePlaceholder')),
                 h.Class(
-                  'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[1rem] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]',
+                  'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]',
                 ),
                 h.Autocomplete('off'),
                 // Feedback is absent until an Apply attempt; once present it is
@@ -6130,13 +6134,13 @@ const productFooter = (locale: Locale, selectFields: Model['selectFields']): Htm
   const h = html<Message>();
   const externalLink = (url: string, label: string): Html =>
     h.a(
-      [h.Href(url), h.Target('_blank'), h.Rel('noreferrer'), h.Class('relative font-[650]')],
+      [h.Href(url), h.Target('_blank'), h.Rel('noreferrer'), h.Class('relative font-semibold')],
       [label],
     );
   return h.footer(
     [
       h.Class(
-        'flex flex-wrap gap-y-[0.35rem] gap-x-4 pt-6 pb-2 border-t border-outline-variant text-on-surface-variant text-[0.82rem] leading-[1.5]',
+        'flex flex-wrap gap-y-[0.35rem] gap-x-4 pt-6 pb-2 border-t border-outline-variant text-on-surface-variant text-sm leading-[1.5]',
       ),
     ],
     [
@@ -6216,10 +6220,19 @@ const detailResultView = (detail: DetailResult, locale: Locale): Html => {
 };
 
 const formatOfferingPeriod = (academicYear: number, season: string, locale: Locale): string => {
-  const academicYearLabel = `${academicYear}/${String(academicYear + 1).slice(-2)}`;
   if (season === 'full-year') {
+    // A full-year offering spans both calendar years, so the academic year is
+    // the only label that names it.
+    const academicYearLabel = `${academicYear}/${String(academicYear + 1).slice(-2)}`;
     return translate(locale, 'offering.academicYear', { year: academicYearLabel });
   }
+  /**
+   * A season with its calendar year already names one specific offering:
+   * autumn 2026 and spring 2027 both belong to 2026/27, and neither is
+   * ambiguous alone. Appending the academic year restated a fact derivable
+   * from the season, and it was the part that truncated in narrow Refine
+   * chips.
+   */
   const calendarYear = season === 'autumn' ? academicYear : academicYear + 1;
-  return `${translateToken(locale, season)} ${calendarYear} · ${academicYearLabel}`;
+  return `${translateToken(locale, season)} ${calendarYear}`;
 };
