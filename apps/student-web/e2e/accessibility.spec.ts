@@ -649,3 +649,69 @@ test('comparing shows what differs, survives reload, and stays a mode within Lis
   await expect(page).not.toHaveURL(/compare=/);
   await expect(page.getByRole('region', { name: 'Compare saved courses' })).toHaveCount(0);
 });
+
+test('no page scrolls sideways on the narrowest phone', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium');
+  await page.setViewportSize({ width: 320, height: 720 });
+
+  /**
+   * Sideways scrolling the student did not ask for reads as broken layout.
+   * Wide content is allowed to scroll inside its own container — the
+   * comparison matrix does — but the page itself must not.
+   */
+  const widest = async (): Promise<{ scrollWidth: number; inner: number; offender: string }> =>
+    page.evaluate(() => {
+      let offender = '';
+      for (const node of document.querySelectorAll('*')) {
+        const rect = node.getBoundingClientRect();
+        if (rect.right > window.innerWidth + 1) {
+          const el = node as HTMLElement;
+          offender = `${el.tagName.toLowerCase()}[${(el.className || '').toString().slice(0, 60)}]`;
+          break;
+        }
+      }
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        inner: window.innerWidth,
+        offender,
+      };
+    });
+
+  for (const path of ['/', '/list', '/appearance']) {
+    await page.goto(path);
+    await page.waitForLoadState('networkidle');
+    const measured = await widest();
+    expect(measured.scrollWidth, `${path} overflows: ${measured.offender}`).toBeLessThanOrEqual(
+      measured.inner,
+    );
+  }
+
+  await page.goto('/');
+  await expect(page.getByText('Assessment & work', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('link', { name: 'Saved' }).click();
+  const saved = await widest();
+  expect(saved.scrollWidth, `saved list overflows: ${saved.offender}`).toBeLessThanOrEqual(
+    saved.inner,
+  );
+});
+
+test('the selection tray belongs to the saved list and does not follow the student', async ({
+  page,
+}) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('link', { name: 'Saved' }).click();
+  await page.getByLabel('Select TDT4136').click();
+
+  const tray = page.getByRole('region', { name: 'Selected saved courses' });
+  await expect(tray).toBeVisible();
+
+  // Selection is made on rows of this page; carrying it to a page without
+  // those rows leaves bulk actions pointing at nothing the student can see.
+  await page.getByRole('link', { name: 'Explore' }).first().click();
+  await expect(tray).toHaveCount(0);
+
+  await page.getByRole('link', { name: 'Saved' }).click();
+  await expect(tray).toHaveCount(0);
+});

@@ -1501,6 +1501,26 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
   };
 };
 
+/**
+ * State that belongs to the page it was made on, dropped when the student
+ * leaves it. Selection names rows of the saved list, so carrying it to a page
+ * without those rows leaves bulk actions pointing at nothing on screen.
+ *
+ * Both URL branches route through here: `locationMatchesModel` deliberately
+ * ignores the route, so a route-only change looks like "nothing moved" to one
+ * of them, and this was missed in exactly that branch.
+ */
+const forRoute = (model: Model, route: Route): Model =>
+  route === model.route
+    ? model
+    : {
+        ...model,
+        route,
+        selectedCourseCodes: [],
+        selectionRemovePending: false,
+        labelDialogTarget: [],
+      };
+
 const locationMatchesModel = (location: ParsedLocation, model: Model): boolean =>
   location.query === model.query &&
   location.term === model.term &&
@@ -1696,7 +1716,7 @@ export const update = (
         };
         if (!locationMatchesModel(location, model)) {
           const next: Model = {
-            ...model,
+            ...forRoute(model, location.route),
             locale: location.locale,
             route: location.route,
             query: location.query,
@@ -1740,7 +1760,7 @@ export const update = (
           sameLabelFilter(location.labelFilter, model.labelFilter)
             ? model
             : {
-                ...model,
+                ...forRoute(model, location.route),
                 locale: location.locale,
                 route: location.route,
                 labelFilter: location.labelFilter,
@@ -2584,6 +2604,26 @@ const buttonBase =
 const buttonPrimary = `${buttonBase} min-h-14 px-5 border-0 rounded-[1.75rem] font-bold bg-primary text-on-primary shadow-m3-1 not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px`;
 
 const buttonSecondary = `${buttonBase} min-h-12 px-[1.15rem] border border-outline rounded-[1.5rem] bg-surface-container text-primary font-bold`;
+
+/**
+ * Actions that sit together in a row are peers and share one treatment.
+ *
+ * The page-level button stretches to fill a narrow screen, which is right for
+ * a form's single commit and wrong inside a group: two buttons filling the row
+ * while two hug their text reads as two different kinds of control, and the
+ * eye groups by similarity before it reads any label. Tone carries meaning
+ * here; width does not.
+ */
+type GroupedActionTone = 'primary' | 'neutral' | 'destructive';
+
+const groupedAction = (tone: GroupedActionTone): string =>
+  `${compactButtonBase} inline-flex min-h-11 flex-none items-center gap-2 rounded-[1.5rem] border px-3 text-sm font-bold ${
+    tone === 'primary'
+      ? 'border-primary bg-primary text-on-primary'
+      : tone === 'destructive'
+        ? 'border-error bg-error-container text-on-error-container'
+        : 'border-outline bg-surface-container text-primary'
+  }`;
 
 const backButtonClass =
   'min-h-12 px-[1.15rem] border border-outline rounded-[1.5rem] bg-surface-container text-primary font-bold cursor-pointer justify-self-start';
@@ -5532,9 +5572,7 @@ const labelDialogAction = (courseCodes: ReadonlyArray<string>, locale: Locale): 
       h.button(
         [
           ...attributes.button,
-          h.Class(
-            `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-sm font-bold text-primary`,
-          ),
+          h.Class(groupedAction('neutral')),
           h.AriaHasPopup('dialog'),
           h.AriaControls('saved-course-labels'),
           ...(forSelection ? [] : [h.AriaLabel(translate(locale, 'list.labelsManageOnly'))]),
@@ -5564,7 +5602,8 @@ const bottomStackClass =
 /** The selected saved courses, resolved once for whatever needs to act on them. */
 const selectedSavedCourses = (model: Model): ReadonlyArray<SavedCourse> => {
   const state = savedListState(model.savedCourses);
-  if (state === null) return [];
+  // The tray acts on rows of the saved list, so it belongs to that page only.
+  if (state === null || model.route !== 'list') return [];
   const selectedCodes = new Set(model.selectedCourseCodes);
   return savedCoursesNewestFirst(state).filter((course) => selectedCodes.has(course.courseCode));
 };
