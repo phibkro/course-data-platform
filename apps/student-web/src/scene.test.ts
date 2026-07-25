@@ -16,20 +16,33 @@ import {
   DetailPartial,
   DecisionSignalsSuccess,
   GradeSignalsSuccess,
+  CompletedNavigation,
+  Navigate,
   NextPageIdle,
   PersistSavedCourses,
   PersistedSavedCourses,
   SavedActionSaved,
   SavedCoursesReady,
+  RequestedLabelDialog,
   SavedCoursesRecovery,
+  StampLabel,
   StampSavedCourse,
+  StampedLabel,
   StampedSavedCourse,
   type Model,
   initForHref,
   update,
   view,
 } from './main';
-import { courseIdentity, emptySavedList, saveCourse } from './saved-courses';
+import {
+  attachLabel,
+  courseIdentity,
+  createLabel,
+  emptySavedList,
+  saveCourse,
+  type LabelResult,
+  type SavedListState,
+} from './saved-courses';
 
 const baseModel = (): Model => initForHref('http://course-lens.local/')[0];
 
@@ -486,6 +499,17 @@ describe('local List scene', () => {
     );
   });
 
+  test('the per-row Edit labels action meets the established 44px touch target', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(listModel()),
+      Scene.expect(Scene.role('button', { name: 'Edit labels for TDT4136' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Edit labels for TDT4136' })).toHaveClass(
+        'min-h-11',
+      ),
+    );
+  });
+
   test('a saved course reuses evidence already loaded in this session', () => {
     Scene.scene(
       { update, view },
@@ -587,6 +611,267 @@ describe('local List scene', () => {
       Scene.expect(Scene.label('Notatet ditt')).toExist(),
       Scene.expect(Scene.role('button', { name: 'Fjern TDT4136 fra listen' })).toExist(),
       Scene.expect(Scene.role('link', { name: 'Utforsk' })).toExist(),
+    );
+  });
+});
+
+describe('label collections scene', () => {
+  const savedAt = '2026-07-24T12:00:00.000Z';
+  const tdt4136 = courseIdentity('TDT4136')!;
+  const tma4100 = courseIdentity('TMA4100')!;
+
+  const applied = (result: LabelResult): SavedListState => {
+    if (result._tag !== 'LabelApplied') throw new Error(`expected LabelApplied: ${result._tag}`);
+    return result.state;
+  };
+
+  const twoCourses = saveCourse(
+    saveCourse(emptySavedList, tdt4136, savedAt),
+    tma4100,
+    '2026-07-25T12:00:00.000Z',
+  );
+
+  const labelled = attachLabel(
+    applied(
+      createLabel(applied(createLabel(twoCourses, { id: 'label-ai', name: 'AI', color: 'blue' })), {
+        id: 'label-heavy',
+        name: 'Group heavy',
+        color: 'rose',
+      }),
+    ),
+    'label-ai',
+    [tdt4136],
+  );
+
+  const listModel = (state = labelled, href = 'http://course-lens.local/list'): Model => ({
+    ...initForHref(href)[0],
+    savedCourses: SavedCoursesReady({ state, repairedEntries: 0 }),
+  });
+
+  test('label chips carry a name, a count, and a pressed state rather than colour alone', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(listModel()),
+      Scene.expect(Scene.role('group', { name: 'Filter by label' })).toExist(),
+      // The chip names itself from its own content: label name, count, and the
+      // counted unit, so no digit stands alone and no colour carries meaning.
+      Scene.expect(Scene.role('button', { name: /AI.*1.*saved course/ })).toExist(),
+      Scene.expect(Scene.role('button', { name: /Group heavy.*0.*saved courses/ })).toExist(),
+      Scene.expect(Scene.text('Showing every saved course.')).toExist(),
+      Scene.expect(Scene.role('group', { name: 'Labels on TDT4136' })).toExist(),
+      Scene.expect(Scene.text('No labels yet')).toExist(),
+    );
+  });
+
+  test('including a label narrows the canonical List and restates the recipe', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(listModel()),
+      Scene.expect(Scene.text('2 saved courses')).toExist(),
+      Scene.click(Scene.role('button', { name: /^AI/ })),
+      Scene.Command.resolve(Navigate, CompletedNavigation()),
+      Scene.expect(Scene.text('Showing 1 of 2 saved courses')).toExist(),
+      Scene.expect(Scene.text('Showing saved courses in AI.')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Clear label filter' })).toExist(),
+    );
+  });
+
+  test('All and Exclude live behind one progressive disclosure', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(listModel()),
+      Scene.expect(Scene.role('button', { name: 'Combine labels' })).toExist(),
+      Scene.expect(Scene.role('radiogroup', { name: 'Match included labels' })).toExist(),
+      Scene.expect(Scene.label('Exclude AI')).toExist(),
+      Scene.expect(Scene.label('Exclude Group heavy')).toExist(),
+    );
+  });
+
+  test('the collapsed "Combine labels" panel is inert so its Any/All and Exclude controls cannot be focused', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(listModel()),
+      // The Disclosure primitive keeps the panel mounted and marks it
+      // aria-hidden while collapsed (needed for the height transition), but
+      // leaves removing focusability of its own descendants to the app —
+      // otherwise a focusable RadioGroup/Checkbox inside an aria-hidden
+      // ancestor is an aria-hidden-focus violation.
+      Scene.expect(Scene.selector('#label-filter-combine-panel')).toHaveAttr('inert', 'true'),
+      Scene.click(Scene.role('button', { name: 'Combine labels' })),
+      Scene.expect(Scene.selector('#label-filter-combine-panel')).toHaveAttr('inert', 'false'),
+      Scene.expect(Scene.role('radiogroup', { name: 'Match included labels' })).toExist(),
+    );
+  });
+
+  test('excluding a label subtracts it and says so in plain language', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({ ...listModel(), labelFilterCombineOpen: true }),
+      Scene.click(Scene.label('Exclude AI')),
+      Scene.Command.resolve(Navigate, CompletedNavigation()),
+      Scene.expect(Scene.text('Showing saved courses, excluding AI.')).toExist(),
+      Scene.expect(Scene.text('Showing 1 of 2 saved courses')).toExist(),
+    );
+  });
+
+  test('a combination that matches nothing is a filter outcome, not a failure', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...listModel(),
+        labelFilter: {
+          includeLabelIds: ['label-ai', 'label-heavy'],
+          includeMode: 'all',
+          excludeLabelIds: [],
+        },
+      }),
+      Scene.expect(Scene.text('No saved courses match this label combination')).toExist(),
+      Scene.expect(Scene.role('alert')).toBeAbsent(),
+      Scene.expect(Scene.text('Showing 0 of 2 saved courses')).toExist(),
+      Scene.expect(Scene.text('Showing saved courses in AI and Group heavy.')).toExist(),
+    );
+  });
+
+  test('a normalized shared recipe is restated instead of silently shrinking', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...listModel(),
+        labelFilter: { includeLabelIds: [], includeMode: 'any', excludeLabelIds: ['label-ai'] },
+        labelFilterNotice: { unknownCount: 1, contradictoryLabelIds: ['label-ai'] },
+      }),
+      Scene.expect(
+        Scene.text('AI stays excluded, so it was removed from the included labels.'),
+      ).toExist(),
+      Scene.expect(
+        Scene.text('The filter referred to labels that no longer exist. They were removed: 1.'),
+      ).toExist(),
+    );
+  });
+
+  test('selecting saved courses reveals a persistent tray with the one bulk action', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(listModel()),
+      Scene.expect(Scene.role('region', { name: 'Selected saved courses' })).toBeAbsent(),
+      Scene.click(Scene.label('Select TDT4136')),
+      Scene.expect(Scene.role('region', { name: 'Selected saved courses' })).toExist(),
+      Scene.expect(Scene.text('1 selected')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Add labels' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Clear selection' })).toExist(),
+      Scene.click(Scene.role('button', { name: 'Clear selection' })),
+      Scene.expect(Scene.role('region', { name: 'Selected saved courses' })).toBeAbsent(),
+    );
+  });
+
+  test('the label dialog creates a label with a named colour and attaches it to the target', () => {
+    const [open] = update(listModel(), RequestedLabelDialog({ courseCodes: ['TDT4136'] }));
+    Scene.scene(
+      { update, view },
+      // The colour choice is a radio group: it owns its own roving focus, so a
+      // real pointer or key press on it belongs to the browser journey. Here the
+      // chosen colour is the model state that group reports.
+      Scene.with({ ...open, labelDraftName: 'Autumn 2027', labelDraftColor: 'emerald' }),
+      Scene.expect(Scene.role('dialog')).toExist(),
+      Scene.expect(Scene.role('heading', { name: 'Labels for TDT4136' })).toExist(),
+      Scene.expect(Scene.label('Label name')).toExist(),
+      Scene.expect(Scene.role('radiogroup', { name: 'Label colour' })).toExist(),
+      Scene.expect(Scene.role('radio', { name: 'Emerald' })).toBeChecked(),
+      Scene.expect(Scene.role('button', { name: 'Delete AI' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Edit AI' })).toExist(),
+      Scene.click(Scene.role('button', { name: 'Add label' })),
+      Scene.Command.resolve(StampLabel, StampedLabel({ labelId: 'label-autumn' })),
+      Scene.Command.resolve(PersistSavedCourses, PersistedSavedCourses()),
+      // The new label exists and is attached to the target course, so the dialog
+      // offers it as a checkbox and states the attachment in words.
+      Scene.expect(Scene.role('checkbox', { name: /Autumn 2027/ })).toExist(),
+      Scene.expect(Scene.text('On TDT4136')).toExist(),
+      Scene.expect(Scene.label('Label name')).toHaveValue(''),
+    );
+  });
+
+  test('a misclick on Delete cannot delete a label: it arms an in-dialog confirmation that Cancel reverses', () => {
+    const [open] = update(listModel(), RequestedLabelDialog({ courseCodes: ['TDT4136'] }));
+    Scene.scene(
+      { update, view },
+      Scene.with(open),
+      Scene.click(Scene.role('button', { name: 'Delete AI' })),
+      // The row's own actions swap for an explicit confirm/cancel pair rather
+      // than deleting on the first click; nothing new opens or steals focus.
+      Scene.expect(Scene.role('dialog')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Edit AI' })).toBeAbsent(),
+      Scene.expect(
+        Scene.text('Delete "AI"? Saved courses keep their identity; only the label is removed.'),
+      ).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Cancel deleting' })).toExist(),
+      Scene.click(Scene.role('button', { name: 'Cancel deleting' })),
+      // Cancel restores the row exactly: the label, its membership, and its
+      // normal actions are all still there.
+      Scene.expect(Scene.role('button', { name: 'Edit AI' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Delete AI' })).toExist(),
+      // Excludes "Exclude AI": the page's own label-filter checkbox stays in
+      // the DOM behind the open dialog and would otherwise also match "AI".
+      Scene.expect(Scene.role('checkbox', { name: /(?<!Exclude )AI/ })).toBeChecked(),
+      Scene.expect(Scene.text('On TDT4136')).toExist(),
+    );
+  });
+
+  test('confirming an armed label delete removes it and its membership', () => {
+    const [open] = update(listModel(), RequestedLabelDialog({ courseCodes: ['TDT4136'] }));
+    Scene.scene(
+      { update, view },
+      Scene.with(open),
+      Scene.click(Scene.role('button', { name: 'Delete AI' })),
+      // The confirm control reuses the same accessible name as the trigger
+      // that armed it; it now performs the actual, explicit deletion.
+      Scene.click(Scene.role('button', { name: 'Delete AI' })),
+      Scene.Command.resolve(PersistSavedCourses, PersistedSavedCourses()),
+      Scene.expect(Scene.role('checkbox', { name: /^AI/ })).toBeAbsent(),
+      Scene.expect(Scene.role('button', { name: 'Delete AI' })).toBeAbsent(),
+      Scene.expect(Scene.role('checkbox', { name: /Group heavy/ })).toExist(),
+    );
+  });
+
+  test('a label on some of a selection reads as a partial state, not as attached', () => {
+    const [open] = update(
+      { ...listModel(), selectedCourseCodes: ['TDT4136', 'TMA4100'] },
+      RequestedLabelDialog({ courseCodes: ['TDT4136', 'TMA4100'] }),
+    );
+    Scene.scene(
+      { update, view },
+      Scene.with(open),
+      Scene.expect(
+        Scene.role('heading', { name: 'Labels for 2 selected saved courses' }),
+      ).toExist(),
+      Scene.expect(Scene.text('On 1 of 2 selected')).toExist(),
+      Scene.expect(Scene.role('checkbox', { name: /AI/ })).toExist(),
+    );
+  });
+
+  test('a duplicate label name is reported in the dialog and keeps the draft', () => {
+    const [open] = update(listModel(), RequestedLabelDialog({ courseCodes: [] }));
+    Scene.scene(
+      { update, view },
+      Scene.with({ ...open, labelDraftName: 'ai' }),
+      Scene.click(Scene.role('button', { name: 'Add label' })),
+      Scene.expect(Scene.role('alert')).toHaveText('A label with that name already exists.'),
+      Scene.expect(Scene.label('Label name')).toHaveValue('ai'),
+    );
+  });
+
+  test('the label filter and dialog are localized in Norwegian Bokmål', () => {
+    const [open] = update(
+      { ...listModel(), locale: 'nb' as const },
+      RequestedLabelDialog({ courseCodes: ['TDT4136'] }),
+    );
+    Scene.scene(
+      { update, view },
+      Scene.with(open),
+      Scene.expect(Scene.role('heading', { name: 'Etiketter for TDT4136' })).toExist(),
+      Scene.expect(Scene.label('Etikettnavn')).toExist(),
+      Scene.expect(Scene.role('radiogroup', { name: 'Etikettfarge' })).toExist(),
+      Scene.expect(Scene.role('radio', { name: 'Smaragd' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Legg til etikett' })).toExist(),
     );
   });
 });

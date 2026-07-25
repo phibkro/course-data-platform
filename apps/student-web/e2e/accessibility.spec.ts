@@ -209,3 +209,92 @@ test('an unreadable saved list pauses Save on Explore with a path to recover it,
   await page.getByRole('button', { name: 'Reset saved courses' }).click();
   await expect(page.getByText('You have not saved a course yet')).toBeVisible();
 });
+
+test('labels compose collections, stay in the URL, and survive history and reload', async ({
+  page,
+}) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('link', { name: 'List' }).click();
+  await expect(page.getByRole('heading', { name: 'Your saved courses' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Edit labels for TDT4136' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  // The Dialog primitive owns focus, so the close control is focused on open.
+  await expect(page.getByRole('button', { name: 'Close labels' })).toBeFocused();
+
+  await dialog.getByLabel('Label name').fill('Autumn 2027');
+  // The colour choice is a radio group: it owns roving focus and arrow keys.
+  await dialog.getByRole('radio', { name: 'Blue' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(dialog.getByRole('radio', { name: 'Violet' })).toBeChecked();
+
+  await dialog.getByRole('button', { name: 'Add label' }).click();
+  await expect(dialog.getByRole('checkbox', { name: /Autumn 2027/ })).toBeChecked();
+  await expectNoAxeViolations(page);
+
+  await page.getByRole('button', { name: 'Close labels' }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('button', { name: /^Autumn 2027/ })).toBeVisible();
+
+  await page.getByRole('button', { name: /^Autumn 2027/ }).click();
+  await expect(page).toHaveURL(/labels=label-/);
+  await expect(page.getByText('Showing 1 of 1 saved courses')).toBeVisible();
+  await expect(page.getByText('Showing saved courses in Autumn 2027.')).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  await page.goBack();
+  await expect(page).not.toHaveURL(/labels=label-/);
+  await expect(page.getByText('1 saved course', { exact: true })).toBeVisible();
+  await page.goForward();
+  await expect(page).toHaveURL(/labels=label-/);
+  // The URL updates before the SPA's popstate handler re-renders: wait for
+  // the restored filter to actually land in the model/UI, not just the
+  // address bar, before driving the next interaction.
+  await expect(page.getByText('Showing saved courses in Autumn 2027.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Combine labels' }).click();
+  // The disclosure panel is `inert` while collapsed and its click resolving
+  // does not guarantee the open-state re-render has landed. Wait for
+  // aria-expanded to flip before acting on its now-actionable contents;
+  // clicking through a still-inert panel silently drops the event.
+  await expect(page.getByRole('button', { name: 'Combine labels' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  await page.getByLabel('Exclude Autumn 2027').click();
+  await expect(page).toHaveURL(/notLabels=label-/);
+  await expect(page.getByText('No saved courses match this label combination')).toBeVisible();
+  await expect(page.getByRole('alert')).toBeHidden();
+
+  await page.getByRole('button', { name: 'Clear label filter' }).first().click();
+  await expect(page).not.toHaveURL(/labels=|notLabels=/);
+  await expect(page.getByText('1 saved course', { exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: /^Autumn 2027/ })).toBeVisible();
+});
+
+test('selecting saved courses offers labelling as the one bulk action', async ({ page }) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('link', { name: 'List' }).click();
+
+  const tray = page.getByRole('region', { name: 'Selected saved courses' });
+  await expect(tray).toBeHidden();
+
+  await page.getByLabel('Select TDT4136').click();
+  await expect(tray).toBeVisible();
+  await expect(tray.getByText('1 selected')).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  await tray.getByRole('button', { name: 'Add labels' }).click();
+  await expect(page.getByRole('heading', { name: 'Labels for TDT4136' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close labels' }).click();
+
+  // Selection is ephemeral: it never enters the URL and a reload drops it.
+  await expect(page).not.toHaveURL(/select/);
+  await page.reload();
+  await expect(tray).toBeHidden();
+});

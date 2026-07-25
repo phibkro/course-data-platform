@@ -34,6 +34,18 @@
   --color-on-danger-container: var(--md-sys-color-on-error-container);
   --color-constraint: var(--md-sys-color-on-surface);
   --color-on-constraint: var(--md-sys-color-surface);
+  --color-label-blue: var(--md-sys-color-label-blue-container);
+  --color-on-label-blue: var(--md-sys-color-on-label-blue-container);
+  --color-label-violet: var(--md-sys-color-label-violet-container);
+  --color-on-label-violet: var(--md-sys-color-on-label-violet-container);
+  --color-label-amber: var(--md-sys-color-label-amber-container);
+  --color-on-label-amber: var(--md-sys-color-on-label-amber-container);
+  --color-label-rose: var(--md-sys-color-label-rose-container);
+  --color-on-label-rose: var(--md-sys-color-on-label-rose-container);
+  --color-label-emerald: var(--md-sys-color-label-emerald-container);
+  --color-on-label-emerald: var(--md-sys-color-on-label-emerald-container);
+  --color-label-sky: var(--md-sys-color-label-sky-container);
+  --color-on-label-sky: var(--md-sys-color-on-label-sky-container);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -93,6 +105,27 @@
   --chart-3: #5269a3;
   --chart-4: #00838f;
   --chart-5: #68548f;
+
+  /**
+   * Student label colours are their own semantic family. They are deliberately
+   * independent of the active theme accent: a label keeps the same meaning and
+   * the same colour when the student switches palette, and the six families
+   * must stay distinguishable from each other rather than from the accent.
+   * Every pair is checked for AA text contrast in light and dark, and colour is
+   * never the only carrier of meaning — the label name is always rendered.
+   */
+  --md-sys-color-label-blue-container: #d4e4ff;
+  --md-sys-color-on-label-blue-container: #00325b;
+  --md-sys-color-label-violet-container: #eedcff;
+  --md-sys-color-on-label-violet-container: #3c1a63;
+  --md-sys-color-label-amber-container: #ffdf8f;
+  --md-sys-color-on-label-amber-container: #3a2c00;
+  --md-sys-color-label-rose-container: #ffd9e2;
+  --md-sys-color-on-label-rose-container: #5c1130;
+  --md-sys-color-label-emerald-container: #b8f2d8;
+  --md-sys-color-on-label-emerald-container: #00382a;
+  --md-sys-color-label-sky-container: #c5e7ff;
+  --md-sys-color-on-label-sky-container: #00344b;
 
   --md-sys-shape-corner-small: 0.75rem;
   --md-sys-shape-corner-medium: 1rem;
@@ -290,6 +323,19 @@
   --md-sys-color-on-warning-container: #ffdf8f;
   --md-sys-color-valid: #71dbb2;
   --md-sys-color-on-valid: #003828;
+
+  --md-sys-color-label-blue-container: #00456f;
+  --md-sys-color-on-label-blue-container: #cfe5ff;
+  --md-sys-color-label-violet-container: #533b7d;
+  --md-sys-color-on-label-violet-container: #ecdcff;
+  --md-sys-color-label-amber-container: #574400;
+  --md-sys-color-on-label-amber-container: #ffdf8f;
+  --md-sys-color-label-rose-container: #7b2945;
+  --md-sys-color-on-label-rose-container: #ffd9e2;
+  --md-sys-color-label-emerald-container: #00513b;
+  --md-sys-color-on-label-emerald-container: #8df8cd;
+  --md-sys-color-label-sky-container: #004c6b;
+  --md-sys-color-on-label-sky-container: #c5e7ff;
 }
 
 :root.dark[data-base-color='zinc'] {
