@@ -4925,8 +4925,13 @@ const savedCourseRow = (
             [translate(locale, 'list.rowNoLabels')],
           )
         : h.empty,
-      labelsAction,
     ],
+  );
+
+  /** Both controls that act on this row, kept together at its end. */
+  const rowActions = h.div(
+    [h.Class('flex flex-none items-center gap-2')],
+    [labelsAction, savedCourseToggle(course.courseCode, true, 'ready', locale, '', 'destructive')],
   );
   /**
    * Compact keeps the same saved-course identity, its current offering, its
@@ -4945,11 +4950,7 @@ const savedCourseRow = (
           [
             h.div(
               [h.Class('flex items-start justify-between gap-3')],
-              [
-                selectionCheckbox,
-                identityBlock,
-                savedCourseToggle(course.courseCode, true, 'ready', locale, '', 'destructive'),
-              ],
+              [selectionCheckbox, identityBlock, rowActions],
             ),
             h.p(
               [h.Class('m-0 text-on-surface-variant text-sm leading-[1.4]')],
@@ -4973,11 +4974,7 @@ const savedCourseRow = (
         [
           h.div(
             [h.Class('flex items-start justify-between gap-3')],
-            [
-              selectionCheckbox,
-              identityBlock,
-              savedCourseToggle(course.courseCode, true, 'ready', locale, '', 'destructive'),
-            ],
+            [selectionCheckbox, identityBlock, rowActions],
           ),
           labelsBlock,
           item === null
@@ -5592,6 +5589,18 @@ const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): 
               ),
               Button.view<Message>({
                 type: 'button',
+                onClick: ClearedSavedCourseSelection(),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                    ],
+                    [translate(locale, 'list.selectionClear')],
+                  ),
+              }),
+              Button.view<Message>({
+                type: 'button',
                 onClick: RequestedRemoveSelected(),
                 toView: (attributes) =>
                   h.button(
@@ -5602,18 +5611,6 @@ const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): 
                       ),
                     ],
                     [translate(locale, 'list.selectionRemove')],
-                  ),
-              }),
-              Button.view<Message>({
-                type: 'button',
-                onClick: ClearedSavedCourseSelection(),
-                toView: (attributes) =>
-                  h.button(
-                    [
-                      ...attributes.button,
-                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
-                    ],
-                    [translate(locale, 'list.selectionClear')],
                   ),
               }),
             ],
@@ -6099,7 +6096,7 @@ const labelDialogView = (model: Model): Html => {
       }),
       colorChoice,
       h.div(
-        [h.Class('flex flex-wrap gap-3')],
+        [h.Class('flex flex-wrap justify-end gap-3')],
         [
           Button.view<Message>({
             type: 'submit',
