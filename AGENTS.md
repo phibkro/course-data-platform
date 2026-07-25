@@ -1,131 +1,123 @@
-# Course Data Platform — agent guide
+# Course Data Platform — agent context
 
-## Cross-provider delegation
+## Product
 
-- Launch every Claude Code worker in its own observable Herdr tab through
-  `pagu`; `agent-dispatch` is deprecated for this repository.
-- Use `pagu --profile worker -- claude` for bounded editing workers and
-  `pagu --profile advisor -- claude` for read-oriented review.
-- The pagu Claude harness owns fresh/resume and Claude permission-bypass
-  arguments. Do not append arbitrary child flags.
-- `pagu-box` is compatibility-only. Use `pagu box` for one static command under
-  a complete fixed policy, not for an interactive agent journey.
-- Keep delegation to at most two concurrent Claude workers and depth two
-  (lead → worker → reviewer).
-- Give each worker explicit file or subsystem ownership. Use separate Herdr
-  tabs and isolated worktrees when concurrent edits would otherwise overlap.
-- The outer pagu policy is the permission boundary. A delegated worker may
-  narrow access but must not widen it.
+Uni Planner helps NTNU students discover, understand, save, and compare courses
+using trustworthy evidence. It is anonymous, local-first, and NTNU-only.
 
-## Mission
+The active value loop is `Explore -> Inspect -> List -> Compare`. A vertical
+slice succeeds when a student can make a better course decision in the browser;
+infrastructure or abstraction alone is not product progress.
 
-Help NTNU students discover, understand, shortlist, and compare courses using
-trustworthy evidence.
+**List and Saved are both correct, in different layers.** `List` is the domain
+term and the stable `/list` route. `Saved` is the student-facing navigation
+label, and lives only in the message catalogue (`nav.list` in
+`apps/student-web/src/i18n.ts`). Do not rename the route to match the label, or
+the label to match the route.
 
-The current release is an anonymous, local-first NTNU course-decision product.
-Multi-institution study planning remains a possible later direction, not the
-current product scope. A vertical slice is successful only when it adds a
-student-visible capability in the browser.
+Read before changing product behaviour:
 
-## Current product scope
+- [`docs/product/student-experience-contract.md`](docs/product/student-experience-contract.md)
+  — surface vocabulary, shared concepts, the accessibility contract, and the
+  **Parallel readiness** table. That table, not this file, decides what work each
+  surface allows today: Explore/Inspect and List/Compare are open, while Schedule
+  and Degree stay specification lanes until their data-readiness gates are met.
+  Check the gate before starting work on a surface.
+- [`docs/agent-context/next-slice.md`](docs/agent-context/next-slice.md) — the
+  active slice, its required path, acceptance criteria, and what is deferred.
+- the surface specification under `docs/product/` for whatever you are changing.
+- [ADR-012](docs/adr/012-course-decisions-first.md) for why the course-decision
+  product leads, and [ADR-011](docs/adr/011-theme-lab-and-design-freeze.md) for
+  the design freeze that still constrains discretionary visual work. There is no
+  ADR index; `ls docs/adr/` is the list.
 
-- Search NTNU courses without selecting a programme.
-- Explain course content, teaching, assessment, obligatory activity,
-  collaboration, attendance, prerequisites, availability, and grade outcomes.
-- Attribute facts to sources and preserve unknown, unavailable, suppressed, and
-  conflicting states.
-- Let students bookmark, annotate, filter, and compare courses locally without
-  an account.
-- Enrich exact matches, opened courses, bookmarks, and comparisons on demand;
-  cache based on observed use rather than replicating the full catalogue first.
+Programme planning, accounts, cross-device synchronization, additional
+institutions, and full national replication remain later options until the
+course-decision loop demonstrates repeat value.
 
-Deferred until the course-decision workflow demonstrates repeat use:
+## Two stacks
 
-- programme roadmap editing and progress tracking;
-- Workbench and custom projections;
-- authentication and account synchronization;
-- second-institution adapters;
-- full national replication, knowledge graphs, and constraint solving.
+This repository holds the current course-decision product and an older planner
+that predates it. Both layer the same way — `apps -> infrastructure packages ->
+application -> domain` — but they are separate lineages, and the distinction
+decides where new work belongs.
 
-## Architecture direction
+**Current — the course-decision stack.** New product contracts are defined here.
 
-Dependencies flow inward:
+- `packages/course-model` owns course facts, evidence, uncertainty, and pure
+  derived classifications.
+- `packages/source-ntnu-course` and `packages/source-grades` validate provider
+  data and map it into the course model.
+- `packages/course-service` coordinates sources, partial success, caching,
+  retries, and timeouts when that complexity is present.
+- `packages/contracts` owns public DTOs and mappings, never database rows.
+- `apps/course-api` is the thin Elysia transport composition root.
+- `apps/student-web` is the Foldkit application. Its model owns URL state,
+  explicit remote-data state, and local preferences.
+- `alchemy.run.ts` is the infrastructure composition root. Only `course-api` and
+  `student-web` are built and deployed.
 
-`apps -> infrastructure packages -> application -> domain`
+**Legacy — the planner stack.** `apps/web` (React), `apps/api-worker`,
+`apps/ingest-worker`, `packages/{domain,study-kernel,application,database,
+source-dbh,source-ntnu}`, and `legacy/ntnu-course-search`.
 
-- `packages/course-model` is the intended home for course facts, evidence,
-  uncertainty, and pure derived classifications. It must not import a UI or
-  runtime framework.
-- Source packages parse provider-specific responses and map them into the course
-  model. They do not expose unvalidated source data to applications.
-- `packages/course-service` orchestrates sources, partial success, caching,
-  retries, and timeouts with Effect when that complexity is present.
-- `packages/contracts` contains public HTTP DTOs and mappings. It must not expose database rows.
-- `apps/course-api` is the intended thin Elysia transport composition root.
-- `apps/student-web` is the intended Foldkit application. Its model owns URL
-  state, explicit remote-data state, and local preferences.
-- Existing planner packages and applications are maintained while the new
-  walking skeleton is built, but they do not determine new product contracts.
-- `infra` is represented by `alchemy.run.ts`; no package outside the composition roots imports Alchemy.
+Maintain, do not extend. These are excluded from build and deploy, but lint,
+`check:types`, and `test` still cover them, so breaking them blocks CI. Keep them
+compiling and passing; do not add features to them, do not treat their patterns
+as precedent for new work, and do not delete them in passing.
 
-## Canonical commands
+Two edges cross the two-stack boundary, and both are worth knowing before moving
+code: `packages/contracts` depends on `packages/study-kernel`, and it imports `t`
+from `elysia` — so every application, including the browser SPA, pulls Elysia in
+transitively.
 
-- `bun install --frozen-lockfile`
-- `bun run check`
-- `bun run check:types` — authoritative TypeScript 7 check
-- `bun run test`
-- `bun run build`
-- `bun run validate`
-- `bun run dev:web`
-- `bun run dev:api`
-- `bun run openapi`
+## Enduring invariants
 
-## Non-negotiable rules
+Four structural boundaries are enforced rather than described — see
+`.oxlintrc.json` (domain purity) and
+[`tests/architecture.test.ts`](tests/architecture.test.ts) (ambient clocks, SQL
+in transport, appearance tokens, dependency direction). Read the failure message
+before working around one.
 
-- Bun is the package manager and runner; do not add a second root lockfile.
-- TypeScript 7 is the sole compiler authority.
-- Each package declares its own ambient type context; do not repair missing declarations by adding globals to the shared base config.
-- Parse all untrusted data at the boundary.
-- Preserve unknown, unavailable, suppressed, and conflicting states; do not collapse them to zero or false.
-- Every public factual field and relation must be attributable to a source or explicitly marked as a fixture/inference.
-- Derived labels such as `remote-friendly` or `project-heavy` must expose their
-  evidence and uncertainty; they are not source facts.
-- A source failure must not erase independently available course information.
-- Do not pre-provision infrastructure for a deferred capability.
-- Official curriculum, planned scenarios, and actual progress are separate objects.
-- Planner operations receive programme version and data revision explicitly; no hidden current programme or cohort.
-- Do not call `fetch`, clocks, randomness, D1, R2, or Cloudflare bindings from domain code.
-- Do not put SQL in Elysia handlers.
-- Do not use Elysia decorators or global state as the application dependency system.
-- Route schemas must declare successful and error responses.
-- The first-party client may use Eden, but OpenAPI remains the public contract.
-- Generated artifacts are checked in and CI must fail when regeneration changes them.
+The invariants that judgement still carries:
 
-## Web interface boundaries
+- Parse untrusted provider, storage, URL, and transport data at a boundary.
+- Preserve unknown, unavailable, suppressed, stale, failed, and conflicting
+  states. Never turn them into zero, false, empty, or favourable values.
+  Unknown is neutral; it must never rank as favourable.
+- Every public factual field and relation has a source, or is explicitly marked
+  as fixture, student-authored, or inference. Derived classifications expose
+  their evidence and uncertainty.
+- A source failure does not erase independently available information.
+- Official curriculum, student scenarios, and actual progress are separate
+  objects.
+- Do not pre-provision infrastructure or general frameworks for deferred
+  capabilities.
+- Generated artifacts are checked in and must be reproducible.
 
-- Foldkit is the frontend architecture for the new student application. Do not
-  introduce React components into its interaction tree.
-- Use the shadcn source-ownership philosophy, not React shadcn components.
-  Interactive primitives are implemented with Foldkit's accessible UI
-  facilities and styled with repository-owned Material You semantic tokens.
-- Build a component only when a live workflow requires it. Do not restart a
-  general design-system or theme-lab programme.
-- Explore is the default public experience. It must be useful without programme
-  context, onboarding, an account, or pre-existing local state.
-- Mobile primary navigation is a bottom bar; desktop primary navigation is a sidebar. Do not add another equally prominent top-level tab strip.
-- One primitive owns each overlay or collection interaction. Do not mix
-  Foldkit UI with a second focus or collection system inside the same tree.
-- Appearance is expressed through semantic tokens. The default is Mist + Emerald + Indigo; do not add direct palette values to product components.
-- ADR-011 freezes discretionary design-system work. Continue visual work only for accessibility defects or concrete functional blockers.
+## Working in this repository
 
-## Adding a feature
+- Bun is the package manager and runner; do not add another root lockfile.
+- TypeScript 7 is the compiler authority.
+- Match the surrounding code's naming, structure, comment density, and idiom.
+- Prefer explicit typed models, schemas, and interfaces when a functional
+  distinction is established. They are executable context for delegated work;
+  do not encode speculative abstractions before a student-facing need proves
+  the distinction useful.
+- Use judgment proportional to the change. Keep a slice small enough to verify
+  through its observable behavior, and do not broaden it with unrelated cleanup.
+- The common quality commands are `bun run check`, `bun run test`, and
+  `bun run build`. Read [`docs/agent/verification.md`](docs/agent/verification.md)
+  when preparing a handoff or choosing additional checks.
 
-1. Name the student decision or task that improves.
-2. Define the observable browser acceptance criterion.
-3. Write or refine the course fact, evidence, or domain invariant.
-4. Add source/application behavior only as required by that task.
-5. Map it into an explicit protocol DTO.
-6. Add the thin Elysia route with successful and error response schemas.
-7. Consume it through an explicit Foldkit message and model transition.
-8. Add source-fixture, domain, transport, Foldkit Story/Scene, and browser tests
-   in proportion to the slice.
+Subsystem guidance is progressively disclosed:
+
+- Student web: [`.claude/rules/student-web.md`](.claude/rules/student-web.md)
+- Backend and data:
+  [`.claude/rules/backend-and-data.md`](.claude/rules/backend-and-data.md)
+- Infrastructure:
+  [`.claude/rules/infrastructure.md`](.claude/rules/infrastructure.md)
+- Legacy planner stack: [`.claude/rules/legacy-planner.md`](.claude/rules/legacy-planner.md)
+
+Claude Code loads those rules by path. Other agents should read the relevant file
+before editing that subsystem.
