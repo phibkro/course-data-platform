@@ -69,25 +69,28 @@ test('Refine listboxes remain interactive above the dialog', async ({ page }) =>
   await expect(term).toContainText('Spring 2027');
 });
 
-test('Theme Lab has no detectable WCAG A/AA violations', async ({ page }) => {
+test('Appearance is a destination with no detectable WCAG A/AA violations', async ({ page }) => {
   await waitForEnrichedCatalogue(page);
-  await page.getByRole('button', { name: 'Open appearance settings' }).click();
-  const dialog = page.getByRole('dialog');
+  await page.getByRole('link', { name: 'Appearance' }).first().click();
+
   await expect(page).toHaveURL(/\/appearance(?:\?|$)/);
-  await expect(dialog.getByRole('heading', { name: 'Theme lab' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Close appearance settings' })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Theme lab' })).toBeVisible();
+  // Nothing was opened over anything, so there is nothing to dismiss.
+  await expect(page.getByRole('button', { name: 'Close appearance settings' })).toHaveCount(0);
   await expectNoAxeViolations(page);
 
   await page.goBack();
   await expect(page).not.toHaveURL(/\/appearance(?:\?|$)/);
-  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Theme lab' })).toBeHidden();
 
   await page.goForward();
   await expect(page).toHaveURL(/\/appearance(?:\?|$)/);
-  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Theme lab' })).toBeVisible();
+});
 
-  await page.getByRole('button', { name: 'Close appearance settings' }).click();
-  await expect(page).not.toHaveURL(/\/appearance(?:\?|$)/);
+test('the appearance overlay path still resolves to the destination', async ({ page }) => {
+  await page.goto('/list/appearance');
+  await expect(page.getByRole('heading', { name: 'Theme lab' })).toBeVisible();
 });
 
 test('course Inspect view has no detectable WCAG A/AA violations', async ({ page }) => {
@@ -112,7 +115,7 @@ test('desktop sidebar collapse preference survives reload', async ({ page }, tes
 
 test('theme preference applies immediately and survives reload', async ({ page }) => {
   await waitForEnrichedCatalogue(page);
-  await page.getByRole('button', { name: 'Open appearance settings' }).click();
+  await page.getByRole('link', { name: 'Appearance' }).first().click();
   await page.getByRole('button', { name: /Pine/ }).click();
   await page.getByRole('button', { name: 'Dark' }).click();
 

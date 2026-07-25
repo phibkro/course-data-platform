@@ -57,7 +57,7 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.label('Search courses')).toExist(),
       Scene.expect(Scene.label('Campus')).toExist(),
       Scene.expect(Scene.role('button', { name: 'Refine' })).toExist(),
-      Scene.expect(Scene.role('button', { name: 'Open appearance settings' })).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Appearance' })).toExist(),
       Scene.expect(Scene.label('Study level')).toBeAbsent(),
       Scene.expect(Scene.label('Sort')).toBeAbsent(),
       Scene.expect(Scene.role('link', { name: 'Explore' })).toExist(),
@@ -73,7 +73,9 @@ describe('browse-first catalogue scene', () => {
     Scene.scene(
       { update, view },
       Scene.with(open),
-      Scene.expect(Scene.role('dialog')).toExist(),
+      // Appearance is a destination now: it has a page heading, and there is
+      // nothing to dismiss because it was not opened over anything.
+      Scene.expect(Scene.role('button', { name: 'Close appearance settings' })).toBeAbsent(),
       Scene.expect(Scene.role('heading', { name: 'Theme lab' })).toExist(),
       Scene.expect(Scene.role('button', { name: /Fjord/ })).toExist(),
       Scene.expect(Scene.role('button', { name: /Pine/ })).toExist(),

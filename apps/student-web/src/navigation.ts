@@ -4,10 +4,10 @@ import { html } from 'foldkit/html';
 import { translate, type Locale } from './i18n';
 import { icon, type AppIcon } from './icons';
 
-export type NavigationRoute = 'explore' | 'list';
+export type NavigationRoute = 'explore' | 'list' | 'appearance';
 
 export interface NavigationItem {
-  readonly id: 'list' | 'schedule' | 'explore' | 'degree' | 'more';
+  readonly id: 'list' | 'schedule' | 'explore' | 'degree' | 'appearance';
   readonly label: string;
   readonly accessibleLabel: string;
   readonly icon: AppIcon;
@@ -25,6 +25,7 @@ export const primaryNavigation = (
   route: NavigationRoute,
   exploreHref: string,
   listHref: string,
+  appearanceHref: string,
 ): ReadonlyArray<NavigationItem> => [
   {
     id: 'list',
@@ -59,12 +60,17 @@ export const primaryNavigation = (
     isCurrent: false,
   },
   {
-    id: 'more',
-    label: translate(locale, 'nav.more'),
-    accessibleLabel: translate(locale, 'nav.more'),
-    icon: 'more',
-    href: null,
-    isCurrent: false,
+    id: 'appearance',
+    /**
+     * The bottom bar gives each destination about eight characters before it
+     * truncates, so the visible label is the short word while the accessible
+     * name stays the full one. The route is `/appearance` either way.
+     */
+    label: translate(locale, 'appearance.navLabel'),
+    accessibleLabel: translate(locale, 'appearance.label'),
+    icon: 'appearance',
+    href: appearanceHref,
+    isCurrent: route === 'appearance',
   },
 ];
 
@@ -138,44 +144,20 @@ const mobileItemIcon = (isCurrent: boolean): string =>
     isCurrent ? 'bg-primary text-on-primary' : ''
   }`;
 
-const mobileItem = <Message>(
-  locale: Locale,
-  item: NavigationItem,
-  onAppearance?: Message,
-): Html => {
+/**
+ * Every destination is a link or a planned placeholder. Appearance used to be
+ * a button opening a dialog, which made it the one item rendered from a
+ * different element with its own styling — and the one place a stray reset
+ * could drift away from its peers. It is a page now, so there is no special
+ * case left.
+ */
+const mobileItem = <Message>(locale: Locale, item: NavigationItem): Html => {
   const h = html<Message>();
   const itemClass = mobileItemLayout(item.isCurrent);
   const children = [
     icon<Message>(item.icon, mobileItemIcon(item.isCurrent)),
     h.span([h.Class('max-w-full truncate')], [item.label]),
   ];
-
-  if (item.id === 'more' && onAppearance !== undefined) {
-    // The bottom bar gives each destination about eight characters before it
-    // truncates, so the narrow label is the short word. The route stays
-    // `/appearance` and the dialog keeps its full name.
-    const appearanceLabel = translate(locale, 'appearance.navLabel');
-    return h.button(
-      [
-        h.Type('button'),
-        /**
-         * No `font: inherit` here. Tailwind's preflight already gives buttons
-         * the inherited font from the base layer, and repeating it as a
-         * utility puts the shorthand alongside `leading-none` — which it
-         * silently resets, because `font` carries line-height. That gave this
-         * one destination a taller label than its peers and floated its icon
-         * above the row.
-         */
-        h.Class(`${itemClass} border-0 bg-transparent cursor-pointer`),
-        h.OnClick(onAppearance),
-        h.AriaLabel(translate(locale, 'appearance.open')),
-      ],
-      [
-        icon<Message>('appearance', mobileItemIcon(false)),
-        h.span([h.Class('max-w-full truncate')], [appearanceLabel]),
-      ],
-    );
-  }
 
   return item.href === null
     ? h.span(
@@ -204,12 +186,12 @@ export const desktopNavigation = <Message>(
   route: NavigationRoute = 'explore',
   exploreHref = '/',
   listHref = '/list',
+  appearanceHref = '/appearance',
   onToggle?: Message,
-  onAppearance?: Message,
   languageControl?: Html,
 ): Html => {
   const h = html<Message>();
-  const items = primaryNavigation(locale, route, exploreHref, listHref);
+  const items = primaryNavigation(locale, route, exploreHref, listHref, appearanceHref);
   return h.aside(
     [
       h.Class(
@@ -269,28 +251,30 @@ export const desktopNavigation = <Message>(
                 [h.Class('m-0 text-on-surface-variant text-sm leading-[1.5]')],
                 [translate(locale, 'nav.claim')],
               ),
-          onAppearance === undefined
-            ? h.empty
-            : h.button(
-                [
-                  h.Type('button'),
-                  h.Class(
-                    `flex min-h-11 w-full items-center gap-3 border-0 rounded-m3-medium bg-transparent text-on-surface cursor-pointer font-semibold focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
-                      collapsed ? 'justify-center px-2' : 'px-3'
-                    }`,
-                  ),
-                  h.OnClick(onAppearance),
-                  h.AriaLabel(translate(locale, 'appearance.open')),
-                  h.Title(translate(locale, 'appearance.label')),
-                ],
-                [
-                  icon<Message>('appearance', 'block size-5 [&_svg]:block [&_svg]:size-full'),
-                  h.span(
-                    [h.Class(collapsed ? 'sr-only' : '')],
-                    [translate(locale, 'appearance.label')],
-                  ),
-                ],
+          h.a(
+            [
+              h.Href(appearanceHref),
+              h.Class(
+                `flex min-h-11 w-full items-center gap-3 rounded-m3-medium no-underline font-semibold focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
+                  collapsed ? 'justify-center px-2' : 'px-3'
+                } ${
+                  route === 'appearance'
+                    ? 'bg-secondary-container text-on-secondary-container'
+                    : 'text-on-surface hover:bg-surface-container-high'
+                }`,
               ),
+              ...(route === 'appearance' ? [h.AriaCurrent('page')] : []),
+              h.AriaLabel(translate(locale, 'appearance.label')),
+              h.Title(translate(locale, 'appearance.label')),
+            ],
+            [
+              icon<Message>('appearance', 'block size-5 [&_svg]:block [&_svg]:size-full'),
+              h.span(
+                [h.Class(collapsed ? 'sr-only' : '')],
+                [translate(locale, 'appearance.label')],
+              ),
+            ],
+          ),
           languageControl ?? h.empty,
         ],
       ),
@@ -303,7 +287,7 @@ export const mobileNavigation = <Message>(
   route: NavigationRoute = 'explore',
   exploreHref = '/',
   listHref = '/list',
-  onAppearance?: Message,
+  appearanceHref = '/appearance',
 ): Html => {
   const h = html<Message>();
   return h.nav(
@@ -313,8 +297,8 @@ export const mobileNavigation = <Message>(
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
-    primaryNavigation(locale, route, exploreHref, listHref).map((item) =>
-      mobileItem<Message>(locale, item, onAppearance),
+    primaryNavigation(locale, route, exploreHref, listHref, appearanceHref).map((item) =>
+      mobileItem<Message>(locale, item),
     ),
   );
 };

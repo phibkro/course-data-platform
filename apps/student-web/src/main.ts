@@ -114,8 +114,8 @@ const DEFAULT_TERM = '2026-autumn';
 const DEFAULT_SORT: CourseSearchSort = 'relevance';
 const EXPLORE_PATH = '/';
 const LIST_PATH = '/list';
-const EXPLORE_APPEARANCE_PATH = '/appearance';
-const LIST_APPEARANCE_PATH = '/list/appearance';
+const APPEARANCE_PATH = '/appearance';
+const LEGACY_LIST_APPEARANCE_PATH = '/list/appearance';
 const listDensityStorageKey = 'course-lens:list-density';
 const lazyCourseCard = createKeyedLazy();
 const lazySavedCourseRow = createKeyedLazy();
@@ -124,7 +124,7 @@ const lazyMobileNavigation = createLazy();
 const lazyCatalogueHeader = createLazy();
 const lazyCatalogueControls = createLazy();
 const lazyCatalogueRefineDialog = createLazy();
-const lazyAppearanceDialog = createLazy();
+const lazyAppearancePage = createLazy();
 const lazyCatalogueFooter = createLazy();
 const lazyDetailFooter = createLazy();
 const lazyListHeader = createLazy();
@@ -385,7 +385,7 @@ const LabelFilterNoticeSchema = S.Struct({
 
 const LabelRejectionSchema = S.Literals(labelRejections);
 
-const RouteSchema = S.Literals(['explore', 'list']);
+const RouteSchema = S.Literals(['explore', 'list', 'appearance']);
 type Route = typeof RouteSchema.Type;
 
 /**
@@ -434,7 +434,6 @@ export const Model = S.Struct({
   detail: DetailResult,
   sidebarCollapsed: S.Boolean,
   refineDialog: Dialog.Model,
-  appearanceDialog: Dialog.Model,
   themePreference: ThemePreferenceSchema,
   selectFields: SelectFieldModels,
 });
@@ -507,13 +506,9 @@ export const FailedNavigation = m('FailedNavigation', { error: S.String });
 export const PersistedLocale = m('PersistedLocale');
 export const FailedLocalePersistence = m('FailedLocalePersistence');
 export const ToggledSidebar = m('ToggledSidebar');
-export const RequestedAppearance = m('RequestedAppearance');
 export const PersistedSidebarPreference = m('PersistedSidebarPreference');
 export const FailedSidebarPreferencePersistence = m('FailedSidebarPreferencePersistence');
 export const GotRefineDialogMessage = m('GotRefineDialogMessage', {
-  message: Dialog.Message,
-});
-export const GotAppearanceDialogMessage = m('GotAppearanceDialogMessage', {
   message: Dialog.Message,
 });
 export const ChangedThemePreset = m('ChangedThemePreset', { value: ThemePresetIdSchema });
@@ -617,11 +612,9 @@ export const Message = S.Union([
   PersistedLocale,
   FailedLocalePersistence,
   ToggledSidebar,
-  RequestedAppearance,
   PersistedSidebarPreference,
   FailedSidebarPreferencePersistence,
   GotRefineDialogMessage,
-  GotAppearanceDialogMessage,
   ChangedThemePreset,
   ChangedColorMode,
   ResetThemePreference,
@@ -1094,7 +1087,7 @@ const normalizedUrl = (
   if (selectedCode !== null) params.set('course', selectedCode);
   // The collection recipe belongs to List. Explore URLs never carry it, so a
   // label change can never look like a catalogue change.
-  if (pathname === LIST_PATH || pathname === LIST_APPEARANCE_PATH) {
+  if (pathname === LIST_PATH) {
     const filter = model.labelFilter;
     if (filter.includeLabelIds.length > 0) params.set('labels', filter.includeLabelIds.join(','));
     // `Unlabeled` is a derived predicate with no id, so it travels as its own
@@ -1128,21 +1121,14 @@ const sameLabelFilter = (left: LabelFilter, right: LabelFilter): boolean =>
   sameLabelIds(left.includeLabelIds, right.includeLabelIds) &&
   sameLabelIds(left.excludeLabelIds, right.excludeLabelIds);
 
-const routePath = (route: Route, appearanceOpen: boolean): string =>
-  route === 'list'
-    ? appearanceOpen
-      ? LIST_APPEARANCE_PATH
-      : LIST_PATH
-    : appearanceOpen
-      ? EXPLORE_APPEARANCE_PATH
-      : EXPLORE_PATH;
+const routePath = (route: Route): string =>
+  route === 'list' ? LIST_PATH : route === 'appearance' ? APPEARANCE_PATH : EXPLORE_PATH;
 
 /** The shareable URL for the model as it currently stands. */
 const currentUrl = (model: Model, selectedCode: string | null = model.selectedCode): string =>
-  normalizedUrl(model, selectedCode, routePath(model.route, model.appearanceDialog.isOpen));
+  normalizedUrl(model, selectedCode, routePath(model.route));
 
-const appearanceUrl = (model: Model): string =>
-  normalizedUrl(model, model.selectedCode, routePath(model.route, true));
+const appearanceUrl = (model: Model): string => normalizedUrl(model, null, APPEARANCE_PATH);
 
 const listUrl = (model: Model): string => normalizedUrl(model, null, LIST_PATH);
 
@@ -1375,21 +1361,22 @@ interface ParsedLocation {
   readonly openOnly: boolean;
   readonly englishOnly: boolean;
   readonly selectedCode: string | null;
-  readonly appearanceOpen: boolean;
   readonly labelFilter: LabelFilter;
 }
 
-const parsePathname = (pathname: string): Readonly<{ route: Route; appearanceOpen: boolean }> => {
+const parsePathname = (pathname: string): Route => {
   const normalized = pathname.replace(/\/+$/, '');
   switch (normalized === '' ? EXPLORE_PATH : normalized) {
     case LIST_PATH:
-      return { route: 'list', appearanceOpen: false };
-    case LIST_APPEARANCE_PATH:
-      return { route: 'list', appearanceOpen: true };
-    case EXPLORE_APPEARANCE_PATH:
-      return { route: 'explore', appearanceOpen: true };
+      return 'list';
+    // Appearance was once an overlay over whichever page you were on, so it
+    // had a path per host route. Both still resolve, because links to them
+    // exist in the wild, but the destination is now one page of its own.
+    case APPEARANCE_PATH:
+    case LEGACY_LIST_APPEARANCE_PATH:
+      return 'appearance';
     default:
-      return { route: 'explore', appearanceOpen: false };
+      return 'explore';
   }
 };
 
@@ -1398,7 +1385,7 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
   const requestedLocale = url.searchParams.get('lang');
   const path = parsePathname(url.pathname);
   return {
-    route: path.route,
+    route: path,
     locale: isLocale(requestedLocale) ? requestedLocale : fallbackLocale,
     query: url.searchParams.get('q') ?? '',
     term: url.searchParams.get('term') ?? DEFAULT_TERM,
@@ -1421,10 +1408,9 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
     englishOnly: url.searchParams.get('english') === '1',
     // List owns saved identities; course detail always belongs to Explore.
     selectedCode:
-      path.route === 'list' ? null : url.searchParams.get('course')?.trim().toUpperCase() || null,
-    appearanceOpen: path.appearanceOpen,
+      path === 'list' ? null : url.searchParams.get('course')?.trim().toUpperCase() || null,
     labelFilter:
-      path.route === 'list'
+      path === 'list'
         ? {
             includeLabelIds: parseLabelIds(url.searchParams.get('labels')),
             includeUnlabeled: url.searchParams.get('unlabeled') === '1',
@@ -1527,20 +1513,6 @@ const applySelectValue = (
   }
 };
 
-const syncAppearanceDialog = (
-  model: Model,
-  shouldOpen: boolean,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
-  if (model.appearanceDialog.isOpen === shouldOpen) return [model, []];
-  const [appearanceDialog, commands] = shouldOpen
-    ? Dialog.open(model.appearanceDialog)
-    : Dialog.close(model.appearanceDialog);
-  return [
-    { ...model, appearanceDialog },
-    Command.mapMessages(commands, (message) => GotAppearanceDialogMessage({ message })),
-  ];
-};
-
 export const update = (
   model: Model,
   message: Message,
@@ -1564,7 +1536,6 @@ export const update = (
           [PersistSidebarPreference({ collapsed: sidebarCollapsed })],
         ];
       },
-      RequestedAppearance: () => [model, [Navigate({ href: appearanceUrl(model), mode: 'push' })]],
       SubmittedSearch: () =>
         startCatalogue(model, {
           query: model.query.trim(),
@@ -1637,13 +1608,12 @@ export const update = (
       ],
       ChangedUrl: ({ href }) => {
         const location = parseLocation(href);
-        const withAppearance = (
+        const withCanonicalFilter = (
           result: readonly [Model, ReadonlyArray<Command.Command<Message>>],
         ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
           const [next, commands] = result;
-          const [synced, appearanceCommands] = syncAppearanceDialog(next, location.appearanceOpen);
-          const [canonical, filterCommands] = canonicalizeLabelFilter(synced);
-          return [canonical, [...commands, ...appearanceCommands, ...filterCommands]];
+          const [canonical, filterCommands] = canonicalizeLabelFilter(next);
+          return [canonical, [...commands, ...filterCommands]];
         };
         if (!locationMatchesModel(location, model)) {
           const next: Model = {
@@ -1669,7 +1639,7 @@ export const update = (
           };
           const request = searchRequest(next, 1);
           const key = requestKey(request);
-          return withAppearance([
+          return withCanonicalFilter([
             { ...next, activeRequestKey: key },
             [
               fetchCommand(request, key, false),
@@ -1702,9 +1672,9 @@ export const update = (
         const localeCommands =
           location.locale === model.locale ? [] : [PersistLocale({ locale: location.locale })];
         if (location.selectedCode === model.selectedCode) {
-          return withAppearance([localizedModel, localeCommands]);
+          return withCanonicalFilter([localizedModel, localeCommands]);
         }
-        return withAppearance(
+        return withCanonicalFilter(
           location.selectedCode === null
             ? [{ ...localizedModel, selectedCode: null, detail: DetailClosed() }, localeCommands]
             : [
@@ -1865,24 +1835,6 @@ export const update = (
         return [
           { ...model, refineDialog },
           Command.mapMessages(commands, (message) => GotRefineDialogMessage({ message })),
-        ];
-      },
-      GotAppearanceDialogMessage: ({ message: dialogMessage }) => {
-        if (dialogMessage._tag === 'RequestedClose') {
-          return [
-            model,
-            [
-              Navigate({
-                href: normalizedUrl(model, model.selectedCode, routePath(model.route, false)),
-                mode: 'replace',
-              }),
-            ],
-          ];
-        }
-        const [appearanceDialog, commands] = Dialog.update(model.appearanceDialog, dialogMessage);
-        return [
-          { ...model, appearanceDialog },
-          Command.mapMessages(commands, (message) => GotAppearanceDialogMessage({ message })),
         ];
       },
       ChangedThemePreset: ({ value }) => {
@@ -2296,14 +2248,6 @@ export const initForHref = (
   listDensity: ListDensity = 'card',
 ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
   const location = parseLocation(href, fallbackLocale);
-  const initialAppearanceDialog = Dialog.init({
-    id: 'appearance-settings',
-    isAnimated: true,
-    focusSelector: '#appearance-settings-close',
-  });
-  const [appearanceDialog, appearanceCommands] = location.appearanceOpen
-    ? Dialog.open(initialAppearanceDialog)
-    : [initialAppearanceDialog, []];
   const base: Model = {
     locale: location.locale,
     route: location.route,
@@ -2352,7 +2296,6 @@ export const initForHref = (
       isAnimated: true,
       focusSelector: '#catalogue-refine-close',
     }),
-    appearanceDialog,
     themePreference: decodeThemePreference(themePreference),
     selectFields: {
       campusInline: initSelectField('campus-inline'),
@@ -2375,9 +2318,6 @@ export const initForHref = (
       ...(location.selectedCode === null
         ? []
         : [FetchCourseInsight({ courseCode: location.selectedCode, term: location.term })]),
-      ...Command.mapMessages(appearanceCommands, (message) =>
-        GotAppearanceDialogMessage({ message }),
-      ),
     ],
   ];
 };
@@ -2483,8 +2423,8 @@ const appView = (model: Model): Html => {
         model.route,
         exploreUrl(model),
         listUrl(model),
+        appearanceUrl(model),
         ToggledSidebar(),
-        RequestedAppearance(),
         languageSelectControl(
           model.selectFields,
           'language-desktop',
@@ -2497,11 +2437,13 @@ const appView = (model: Model): Html => {
         [
           savedCoursesPersistenceAlert(model),
           savedListActionStatus(model),
-          model.route === 'list'
-            ? listView(model)
-            : model.selectedCode === null
-              ? catalogueView(model)
-              : selectedCourseView(model),
+          model.route === 'appearance'
+            ? lazyAppearancePage(appearancePageFromValues, [model.locale, model.themePreference])
+            : model.route === 'list'
+              ? listView(model)
+              : model.selectedCode === null
+                ? catalogueView(model)
+                : selectedCourseView(model),
         ],
       ),
       lazyCatalogueRefineDialog(catalogueRefineDialogFromValues, [
@@ -2517,18 +2459,13 @@ const appView = (model: Model): Html => {
         model.refineDialog,
         model.selectFields,
       ]),
-      lazyAppearanceDialog(appearanceDialogFromValues, [
-        model.locale,
-        model.themePreference,
-        model.appearanceDialog,
-      ]),
       model.route === 'list' ? labelDialogView(model) : h.empty,
       lazyMobileNavigation(mobileNavigation<Message>, [
         model.locale,
         model.route,
         exploreUrl(model),
         listUrl(model),
-        RequestedAppearance(),
+        appearanceUrl(model),
       ]),
     ],
   );
@@ -3087,11 +3024,8 @@ const catalogueRefineDialog = (
   });
 };
 
-const appearanceDialogFromValues = (
-  locale: Locale,
-  themePreference: ThemePreference,
-  appearanceDialog: Model['appearanceDialog'],
-): Html => appearanceDialogView(locale, themePreference, appearanceDialog);
+const appearancePageFromValues = (locale: Locale, themePreference: ThemePreference): Html =>
+  appearancePageView(locale, themePreference);
 
 const themePresetName = (locale: Locale, presetId: ThemePresetId): string => {
   switch (presetId) {
@@ -3210,222 +3144,138 @@ const themePreview = (locale: Locale): Html => {
   );
 };
 
-const appearanceDialogView = (
-  locale: Locale,
-  preference: ThemePreference,
-  appearanceDialog: Model['appearanceDialog'],
-): Html => {
+const appearancePageView = (locale: Locale, preference: ThemePreference): Html => {
   const h = html<Message>();
   const selectedPreset = selectedPresetId(preference);
-  return h.submodel({
-    slotId: 'appearance-settings-dialog',
-    model: appearanceDialog,
-    view: Dialog.view,
-    viewInputs: {
-      toView: ({
-        dialog,
-        backdrop,
-        panel,
-        title,
-        description,
-        initialFocus,
-        closeButton,
-        isVisible,
-      }) =>
-        h.dialog(
-          [...dialog, h.Class('text-on-surface')],
-          isVisible
-            ? [
-                h.div(
-                  [
-                    ...backdrop,
-                    h.Class(
-                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 transition-opacity duration-200 ease-in-out data-closed:opacity-0',
+  return h.section(
+    [h.Class('grid gap-5 pt-[clamp(1.5rem,4vw,3rem)]')],
+    [
+      h.header(
+        [],
+        [
+          h.p([h.Class(eyebrowClass)], [translate(locale, 'appearance.label')]),
+          h.h1(
+            [h.Class('text-[clamp(1.6rem,6vw,2.25rem)] tracking-[-0.035em]')],
+            [translate(locale, 'appearance.heading')],
+          ),
+          h.p(
+            [h.Class('mt-[0.4rem] max-w-168 text-on-surface-variant leading-[1.5]')],
+            [translate(locale, 'appearance.description')],
+          ),
+        ],
+      ),
+      h.div(
+        [
+          h.Class(
+            'grid gap-5 [@media(min-width:48rem)]:grid-cols-[minmax(0,1.45fr)_minmax(16rem,0.8fr)]',
+          ),
+        ],
+        [
+          h.div(
+            [h.Class('grid gap-3')],
+            [
+              h.h3([h.Class('text-sm font-extrabold')], [translate(locale, 'appearance.palettes')]),
+              h.div(
+                [
+                  h.Class('grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3'),
+                  h.Role('group'),
+                  h.AriaLabel(translate(locale, 'appearance.palettes')),
+                ],
+                themePresets.map((preset) => {
+                  const isSelected = selectedPreset === preset.id;
+                  return h.button(
+                    [
+                      h.Type('button'),
+                      h.Class(
+                        `theme-preset-card theme-preset-card--${preset.id} relative grid min-h-28 gap-2 overflow-hidden rounded-m3-large border p-3 text-left cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
+                          isSelected
+                            ? 'border-primary shadow-[0_0_0_2px_var(--md-sys-color-primary)]'
+                            : 'border-outline-variant'
+                        }`,
+                      ),
+                      h.OnClick(ChangedThemePreset({ value: preset.id })),
+                      h.AriaPressed(String(isSelected)),
+                    ],
+                    [
+                      h.span(
+                        [
+                          h.Class(
+                            'theme-preset-card__swatch h-10 rounded-m3-medium border border-black/10',
+                          ),
+                          h.AriaHidden(true),
+                        ],
+                        [],
+                      ),
+                      h.span(
+                        [h.Class('flex items-center justify-between gap-2')],
+                        [
+                          h.span([h.Class('font-extrabold')], [themePresetName(locale, preset.id)]),
+                          isSelected
+                            ? icon<Message>(
+                                'check',
+                                'block size-5 text-primary [&_svg]:block [&_svg]:size-full',
+                              )
+                            : h.empty,
+                        ],
+                      ),
+                      h.span(
+                        [h.Class('text-xs text-on-surface-variant leading-[1.4]')],
+                        [themePresetDescription(locale, preset.id)],
+                      ),
+                    ],
+                  );
+                }),
+              ),
+              h.div(
+                [
+                  h.Class('grid gap-2 pt-1'),
+                  h.Role('group'),
+                  h.AriaLabel(translate(locale, 'appearance.mode')),
+                ],
+                [
+                  h.h3([h.Class('text-sm font-extrabold')], [translate(locale, 'appearance.mode')]),
+                  h.div(
+                    [
+                      h.Class(
+                        'grid grid-cols-3 overflow-hidden rounded-m3-medium border border-outline',
+                      ),
+                    ],
+                    colorModes.map((mode) =>
+                      h.button(
+                        [
+                          h.Type('button'),
+                          h.Class(
+                            `min-h-11 border-0 border-r border-outline last:border-r-0 font-bold cursor-pointer ${
+                              preference.mode === mode
+                                ? 'bg-primary text-on-primary'
+                                : 'bg-surface-container text-on-surface'
+                            }`,
+                          ),
+                          h.OnClick(ChangedColorMode({ value: mode })),
+                          h.AriaPressed(String(preference.mode === mode)),
+                        ],
+                        [colorModeLabel(locale, mode)],
+                      ),
                     ),
-                  ],
-                  [],
-                ),
-                h.section(
-                  [
-                    ...panel,
-                    h.Class(
-                      'fixed right-0 bottom-0 left-0 grid max-h-[min(94svh,60rem)] gap-5 overflow-y-auto rounded-t-m3-extra-large border border-outline-variant bg-surface pt-5 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] shadow-m3-2 [transform:translateY(0)] transition-transform duration-200 ease-in-out data-closed:[transform:translateY(100%)] [@media(min-width:48rem)_and_(min-height:34rem)]:top-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:left-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-3rem),58rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:p-6 [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-m3-extra-large [@media(min-width:48rem)_and_(min-height:34rem)]:[transform:translate(-50%,-50%)] [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:opacity-0 [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:[transform:translate(-50%,-47%)_scale(0.98)]',
-                    ),
-                  ],
-                  [
-                    h.header(
-                      [h.Class('flex items-start justify-between gap-4')],
-                      [
-                        h.div(
-                          [],
-                          [
-                            h.p([h.Class(eyebrowClass)], [translate(locale, 'appearance.label')]),
-                            h.h2(
-                              [
-                                ...title,
-                                h.Class('text-[clamp(1.6rem,6vw,2.25rem)] tracking-[-0.035em]'),
-                              ],
-                              [translate(locale, 'appearance.heading')],
-                            ),
-                            h.p(
-                              [
-                                ...description,
-                                h.Class(
-                                  'mt-[0.4rem] max-w-168 text-on-surface-variant leading-[1.5]',
-                                ),
-                              ],
-                              [translate(locale, 'appearance.description')],
-                            ),
-                          ],
-                        ),
-                        h.button(
-                          [
-                            ...closeButton,
-                            ...initialFocus,
-                            h.Id('appearance-settings-close'),
-                            h.Class(
-                              'grid size-11 flex-none place-items-center rounded-full border-0 bg-surface-container text-on-surface cursor-pointer',
-                            ),
-                            h.Type('button'),
-                            h.AriaLabel(translate(locale, 'appearance.close')),
-                          ],
-                          [icon<Message>('close')],
-                        ),
-                      ],
-                    ),
-                    h.div(
-                      [
-                        h.Class(
-                          'grid gap-5 [@media(min-width:48rem)]:grid-cols-[minmax(0,1.45fr)_minmax(16rem,0.8fr)]',
-                        ),
-                      ],
-                      [
-                        h.div(
-                          [h.Class('grid gap-3')],
-                          [
-                            h.h3(
-                              [h.Class('text-sm font-extrabold')],
-                              [translate(locale, 'appearance.palettes')],
-                            ),
-                            h.div(
-                              [
-                                h.Class(
-                                  'grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3',
-                                ),
-                                h.Role('group'),
-                                h.AriaLabel(translate(locale, 'appearance.palettes')),
-                              ],
-                              themePresets.map((preset) => {
-                                const isSelected = selectedPreset === preset.id;
-                                return h.button(
-                                  [
-                                    h.Type('button'),
-                                    h.Class(
-                                      `theme-preset-card theme-preset-card--${preset.id} relative grid min-h-28 gap-2 overflow-hidden rounded-m3-large border p-3 text-left cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
-                                        isSelected
-                                          ? 'border-primary shadow-[0_0_0_2px_var(--md-sys-color-primary)]'
-                                          : 'border-outline-variant'
-                                      }`,
-                                    ),
-                                    h.OnClick(ChangedThemePreset({ value: preset.id })),
-                                    h.AriaPressed(String(isSelected)),
-                                  ],
-                                  [
-                                    h.span(
-                                      [
-                                        h.Class(
-                                          'theme-preset-card__swatch h-10 rounded-m3-medium border border-black/10',
-                                        ),
-                                        h.AriaHidden(true),
-                                      ],
-                                      [],
-                                    ),
-                                    h.span(
-                                      [h.Class('flex items-center justify-between gap-2')],
-                                      [
-                                        h.span(
-                                          [h.Class('font-extrabold')],
-                                          [themePresetName(locale, preset.id)],
-                                        ),
-                                        isSelected
-                                          ? icon<Message>(
-                                              'check',
-                                              'block size-5 text-primary [&_svg]:block [&_svg]:size-full',
-                                            )
-                                          : h.empty,
-                                      ],
-                                    ),
-                                    h.span(
-                                      [h.Class('text-xs text-on-surface-variant leading-[1.4]')],
-                                      [themePresetDescription(locale, preset.id)],
-                                    ),
-                                  ],
-                                );
-                              }),
-                            ),
-                            h.div(
-                              [
-                                h.Class('grid gap-2 pt-1'),
-                                h.Role('group'),
-                                h.AriaLabel(translate(locale, 'appearance.mode')),
-                              ],
-                              [
-                                h.h3(
-                                  [h.Class('text-sm font-extrabold')],
-                                  [translate(locale, 'appearance.mode')],
-                                ),
-                                h.div(
-                                  [
-                                    h.Class(
-                                      'grid grid-cols-3 overflow-hidden rounded-m3-medium border border-outline',
-                                    ),
-                                  ],
-                                  colorModes.map((mode) =>
-                                    h.button(
-                                      [
-                                        h.Type('button'),
-                                        h.Class(
-                                          `min-h-11 border-0 border-r border-outline last:border-r-0 font-bold cursor-pointer ${
-                                            preference.mode === mode
-                                              ? 'bg-primary text-on-primary'
-                                              : 'bg-surface-container text-on-surface'
-                                          }`,
-                                        ),
-                                        h.OnClick(ChangedColorMode({ value: mode })),
-                                        h.AriaPressed(String(preference.mode === mode)),
-                                      ],
-                                      [colorModeLabel(locale, mode)],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        h.div(
-                          [h.Class('grid content-start gap-3')],
-                          [
-                            themePreview(locale),
-                            h.button(
-                              [
-                                h.Type('button'),
-                                h.Class(buttonSecondary),
-                                h.OnClick(ResetThemePreference()),
-                              ],
-                              [translate(locale, 'appearance.reset')],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ]
-            : [],
-        ),
-    },
-    toParentMessage: (message) => GotAppearanceDialogMessage({ message }),
-  });
+                  ),
+                ],
+              ),
+            ],
+          ),
+          h.div(
+            [h.Class('grid content-start gap-3')],
+            [
+              themePreview(locale),
+              h.button(
+                [h.Type('button'), h.Class(buttonSecondary), h.OnClick(ResetThemePreference())],
+                [translate(locale, 'appearance.reset')],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
 };
 
 const selectControl = (

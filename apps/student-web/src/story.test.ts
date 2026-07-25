@@ -37,7 +37,6 @@ import {
   NextPageFailure,
   PersistSavedCourses,
   PersistedSavedCourses,
-  RequestedAppearance,
   RequestedDeleteLabel,
   RequestedEditLabel,
   RequestedLabelDialog,
@@ -150,27 +149,26 @@ test('Nordic palettes and appearance are local preferences and do not refetch da
   ).toBe(false);
 });
 
-test('the Appearance modal is URL-backed and follows browser history changes', () => {
+test('Appearance is a destination, reached and left through the URL', () => {
   const initial = initialModel();
-  const [requested, requestCommands] = update(initial, RequestedAppearance());
+  expect(initial.route).toBe('explore');
 
-  expect(requested.appearanceDialog.isOpen).toBe(false);
-  expect(requestCommands.map(({ name }) => name)).toEqual(['Navigate']);
-  expect(requestCommands[0]?.args).toMatchObject({ href: '/appearance?lang=en', mode: 'push' });
-
-  const [open, openCommands] = update(
-    requested,
+  const [open] = update(
+    initial,
     ChangedUrl({ href: 'http://course-lens.local/appearance?lang=en' }),
   );
-  expect(open.appearanceDialog.isOpen).toBe(true);
-  expect(openCommands.map(({ name }) => name)).toContain('ShowDialog');
+  expect(open.route).toBe('appearance');
 
-  const [closed, closeCommands] = update(
-    open,
-    ChangedUrl({ href: 'http://course-lens.local/?lang=en' }),
+  const [back] = update(open, ChangedUrl({ href: 'http://course-lens.local/?lang=en' }));
+  expect(back.route).toBe('explore');
+
+  // Appearance used to be an overlay over whichever page you were on, so it
+  // had a path per host route. That link still resolves to the destination.
+  const [legacy] = update(
+    initial,
+    ChangedUrl({ href: 'http://course-lens.local/list/appearance?lang=en' }),
   );
-  expect(closed.appearanceDialog.isOpen).toBe(false);
-  expect(closeCommands.map(({ name }) => name)).toContain('RequestFrame');
+  expect(legacy.route).toBe('appearance');
 });
 
 test('a catalogue response makes official courses available without opening detail', () => {
