@@ -61,7 +61,7 @@ export const selectField = <Message>({
         [
           h.Id(labelId),
           h.For(Listbox.buttonId(model.id)),
-          h.Class(compact ? 'sr-only' : 'ml-1 text-[0.85rem] font-[650] text-on-surface-variant'),
+          h.Class(compact ? 'sr-only' : 'ml-1 text-sm font-semibold text-on-surface-variant'),
         ],
         [label],
       ),
@@ -77,11 +77,15 @@ export const selectField = <Message>({
           ariaLabelledBy: labelId,
           anchor: { placement: 'bottom-start', gap: 6, padding: 8, portal },
           className: 'relative min-w-0',
-          buttonClassName: `flex min-h-12 w-full items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface px-3 text-left text-on-surface [font:inherit] cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 data-[open]:border-primary ${
-            compact ? 'min-h-11 px-2 text-xs font-[800]' : ''
+          buttonClassName: `flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface px-3 text-left text-on-surface cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 data-[open]:border-primary ${
+            compact ? 'min-h-11 gap-1 px-1.5 text-xs font-extrabold' : ''
           }`,
           buttonContent: h.span(
-            [h.Class('flex min-w-0 flex-1 items-center gap-2')],
+            [
+              h.Class(
+                `flex min-w-0 flex-1 items-center ${compact ? 'justify-center gap-1' : 'gap-2'}`,
+              ),
+            ],
             [
               selected?.icon === undefined
                 ? h.empty
@@ -89,21 +93,26 @@ export const selectField = <Message>({
                     selected.icon,
                     'block size-4 flex-none [&_svg]:block [&_svg]:size-full',
                   ),
-              h.span([h.Class('min-w-0 flex-1 truncate')], [selected?.label ?? value]),
+              h.span(
+                [h.Class(compact ? 'flex-none whitespace-nowrap' : 'min-w-0 flex-1 truncate')],
+                [selected?.label ?? value],
+              ),
               icon<Message>(
                 'caret-down',
-                'block size-4 flex-none [transition:transform_140ms_ease] group-data-[open]:rotate-180 [&_svg]:block [&_svg]:size-full',
+                `block flex-none transition-transform duration-150 ease-in-out group-data-[open]:rotate-180 [&_svg]:block [&_svg]:size-full ${
+                  compact ? 'size-3.5' : 'size-4'
+                }`,
               ),
             ],
           ),
           itemsClassName:
-            'z-50 min-w-48 max-w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-m3-medium border border-outline-variant bg-surface-container-high shadow-m3-2 outline-none opacity-100 [transition:opacity_120ms_ease,transform_120ms_ease] data-[closed]:opacity-0 data-[closed]:-translate-y-1',
+            'z-50 min-w-48 max-w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-m3-medium border border-outline-variant bg-surface-container-high shadow-m3-2 outline-none opacity-100 transition-[opacity,transform] duration-100 ease-in-out data-[closed]:opacity-0 data-[closed]:-translate-y-1',
           itemsScrollClassName: 'grid max-h-72 gap-0.5 overflow-y-auto p-1.5',
           backdropClassName: 'fixed inset-0 z-0 bg-transparent',
           itemToConfig: (item, { isActive, isSelected }) => ({
             className: `flex min-h-11 items-center justify-between gap-3 rounded-m3-small px-3 text-sm cursor-pointer ${
               isActive ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'
-            } ${isSelected ? 'font-[800]' : ''}`,
+            } ${isSelected ? 'font-extrabold' : ''}`,
             content: h.span(
               [h.Class('flex min-w-0 flex-1 items-center gap-3')],
               [

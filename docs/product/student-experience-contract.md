@@ -4,6 +4,12 @@
 - Date: 2026-07-24
 - Active value loop: `Explore -> Inspect -> List -> Compare`
 
+Detailed surface contracts:
+
+- [`list-collections-and-compare.md`](./list-collections-and-compare.md)
+- [`schedule-and-external-sync.md`](./schedule-and-external-sync.md)
+- [`degree-overview-and-pathways.md`](./degree-overview-and-pathways.md)
+
 ## Purpose
 
 Uni Planner reduces the number of facts and constraints a student must collect
@@ -158,12 +164,13 @@ unexplained global popularity score.
 | Surface | Readiness gate | Work allowed now |
 | --- | --- | --- |
 | Explore / Inspect | Existing catalogue and evidence contracts | Stable summaries, progressive Refine, accessibility |
-| List / Compare | Versioned local saved-course schema | Bookmark, note, compare using the shared summary grammar |
+| List / Compare | Versioned local saved-course schema | Bookmark, note, coloured labels, bounded collection composition, and compare using the shared summary grammar |
 | More | No new source dependency | Language, preferences, provenance/data status, license/support |
 | Schedule | Validated timetable/offering-event contract | Acceptance journeys and fixtures only |
 | Degree | Published, versioned programme dataset with typed relations | Acceptance journeys and fixtures only |
 | Programme-aware Explore | One reliable programme projection | Required/obligatory filtering before popularity ranking |
 
-The next safe parallel implementation lanes are accessibility/token correctness,
-the Explore summary/refinement redesign, and the local List foundation.
-Schedule and Degree remain specification lanes until their gates are satisfied.
+Assessment scanning and the Explore summary/refinement work are delivered.
+The active implementation lane is the local List foundation followed by labels,
+bounded collection composition, and Compare. Schedule and Degree remain
+specification lanes until their gates are satisfied.

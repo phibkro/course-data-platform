@@ -1,6 +1,6 @@
 import { Runtime, Url } from 'foldkit';
 
-import { ChangedUrl, Model, RequestedUrl, routingInit, update, view } from './main';
+import { ChangedUrl, Message, Model, RequestedUrl, routingInit, update, view } from './main';
 import './styles.css';
 import { initializeThemePreference } from './theme';
 
@@ -19,6 +19,15 @@ const application = Runtime.makeApplication({
     onUrlChange: (url) => ChangedUrl({ href: Url.toString(url) }),
   },
   container: document.getElementById('root'),
+  /**
+   * Handing the runtime the Message schema lets the DevTools MCP server read
+   * the live Model and message history, and dispatch messages into a running
+   * tab. It is how an agent can inspect state that already exists instead of
+   * rebuilding it through the interface to look at it.
+   */
+  devTools: {
+    Message,
+  },
 });
 
 Runtime.run(application);

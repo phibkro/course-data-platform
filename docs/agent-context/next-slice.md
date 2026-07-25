@@ -1,65 +1,69 @@
-# Active vertical slice: assessment signals while browsing
+# Active vertical slice: local List, labels, and Compare
 
-> Execution anchor: [`../product/scan-and-persist-design.md`](../product/scan-and-persist-design.md)
+> Execution anchor:
+> [`../product/list-collections-and-compare.md`](../product/list-collections-and-compare.md)
 
 ## Goal
 
-Let a student scan a broad NTNU catalogue and see the first decision-relevant
-signals without opening every result.
+Let a student preserve promising courses, organize them without duplicating
+them, and compare meaningful differences without creating an account.
 
-The browse-first catalogue, evidence-backed detail, HK-dir outcome strip, and
-English/Norwegian interface are delivered on `main`. Preserve them as the
-product path; add NTNU assessment/work signals without making the list wait for
-detail enrichment.
+The browse-first catalogue, evidence-backed detail, HK-dir outcome strip,
+English/Norwegian interface, and assessment/work scan signals are delivered on
+`main` at `140e6dd`. Preserve them as the product path. List must reuse their
+summary and Fact semantics rather than fork a second course model.
 
 ## Required path
 
 ```text
-Foldkit catalogue with URL state
-  -> fast official NTNU result summaries
-  -> delivered batched grade summaries for loaded course codes
-  -> bounded NTNU detail enrichment for visible or shortlisted courses
-  -> select a course
-  -> existing CourseInsight detail and evidence
+Explore or Inspect
+  -> one-tap Save
+  -> validated local saved identity
+  -> List with notes and labels
+  -> Any / All / Exclude collection view
+  -> select two to four courses
+  -> difference-first Compare
 ```
 
 ## Scope
 
-1. Fetch NTNU detail only for visible, opened, or shortlisted courses, with a
-   concurrency limit and cancellation for filters that change.
-2. Derive compact assessment and obligatory-work signals through the existing
-   evidence model; do not interpret catalogue multimedia as remote teaching or
-   `examOnly` as an assessment claim.
-3. Render semantic assessment icons with visible prose and accessible labels.
-4. Keep initial official catalogue rows interactive while enrichments load or
-   fail independently.
-5. Preserve explicit unchecked, loading, known, inferred, conflicting,
-   unavailable, and failed states in the Foldkit model.
-6. Grow the assessment golden corpus to 10–20 observed courses spanning written,
-   oral, home, project, portfolio, practical, assignment, and mixed assessment.
-7. Measure visible-card enrichment before introducing D1 caching or a full
-   catalogue replication pipeline.
+1. Add a pure, versioned saved-state module that parses browser persistence as
+   untrusted input and exposes explicit recovery.
+2. Save or remove a stable course identity from Explore and Inspect without
+   waiting for enrichment.
+3. Activate `/list` in the shared sidebar/bottom navigation with a useful empty
+   state, notes, and progressively refreshed saved summaries.
+4. Add stable coloured labels and many-to-many memberships over the one saved
+   set.
+5. Implement bounded collection composition with included labels, Any/All
+   matching, and excluded labels.
+6. Select exactly two to four distinct saved courses and compare them using the
+   existing decision and outcome grammar.
+7. Preserve local state, URL state, source facts, and cached factual summaries
+   as separate objects.
 
 ## Acceptance criteria
 
-- Initial official rows still appear without waiting for grade/detail
-  providers.
-- Loaded cards receive grade availability in a bounded number of requests,
-  rather than one DBH request per card.
-- Each signal makes clear whether it is checked, known, inferred, conflicting,
-  unavailable, or failed.
-- Changing filters cancels or ignores stale enrichment and never attaches
-  evidence to the wrong course.
-- Source failure leaves useful official result summaries visible and usable.
-- Desktop keyboard and 375 px mobile journeys pass Agent Browser smoke tests.
+- A first-time student saves and compares two courses in under two minutes.
+- Save is idempotent, one action, and survives reload.
+- Corrupt or future local state is never silently accepted or discarded.
+- A course can carry several labels without duplication.
+- Any, All, and Exclude composition is deterministic and visibly restated.
+- Removing a saved course atomically clears memberships and Compare selection.
+- Unknown, unavailable, suppressed, conflicting, stale, and failed facts remain
+  explicit in Compare.
+- Provider failure and offline mode leave saved identities and student-authored
+  state usable.
+- Desktop keyboard and 375 px mobile journeys pass Agent Browser and axe tests.
 - Type checks, lint, format, tests, OpenAPI generation, and builds remain green.
 
 ## Immediately after
 
-Add a local, account-free shortlist and comparison view for two to four
-enriched courses. Compare workload, assessment, obligatory work,
-collaboration, attendance, remote feasibility, and grade outcomes using the
-same Fact and evidence semantics.
+Validate List and Compare with real course-selection tasks. In parallel, prove
+one current NTNU timetable event contract through fixtures and provider
+investigation; do not activate Schedule until its readiness gate in
+[`../product/schedule-and-external-sync.md`](../product/schedule-and-external-sync.md)
+is met.
 
 ## Still deferred
 
@@ -73,4 +77,4 @@ same Fact and evidence semantics.
 
 ADR-011 continues to freeze discretionary theme work. Reuse the existing
 Material You semantic tokens and Foldkit primitives. Add visual machinery only
-where discovery or comparison needs it.
+where saving, collection composition, or comparison needs it.

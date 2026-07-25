@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { fixtureCourses } from './catalogue.fixture';
 import { fixtureSearchResponse, makeCourseClient } from './course-client';
 
 describe('makeCourseClient', () => {
@@ -58,7 +59,7 @@ describe('makeCourseClient', () => {
       }),
     );
 
-    expect(result.meta.total).toBe(1);
+    expect(result.meta.total).toBe(fixtureCourses.length);
     const requestedUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect(requestedUrl.pathname).toBe('/v1/course-search');
     expect(Object.fromEntries(requestedUrl.searchParams)).toMatchObject({

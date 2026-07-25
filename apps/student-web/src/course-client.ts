@@ -12,6 +12,14 @@ import {
 import { Value } from '@sinclair/typebox/value';
 import { Effect, Schema as S } from 'effect';
 
+import {
+  findFixtureCourse,
+  fixtureCourses,
+  fixtureDistribution,
+  fixtureFailureRatePercent,
+  fixtureSampleSize,
+  type FixtureCourse,
+} from './catalogue.fixture';
 import { partialCourseInsightFixture } from './course-insight.fixture';
 
 export interface CourseClient {
@@ -92,39 +100,53 @@ const parseCourseDecisionSignals = (input: unknown): CourseDecisionSignalsRespon
   return input;
 };
 
+/**
+ * Every fixture response is expanded from `fixtureCourses`, so a course is
+ * described in one place and search, outcomes, and decision signals cannot
+ * disagree about it.
+ */
+const fixtureSearchItem = (course: FixtureCourse): unknown => ({
+  courseKey: `ntnu:${course.code}:${course.academicYear}-${course.season}`,
+  institutionCode: 'NTNU',
+  code: course.code,
+  title: { state: 'known', value: course.title, evidenceIds: ['ntnu-course'] },
+  credits: { state: 'known', value: course.credits, evidenceIds: ['ntnu-course'] },
+  level: { state: 'known', value: course.level, evidenceIds: ['ntnu-course'] },
+  offerings: {
+    state: 'known',
+    value: [
+      {
+        academicYear: course.academicYear,
+        season: course.season,
+        campuses: [...course.campuses],
+        deliveryModes: ['in-person'],
+      },
+    ],
+    evidenceIds: ['ntnu-course'],
+  },
+  assessmentSignals: {
+    state: 'known',
+    value: [...course.assessmentForms],
+    evidenceIds: ['ntnu-assessment'],
+  },
+  workFormSignals: {
+    state: 'known',
+    value: [...course.workForms],
+    evidenceIds: ['ntnu-teaching'],
+  },
+  enrichment: 'partial',
+  evidence: partialCourseInsightFixture.item.evidence,
+});
+
 export const fixtureSearchResponse = (page: number): CourseSearchResponse =>
   parseCourseSearch({
-    items:
-      page === 1
-        ? [
-            {
-              courseKey: partialCourseInsightFixture.item.courseKey,
-              institutionCode: 'NTNU',
-              code: partialCourseInsightFixture.item.code,
-              title: partialCourseInsightFixture.item.title,
-              credits: partialCourseInsightFixture.item.credits,
-              level: partialCourseInsightFixture.item.level,
-              offerings: partialCourseInsightFixture.item.offerings,
-              assessmentSignals: {
-                state: 'known',
-                value:
-                  partialCourseInsightFixture.item.assessment.state === 'known'
-                    ? partialCourseInsightFixture.item.assessment.value.map((part) => part.form)
-                    : [],
-                evidenceIds: partialCourseInsightFixture.item.assessment.evidenceIds,
-              },
-              workFormSignals: partialCourseInsightFixture.item.workForms,
-              enrichment: 'partial',
-              evidence: partialCourseInsightFixture.item.evidence,
-            },
-          ]
-        : [],
+    items: page === 1 ? fixtureCourses.map(fixtureSearchItem) : [],
     sourceStatuses: partialCourseInsightFixture.item.sourceStatuses,
     meta: {
-      count: page === 1 ? 1 : 0,
-      total: 1,
+      count: page === 1 ? fixtureCourses.length : 0,
+      total: fixtureCourses.length,
       page,
-      pageSize: 1,
+      pageSize: fixtureCourses.length,
       hasMore: false,
       exactMatchCode: null,
     },
@@ -136,37 +158,50 @@ export const fixtureGradeSummariesResponse = (
   parseCourseGradeSummaries({
     items: courseCodes.map((courseCode) => {
       const normalizedCode = courseCode.trim().toUpperCase();
-      const available = normalizedCode === 'TDT4136';
-      const reason = 'No official DBH/HK-dir grade outcomes were found for this period.';
+      const course = findFixtureCourse(normalizedCode);
+      const grades = course?.grades;
+      // A course the fixture does not know, and a known course whose outcomes
+      // the source suppresses, are different facts. Both stay unavailable
+      // rather than empty, and each says why.
+      const reason =
+        grades === undefined
+          ? 'No official DBH/HK-dir grade outcomes were found for this period.'
+          : grades.scale === 'unavailable'
+            ? grades.reason
+            : '';
+      const available = grades !== undefined && grades.scale !== 'unavailable';
       const evidenceId = 'grades-fixture';
+      const failureRate = grades === undefined ? null : fixtureFailureRatePercent(grades);
       return {
         courseCode: normalizedCode,
-        period: available
-          ? { state: 'known', value: { fromYear: 2022, toYear: 2025 }, evidenceIds: [evidenceId] }
-          : { state: 'unavailable', reason, evidenceIds: [] },
-        sampleSize: available
-          ? { state: 'known', value: 1951, evidenceIds: [evidenceId] }
-          : { state: 'unavailable', reason, evidenceIds: [] },
-        distribution: available
-          ? {
-              state: 'known',
-              value: [
-                { grade: 'A', count: 200, percentage: 10.25 },
-                { grade: 'B', count: 430, percentage: 22.04 },
-                { grade: 'C', count: 650, percentage: 33.32 },
-                { grade: 'D', count: 350, percentage: 17.94 },
-                { grade: 'E', count: 112, percentage: 5.74 },
-                { grade: 'F', count: 209, percentage: 10.71 },
-              ],
-              evidenceIds: [evidenceId],
-            }
-          : { state: 'unavailable', reason, evidenceIds: [] },
-        failureRatePercent: available
-          ? { state: 'known', value: 10.7, evidenceIds: [evidenceId] }
-          : { state: 'unavailable', reason, evidenceIds: [] },
-        gradingScale: available
-          ? { state: 'known', value: 'letter' as const, evidenceIds: [evidenceId] }
-          : { state: 'unavailable', reason, evidenceIds: [] },
+        period:
+          available && course !== undefined
+            ? {
+                state: 'known',
+                value: { fromYear: course.period[0], toYear: course.period[1] },
+                evidenceIds: [evidenceId],
+              }
+            : { state: 'unavailable', reason, evidenceIds: [] },
+        sampleSize:
+          available && grades !== undefined
+            ? { state: 'known', value: fixtureSampleSize(grades), evidenceIds: [evidenceId] }
+            : { state: 'unavailable', reason, evidenceIds: [] },
+        distribution:
+          available && grades !== undefined
+            ? {
+                state: 'known',
+                value: fixtureDistribution(grades),
+                evidenceIds: [evidenceId],
+              }
+            : { state: 'unavailable', reason, evidenceIds: [] },
+        failureRatePercent:
+          available && failureRate !== null
+            ? { state: 'known', value: failureRate, evidenceIds: [evidenceId] }
+            : { state: 'unavailable', reason, evidenceIds: [] },
+        gradingScale:
+          available && grades !== undefined
+            ? { state: 'known', value: grades.scale, evidenceIds: [evidenceId] }
+            : { state: 'unavailable', reason, evidenceIds: [] },
         evidence: available
           ? [
               {
@@ -201,18 +236,41 @@ export const fixtureDecisionSignalsResponse = (
   parseCourseDecisionSignals({
     items: courseCodes.map((courseCode) => {
       const normalizedCode = courseCode.trim().toUpperCase();
-      const available = normalizedCode === partialCourseInsightFixture.item.code;
+      const course = findFixtureCourse(normalizedCode);
+      const available = course !== undefined;
       const reason = 'The fixture contains no NTNU decision signals for this course.';
       return {
         courseCode: normalizedCode,
-        credits: available
-          ? partialCourseInsightFixture.item.credits
+        credits: course
+          ? { state: 'known' as const, value: course.credits, evidenceIds: ['ntnu-course'] }
           : { state: 'unavailable' as const, reason, evidenceIds: [] },
-        assessment: available
-          ? partialCourseInsightFixture.item.assessment
+        assessment: course
+          ? {
+              state: 'known' as const,
+              // The catalogue names each part's form; the surrounding detail is
+              // shared, so a fixture course does not have to restate it.
+              value: course.assessmentForms.map((form, index) => ({
+                ...partialCourseInsightFixture.item.assessment.value[0]!,
+                form,
+                weightPercent: {
+                  state: 'known' as const,
+                  value: Math.round((100 / course.assessmentForms.length) * 100) / 100,
+                  evidenceIds: ['ntnu-assessment'],
+                },
+                description:
+                  index === 0
+                    ? 'Principal assessment component'
+                    : 'Additional assessment component',
+              })),
+              evidenceIds: ['ntnu-assessment'],
+            }
           : { state: 'unavailable' as const, reason, evidenceIds: [] },
-        workFormSignals: available
-          ? partialCourseInsightFixture.item.workForms
+        workFormSignals: course
+          ? {
+              state: 'known' as const,
+              value: [...course.workForms],
+              evidenceIds: ['ntnu-teaching'],
+            }
           : { state: 'unavailable' as const, reason, evidenceIds: [] },
         obligatoryActivities: available
           ? partialCourseInsightFixture.item.obligatoryActivities

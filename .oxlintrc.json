@@ -41,6 +41,92 @@
   },
   "overrides": [
     {
+      "files": [
+        "packages/course-model/src/**/*.ts",
+        "packages/domain/src/**/*.ts",
+        "packages/study-kernel/src/**/*.ts",
+        "packages/application/src/**/*.ts"
+      ],
+      "excludeFiles": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "fetch",
+            "message": "Domain code is deterministic. Take a fetch capability as an explicit dependency (see LiveCourseDecisionDependencies in packages/course-service/src/live.ts)."
+          },
+          {
+            "name": "XMLHttpRequest",
+            "message": "Domain code is deterministic and performs no network access."
+          },
+          {
+            "name": "WebSocket",
+            "message": "Domain code is deterministic and performs no network access."
+          },
+          {
+            "name": "localStorage",
+            "message": "Domain code is deterministic and performs no storage access."
+          },
+          {
+            "name": "sessionStorage",
+            "message": "Domain code is deterministic and performs no storage access."
+          },
+          {
+            "name": "indexedDB",
+            "message": "Domain code is deterministic and performs no storage access."
+          },
+          {
+            "name": "caches",
+            "message": "Domain code is deterministic and performs no storage access."
+          },
+          {
+            "name": "crypto",
+            "message": "Domain code is deterministic. Take a hashing/id capability as an explicit dependency."
+          },
+          {
+            "name": "performance",
+            "message": "Domain code is deterministic. Take a clock as an explicit dependency."
+          }
+        ],
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "Math",
+            "property": "random",
+            "message": "Domain code is deterministic. Take randomness as an explicit dependency."
+          },
+          {
+            "object": "Date",
+            "property": "now",
+            "message": "Domain code is deterministic. Take a clock as an explicit dependency (`now: () => Date`)."
+          }
+        ],
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["cloudflare:*", "@cloudflare/*"],
+                "message": "Domain code must not depend on Cloudflare bindings. Keep them in apps and infrastructure packages."
+              },
+              {
+                "group": ["node:*", "node:*/**"],
+                "message": "Domain code must not depend on Node built-ins; it runs unchanged in the browser and on workers."
+              },
+              {
+                "group": ["effect/Clock", "effect/Random", "effect/DateTime", "@effect/platform*"],
+                "message": "Domain code is deterministic. Model time and randomness as explicit dependencies rather than ambient effects."
+              },
+              {
+                "group": ["elysia", "elysia/*", "vite", "vite/*", "alchemy", "alchemy/*"],
+                "message": "Domain code is framework-independent. Transport and build framework imports belong in apps and composition roots."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["alchemy.run.ts", "scripts/**"],
       "rules": {
         "foldkit/no-module-level-mutable-state": "off",

@@ -5,9 +5,11 @@
 - Product loop: `Explore -> Inspect -> List -> Compare`
 - Shared interaction contract:
   [`student-experience-contract.md`](./student-experience-contract.md)
-- Current milestone: `Scan -> Save -> Compare`
+- Current milestone: `Save -> Label -> Compare`
 - Delivered: outcome strip and English/Norwegian interface (`main`, 2026-07-24)
-- In progress: assessment scan signals
+- Delivered: assessment scan signals (`main`, `140e6dd`, 2026-07-25)
+- Active next slice:
+  [`list-collections-and-compare.md`](./list-collections-and-compare.md)
 
 ## Outcome
 
@@ -411,7 +413,7 @@ revision.
 
 ### Slice 3: Assessment scan signals
 
-Status: In progress on `agent/assessment-scan-signals`.
+Status: Delivered on `main` at `140e6dd` (2026-07-25).
 
 Student decision: “How will I be assessed, and what kind of work is involved?”
 
@@ -432,6 +434,8 @@ publication takes longer than expected.
 Student decision: “Which candidates should I keep, and how do they differ?”
 
 - Add local account-free bookmarks and notes.
+- Add coloured student-owned labels over one canonical saved set.
+- Support bounded Any, All, and Exclude collection composition.
 - Persist validated local state and tolerate schema upgrades.
 - Select two to four saved courses.
 - Compare assessment, work, constraints, and outcomes using the same signal
@@ -439,6 +443,10 @@ Student decision: “Which candidates should I keep, and how do they differ?”
 
 Acceptance: a first-time student can save and compare two courses in under two
 minutes without an account.
+
+The detailed invariant, persistence, interaction, accessibility, and delivery
+contract is
+[`list-collections-and-compare.md`](./list-collections-and-compare.md).
 
 ### Slice 5: NTNU last-known-good projection
 

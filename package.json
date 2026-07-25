@@ -16,6 +16,7 @@
     "i18n:check": "bun run --cwd apps/student-web i18n:check",
     "check:types": "bash scripts/typecheck.sh",
     "test": "bun scripts/test.ts",
+    "test:web": "bun scripts/test.ts apps/student-web",
     "test:a11y": "bun run --cwd apps/student-web test:a11y",
     "build": "bash scripts/build.sh",
     "openapi": "bun apps/course-api/scripts/export-openapi.ts",
