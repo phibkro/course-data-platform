@@ -44,6 +44,10 @@ import {
   editLabel,
   emptyLabelFilter,
   filterLabel,
+  compareCourses,
+  compareMaximum,
+  compareMinimum,
+  compareSelection,
   filterSavedCourses,
   filterUnlabeled,
   findLabel,
@@ -433,6 +437,7 @@ export const Model = S.Struct({
   noteDrafts: S.Array(NoteDraftSchema),
   savedCoursesPersistFailed: S.Boolean,
   labelFilter: LabelFilterSchema,
+  compareCodes: S.Array(S.String),
   labelFilterNotice: S.NullOr(LabelFilterNoticeSchema),
   selectedCourseCodes: S.Array(S.String),
   labelDialog: Dialog.Model,
@@ -448,6 +453,11 @@ export const Model = S.Struct({
    * student to dismiss prompts.
    */
   selectionRemovePending: S.Boolean,
+  /**
+   * Difference-first is the default: a comparison exists to show what differs,
+   * and a table repeating what is identical is the cards again.
+   */
+  compareDifferencesOnly: S.Boolean,
   labelError: S.NullOr(LabelRejectionSchema),
   listDensity: ListDensitySchema,
   query: S.String,
@@ -602,6 +612,11 @@ export const ToggledSavedCourseSelection = m('ToggledSavedCourseSelection', {
   isSelected: S.Boolean,
 });
 export const ClearedSavedCourseSelection = m('ClearedSavedCourseSelection');
+export const RequestedCompare = m('RequestedCompare');
+export const ClosedCompare = m('ClosedCompare');
+export const ToggledCompareDifferencesOnly = m('ToggledCompareDifferencesOnly', {
+  differencesOnly: S.Boolean,
+});
 export const RequestedRemoveSelected = m('RequestedRemoveSelected');
 export const CancelledRemoveSelected = m('CancelledRemoveSelected');
 export const ConfirmedRemoveSelected = m('ConfirmedRemoveSelected');
@@ -682,6 +697,9 @@ export const Message = S.Union([
   FailedListDensityPersistence,
   ToggledSavedCourseSelection,
   ClearedSavedCourseSelection,
+  RequestedCompare,
+  ClosedCompare,
+  ToggledCompareDifferencesOnly,
   RequestedRemoveSelected,
   CancelledRemoveSelected,
   ConfirmedRemoveSelected,
@@ -1140,6 +1158,7 @@ const normalizedUrl = (
       params.set('notLabels', filter.excludeLabelIds.join(','));
     }
     if (filter.excludeUnlabeled) params.set('notUnlabeled', '1');
+    if (model.compareCodes.length > 0) params.set('compare', model.compareCodes.join(','));
   }
   const query = params.toString();
   return query.length === 0 ? pathname : `${pathname}?${query}`;
@@ -1292,6 +1311,7 @@ const discardedLabelDraft = {
   labelError: null,
   labelPendingDelete: null,
   selectionRemovePending: false,
+  compareDifferencesOnly: true,
 } as const satisfies Partial<Model>;
 
 /**
@@ -1405,6 +1425,7 @@ interface ParsedLocation {
   readonly englishOnly: boolean;
   readonly selectedCode: string | null;
   readonly labelFilter: LabelFilter;
+  readonly compareCodes: ReadonlyArray<string>;
 }
 
 const parsePathname = (pathname: string): Route => {
@@ -1422,6 +1443,20 @@ const parsePathname = (pathname: string): Route => {
       return 'explore';
   }
 };
+
+/**
+ * Comparison lives in the URL so a refresh or a back step keeps it, but it is
+ * still only a request: whether these codes name a comparison is decided by
+ * the validated constructor against the saved list, not here.
+ */
+const parseCompareCodes = (raw: string | null): ReadonlyArray<string> =>
+  raw === null
+    ? []
+    : raw
+        .split(',')
+        .map((code) => code.trim().toUpperCase())
+        .filter((code) => code.length > 0)
+        .slice(0, compareMaximum);
 
 const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocation => {
   const url = new URL(href, 'http://course-lens.local');
@@ -1452,6 +1487,7 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
     // List owns saved identities; course detail always belongs to Explore.
     selectedCode:
       path === 'list' ? null : url.searchParams.get('course')?.trim().toUpperCase() || null,
+    compareCodes: path === 'list' ? parseCompareCodes(url.searchParams.get('compare')) : [],
     labelFilter:
       path === 'list'
         ? {
@@ -1678,6 +1714,7 @@ export const update = (
             nextPage: NextPageIdle(),
             visibleCount: DISPLAY_CHUNK,
             labelFilter: location.labelFilter,
+            compareCodes: location.compareCodes,
             labelFilterNotice: null,
           };
           const request = searchRequest(next, 1);
@@ -1707,6 +1744,7 @@ export const update = (
                 locale: location.locale,
                 route: location.route,
                 labelFilter: location.labelFilter,
+                compareCodes: location.compareCodes,
                 labelFilterNotice: sameLabelFilter(location.labelFilter, model.labelFilter)
                   ? model.labelFilterNotice
                   : null,
@@ -2133,6 +2171,29 @@ export const update = (
         { ...model, selectedCourseCodes: [], selectionRemovePending: false },
         [],
       ],
+      /**
+       * Entering a comparison hands the ephemeral selection to the URL, where
+       * a refresh or a back step can find it again. The selection itself stays
+       * out of the URL and is cleared, so the tray does not shadow the
+       * comparison it just opened.
+       */
+      RequestedCompare: () => {
+        const next: Model = {
+          ...model,
+          compareCodes: model.selectedCourseCodes,
+          selectedCourseCodes: [],
+          selectionRemovePending: false,
+        };
+        return [next, [Navigate({ href: currentUrl(next, null), mode: 'push' })]];
+      },
+      ClosedCompare: () => {
+        const next: Model = { ...model, compareCodes: [] };
+        return [next, [Navigate({ href: currentUrl(next, null), mode: 'push' })]];
+      },
+      ToggledCompareDifferencesOnly: ({ differencesOnly }) => [
+        { ...model, compareDifferencesOnly: differencesOnly },
+        [],
+      ],
       RequestedRemoveSelected: () => [{ ...model, selectionRemovePending: true }, []],
       CancelledRemoveSelected: () => [{ ...model, selectionRemovePending: false }, []],
       ConfirmedRemoveSelected: () => {
@@ -2368,6 +2429,8 @@ export const initForHref = (
     savedListActions: [],
     noteDrafts: [],
     savedCoursesPersistFailed: false,
+    compareCodes: location.compareCodes,
+    compareDifferencesOnly: true,
     labelFilter: location.labelFilter,
     labelFilterNotice: null,
     selectedCourseCodes: [],
@@ -5583,6 +5646,20 @@ const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): 
         : h.div(
             [h.Class('flex flex-wrap items-center gap-2')],
             [
+              selected.length < compareMinimum || selected.length > compareMaximum
+                ? h.empty
+                : Button.view<Message>({
+                    type: 'button',
+                    onClick: RequestedCompare(),
+                    toView: (attributes) =>
+                      h.button(
+                        [
+                          ...attributes.button,
+                          h.Class(`${compactButtonBase} ${buttonPrimary} min-h-11`),
+                        ],
+                        [translate(locale, 'compare.open')],
+                      ),
+                  }),
               labelDialogAction(
                 selected.map((course) => course.courseCode),
                 locale,
@@ -5777,6 +5854,10 @@ const savedCourseListView = (model: Model, state: SavedListState, repaired: numb
             ],
             [translate(model.locale, 'list.repaired', { count: repaired })],
           ),
+      (() => {
+        const selection = compareSelection(state, model.compareCodes);
+        return selection === null ? h.empty : compareView(model, compareCourses(state, selection));
+      })(),
       labelFilterView(model, state),
       h.header(
         [h.Class('flex items-end justify-between gap-4 py-2 px-1 border-b border-outline-variant')],
@@ -6354,4 +6435,297 @@ const formatOfferingPeriod = (academicYear: number, season: string, locale: Loca
    */
   const calendarYear = season === 'autumn' ? academicYear : academicYear + 1;
   return `${translateToken(locale, season)} ${calendarYear}`;
+};
+
+/**
+ * A comparison cell. `known` is what lets difference-first work: only cells
+ * the source actually reported can be called equal, so a row where every
+ * course is `unavailable` is never mistaken for agreement and hidden.
+ */
+interface CompareCell {
+  readonly text: string;
+  readonly known: boolean;
+}
+
+const compareCell = (text: string, known = true): CompareCell => ({ text, known });
+
+const factCell = <Value>(
+  fact: { readonly state: string; readonly value?: Value } | null | undefined,
+  locale: Locale,
+  render: (value: Value) => string,
+): CompareCell =>
+  fact === null || fact === undefined
+    ? compareCell(translate(locale, 'compare.notLoaded'), false)
+    : fact.state === 'known' && fact.value !== undefined
+      ? compareCell(render(fact.value))
+      : compareCell(factStateLabel(fact.state, locale), false);
+
+interface CompareRow {
+  readonly label: string;
+  readonly cells: ReadonlyArray<CompareCell>;
+}
+
+/**
+ * Every dimension the spec names, in its order, for whichever courses the
+ * comparison holds. Dimensions whose data gates are still closed — attendance,
+ * remote evidence, programme relations — are absent rather than shown empty.
+ */
+const compareRows = (
+  model: Model,
+  courses: ReadonlyArray<SavedCourse>,
+): ReadonlyArray<CompareRow> => {
+  const locale = model.locale;
+  const items = courses.map((course) => catalogueItemForCode(model, course.courseCode));
+  const signals = courses.map((course) => savedDecisionSignal(model, course.courseCode));
+  const grades = courses.map((course) => savedGradeSignal(model, course.courseCode));
+  const facts = courses.map((course, index) => {
+    const item = items[index];
+    return item === null || item === undefined
+      ? null
+      : courseOfferingFacts(
+          item,
+          model.decisionSignals._tag === 'DecisionSignalsSuccess' ? 'idle' : 'idle',
+          locale,
+        );
+  });
+
+  const row = (label: string, cells: ReadonlyArray<CompareCell>): CompareRow => ({ label, cells });
+
+  return [
+    row(
+      translate(locale, 'compare.credits'),
+      items.map((item, index) =>
+        item === null
+          ? compareCell(translate(locale, 'compare.notLoaded'), false)
+          : compareCell(facts[index]?.credits ?? translate(locale, 'compare.notLoaded'), true),
+      ),
+    ),
+    row(
+      translate(locale, 'compare.term'),
+      facts.map((fact) =>
+        fact === null
+          ? compareCell(translate(locale, 'compare.notLoaded'), false)
+          : compareCell(fact.term),
+      ),
+    ),
+    row(
+      translate(locale, 'compare.campus'),
+      facts.map((fact) =>
+        fact === null
+          ? compareCell(translate(locale, 'compare.notLoaded'), false)
+          : compareCell(fact.place),
+      ),
+    ),
+    row(
+      translate(locale, 'compare.assessment'),
+      signals.map((signal) =>
+        factCell(signal?.assessment, locale, (parts) =>
+          parts
+            .map((part) =>
+              part.weightPercent.state === 'known'
+                ? `${assessmentLabel(part.form, locale)} ${formatPercentage(part.weightPercent.value, locale)}%`
+                : assessmentLabel(part.form, locale),
+            )
+            .join(' · '),
+        ),
+      ),
+    ),
+    row(
+      translate(locale, 'compare.obligatory'),
+      signals.map((signal) =>
+        factCell(signal?.obligatoryActivities, locale, (activities) =>
+          activities.length === 0
+            ? translate(locale, 'compare.none')
+            : translate(locale, 'compare.activityCount', { count: activities.length }),
+        ),
+      ),
+    ),
+    row(
+      translate(locale, 'compare.collaboration'),
+      signals.map((signal) =>
+        factCell(signal?.collaboration, locale, (value) => collaborationLabel(value, locale)),
+      ),
+    ),
+    row(
+      translate(locale, 'compare.outcomeScale'),
+      grades.map((grade) =>
+        factCell(grade?.gradingScale, locale, (scale) => gradeScaleLabel(scale, locale)),
+      ),
+    ),
+    row(
+      translate(locale, 'compare.failureRate'),
+      grades.map((grade) =>
+        factCell(
+          grade?.failureRatePercent,
+          locale,
+          (value) => `${formatPercentage(value, locale)}%`,
+        ),
+      ),
+    ),
+    row(
+      translate(locale, 'compare.sample'),
+      grades.map((grade) =>
+        factCell(grade?.sampleSize, locale, (value) => value.toLocaleString(localeTag(locale))),
+      ),
+    ),
+    row(
+      translate(locale, 'compare.period'),
+      grades.map((grade) =>
+        factCell(grade?.period, locale, (value) => `${value.fromYear}–${value.toYear}`),
+      ),
+    ),
+  ];
+};
+
+/** A row differs unless every course reported the same known value. */
+const compareRowDiffers = (row: CompareRow): boolean => {
+  const known = row.cells.filter((cell) => cell.known);
+  if (known.length !== row.cells.length) return true;
+  return known.some((cell) => cell.text !== known[0]?.text);
+};
+
+/**
+ * The comparison matrix. Desktop keeps the dimension column sticky so a row
+ * stays named while the courses scroll; the narrow layout scrolls the whole
+ * table rather than compressing four columns into a phone.
+ */
+const compareView = (model: Model, courses: ReadonlyArray<SavedCourse>): Html => {
+  const h = html<Message>();
+  const locale = model.locale;
+  const rows = compareRows(model, courses);
+  const visible = model.compareDifferencesOnly ? rows.filter(compareRowDiffers) : rows;
+  const headerCellClass = 'px-3 py-2 text-left align-bottom text-sm font-extrabold text-on-surface';
+
+  return h.section(
+    [
+      h.Class(
+        'grid gap-3 rounded-m3-large border border-outline-variant bg-surface-container-low p-4',
+      ),
+      h.AriaLabel(translate(locale, 'compare.heading')),
+    ],
+    [
+      h.div(
+        [h.Class('flex flex-wrap items-start justify-between gap-3')],
+        [
+          h.div(
+            [],
+            [
+              h.h2([h.Class('m-0 text-lg font-bold')], [translate(locale, 'compare.heading')]),
+              h.p(
+                [h.Class('m-0 mt-1 text-on-surface-variant text-sm leading-[1.45]')],
+                [translate(locale, 'compare.intro')],
+              ),
+            ],
+          ),
+          h.div(
+            [h.Class('flex flex-wrap items-center gap-2')],
+            [
+              Checkbox.view<Message>({
+                id: 'compare-differences-only',
+                isChecked: model.compareDifferencesOnly,
+                onToggle: (differencesOnly) => ToggledCompareDifferencesOnly({ differencesOnly }),
+                toView: (attributes) =>
+                  h.label(
+                    [
+                      ...attributes.label,
+                      h.Class(
+                        'inline-flex min-h-11 cursor-pointer items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm font-bold text-on-surface-variant has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary-container has-[[data-checked]]:text-on-primary-container',
+                      ),
+                    ],
+                    [
+                      h.span(
+                        [
+                          ...attributes.checkbox,
+                          h.Class(
+                            'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
+                          ),
+                        ],
+                        [model.compareDifferencesOnly ? '✓' : ''],
+                      ),
+                      h.span([], [translate(locale, 'compare.differencesOnly')]),
+                    ],
+                  ),
+              }),
+              Button.view<Message>({
+                type: 'button',
+                onClick: ClosedCompare(),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                    ],
+                    [translate(locale, 'compare.close')],
+                  ),
+              }),
+            ],
+          ),
+        ],
+      ),
+      visible.length === 0
+        ? h.p(
+            [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]'), h.Role('status')],
+            [translate(locale, 'compare.identical')],
+          )
+        : h.div(
+            [h.Class('overflow-x-auto')],
+            [
+              h.table(
+                [h.Class('w-full border-collapse text-sm')],
+                [
+                  h.thead(
+                    [],
+                    [
+                      h.tr(
+                        [],
+                        [
+                          h.th(
+                            [
+                              h.Scope('col'),
+                              h.Class(`${headerCellClass} sticky left-0 bg-surface-container-low`),
+                            ],
+                            [translate(locale, 'compare.dimension')],
+                          ),
+                          ...courses.map((course) =>
+                            h.th([h.Scope('col'), h.Class(headerCellClass)], [course.courseCode]),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  h.tbody(
+                    [],
+                    visible.map((row) =>
+                      h.tr(
+                        [h.Class('border-t border-outline-variant')],
+                        [
+                          h.th(
+                            [
+                              h.Scope('row'),
+                              h.Class(
+                                'sticky left-0 bg-surface-container-low px-3 py-2 text-left align-top font-bold text-on-surface-variant',
+                              ),
+                            ],
+                            [row.label],
+                          ),
+                          ...row.cells.map((cell) =>
+                            h.td(
+                              [
+                                h.Class(
+                                  `px-3 py-2 align-top ${cell.known ? 'text-on-surface' : 'text-on-surface-variant italic'}`,
+                                ),
+                              ],
+                              [cell.text],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+    ],
+  );
 };

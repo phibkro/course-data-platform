@@ -45,6 +45,8 @@ import {
   type LabelFilter,
   type LabelResult,
   type SavedListState,
+  compareCourses,
+  compareSelection,
 } from './saved-courses';
 
 const tdt4136 = courseIdentity('TDT4136')!;
@@ -934,4 +936,38 @@ test('exhaustive: duplicates and permutations of the same predicates select the 
     }
   }
   expect(disagreements).toEqual([]);
+});
+
+const savedFour = ['TDT4136', 'TDT4109', 'TMA4115', 'IT2805'].reduce(
+  (state, code) => saveCourse(state, courseIdentity(code)!, savedAt),
+  emptySavedList,
+);
+
+test('a comparison is between two, three, or four distinct saved courses', () => {
+  expect(compareSelection(savedFour, ['TDT4136', 'TDT4109'])?.length).toBe(2);
+  expect(compareSelection(savedFour, ['TDT4136', 'TDT4109', 'TMA4115', 'IT2805'])?.length).toBe(4);
+
+  // One course has nothing to compare against; five stops being a comparison.
+  expect(compareSelection(savedFour, [])).toBeNull();
+  expect(compareSelection(savedFour, ['TDT4136'])).toBeNull();
+  expect(
+    compareSelection(savedFour, ['TDT4136', 'TDT4109', 'TMA4115', 'IT2805', 'TDT4290']),
+  ).toBeNull();
+});
+
+test('a comparison never quietly compares fewer courses than it was asked for', () => {
+  // A duplicate would compare a course with itself; an unsaved or unparseable
+  // code would drop a column. Both fail the selection instead.
+  expect(compareSelection(savedFour, ['TDT4136', 'TDT4136'])).toBeNull();
+  expect(compareSelection(savedFour, ['tdt4136', 'TDT4136'])).toBeNull();
+  expect(compareSelection(savedFour, ['TDT4136', 'TDT4290'])).toBeNull();
+  expect(compareSelection(savedFour, ['TDT4136', 'not a code'])).toBeNull();
+});
+
+test('a comparison keeps the order the student chose', () => {
+  const selection = compareSelection(savedFour, ['IT2805', 'TDT4136'])!;
+  expect(compareCourses(savedFour, selection).map((course) => course.courseCode)).toEqual([
+    'IT2805',
+    'TDT4136',
+  ]);
 });

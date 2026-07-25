@@ -608,3 +608,44 @@ test('undoable actions stack, each keeping its own way back', async ({ page }) =
   // Dismissing a notice is not undoing it: the saves stand.
   await expect(page.getByRole('button', { name: 'Remove IT2805 from List' })).toBeVisible();
 });
+
+test('comparing shows what differs, survives reload, and stays a mode within List', async ({
+  page,
+}) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('button', { name: 'Save TDT4109 to List' }).click();
+  await page.getByRole('link', { name: 'Saved' }).click();
+
+  const tray = page.getByRole('region', { name: 'Selected saved courses' });
+  await page.getByLabel('Select TDT4136').click();
+  // One course has nothing to compare against.
+  await expect(tray.getByRole('button', { name: 'Compare' })).toHaveCount(0);
+
+  await page.getByLabel('Select TDT4109').click();
+  await tray.getByRole('button', { name: 'Compare' }).click();
+
+  const compare = page.getByRole('region', { name: 'Compare saved courses' });
+  await expect(compare).toBeVisible();
+  await expect(compare.getByRole('columnheader', { name: 'TDT4136' })).toBeVisible();
+  await expect(compare.getByRole('columnheader', { name: 'TDT4109' })).toBeVisible();
+
+  // Difference-first: these two share a term and a campus, so those rows are
+  // absent until the student asks for everything.
+  await expect(compare.getByRole('rowheader', { name: 'Outcome scale' })).toBeVisible();
+  await expect(compare.getByRole('rowheader', { name: 'Campus' })).toHaveCount(0);
+  await page.getByRole('checkbox', { name: 'Differences' }).click();
+  await expect(compare.getByRole('rowheader', { name: 'Campus' })).toBeVisible();
+
+  // The list it was drawn from is still there: Compare is a mode, not a page.
+  await expect(page.getByRole('heading', { name: 'Your saved courses' })).toBeVisible();
+
+  await expect(page).toHaveURL(/compare=/);
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Compare saved courses' })).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  await page.getByRole('button', { name: 'Close comparison' }).click();
+  await expect(page).not.toHaveURL(/compare=/);
+  await expect(page.getByRole('region', { name: 'Compare saved courses' })).toHaveCount(0);
+});

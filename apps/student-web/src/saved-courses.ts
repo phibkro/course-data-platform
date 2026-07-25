@@ -853,3 +853,51 @@ export const parseSavedList = (raw: string | null): SavedListLoad => {
     repairedEntries: repaired.repairedEntries,
   });
 };
+
+/**
+ * A comparison is between two, three, or four distinct saved courses. Fewer
+ * has nothing to compare; more stops being a comparison and becomes a list
+ * again — and the spec is explicit that other arities are not representable as
+ * an active comparison.
+ *
+ * So the constructor is the only way to make one, and it returns `null` rather
+ * than a comparison that cannot be honoured. A caller cannot hold an invalid
+ * `CompareSelection`, which is why nothing downstream re-checks the count.
+ */
+export const compareMinimum = 2;
+export const compareMaximum = 4;
+
+declare const compareSelectionBrand: unique symbol;
+
+export type CompareSelection = ReadonlyArray<CourseIdentity> & {
+  readonly [compareSelectionBrand]: true;
+};
+
+export const compareSelection = (
+  state: SavedListState,
+  courseCodes: ReadonlyArray<string>,
+): CompareSelection | null => {
+  const identities: CourseIdentity[] = [];
+  for (const candidate of courseCodes) {
+    const identity = courseIdentity(candidate);
+    // Unknown, unparseable, and duplicate codes all fail the whole selection
+    // rather than being quietly dropped: a comparison that silently compares
+    // fewer courses than asked is a different comparison.
+    if (identity === null) return null;
+    if (findSavedCourse(state, identity) === null) return null;
+    if (identities.some((existing) => existing.courseCode === identity.courseCode)) return null;
+    identities.push(identity);
+  }
+  if (identities.length < compareMinimum || identities.length > compareMaximum) return null;
+  return identities as unknown as CompareSelection;
+};
+
+/** The saved courses of a comparison, in the order the student chose them. */
+export const compareCourses = (
+  state: SavedListState,
+  selection: CompareSelection,
+): ReadonlyArray<SavedCourse> =>
+  selection.flatMap((identity) => {
+    const course = findSavedCourse(state, identity);
+    return course === null ? [] : [course];
+  });
