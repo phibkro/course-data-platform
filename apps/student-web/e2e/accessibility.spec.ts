@@ -650,50 +650,50 @@ test('comparing shows what differs, survives reload, and stays a mode within Lis
   await expect(page.getByRole('region', { name: 'Compare saved courses' })).toHaveCount(0);
 });
 
-test('no page scrolls sideways on the narrowest phone', async ({ page }, testInfo) => {
+test('no page is wider than the narrowest phone', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium');
-  await page.setViewportSize({ width: 320, height: 720 });
+  const device = 320;
+  await page.setViewportSize({ width: device, height: 720 });
 
   /**
-   * Sideways scrolling the student did not ask for reads as broken layout.
-   * Wide content is allowed to scroll inside its own container — the
-   * comparison matrix does — but the page itself must not.
+   * Under mobile emulation the layout viewport widens to fit content that does
+   * not fit, rather than growing a scrollbar — so `scrollWidth` and
+   * `innerWidth` grow together and comparing them can never fail. The device
+   * width is the fixed thing to measure against.
+   *
+   * Wide content may still scroll inside its own container; the comparison
+   * matrix does. It is the page that must fit.
    */
-  const widest = async (): Promise<{ scrollWidth: number; inner: number; offender: string }> =>
-    page.evaluate(() => {
+  const widest = async (): Promise<{ width: number; offender: string }> =>
+    page.evaluate((deviceWidth) => {
       let offender = '';
       for (const node of document.querySelectorAll('*')) {
         const rect = node.getBoundingClientRect();
-        if (rect.right > window.innerWidth + 1) {
+        if (rect.width > deviceWidth + 0.5 && getComputedStyle(node).overflowX !== 'auto') {
           const el = node as HTMLElement;
-          offender = `${el.tagName.toLowerCase()}[${(el.className || '').toString().slice(0, 60)}]`;
+          offender = `${el.tagName.toLowerCase()}[${(el.className || '').toString().slice(0, 60)}] w=${Math.round(rect.width)}`;
           break;
         }
       }
-      return {
-        scrollWidth: document.documentElement.scrollWidth,
-        inner: window.innerWidth,
-        offender,
-      };
-    });
+      return { width: document.documentElement.scrollWidth, offender };
+    }, device);
 
   for (const path of ['/', '/list', '/appearance']) {
     await page.goto(path);
     await page.waitForLoadState('networkidle');
     const measured = await widest();
-    expect(measured.scrollWidth, `${path} overflows: ${measured.offender}`).toBeLessThanOrEqual(
-      measured.inner,
-    );
+    expect(measured.width, `${path}: ${measured.offender}`).toBeLessThanOrEqual(device);
   }
 
+  // A saved course only learns its title when enrichment lands, so a row that
+  // fits while loading can stop fitting once it knows what it holds.
   await page.goto('/');
   await expect(page.getByText('Assessment & work', { exact: true }).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
-  await page.getByRole('link', { name: 'Saved' }).click();
+  await page.getByRole('button', { name: 'Save SKOLE6119 to List' }).click();
+  await page.goto('/list');
+  await expect(page.getByText('Den nasjonale', { exact: false }).first()).toBeVisible();
   const saved = await widest();
-  expect(saved.scrollWidth, `saved list overflows: ${saved.offender}`).toBeLessThanOrEqual(
-    saved.inner,
-  );
+  expect(saved.width, `saved list: ${saved.offender}`).toBeLessThanOrEqual(device);
 });
 
 test('the selection tray belongs to the saved list and does not follow the student', async ({

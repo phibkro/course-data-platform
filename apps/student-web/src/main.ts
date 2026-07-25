@@ -4992,7 +4992,11 @@ const savedCourseRow = (
           // Density changes how much surrounds a saved course, never how
           // legible it is: compact buys its scan line from padding and gaps,
           // so the title keeps one size in both views.
-          h.Class('text-lg'),
+          //
+          // Real catalogue titles are long and arrive with enrichment, so the
+          // text has to be allowed to break: a word that refuses to wrap sets
+          // a floor under the row that a narrow screen cannot honour.
+          h.Class('text-lg [overflow-wrap:anywhere]'),
         ],
         [
           h.a(
@@ -5033,7 +5037,7 @@ const savedCourseRow = (
 
   /** Both controls that act on this row, kept together at its end. */
   const rowActions = h.div(
-    [h.Class('flex flex-none items-center gap-2')],
+    [h.Class('flex flex-wrap items-center gap-2')],
     [labelsAction, savedCourseToggle(course.courseCode, true, 'ready', locale, '', 'destructive')],
   );
   /**
@@ -5052,7 +5056,7 @@ const savedCourseRow = (
           [h.Class(`${savedRowClass} gap-2 p-[0.8rem]`)],
           [
             h.div(
-              [h.Class('flex items-start justify-between gap-3')],
+              [h.Class('flex flex-wrap items-start justify-between gap-3')],
               [selectionCheckbox, identityBlock, rowActions],
             ),
             h.p(
@@ -5076,7 +5080,7 @@ const savedCourseRow = (
         [h.Class(savedRowClass)],
         [
           h.div(
-            [h.Class('flex items-start justify-between gap-3')],
+            [h.Class('flex flex-wrap items-start justify-between gap-3')],
             [selectionCheckbox, identityBlock, rowActions],
           ),
           labelsBlock,

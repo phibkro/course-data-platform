@@ -180,6 +180,31 @@ export const fixtureCourses: ReadonlyArray<FixtureCourse> = [
     },
   },
   {
+    /**
+     * A real catalogue title is long, and it arrives with enrichment rather
+     * than with the saved identity — so a row that fits while loading can stop
+     * fitting once it knows what it is holding.
+     */
+    code: 'SKOLE6119',
+    title: 'Den nasjonale rektorutdanningen ved NTNU',
+    credits: 30,
+    level: 'master',
+    teachingLanguage: 'Norwegian',
+    academicYear: 2026,
+    season: 'autumn',
+    campuses: ['Trondheim'],
+    assessmentForms: ['portfolio'],
+    workForms: ['seminar', 'self-study'],
+    period: [2022, 2025],
+    grades: {
+      scale: 'pass-fail',
+      buckets: [
+        ['G', 214],
+        ['H', 9],
+      ],
+    },
+  },
+  {
     /** Small cohort: the source suppresses the distribution, and that stays visible. */
     code: 'TDT4225',
     title: 'Management of Very Large Data',
