@@ -31,6 +31,28 @@ import { isLocale, localeTag, translate, translateToken, type Locale } from './i
 import { collaborationIconName, icon, termSeasonIconName, type AppIcon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 import {
+  LabelMembershipSchema,
+  SavedCourseSchema,
+  SavedListLoadSchema,
+  SavedListStateSchema,
+  courseIdentity,
+  emptySavedList,
+  findSavedCourse,
+  isSaved,
+  membershipsForSavedCourse,
+  parseSavedList,
+  removeSavedCourse,
+  restoreSavedCourse,
+  saveCourse,
+  savedCoursesNewestFirst,
+  savedListStorageKey,
+  serializeSavedList,
+  setSavedCourseNote,
+  type CourseIdentity,
+  type SavedCourse,
+  type SavedListState,
+} from './saved-courses';
+import {
   initSelectField,
   selectField,
   SelectFieldMessage,
@@ -55,7 +77,12 @@ import {
 const DISPLAY_CHUNK = 20;
 const DEFAULT_TERM = '2026-autumn';
 const DEFAULT_SORT: CourseSearchSort = 'relevance';
+const EXPLORE_PATH = '/';
+const LIST_PATH = '/list';
+const EXPLORE_APPEARANCE_PATH = '/appearance';
+const LIST_APPEARANCE_PATH = '/list/appearance';
 const lazyCourseCard = createKeyedLazy();
+const lazySavedCourseRow = createKeyedLazy();
 const lazyDesktopNavigation = createLazy();
 const lazyMobileNavigation = createLazy();
 const lazyCatalogueHeader = createLazy();
@@ -64,6 +91,8 @@ const lazyCatalogueRefineDialog = createLazy();
 const lazyAppearanceDialog = createLazy();
 const lazyCatalogueFooter = createLazy();
 const lazyDetailFooter = createLazy();
+const lazyListHeader = createLazy();
+const lazyListFooter = createLazy();
 
 export const parseExternalHttpsUrl = (candidate: string | undefined): string | null => {
   if (candidate === undefined) return null;
@@ -242,8 +271,66 @@ type DetailResult =
   | { readonly _tag: 'DetailPartial'; readonly response: CourseInsightResponseDtoType }
   | ReturnType<typeof DetailFailure>;
 
+/**
+ * Student-owned saved state is explicit in the model. It is loaded through a
+ * Command, never read or written while updating, and an unreadable stored
+ * value becomes a visible recovery state instead of an empty list.
+ */
+export const SavedCoursesLoading = ts('SavedCoursesLoading');
+export const SavedCoursesReady = ts('SavedCoursesReady', {
+  state: SavedListStateSchema,
+  repairedEntries: S.Number,
+});
+export const SavedCoursesRecovery = ts('SavedCoursesRecovery', {
+  reason: S.Literals(['unavailable', 'unsupported-version', 'invalid-json', 'unreadable']),
+  storedVersion: S.NullOr(S.Number),
+  raw: S.String,
+});
+const SavedCoursesResultSchema = S.Union([
+  SavedCoursesLoading,
+  SavedCoursesReady,
+  SavedCoursesRecovery,
+]);
+type SavedCoursesResult = typeof SavedCoursesResultSchema.Type;
+
+/**
+ * Whether Save/Remove can act right now. `SavedCoursesLoading` is transient
+ * and reads as "still loading"; a recovery state is not transient and reads
+ * as "paused" with a path to List instead, so the two never share a message.
+ */
+const savedToggleAvailability = (result: SavedCoursesResult): 'ready' | 'loading' | 'paused' =>
+  M.value(result._tag).pipe(
+    M.when('SavedCoursesReady', () => 'ready' as const),
+    M.when('SavedCoursesLoading', () => 'loading' as const),
+    M.when('SavedCoursesRecovery', () => 'paused' as const),
+    M.exhaustive,
+  );
+
+/**
+ * A single ephemeral snapshot of the most recent Save or Remove, kept only to
+ * drive the ` · Undo` confirmation. It is never persisted: Dismiss and a
+ * later action simply replace it.
+ */
+export const SavedActionIdle = ts('SavedActionIdle');
+export const SavedActionSaved = ts('SavedActionSaved', { courseCode: S.String });
+export const SavedActionRemoved = ts('SavedActionRemoved', {
+  course: SavedCourseSchema,
+  memberships: S.Array(LabelMembershipSchema),
+});
+const SavedListActionSchema = S.Union([SavedActionIdle, SavedActionSaved, SavedActionRemoved]);
+
+const NoteDraftSchema = S.Struct({ courseCode: S.String, value: S.String });
+
+const RouteSchema = S.Literals(['explore', 'list']);
+type Route = typeof RouteSchema.Type;
+
 export const Model = S.Struct({
   locale: LocaleSchema,
+  route: RouteSchema,
+  savedCourses: SavedCoursesResultSchema,
+  savedListAction: SavedListActionSchema,
+  noteDrafts: S.Array(NoteDraftSchema),
+  savedCoursesPersistFailed: S.Boolean,
   query: S.String,
   term: S.String,
   campus: CampusSchema,
@@ -353,6 +440,26 @@ export const GotSelectFieldMessage = m('GotSelectFieldMessage', {
   id: SelectControlIdSchema,
   message: SelectFieldMessage,
 });
+export const LoadedSavedCourses = m('LoadedSavedCourses', { load: SavedListLoadSchema });
+export const FailedSavedCoursesLoad = m('FailedSavedCoursesLoad');
+export const RequestedSaveCourse = m('RequestedSaveCourse', { courseCode: S.String });
+export const StampedSavedCourse = m('StampedSavedCourse', {
+  courseCode: S.String,
+  savedAt: S.String,
+});
+export const RequestedRemoveSavedCourse = m('RequestedRemoveSavedCourse', {
+  courseCode: S.String,
+});
+export const UpdatedSavedNoteDraft = m('UpdatedSavedNoteDraft', {
+  courseCode: S.String,
+  value: S.String,
+});
+export const SubmittedSavedNote = m('SubmittedSavedNote', { courseCode: S.String });
+export const RequestedSavedCoursesReset = m('RequestedSavedCoursesReset');
+export const PersistedSavedCourses = m('PersistedSavedCourses');
+export const FailedSavedCoursesPersistence = m('FailedSavedCoursesPersistence');
+export const RequestedUndoSavedListAction = m('RequestedUndoSavedListAction');
+export const DismissedSavedListAction = m('DismissedSavedListAction');
 
 export const Message = S.Union([
   UpdatedQuery,
@@ -393,6 +500,18 @@ export const Message = S.Union([
   PersistedThemePreference,
   FailedThemePreferencePersistence,
   GotSelectFieldMessage,
+  LoadedSavedCourses,
+  FailedSavedCoursesLoad,
+  RequestedSaveCourse,
+  StampedSavedCourse,
+  RequestedRemoveSavedCourse,
+  UpdatedSavedNoteDraft,
+  SubmittedSavedNote,
+  RequestedSavedCoursesReset,
+  PersistedSavedCourses,
+  FailedSavedCoursesPersistence,
+  RequestedUndoSavedListAction,
+  DismissedSavedListAction,
 ]);
 export type Message = typeof Message.Type;
 
@@ -576,6 +695,49 @@ export const PersistThemePreference = Command.define(
   ),
 );
 
+/**
+ * Local storage is untrusted input and an untrusted destination: reading and
+ * writing the saved list happen here, at the application boundary, and every
+ * failure path produces an explicit Message.
+ */
+export const LoadSavedCourses = Command.define(
+  'LoadSavedCourses',
+  LoadedSavedCourses,
+  FailedSavedCoursesLoad,
+)(
+  Effect.try({
+    try: () =>
+      LoadedSavedCourses({ load: parseSavedList(localStorage.getItem(savedListStorageKey)) }),
+    catch: () => new Error('Saved courses could not be read from this browser'),
+  }).pipe(Effect.catch(() => Effect.succeed(FailedSavedCoursesLoad()))),
+);
+
+export const PersistSavedCourses = Command.define(
+  'PersistSavedCourses',
+  { state: SavedListStateSchema },
+  PersistedSavedCourses,
+  FailedSavedCoursesPersistence,
+)(({ state }) =>
+  Effect.try({
+    try: () => {
+      localStorage.setItem(savedListStorageKey, serializeSavedList(state));
+    },
+    catch: () => new Error('Saved courses could not be stored in this browser'),
+  }).pipe(
+    Effect.as(PersistedSavedCourses()),
+    Effect.catch(() => Effect.succeed(FailedSavedCoursesPersistence())),
+  ),
+);
+
+/** The clock stays in the boundary; `update` receives an observed timestamp. */
+export const StampSavedCourse = Command.define(
+  'StampSavedCourse',
+  { courseCode: S.String },
+  StampedSavedCourse,
+)(({ courseCode }) =>
+  Effect.sync(() => StampedSavedCourse({ courseCode, savedAt: new Date().toISOString() })),
+);
+
 const fetchCommand = (
   request: CourseSearchRequest,
   key: string,
@@ -732,7 +894,11 @@ const requestVisibleDecisionSignals = (
   ];
 };
 
-const normalizedUrl = (model: Model, selectedCode: string | null, pathname = '/'): string => {
+const normalizedUrl = (
+  model: Model,
+  selectedCode: string | null,
+  pathname = EXPLORE_PATH,
+): string => {
   const params = new URLSearchParams();
   params.set('lang', model.locale);
   if (model.query.trim().length > 0) params.set('q', model.query.trim());
@@ -747,8 +913,67 @@ const normalizedUrl = (model: Model, selectedCode: string | null, pathname = '/'
   return query.length === 0 ? pathname : `${pathname}?${query}`;
 };
 
+const routePath = (route: Route, appearanceOpen: boolean): string =>
+  route === 'list'
+    ? appearanceOpen
+      ? LIST_APPEARANCE_PATH
+      : LIST_PATH
+    : appearanceOpen
+      ? EXPLORE_APPEARANCE_PATH
+      : EXPLORE_PATH;
+
+/** The shareable URL for the model as it currently stands. */
+const currentUrl = (model: Model, selectedCode: string | null = model.selectedCode): string =>
+  normalizedUrl(model, selectedCode, routePath(model.route, model.appearanceDialog.isOpen));
+
 const appearanceUrl = (model: Model): string =>
-  normalizedUrl(model, model.selectedCode, '/appearance');
+  normalizedUrl(model, model.selectedCode, routePath(model.route, true));
+
+const listUrl = (model: Model): string => normalizedUrl(model, null, LIST_PATH);
+
+const exploreUrl = (model: Model): string => normalizedUrl(model, null, EXPLORE_PATH);
+
+const savedListState = (result: SavedCoursesResult): SavedListState | null =>
+  result._tag === 'SavedCoursesReady' ? result.state : null;
+
+const isCourseSaved = (result: SavedCoursesResult, courseCode: string): boolean => {
+  const state = savedListState(result);
+  const identity = courseIdentity(courseCode);
+  return state !== null && identity !== null && isSaved(state, identity);
+};
+
+const noteDraftFor = (model: Model, course: SavedCourse): string =>
+  model.noteDrafts.find((draft) => draft.courseCode === course.courseCode)?.value ??
+  course.note ??
+  '';
+
+const withoutNoteDraft = (drafts: Model['noteDrafts'], courseCode: string): Model['noteDrafts'] =>
+  drafts.filter((draft) => draft.courseCode !== courseCode);
+
+/**
+ * A saved-course transition is applied to the model first and persisted from
+ * the resulting state, so storage never becomes a second source of truth.
+ */
+const applySavedListChange = (
+  model: Model,
+  change: (state: SavedListState, identity: CourseIdentity) => SavedListState,
+  courseCode: string,
+  drafts: Model['noteDrafts'] = model.noteDrafts,
+): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+  const state = savedListState(model.savedCourses);
+  const identity = courseIdentity(courseCode);
+  if (state === null || identity === null) return [model, []];
+  const next = change(state, identity);
+  if (next === state && drafts === model.noteDrafts) return [model, []];
+  return [
+    {
+      ...model,
+      savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
+      noteDrafts: drafts,
+    },
+    next === state ? [] : [PersistSavedCourses({ state: next })],
+  ];
+};
 
 const startCatalogue = (
   model: Model,
@@ -771,7 +996,7 @@ const startCatalogue = (
   return [
     nextModel,
     [
-      Navigate({ href: normalizedUrl(nextModel, null), mode: 'replace' }),
+      Navigate({ href: currentUrl(nextModel, null), mode: 'replace' }),
       fetchCommand(request, key, false),
     ],
   ];
@@ -782,6 +1007,7 @@ const oneOf = <A extends string>(value: string, values: ReadonlyArray<A>, fallba
 
 interface ParsedLocation {
   readonly locale: Locale;
+  readonly route: Route;
   readonly query: string;
   readonly term: string;
   readonly campus: Campus;
@@ -793,10 +1019,26 @@ interface ParsedLocation {
   readonly appearanceOpen: boolean;
 }
 
+const parsePathname = (pathname: string): Readonly<{ route: Route; appearanceOpen: boolean }> => {
+  const normalized = pathname.replace(/\/+$/, '');
+  switch (normalized === '' ? EXPLORE_PATH : normalized) {
+    case LIST_PATH:
+      return { route: 'list', appearanceOpen: false };
+    case LIST_APPEARANCE_PATH:
+      return { route: 'list', appearanceOpen: true };
+    case EXPLORE_APPEARANCE_PATH:
+      return { route: 'explore', appearanceOpen: true };
+    default:
+      return { route: 'explore', appearanceOpen: false };
+  }
+};
+
 const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocation => {
   const url = new URL(href, 'http://course-lens.local');
   const requestedLocale = url.searchParams.get('lang');
+  const path = parsePathname(url.pathname);
   return {
+    route: path.route,
     locale: isLocale(requestedLocale) ? requestedLocale : fallbackLocale,
     query: url.searchParams.get('q') ?? '',
     term: url.searchParams.get('term') ?? DEFAULT_TERM,
@@ -817,8 +1059,10 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
     ),
     openOnly: url.searchParams.get('open') === '1',
     englishOnly: url.searchParams.get('english') === '1',
-    selectedCode: url.searchParams.get('course')?.trim().toUpperCase() || null,
-    appearanceOpen: url.pathname === '/appearance' || url.pathname === '/appearance/',
+    // List owns saved identities; course detail always belongs to Explore.
+    selectedCode:
+      path.route === 'list' ? null : url.searchParams.get('course')?.trim().toUpperCase() || null,
+    appearanceOpen: path.appearanceOpen,
   };
 };
 
@@ -907,10 +1151,7 @@ const applySelectValue = (
       const next = { ...model, locale };
       return [
         next,
-        [
-          PersistLocale({ locale }),
-          Navigate({ href: normalizedUrl(next, next.selectedCode), mode: 'replace' }),
-        ],
+        [PersistLocale({ locale }), Navigate({ href: currentUrl(next), mode: 'replace' })],
       ];
     }
   }
@@ -943,10 +1184,7 @@ export const update = (
         const next = { ...model, locale };
         return [
           next,
-          [
-            PersistLocale({ locale }),
-            Navigate({ href: normalizedUrl(next, next.selectedCode), mode: 'replace' }),
-          ],
+          [PersistLocale({ locale }), Navigate({ href: currentUrl(next), mode: 'replace' })],
         ];
       },
       ToggledSidebar: () => {
@@ -1040,6 +1278,7 @@ export const update = (
           const next: Model = {
             ...model,
             locale: location.locale,
+            route: location.route,
             query: location.query,
             term: location.term,
             campus: location.campus,
@@ -1067,8 +1306,10 @@ export const update = (
             ],
           ]);
         }
-        const localizedModel =
-          location.locale === model.locale ? model : { ...model, locale: location.locale };
+        const localizedModel: Model =
+          location.locale === model.locale && location.route === model.route
+            ? model
+            : { ...model, locale: location.locale, route: location.route };
         const localeCommands =
           location.locale === model.locale ? [] : [PersistLocale({ locale: location.locale })];
         if (location.selectedCode === model.selectedCode) {
@@ -1090,10 +1331,7 @@ export const update = (
               ],
         );
       },
-      ClosedCourse: () => [
-        model,
-        [Navigate({ href: normalizedUrl(model, null), mode: 'replace' })],
-      ],
+      ClosedCourse: () => [model, [Navigate({ href: currentUrl(model, null), mode: 'replace' })]],
       SucceededCourseSearch: ({ requestKey: key, append, response: nextResponse }) => {
         if (key !== model.activeRequestKey) return [model, []];
         const response = mergeResponses(
@@ -1244,7 +1482,12 @@ export const update = (
         if (dialogMessage._tag === 'RequestedClose') {
           return [
             model,
-            [Navigate({ href: normalizedUrl(model, model.selectedCode), mode: 'replace' })],
+            [
+              Navigate({
+                href: normalizedUrl(model, model.selectedCode, routePath(model.route, false)),
+                mode: 'replace',
+              }),
+            ],
           ];
         }
         const [appearanceDialog, commands] = Dialog.update(model.appearanceDialog, dialogMessage);
@@ -1273,6 +1516,173 @@ export const update = (
       ],
       PersistedThemePreference: () => [model, []],
       FailedThemePreferencePersistence: () => [model, []],
+      LoadedSavedCourses: ({ load }) => {
+        switch (load._tag) {
+          case 'SavedListEmpty':
+            return [
+              {
+                ...model,
+                savedCourses: SavedCoursesReady({ state: emptySavedList, repairedEntries: 0 }),
+              },
+              [],
+            ];
+          case 'SavedListLoaded':
+            return [
+              {
+                ...model,
+                savedCourses: SavedCoursesReady({
+                  state: load.state,
+                  repairedEntries: load.repairedEntries,
+                }),
+              },
+              // Repairs are written back so the stored value matches what the
+              // student is shown; an untouched list is never rewritten.
+              load.repairedEntries === 0 ? [] : [PersistSavedCourses({ state: load.state })],
+            ];
+          case 'SavedListUnsupported':
+            return [
+              {
+                ...model,
+                savedCourses: SavedCoursesRecovery({
+                  reason: 'unsupported-version',
+                  storedVersion: load.storedVersion,
+                  raw: load.raw,
+                }),
+              },
+              [],
+            ];
+          case 'SavedListCorrupt':
+            return [
+              {
+                ...model,
+                savedCourses: SavedCoursesRecovery({
+                  reason: load.reason === 'invalid-json' ? 'invalid-json' : 'unreadable',
+                  storedVersion: null,
+                  raw: load.raw,
+                }),
+              },
+              [],
+            ];
+        }
+      },
+      FailedSavedCoursesLoad: () => [
+        {
+          ...model,
+          savedCourses: SavedCoursesRecovery({
+            reason: 'unavailable',
+            storedVersion: null,
+            raw: '',
+          }),
+        },
+        [],
+      ],
+      RequestedSaveCourse: ({ courseCode }) => {
+        const state = savedListState(model.savedCourses);
+        const identity = courseIdentity(courseCode);
+        if (state === null || identity === null || isSaved(state, identity)) return [model, []];
+        return [model, [StampSavedCourse({ courseCode: identity.courseCode })]];
+      },
+      StampedSavedCourse: ({ courseCode, savedAt }) => {
+        const [next, commands] = applySavedListChange(
+          model,
+          (state, identity) => saveCourse(state, identity, savedAt),
+          courseCode,
+        );
+        if (next === model) return [next, commands];
+        return [{ ...next, savedListAction: SavedActionSaved({ courseCode }) }, commands];
+      },
+      RequestedRemoveSavedCourse: ({ courseCode }) => {
+        const state = savedListState(model.savedCourses);
+        const identity = courseIdentity(courseCode);
+        if (state === null || identity === null) return [model, []];
+        const course = findSavedCourse(state, identity);
+        if (course === null) return [model, []];
+        const memberships = membershipsForSavedCourse(state, identity);
+        const next = removeSavedCourse(state, identity);
+        return [
+          {
+            ...model,
+            savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
+            noteDrafts: withoutNoteDraft(model.noteDrafts, identity.courseCode),
+            savedListAction: SavedActionRemoved({ course, memberships }),
+          },
+          [PersistSavedCourses({ state: next })],
+        ];
+      },
+      UpdatedSavedNoteDraft: ({ courseCode, value }) => [
+        {
+          ...model,
+          noteDrafts: [...withoutNoteDraft(model.noteDrafts, courseCode), { courseCode, value }],
+        },
+        [],
+      ],
+      SubmittedSavedNote: ({ courseCode }) => {
+        const draft = model.noteDrafts.find((entry) => entry.courseCode === courseCode);
+        if (draft === undefined) return [model, []];
+        return applySavedListChange(
+          model,
+          (state, identity) => setSavedCourseNote(state, identity, draft.value),
+          courseCode,
+          withoutNoteDraft(model.noteDrafts, courseCode),
+        );
+      },
+      RequestedSavedCoursesReset: () => [
+        {
+          ...model,
+          savedCourses: SavedCoursesReady({ state: emptySavedList, repairedEntries: 0 }),
+          noteDrafts: [],
+          savedListAction: SavedActionIdle(),
+        },
+        [PersistSavedCourses({ state: emptySavedList })],
+      ],
+      PersistedSavedCourses: () =>
+        model.savedCoursesPersistFailed
+          ? [{ ...model, savedCoursesPersistFailed: false }, []]
+          : [model, []],
+      FailedSavedCoursesPersistence: () => [{ ...model, savedCoursesPersistFailed: true }, []],
+      /**
+       * Undo reverses the ephemeral snapshot, never the live saved state
+       * directly: a save is undone by removing that identity, and a removal
+       * is undone by restoring the exact course and memberships it carried.
+       * Both branches are idempotent, so a stale or repeated Undo is inert
+       * once the snapshot has already been consumed.
+       */
+      RequestedUndoSavedListAction: () => {
+        const state = savedListState(model.savedCourses);
+        if (state === null) return [model, []];
+        return M.value(model.savedListAction).pipe(
+          M.withReturnType<readonly [Model, ReadonlyArray<Command.Command<Message>>]>(),
+          M.tagsExhaustive({
+            SavedActionIdle: () => [model, []],
+            SavedActionSaved: ({ courseCode }) => {
+              const identity = courseIdentity(courseCode);
+              const next = identity === null ? state : removeSavedCourse(state, identity);
+              if (next === state) return [{ ...model, savedListAction: SavedActionIdle() }, []];
+              return [
+                {
+                  ...model,
+                  savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
+                  savedListAction: SavedActionIdle(),
+                },
+                [PersistSavedCourses({ state: next })],
+              ];
+            },
+            SavedActionRemoved: ({ course, memberships }) => {
+              const next = restoreSavedCourse(state, course, memberships);
+              if (next === state) return [{ ...model, savedListAction: SavedActionIdle() }, []];
+              return [
+                {
+                  ...model,
+                  savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
+                  savedListAction: SavedActionIdle(),
+                },
+                [PersistSavedCourses({ state: next })],
+              ];
+            },
+          }),
+        );
+      },
+      DismissedSavedListAction: () => [{ ...model, savedListAction: SavedActionIdle() }, []],
       GotSelectFieldMessage: ({ id, message: selectMessage }) => {
         const [field, commands, maybeSelection] = updateSelectField(
           selectFieldModel(model.selectFields, id),
@@ -1313,6 +1723,11 @@ export const initForHref = (
     : [initialAppearanceDialog, []];
   const base: Model = {
     locale: location.locale,
+    route: location.route,
+    savedCourses: SavedCoursesLoading(),
+    savedListAction: SavedActionIdle(),
+    noteDrafts: [],
+    savedCoursesPersistFailed: false,
     query: location.query,
     term: location.term,
     campus: location.campus,
@@ -1353,6 +1768,7 @@ export const initForHref = (
   return [
     model,
     [
+      LoadSavedCourses(),
       fetchCommand(request, key, false),
       ...(location.selectedCode === null
         ? []
@@ -1394,11 +1810,15 @@ const browserSidebarCollapsed = (): boolean => {
   return localStorage.getItem('course-lens:sidebar-collapsed') === '1';
 };
 
+const documentTitle = (model: Model): string => {
+  if (model.route === 'list') return translate(model.locale, 'app.listTitle');
+  return model.detail._tag === 'DetailSuccess' || model.detail._tag === 'DetailPartial'
+    ? `${model.detail.response.item.code} · ${translate(model.locale, 'app.name')}`
+    : translate(model.locale, 'app.catalogueTitle');
+};
+
 export const view = (model: Model): Document => ({
-  title:
-    model.detail._tag === 'DetailSuccess' || model.detail._tag === 'DetailPartial'
-      ? `${model.detail.response.item.code} · ${translate(model.locale, 'app.name')}`
-      : translate(model.locale, 'app.catalogueTitle'),
+  title: documentTitle(model),
   body: appView(model),
 });
 
@@ -1449,6 +1869,9 @@ const appView = (model: Model): Html => {
       lazyDesktopNavigation(desktopNavigation<Message>, [
         model.locale,
         model.sidebarCollapsed,
+        model.route,
+        exploreUrl(model),
+        listUrl(model),
         ToggledSidebar(),
         RequestedAppearance(),
         languageSelectControl(
@@ -1460,7 +1883,15 @@ const appView = (model: Model): Html => {
       ]),
       h.main(
         [h.Class(mainContentClass(model.sidebarCollapsed))],
-        [model.selectedCode === null ? catalogueView(model) : selectedCourseView(model)],
+        [
+          savedCoursesPersistenceAlert(model),
+          savedListActionStatus(model),
+          model.route === 'list'
+            ? listView(model)
+            : model.selectedCode === null
+              ? catalogueView(model)
+              : selectedCourseView(model),
+        ],
       ),
       lazyCatalogueRefineDialog(catalogueRefineDialogFromValues, [
         model.locale,
@@ -1480,8 +1911,89 @@ const appView = (model: Model): Html => {
         model.themePreference,
         model.appearanceDialog,
       ]),
-      lazyMobileNavigation(mobileNavigation<Message>, [model.locale, RequestedAppearance()]),
+      lazyMobileNavigation(mobileNavigation<Message>, [
+        model.locale,
+        model.route,
+        exploreUrl(model),
+        listUrl(model),
+        RequestedAppearance(),
+      ]),
     ],
+  );
+};
+
+/** A failed write is never silent: the student is told the change was not kept. */
+const savedCoursesPersistenceAlert = (model: Model): Html => {
+  const h = html<Message>();
+  if (!model.savedCoursesPersistFailed) return h.empty;
+  return h.div(
+    [
+      h.Class(
+        'mb-4 py-[0.9rem] px-4 border border-error rounded-m3-medium bg-error-container text-on-error-container',
+      ),
+      h.Role('alert'),
+    ],
+    [translate(model.locale, 'list.persistFailed')],
+  );
+};
+
+/**
+ * Save and Remove are each one action with an explicit confirmation rather
+ * than a silent state flip. The banner names what just happened, offers
+ * Undo while the ephemeral snapshot is still available, and Dismiss so the
+ * student is never forced to wait it out.
+ */
+const savedListActionStatus = (model: Model): Html => {
+  const h = html<Message>();
+  const savedListActionButtonClass = `${compactButtonBase} ${buttonSecondary}`;
+  const dismiss = Button.view<Message>({
+    type: 'button',
+    onClick: DismissedSavedListAction(),
+    toView: (attributes) =>
+      h.button(
+        [...attributes.button, h.Class(savedListActionButtonClass)],
+        [translate(model.locale, 'list.dismissStatus')],
+      ),
+  });
+  const undo = (undoLabel: string): Html =>
+    Button.view<Message>({
+      type: 'button',
+      onClick: RequestedUndoSavedListAction(),
+      toView: (attributes) =>
+        h.button(
+          [...attributes.button, h.Class(savedListActionButtonClass), h.AriaLabel(undoLabel)],
+          [translate(model.locale, 'list.undo')],
+        ),
+    });
+  const banner = (message: string, undoLabel: string): Html =>
+    h.div(
+      [
+        h.Class(
+          'mb-4 flex flex-wrap items-center justify-between gap-3 py-[0.9rem] px-4 border border-outline rounded-m3-medium bg-surface-container text-on-surface',
+        ),
+        h.Role('status'),
+        h.AriaLive('polite'),
+      ],
+      [
+        h.p([h.Class('m-0')], [message]),
+        h.div([h.Class('flex items-center gap-2')], [undo(undoLabel), dismiss]),
+      ],
+    );
+  return M.value(model.savedListAction).pipe(
+    M.withReturnType<Html>(),
+    M.tagsExhaustive({
+      SavedActionIdle: () => h.empty,
+      SavedActionSaved: ({ courseCode }) =>
+        banner(
+          translate(model.locale, 'list.savedStatus', { code: courseCode }),
+          translate(model.locale, 'list.undoSave', { code: courseCode }),
+        ),
+      SavedActionRemoved: ({ course }) =>
+        banner(
+          translate(model.locale, 'list.removedStatus', { code: course.courseCode }),
+          translate(model.locale, 'list.undoRemove', { code: course.courseCode }),
+        ),
+    }),
   );
 };
 
@@ -2477,6 +2989,9 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
             gradeSignalForCourse(model.gradeSignals, course.code),
             model.locale,
             model.outcomeView,
+            isCourseSaved(model.savedCourses, course.code),
+            savedToggleAvailability(model.savedCourses),
+            listUrl(model),
           ]),
         ),
       ),
@@ -2516,6 +3031,85 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
             [h.Class('m-0 text-on-surface-variant text-center')],
             [translate(model.locale, 'catalogue.end')],
           ),
+    ],
+  );
+};
+
+const compactButtonBase =
+  'cursor-pointer [transition:box-shadow_140ms_ease,background-color_140ms_ease] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-[0.65]';
+
+/**
+ * A course card's title anchor carries a whole-card `after:absolute
+ * after:inset-0` overlay so the entire card opens Inspect. Any explicit
+ * control or link placed inside such a card must share this stacking
+ * treatment, or the overlay intercepts its clicks instead of the control.
+ */
+const aboveCardOverlayClass = 'relative z-[2]';
+
+const savedToggleClass = (saved: boolean): string =>
+  `${compactButtonBase} ${aboveCardOverlayClass} inline-flex min-h-11 flex-none items-center gap-2 rounded-[1.5rem] border px-3 text-[0.85rem] font-[750] ${
+    saved
+      ? 'border-secondary bg-secondary-container text-on-secondary-container'
+      : 'border-outline bg-surface-container text-primary'
+  }`;
+
+/**
+ * Saving is one action with a stable visible verb and a course-specific
+ * accessible name. It sits above the whole-card Inspect target rather than
+ * inside it, and it never waits for enrichment.
+ *
+ * Disabled has two distinct causes and never shares a message between them:
+ * still loading is transient and self-resolving, while a recovery state is
+ * not, so it is named separately and links to where the student can act.
+ */
+const savedCourseToggle = (
+  courseCode: string,
+  saved: boolean,
+  availability: 'ready' | 'loading' | 'paused',
+  locale: Locale,
+  recoveryHref: string,
+): Html => {
+  const h = html<Message>();
+  const ready = availability === 'ready';
+  const accessibleLabel = translate(locale, saved ? 'list.removeCourse' : 'list.saveCourse', {
+    code: courseCode,
+  });
+  const title =
+    availability === 'ready'
+      ? accessibleLabel
+      : translate(locale, availability === 'loading' ? 'list.savePending' : 'list.savePaused');
+  const button = Button.view<Message>({
+    type: 'button',
+    isDisabled: !ready,
+    onClick: saved
+      ? RequestedRemoveSavedCourse({ courseCode })
+      : RequestedSaveCourse({ courseCode }),
+    toView: (attributes) =>
+      h.button(
+        [
+          ...attributes.button,
+          h.Class(savedToggleClass(saved)),
+          h.AriaLabel(accessibleLabel),
+          h.Title(title),
+        ],
+        [
+          icon<Message>(saved ? 'check' : 'list', 'block size-4 [&_svg]:block [&_svg]:size-full'),
+          h.span([], [translate(locale, saved ? 'list.remove' : 'list.save')]),
+        ],
+      ),
+  });
+  if (availability !== 'paused') return button;
+  return h.span(
+    [h.Class(`${aboveCardOverlayClass} inline-flex flex-col items-end gap-1`)],
+    [
+      button,
+      h.a(
+        [
+          h.Href(recoveryHref),
+          h.Class('text-[0.78rem] leading-[1.3] underline text-on-surface-variant'),
+        ],
+        [translate(locale, 'list.savePausedLink')],
+      ),
     ],
   );
 };
@@ -2569,19 +3163,42 @@ const gradeSignalForCourse = (state: GradeSignalsResult, courseCode: string): Gr
 
 const factStateLabel = (state: string, locale: Locale): string => translateToken(locale, state);
 
-const courseCard = (
-  href: string,
+/**
+ * The factual cache stays separate from student-owned state: a saved course
+ * borrows facts already loaded in this session and otherwise shows that they
+ * were never requested.
+ */
+const catalogueItemForCode = (model: Model, courseCode: string): CourseSearchItemDtoType | null =>
+  catalogueResponse(model.catalogue)?.items.find((item) => item.code === courseCode) ?? null;
+
+const savedDecisionSignal = (
+  model: Model,
+  courseCode: string,
+): CourseDecisionSignalsDtoType | null => {
+  const signal = decisionSignalForCourse(model.decisionSignals, courseCode);
+  return typeof signal === 'string' ? null : signal;
+};
+
+const savedGradeSignal = (model: Model, courseCode: string): CourseGradeSummaryDtoType | null => {
+  const signal = gradeSignalForCourse(model.gradeSignals, courseCode);
+  return typeof signal === 'string' ? null : signal;
+};
+
+const courseTitle = (course: CourseSearchItemDtoType, locale: Locale): string =>
+  course.title.state === 'known'
+    ? course.title.value
+    : translate(locale, 'course.titleUnavailable');
+
+/**
+ * Identity and offering facts keep the same slots and order wherever a course
+ * is summarized, so a missing value stays visible instead of disappearing.
+ */
+const courseIdentityFacts = (
   course: CourseSearchItemDtoType,
   decisionSignal: DecisionSignal,
-  gradeSignal: GradeSignal,
   locale: Locale,
-  outcomeView: OutcomeView,
 ): Html => {
   const h = html<Message>();
-  const title =
-    course.title.state === 'known'
-      ? course.title.value
-      : translate(locale, 'course.titleUnavailable');
   const offering =
     course.offerings.state === 'known' && course.offerings.value.length > 0
       ? (course.offerings.value[0] ?? null)
@@ -2612,6 +3229,58 @@ const courseCard = (
           }).format(creditsFact.value),
         })
       : factStateLabel(creditsFact.state, locale);
+  return h.dl(
+    [h.Class('grid gap-x-4 gap-y-3 grid-cols-2')],
+    [
+      h.div(
+        [h.Class('min-w-0')],
+        [
+          h.dt([h.Class(factDtClass)], [translate(locale, 'detail.credits')]),
+          h.dd([h.Class(factDdClass)], [credits]),
+        ],
+      ),
+      h.div(
+        [h.Class('min-w-0')],
+        [
+          h.dt([h.Class(factDtClass)], [translate(locale, 'course.termFact')]),
+          h.dd(
+            [h.Class(`${factDdClass} inline-flex items-start gap-1.5`)],
+            [
+              offering === null
+                ? h.empty
+                : icon<Message>(
+                    termSeasonIconName(offering.season),
+                    'mt-0.5 block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
+                  ),
+              h.span([], [term]),
+            ],
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('min-w-0')],
+        [
+          h.dt([h.Class(factDtClass)], [translate(locale, 'course.campusFact')]),
+          h.dd([h.Class(factDdClass)], [place]),
+        ],
+      ),
+    ],
+  );
+};
+
+const courseCard = (
+  href: string,
+  course: CourseSearchItemDtoType,
+  decisionSignal: DecisionSignal,
+  gradeSignal: GradeSignal,
+  locale: Locale,
+  outcomeView: OutcomeView,
+  saved: boolean,
+  savedAvailability: 'ready' | 'loading' | 'paused',
+  recoveryHref: string,
+): Html => {
+  const h = html<Message>();
+  const title = courseTitle(course, locale);
   return h.li(
     [],
     [
@@ -2626,72 +3295,42 @@ const courseCard = (
             ],
             [
               h.div(
-                [],
+                [h.Class('flex items-start justify-between gap-3')],
                 [
-                  h.p(
+                  h.div(
+                    [h.Class('min-w-0')],
                     [
-                      h.Class(
-                        'mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
-                      ),
-                    ],
-                    [course.code],
-                  ),
-                  h.h3(
-                    [h.Class('text-[1.1rem] leading-[1.35]')],
-                    [
-                      h.a(
+                      h.p(
                         [
-                          h.Href(href),
-                          h.AriaLabel(
-                            translate(locale, 'course.open', { code: course.code, title }),
-                          ),
                           h.Class(
-                            "text-on-surface no-underline after:absolute after:inset-0 after:content-['']",
+                            'mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
                           ),
                         ],
-                        [title],
+                        [course.code],
                       ),
-                    ],
-                  ),
-                ],
-              ),
-              h.dl(
-                [h.Class('grid gap-x-4 gap-y-3 grid-cols-2')],
-                [
-                  h.div(
-                    [h.Class('min-w-0')],
-                    [
-                      h.dt([h.Class(factDtClass)], [translate(locale, 'detail.credits')]),
-                      h.dd([h.Class(factDdClass)], [credits]),
-                    ],
-                  ),
-                  h.div(
-                    [h.Class('min-w-0')],
-                    [
-                      h.dt([h.Class(factDtClass)], [translate(locale, 'course.termFact')]),
-                      h.dd(
-                        [h.Class(`${factDdClass} inline-flex items-start gap-1.5`)],
+                      h.h3(
+                        [h.Class('text-[1.1rem] leading-[1.35]')],
                         [
-                          offering === null
-                            ? h.empty
-                            : icon<Message>(
-                                termSeasonIconName(offering.season),
-                                'mt-0.5 block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
+                          h.a(
+                            [
+                              h.Href(href),
+                              h.AriaLabel(
+                                translate(locale, 'course.open', { code: course.code, title }),
                               ),
-                          h.span([], [term]),
+                              h.Class(
+                                "text-on-surface no-underline after:absolute after:inset-0 after:content-['']",
+                              ),
+                            ],
+                            [title],
+                          ),
                         ],
                       ),
                     ],
                   ),
-                  h.div(
-                    [h.Class('min-w-0')],
-                    [
-                      h.dt([h.Class(factDtClass)], [translate(locale, 'course.campusFact')]),
-                      h.dd([h.Class(factDdClass)], [place]),
-                    ],
-                  ),
+                  savedCourseToggle(course.code, saved, savedAvailability, locale, recoveryHref),
                 ],
               ),
+              courseIdentityFacts(course, decisionSignal, locale),
             ],
           ),
           h.div(
@@ -3318,20 +3957,399 @@ const gradeSummaryView = (
 
 const selectedCourseView = (model: Model): Html => {
   const h = html<Message>();
+  const selectedCode = model.selectedCode;
   return h.div(
     [h.Class('grid gap-4 pt-4')],
     [
-      Button.view<Message>({
-        type: 'button',
-        onClick: ClosedCourse(),
-        toView: (attributes) =>
-          h.button(
-            [...attributes.button, h.Class(backButtonClass)],
-            [translate(model.locale, 'course.back')],
-          ),
-      }),
+      h.div(
+        [h.Class('flex flex-wrap items-center justify-between gap-3')],
+        [
+          Button.view<Message>({
+            type: 'button',
+            onClick: ClosedCourse(),
+            toView: (attributes) =>
+              h.button(
+                [...attributes.button, h.Class(backButtonClass)],
+                [translate(model.locale, 'course.back')],
+              ),
+          }),
+          selectedCode === null
+            ? h.empty
+            : savedCourseToggle(
+                selectedCode,
+                isCourseSaved(model.savedCourses, selectedCode),
+                savedToggleAvailability(model.savedCourses),
+                model.locale,
+                listUrl(model),
+              ),
+        ],
+      ),
       detailResultView(model.detail, model.locale),
       lazyDetailFooter(productFooter, [model.locale, model.selectFields]),
+    ],
+  );
+};
+
+const listHeader = (locale: Locale, exploreHref: string): Html => {
+  const h = html<Message>();
+  return h.header(
+    [h.Class('pt-[clamp(1.5rem,4vw,3rem)] pb-2 grid gap-4')],
+    [
+      h.div(
+        [],
+        [
+          h.p([h.Class(eyebrowClass)], [translate(locale, 'list.eyebrow')]),
+          h.h1(
+            [
+              h.Class(
+                'max-w-[22ch] text-[clamp(2rem,5vw,3.25rem)] font-[720] tracking-[-0.05em] leading-none',
+              ),
+            ],
+            [translate(locale, 'list.heading')],
+          ),
+          h.p(
+            [h.Class('max-w-192 mt-4 text-on-surface-variant text-[1.05rem] leading-[1.6]')],
+            [translate(locale, 'list.intro')],
+          ),
+        ],
+      ),
+      h.a(
+        [h.Href(exploreHref), h.Class(`${backButtonClass} inline-flex items-center no-underline`)],
+        [translate(locale, 'list.backToExplore')],
+      ),
+    ],
+  );
+};
+
+const savedRowClass =
+  'grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low';
+
+const noteFieldClass =
+  'w-full min-h-20 p-3 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[0.95rem] leading-[1.45] [font:inherit] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]';
+
+/**
+ * A saved row shows the student's own material (identity, note, actions) plus
+ * whatever official facts this session already loaded. It never invents a fact
+ * state for a course whose evidence was not requested.
+ */
+const savedCourseRow = (
+  href: string,
+  course: SavedCourse,
+  item: CourseSearchItemDtoType | null,
+  decisionSignal: CourseDecisionSignalsDtoType | null,
+  gradeSignal: CourseGradeSummaryDtoType | null,
+  noteDraft: string,
+  locale: Locale,
+  outcomeView: OutcomeView,
+): Html => {
+  const h = html<Message>();
+  const noteFieldId = `saved-note-${course.courseCode}`;
+  const noteHelpId = `${noteFieldId}-help`;
+  const title = item === null ? null : courseTitle(item, locale);
+  const openLabel = translate(locale, 'list.openCourse', { code: course.courseCode });
+  return h.li(
+    [],
+    [
+      h.article(
+        [h.Class(savedRowClass)],
+        [
+          h.div(
+            [h.Class('flex items-start justify-between gap-3')],
+            [
+              h.div(
+                [h.Class('min-w-0')],
+                [
+                  h.p(
+                    [
+                      h.Class(
+                        'mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
+                      ),
+                    ],
+                    [course.courseCode],
+                  ),
+                  h.h3(
+                    [h.Class('text-[1.1rem] leading-[1.35]')],
+                    [
+                      h.a(
+                        [
+                          h.Href(href),
+                          h.AriaLabel(
+                            title === null
+                              ? openLabel
+                              : translate(locale, 'course.open', {
+                                  code: course.courseCode,
+                                  title,
+                                }),
+                          ),
+                          h.Class('text-on-surface'),
+                        ],
+                        [title ?? openLabel],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              savedCourseToggle(course.courseCode, true, 'ready', locale, ''),
+            ],
+          ),
+          item === null
+            ? h.div(
+                [
+                  h.Class(
+                    'grid gap-1 p-3 rounded-m3-medium bg-surface-container text-on-surface-variant',
+                  ),
+                ],
+                [
+                  h.p([h.Class(factDtClass)], [translate(locale, 'list.factsNotLoaded')]),
+                  h.p(
+                    [h.Class('m-0 text-[0.84rem] leading-[1.4]')],
+                    [translate(locale, 'list.factsNotLoadedHelp')],
+                  ),
+                ],
+              )
+            : courseIdentityFacts(item, decisionSignal ?? 'idle', locale),
+          decisionSignal === null && gradeSignal === null
+            ? h.empty
+            : h.div(
+                [
+                  h.Class(
+                    'grid min-w-0 gap-3 [@media(min-width:64rem)]:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]',
+                  ),
+                ],
+                [
+                  decisionSignal === null ? h.empty : decisionSignalView(decisionSignal, locale),
+                  gradeSignal === null
+                    ? h.empty
+                    : gradeSignalView(gradeSignal, locale, outcomeView),
+                ],
+              ),
+          h.form(
+            [
+              h.Class('grid gap-2'),
+              h.OnSubmit(SubmittedSavedNote({ courseCode: course.courseCode })),
+            ],
+            [
+              h.label(
+                [h.For(noteFieldId), h.Class(fieldLabelClass)],
+                [translate(locale, 'list.note')],
+              ),
+              h.textarea(
+                [
+                  h.Id(noteFieldId),
+                  h.Rows(2),
+                  h.Value(noteDraft),
+                  h.Placeholder(translate(locale, 'list.notePlaceholder')),
+                  h.AriaDescribedBy(noteHelpId),
+                  h.Class(noteFieldClass),
+                  h.OnInput((value) =>
+                    UpdatedSavedNoteDraft({ courseCode: course.courseCode, value }),
+                  ),
+                ],
+                [],
+              ),
+              h.p(
+                [
+                  h.Id(noteHelpId),
+                  h.Class('m-0 text-on-surface-variant text-[0.78rem] leading-[1.4]'),
+                ],
+                [translate(locale, 'list.noteHelp')],
+              ),
+              h.div(
+                [h.Class('flex flex-wrap gap-3')],
+                [
+                  Button.view<Message>({
+                    type: 'submit',
+                    toView: (attributes) =>
+                      h.button(
+                        [
+                          ...attributes.button,
+                          h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                        ],
+                        [translate(locale, 'list.saveNote')],
+                      ),
+                  }),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+};
+
+const savedCountLabel = (count: number, locale: Locale): string =>
+  count === 1 ? translate(locale, 'list.countOne') : translate(locale, 'list.countMany', { count });
+
+const recoveryMessage = (
+  recovery: Extract<SavedCoursesResult, { readonly _tag: 'SavedCoursesRecovery' }>,
+  locale: Locale,
+): string =>
+  M.value(recovery.reason).pipe(
+    M.when('unavailable', () => translate(locale, 'list.recoveryUnavailable')),
+    M.when('unsupported-version', () =>
+      translate(locale, 'list.recoveryUnsupported', {
+        version: recovery.storedVersion ?? '?',
+      }),
+    ),
+    M.when('invalid-json', () => translate(locale, 'list.recoveryCorrupt')),
+    M.when('unreadable', () => translate(locale, 'list.recoveryCorrupt')),
+    M.exhaustive,
+  );
+
+/**
+ * Recovery never resets anything by itself: the stored value stays readable
+ * and the destructive reset is an explicit student action.
+ */
+const savedCoursesRecoveryView = (
+  recovery: Extract<SavedCoursesResult, { readonly _tag: 'SavedCoursesRecovery' }>,
+  locale: Locale,
+): Html => {
+  const h = html<Message>();
+  return h.section(
+    [
+      h.Class(
+        'grid gap-3 p-[clamp(1.25rem,4vw,2rem)] border border-error rounded-m3-extra-large bg-error-container text-on-error-container',
+      ),
+      h.Role('alert'),
+    ],
+    [
+      h.h2(
+        [h.Class('text-[clamp(1.3rem,3vw,1.75rem)]')],
+        [translate(locale, 'list.recoveryHeading')],
+      ),
+      h.p([h.Class('m-0 leading-[1.5]')], [recoveryMessage(recovery, locale)]),
+      h.p([h.Class('m-0 leading-[1.5]')], [translate(locale, 'list.savePaused')]),
+      recovery.raw.length === 0
+        ? h.empty
+        : h.details(
+            [h.Class('rounded-m3-medium bg-surface-container-low text-on-surface p-3')],
+            [
+              h.summary(
+                [h.Class('cursor-pointer font-[700]')],
+                [translate(locale, 'list.recoveryShowStored')],
+              ),
+              h.p(
+                [h.Class('mt-2 mb-1 text-on-surface-variant text-[0.82rem] leading-[1.4]')],
+                [translate(locale, 'list.recoveryKept')],
+              ),
+              h.pre(
+                [
+                  h.Class(
+                    'max-h-60 overflow-auto m-0 p-2 rounded-m3-medium bg-surface-container text-[0.78rem] whitespace-pre-wrap [overflow-wrap:anywhere]',
+                  ),
+                ],
+                [recovery.raw],
+              ),
+            ],
+          ),
+      h.p([h.Class('m-0 text-[0.85rem] leading-[1.4]')], [translate(locale, 'list.resetHelp')]),
+      Button.view<Message>({
+        type: 'button',
+        onClick: RequestedSavedCoursesReset(),
+        toView: (attributes) =>
+          h.button(
+            [
+              ...attributes.button,
+              h.Class(`${compactButtonBase} ${buttonSecondary} justify-self-start`),
+            ],
+            [translate(locale, 'list.reset')],
+          ),
+      }),
+    ],
+  );
+};
+
+const savedCourseListView = (model: Model, state: SavedListState, repaired: number): Html => {
+  const h = html<Message>();
+  const courses = savedCoursesNewestFirst(state);
+  if (courses.length === 0) {
+    return h.section(
+      [h.Class(stateCardBase), h.Role('status')],
+      [
+        h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'list.empty')]),
+        h.p([h.Class(stateCardPClass)], [translate(model.locale, 'list.emptyHelp')]),
+        h.a(
+          [
+            h.Href(exploreUrl(model)),
+            h.Class(`${backButtonClass} mt-4 inline-flex items-center no-underline`),
+          ],
+          [translate(model.locale, 'list.backToExplore')],
+        ),
+      ],
+    );
+  }
+  return h.section(
+    [h.Class('grid gap-4'), h.AriaLabel(translate(model.locale, 'list.heading'))],
+    [
+      repaired === 0
+        ? h.empty
+        : h.div(
+            [
+              h.Class('py-4 px-5 rounded-m3-medium bg-warning-container text-on-warning-container'),
+              h.Role('status'),
+            ],
+            [translate(model.locale, 'list.repaired', { count: repaired })],
+          ),
+      h.header(
+        [h.Class('flex items-end justify-between gap-4 py-2 px-1 border-b border-outline-variant')],
+        [
+          h.p(
+            [h.AriaLive('polite'), h.Class('m-0 text-on-surface-variant text-[0.88rem]')],
+            [savedCountLabel(courses.length, model.locale)],
+          ),
+        ],
+      ),
+      h.ol(
+        [h.Class('grid gap-3 p-0 list-none')],
+        courses.map((course) =>
+          lazySavedCourseRow(course.id, savedCourseRow, [
+            normalizedUrl(model, course.courseCode),
+            course,
+            catalogueItemForCode(model, course.courseCode),
+            savedDecisionSignal(model, course.courseCode),
+            savedGradeSignal(model, course.courseCode),
+            noteDraftFor(model, course),
+            model.locale,
+            model.outcomeView,
+          ]),
+        ),
+      ),
+    ],
+  );
+};
+
+const savedCoursesResultView = (model: Model): Html => {
+  const h = html<Message>();
+  switch (model.savedCourses._tag) {
+    case 'SavedCoursesLoading':
+      return h.section(
+        [h.Class(stateCardBase), h.Role('status'), h.AriaLive('polite')],
+        [
+          h.div([h.Class(loadingIndicatorClass), h.AriaHidden(true)], []),
+          h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'list.loading')]),
+          h.p([h.Class(stateCardPClass)], [translate(model.locale, 'list.loadingHelp')]),
+        ],
+      );
+    case 'SavedCoursesRecovery':
+      return savedCoursesRecoveryView(model.savedCourses, model.locale);
+    case 'SavedCoursesReady':
+      return savedCourseListView(
+        model,
+        model.savedCourses.state,
+        model.savedCourses.repairedEntries,
+      );
+  }
+};
+
+const listView = (model: Model): Html => {
+  const h = html<Message>();
+  return h.div(
+    [h.Class('grid gap-6')],
+    [
+      lazyListHeader(listHeader, [model.locale, exploreUrl(model)]),
+      savedCoursesResultView(model),
+      lazyListFooter(productFooter, [model.locale, model.selectFields]),
     ],
   );
 };

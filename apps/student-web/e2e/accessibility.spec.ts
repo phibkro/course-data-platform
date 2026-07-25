@@ -132,3 +132,80 @@ test('theme preference applies immediately and survives reload', async ({ page }
     .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')))
     .toBe(true);
 });
+
+test('a saved course survives reload and the List has no detectable WCAG A/AA violations', async ({
+  page,
+}) => {
+  await waitForEnrichedCatalogue(page);
+
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await expect(page.getByRole('button', { name: 'Remove TDT4136 from List' })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('course-lens:list')))
+    .toContain('TDT4136');
+
+  await page.getByRole('link', { name: 'List' }).click();
+  await expect(page).toHaveURL(/\/list(?:\?|$)/);
+  await expect(page.getByRole('heading', { name: 'Your saved courses' })).toBeVisible();
+  await expect(page.getByText('1 saved course', { exact: true })).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  await page.getByLabel('Your note').fill('Ask the adviser about the project');
+  await page.getByRole('button', { name: 'Save note' }).click();
+
+  await page.reload();
+  await expect(page.getByLabel('Your note')).toHaveValue('Ask the adviser about the project');
+
+  await page.getByRole('button', { name: 'Remove TDT4136 from List' }).click();
+  await expect(page.getByText('You have not saved a course yet')).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('You have not saved a course yet')).toBeVisible();
+});
+
+test('an unreadable saved list is reported and kept until the student resets it', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('course-lens:list', '{not json'));
+
+  await page.goto('/list');
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('Saved courses could not be loaded');
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('course-lens:list')))
+    .toBe('{not json');
+  await expectNoAxeViolations(page);
+
+  await page.getByRole('button', { name: 'Reset saved courses' }).click();
+  await expect(page.getByText('You have not saved a course yet')).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('course-lens:list')))
+    .toContain('"savedCourses":[]');
+});
+
+test('an unreadable saved list pauses Save on Explore with a path to recover it, not "still loading"', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('course-lens:list', '{not json'));
+
+  await waitForEnrichedCatalogue(page);
+
+  const saveButton = page.getByRole('button', { name: 'Save TDT4136 to List' });
+  await expect(saveButton).toBeDisabled();
+  await expect(saveButton).toHaveAttribute(
+    'title',
+    'Saving is paused until the stored list is recovered or reset.',
+  );
+
+  const recoveryLink = page.getByRole('link', { name: 'Open List to recover saved courses' });
+  await expect(recoveryLink).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  await recoveryLink.click();
+  await expect(page).toHaveURL(/\/list(?:\?|$)/);
+  await expect(page.getByRole('alert')).toContainText('Saved courses could not be loaded');
+
+  await page.getByRole('button', { name: 'Reset saved courses' }).click();
+  await expect(page.getByText('You have not saved a course yet')).toBeVisible();
+});

@@ -6,6 +6,11 @@ Exploratory product and domain note. This records a potential direction after
 course discovery, detail, shortlisting, and comparison demonstrate repeat value.
 It does not change the delivery order in ADR-012.
 
+The concrete, data-gated surface contracts derived from this research are:
+
+- [`degree-overview-and-pathways.md`](./degree-overview-and-pathways.md)
+- [`schedule-and-external-sync.md`](./schedule-and-external-sync.md)
+
 ## Product opportunity
 
 A course catalogue helps a student understand individual choices. A planner

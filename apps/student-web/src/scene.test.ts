@@ -17,11 +17,19 @@ import {
   DecisionSignalsSuccess,
   GradeSignalsSuccess,
   NextPageIdle,
+  PersistSavedCourses,
+  PersistedSavedCourses,
+  SavedActionSaved,
+  SavedCoursesReady,
+  SavedCoursesRecovery,
+  StampSavedCourse,
+  StampedSavedCourse,
   type Model,
   initForHref,
   update,
   view,
 } from './main';
+import { courseIdentity, emptySavedList, saveCourse } from './saved-courses';
 
 const baseModel = (): Model => initForHref('http://course-lens.local/')[0];
 
@@ -359,6 +367,226 @@ describe('browse-first catalogue scene', () => {
       { update, view },
       Scene.with({ ...baseModel(), selectedCode: null, detail: DetailClosed() }),
       Scene.expect(Scene.role('button', { name: '← Back to course results' })).toBeAbsent(),
+    );
+  });
+});
+
+describe('local List scene', () => {
+  const savedAt = '2026-07-24T12:00:00.000Z';
+  const tdt4136 = courseIdentity('TDT4136')!;
+  const savedList = saveCourse(emptySavedList, tdt4136, savedAt);
+
+  const listModel = (state = savedList): Model => ({
+    ...initForHref('http://course-lens.local/list')[0],
+    savedCourses: SavedCoursesReady({ state, repairedEntries: 0 }),
+  });
+
+  test('a course is kept from the catalogue without opening detail or waiting for enrichment', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        savedCourses: SavedCoursesReady({ state: emptySavedList, repairedEntries: 0 }),
+        visibleCount: 1,
+      }),
+      Scene.expect(Scene.role('button', { name: 'Save TDT4136 to List' })).toExist(),
+      Scene.expect(Scene.role('link', { name: /Open TDT4136/ })).toExist(),
+      Scene.click(Scene.role('button', { name: 'Save TDT4136 to List' })),
+      Scene.Command.resolve(
+        StampSavedCourse,
+        StampedSavedCourse({ courseCode: 'TDT4136', savedAt }),
+      ),
+      Scene.Command.resolve(PersistSavedCourses, PersistedSavedCourses()),
+      Scene.expect(Scene.role('button', { name: 'Remove TDT4136 from List' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Save TDT4136 to List' })).toBeAbsent(),
+    );
+  });
+
+  test('saving a course shows an explicit confirmation that Undo reverses', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        savedCourses: SavedCoursesReady({ state: emptySavedList, repairedEntries: 0 }),
+        visibleCount: 1,
+      }),
+      Scene.click(Scene.role('button', { name: 'Save TDT4136 to List' })),
+      Scene.Command.resolve(
+        StampSavedCourse,
+        StampedSavedCourse({ courseCode: 'TDT4136', savedAt }),
+      ),
+      Scene.Command.resolve(PersistSavedCourses, PersistedSavedCourses()),
+      Scene.expect(Scene.text('TDT4136 saved to List.')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Undo saving TDT4136' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Dismiss' })).toExist(),
+      Scene.click(Scene.role('button', { name: 'Undo saving TDT4136' })),
+      Scene.Command.resolve(PersistSavedCourses, PersistedSavedCourses()),
+      Scene.expect(Scene.role('button', { name: 'Save TDT4136 to List' })).toExist(),
+      Scene.expect(Scene.text('TDT4136 saved to List.')).toBeAbsent(),
+      Scene.expect(Scene.role('button', { name: 'Undo saving TDT4136' })).toBeAbsent(),
+    );
+  });
+
+  test('removing a saved course shows an explicit confirmation that Undo reverses', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(listModel()),
+      Scene.click(Scene.role('button', { name: 'Remove TDT4136 from List' })),
+      Scene.Command.resolve(PersistSavedCourses, PersistedSavedCourses()),
+      Scene.expect(Scene.text('You have not saved a course yet')).toExist(),
+      Scene.expect(Scene.text('TDT4136 removed from List.')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Undo removing TDT4136' })).toExist(),
+      Scene.click(Scene.role('button', { name: 'Undo removing TDT4136' })),
+      Scene.Command.resolve(PersistSavedCourses, PersistedSavedCourses()),
+      Scene.expect(Scene.role('button', { name: 'Remove TDT4136 from List' })).toExist(),
+      Scene.expect(Scene.text('TDT4136 removed from List.')).toBeAbsent(),
+      Scene.expect(Scene.role('button', { name: 'Undo removing TDT4136' })).toBeAbsent(),
+    );
+  });
+
+  test('dismissing the saved-list status removes the confirmation without changing saved state', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...listModel(emptySavedList),
+        savedListAction: SavedActionSaved({ courseCode: 'TDT4136' }),
+      }),
+      Scene.expect(Scene.text('TDT4136 saved to List.')).toExist(),
+      Scene.click(Scene.role('button', { name: 'Dismiss' })),
+      Scene.expect(Scene.text('TDT4136 saved to List.')).toBeAbsent(),
+      Scene.expect(Scene.role('button', { name: 'Dismiss' })).toBeAbsent(),
+      Scene.expect(Scene.text('You have not saved a course yet')).toExist(),
+    );
+  });
+
+  test('an empty List explains how to fill it instead of showing a failure', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(listModel(emptySavedList)),
+      Scene.expect(Scene.role('heading', { name: 'Your saved courses' })).toExist(),
+      Scene.expect(Scene.text('You have not saved a course yet')).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Browse more courses' })).toExist(),
+      Scene.expect(Scene.role('alert')).toBeAbsent(),
+    );
+  });
+
+  test('a saved course keeps its identity, note, and removal action when no facts were loaded', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(listModel()),
+      Scene.expect(Scene.text('1 saved course')).toExist(),
+      Scene.expect(Scene.text('TDT4136')).toExist(),
+      Scene.expect(Scene.text('Course details were not loaded in this session.')).toExist(),
+      Scene.expect(Scene.label('Your note')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Save note' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Remove TDT4136 from List' })).toExist(),
+      Scene.expect(Scene.text('Unknown', { exact: true })).toBeAbsent(),
+    );
+  });
+
+  test('a saved course reuses evidence already loaded in this session', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...listModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        decisionSignals: DecisionSignalsSuccess({
+          response: fixtureDecisionSignalsResponse(['TDT4136']),
+        }),
+        gradeSignals: GradeSignalsSuccess({
+          response: fixtureGradeSummariesResponse(['TDT4136']),
+        }),
+      }),
+      Scene.expect(
+        Scene.role('link', { name: 'Open TDT4136: Introduction to Artificial Intelligence' }),
+      ).toExist(),
+      Scene.expect(Scene.text('Credits', { exact: true })).toExist(),
+      Scene.expect(Scene.text('Assessment & work')).toExist(),
+      Scene.expect(Scene.text('Historical outcomes')).toExist(),
+      Scene.expect(Scene.text('Course details were not loaded in this session.')).toBeAbsent(),
+    );
+  });
+
+  test('unreadable saved state is reported and recovered explicitly, never silently reset', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...initForHref('http://course-lens.local/list')[0],
+        savedCourses: SavedCoursesRecovery({
+          reason: 'unsupported-version',
+          storedVersion: 2,
+          raw: '{"version":2}',
+        }),
+      }),
+      Scene.expect(Scene.role('alert')).toExist(),
+      Scene.expect(Scene.text('Saved courses could not be loaded')).toExist(),
+      Scene.expect(
+        Scene.text('This browser stored a newer version of the saved list (version 2).', {
+          exact: false,
+        }),
+      ).toExist(),
+      Scene.expect(
+        Scene.text('Saving is paused until the stored list is recovered or reset.'),
+      ).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Reset saved courses' })).toExist(),
+      Scene.expect(Scene.text('Show the stored value')).toExist(),
+    );
+  });
+
+  test('Explore keeps the Save control disabled but names it "paused" rather than "still loading" during recovery', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        savedCourses: SavedCoursesRecovery({
+          reason: 'invalid-json',
+          storedVersion: null,
+          raw: '{oops',
+        }),
+        visibleCount: 1,
+      }),
+      Scene.expect(Scene.role('button', { name: 'Save TDT4136 to List' })).toBeDisabled(),
+      Scene.expect(Scene.title('Saved courses are still loading')).toBeAbsent(),
+      Scene.expect(
+        Scene.title('Saving is paused until the stored list is recovered or reset.'),
+      ).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Open List to recover saved courses' })).toExist(),
+      // The title anchor's whole-card overlay (`after:absolute after:inset-0`)
+      // would otherwise intercept clicks meant for this link: the cluster
+      // wrapping the paused toggle and the recovery link must carry its own
+      // stacking context to stay above it.
+      Scene.expect(Scene.selector('span.items-end')).toHaveClass('z-[2]'),
+    );
+  });
+
+  test('Explore names the Save control as still loading, not paused, while saved courses are loading', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
+        visibleCount: 1,
+      }),
+      Scene.expect(Scene.role('button', { name: 'Save TDT4136 to List' })).toBeDisabled(),
+      Scene.expect(Scene.title('Saved courses are still loading')).toExist(),
+      Scene.expect(
+        Scene.title('Saving is paused until the stored list is recovered or reset.'),
+      ).toBeAbsent(),
+      Scene.expect(Scene.role('link', { name: 'Open List to recover saved courses' })).toBeAbsent(),
+    );
+  });
+
+  test('the List route is reachable in the primary navigation and localized', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({ ...listModel(), locale: 'nb' }),
+      Scene.expect(Scene.role('heading', { name: 'Dine lagrede emner' })).toExist(),
+      Scene.expect(Scene.label('Notatet ditt')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Fjern TDT4136 fra listen' })).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Utforsk' })).toExist(),
     );
   });
 });

@@ -33,6 +33,13 @@ The canonical navigation and interaction vocabulary is defined in
 contract, Discover maps to Explore, Understand maps to Inspect, and
 Shortlist/Compare live within List.
 
+Detailed future-facing contracts preserve the agreed product direction without
+moving data-gated surfaces ahead of demonstrated use:
+
+- [`list-collections-and-compare.md`](./list-collections-and-compare.md)
+- [`schedule-and-external-sync.md`](./schedule-and-external-sync.md)
+- [`degree-overview-and-pathways.md`](./degree-overview-and-pathways.md)
+
 ### Discover
 
 Fast course search with filters for teaching term, campus, level, language,
@@ -47,8 +54,10 @@ availability, and grade outcomes.
 
 ### Shortlist
 
-Local bookmarks, notes, and student-owned preference lenses. Preferences change
-ranking and highlighting; they do not rewrite source facts.
+Local bookmarks, notes, and coloured student-owned labels. One canonical saved
+set derives collections through labels; bounded Any, All, and Exclude
+composition changes the working view without copying courses. Student
+classifications do not rewrite source facts.
 
 ### Compare
 
@@ -65,8 +74,8 @@ a shortlisted course fits a selected programme or scenario.
 1. Exact-code walking skeleton for one evidence-rich course.
 2. Fast NTNU search plus progressive enrichment.
 3. Complete evidence-backed course detail.
-4. Local bookmarks, notes, and preferences.
-5. Course comparison.
+4. Local bookmarks, notes, labels, and derived collections.
+5. Difference-first course comparison.
 6. Optional programme compatibility.
 
 ## Architecture budget

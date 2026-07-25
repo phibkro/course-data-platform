@@ -4,6 +4,8 @@ import { html } from 'foldkit/html';
 import { translate, type Locale } from './i18n';
 import { icon, type AppIcon } from './icons';
 
+export type NavigationRoute = 'explore' | 'list';
+
 export interface NavigationItem {
   readonly id: 'list' | 'schedule' | 'explore' | 'degree' | 'more';
   readonly label: string;
@@ -11,6 +13,7 @@ export interface NavigationItem {
   readonly icon: AppIcon;
   readonly href: string | null;
   readonly isPrimary: boolean;
+  readonly isCurrent: boolean;
 }
 
 /**
@@ -18,14 +21,20 @@ export interface NavigationItem {
  * explicit navigation model. Planned destinations stay non-interactive until
  * the corresponding product surface exists.
  */
-export const primaryNavigation = (locale: Locale): ReadonlyArray<NavigationItem> => [
+export const primaryNavigation = (
+  locale: Locale,
+  route: NavigationRoute,
+  exploreHref: string,
+  listHref: string,
+): ReadonlyArray<NavigationItem> => [
   {
     id: 'list',
     label: translate(locale, 'nav.list'),
     accessibleLabel: translate(locale, 'nav.list'),
     icon: 'list',
-    href: null,
+    href: listHref,
     isPrimary: false,
+    isCurrent: route === 'list',
   },
   {
     id: 'schedule',
@@ -34,14 +43,16 @@ export const primaryNavigation = (locale: Locale): ReadonlyArray<NavigationItem>
     icon: 'schedule',
     href: null,
     isPrimary: false,
+    isCurrent: false,
   },
   {
     id: 'explore',
     label: translate(locale, 'nav.explore'),
     accessibleLabel: translate(locale, 'nav.explore'),
     icon: 'explore',
-    href: `/?lang=${locale}`,
+    href: exploreHref,
     isPrimary: true,
+    isCurrent: route === 'explore',
   },
   {
     id: 'degree',
@@ -50,6 +61,7 @@ export const primaryNavigation = (locale: Locale): ReadonlyArray<NavigationItem>
     icon: 'degree',
     href: null,
     isPrimary: false,
+    isCurrent: false,
   },
   {
     id: 'more',
@@ -58,6 +70,7 @@ export const primaryNavigation = (locale: Locale): ReadonlyArray<NavigationItem>
     icon: 'more',
     href: null,
     isPrimary: false,
+    isCurrent: false,
   },
 ];
 
@@ -91,9 +104,13 @@ const desktopItem = <Message>(locale: Locale, item: NavigationItem, collapsed: b
         [
           h.Href(item.href),
           h.Class(
-            `${desktopItemBase} ${layoutClass} bg-secondary-container text-on-secondary-container`,
+            `${desktopItemBase} ${layoutClass} ${
+              item.isCurrent
+                ? 'bg-secondary-container text-on-secondary-container'
+                : 'text-on-surface-variant hover:bg-surface-container-high'
+            }`,
           ),
-          h.AriaCurrent('page'),
+          ...(item.isCurrent ? [h.AriaCurrent('page')] : []),
           h.AriaLabel(item.accessibleLabel),
           ...(collapsed ? [h.Title(item.accessibleLabel)] : []),
         ],
@@ -101,10 +118,12 @@ const desktopItem = <Message>(locale: Locale, item: NavigationItem, collapsed: b
       );
 };
 
-const mobileItemLayout = (isPrimary: boolean): string =>
+const mobileItemLayout = (isPrimary: boolean, isCurrent = false): string =>
   isPrimary
     ? 'flex min-w-0 min-h-15 items-center justify-start gap-[0.2rem] flex-col text-primary text-xs font-[650] leading-none no-underline -translate-y-[1.35rem] [-webkit-tap-highlight-color:transparent]'
-    : 'flex min-w-0 min-h-15 items-center justify-end gap-[0.2rem] flex-col text-on-surface-variant text-xs font-[650] leading-none no-underline [-webkit-tap-highlight-color:transparent]';
+    : `flex min-w-0 min-h-15 items-center justify-end gap-[0.2rem] flex-col ${
+        isCurrent ? 'text-primary font-[800]' : 'text-on-surface-variant font-[650]'
+      } text-xs leading-none no-underline [-webkit-tap-highlight-color:transparent]`;
 
 const mobileItemIcon = (isPrimary: boolean): string =>
   isPrimary
@@ -117,7 +136,7 @@ const mobileItem = <Message>(
   onAppearance?: Message,
 ): Html => {
   const h = html<Message>();
-  const itemClass = mobileItemLayout(item.isPrimary);
+  const itemClass = mobileItemLayout(item.isPrimary, item.isCurrent);
   const children = [
     icon<Message>(item.icon, mobileItemIcon(item.isPrimary)),
     h.span([h.Class('max-w-full truncate')], [item.label]),
@@ -153,7 +172,7 @@ const mobileItem = <Message>(
         [
           h.Href(item.href),
           h.Class(itemClass),
-          h.AriaCurrent('page'),
+          ...(item.isCurrent ? [h.AriaCurrent('page')] : []),
           h.AriaLabel(item.accessibleLabel),
         ],
         children,
@@ -163,12 +182,15 @@ const mobileItem = <Message>(
 export const desktopNavigation = <Message>(
   locale: Locale = 'en',
   collapsed = false,
+  route: NavigationRoute = 'explore',
+  exploreHref = '/',
+  listHref = '/list',
   onToggle?: Message,
   onAppearance?: Message,
   languageControl?: Html,
 ): Html => {
   const h = html<Message>();
-  const items = primaryNavigation(locale);
+  const items = primaryNavigation(locale, route, exploreHref, listHref);
   return h.aside(
     [
       h.Class(
@@ -266,7 +288,13 @@ export const desktopNavigation = <Message>(
   );
 };
 
-export const mobileNavigation = <Message>(locale: Locale = 'en', onAppearance?: Message): Html => {
+export const mobileNavigation = <Message>(
+  locale: Locale = 'en',
+  route: NavigationRoute = 'explore',
+  exploreHref = '/',
+  listHref = '/list',
+  onAppearance?: Message,
+): Html => {
   const h = html<Message>();
   return h.nav(
     [
@@ -275,6 +303,8 @@ export const mobileNavigation = <Message>(locale: Locale = 'en', onAppearance?: 
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
-    primaryNavigation(locale).map((item) => mobileItem<Message>(locale, item, onAppearance)),
+    primaryNavigation(locale, route, exploreHref, listHref).map((item) =>
+      mobileItem<Message>(locale, item, onAppearance),
+    ),
   );
 };

@@ -1,5 +1,22 @@
 # Course Data Platform — agent guide
 
+## Cross-provider delegation
+
+- Launch every Claude Code worker in its own observable Herdr tab through
+  `pagu`; `agent-dispatch` is deprecated for this repository.
+- Use `pagu --profile worker -- claude` for bounded editing workers and
+  `pagu --profile advisor -- claude` for read-oriented review.
+- The pagu Claude harness owns fresh/resume and Claude permission-bypass
+  arguments. Do not append arbitrary child flags.
+- `pagu-box` is compatibility-only. Use `pagu box` for one static command under
+  a complete fixed policy, not for an interactive agent journey.
+- Keep delegation to at most two concurrent Claude workers and depth two
+  (lead → worker → reviewer).
+- Give each worker explicit file or subsystem ownership. Use separate Herdr
+  tabs and isolated worktrees when concurrent edits would otherwise overlap.
+- The outer pagu policy is the permission boundary. A delegated worker may
+  narrow access but must not widen it.
+
 ## Mission
 
 Help NTNU students discover, understand, shortlist, and compare courses using
