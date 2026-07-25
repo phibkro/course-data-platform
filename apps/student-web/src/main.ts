@@ -2447,7 +2447,7 @@ const mainContentClass = (sidebarCollapsed: boolean): string =>
   }`;
 
 const buttonBase =
-  'cursor-pointer [transition:box-shadow_140ms_ease,transform_140ms_ease] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] [@media(max-width:37rem)]:w-full';
+  'cursor-pointer transition-[box-shadow,transform] duration-150 ease-in-out focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] [@media(max-width:37rem)]:w-full';
 
 const buttonPrimary = `${buttonBase} min-h-14 px-5 border-0 rounded-[1.75rem] font-bold bg-primary text-on-primary shadow-m3-1 not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px`;
 
@@ -2770,7 +2770,7 @@ const catalogueControls = (
                     ...attributes.input,
                     h.Placeholder(translate(model.locale, 'catalogue.searchPlaceholder')),
                     h.Class(
-                      'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base normal-case [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
+                      'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base normal-case transition-[border-color,box-shadow] duration-150 ease-in-out focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
                     ),
                     h.Autocomplete('off'),
                   ]),
@@ -2984,7 +2984,7 @@ const catalogueRefineAction = (model: Model): Html => {
 };
 
 const refineDialogPanelClass =
-  'fixed right-0 bottom-0 left-0 grid max-h-[min(92svh,52rem)] gap-5 pt-5 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] overflow-y-auto border border-outline-variant rounded-t-m3-extra-large bg-surface shadow-m3-2 [transform:translateY(0)] [transition:transform_180ms_ease] data-closed:[transform:translateY(100%)] [@media(min-width:48rem)_and_(min-height:34rem)]:top-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:left-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-3rem),44rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:p-6 [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-m3-extra-large [@media(min-width:48rem)_and_(min-height:34rem)]:[transform:translate(-50%,-50%)] [@media(min-width:48rem)_and_(min-height:34rem)]:[transition:opacity_160ms_ease,transform_180ms_ease] [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:opacity-0 [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:[transform:translate(-50%,-47%)_scale(0.98)]';
+  'fixed right-0 bottom-0 left-0 grid max-h-[min(92svh,52rem)] gap-5 pt-5 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] overflow-y-auto border border-outline-variant rounded-t-m3-extra-large bg-surface shadow-m3-2 [transform:translateY(0)] transition-transform duration-200 ease-in-out data-closed:[transform:translateY(100%)] [@media(min-width:48rem)_and_(min-height:34rem)]:top-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:left-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-3rem),44rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:p-6 [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-m3-extra-large [@media(min-width:48rem)_and_(min-height:34rem)]:[transform:translate(-50%,-50%)] [@media(min-width:48rem)_and_(min-height:34rem)]:transition-[opacity,transform] duration-200 ease-in-out [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:opacity-0 [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:[transform:translate(-50%,-47%)_scale(0.98)]';
 
 const catalogueRefineDialog = (
   model: CatalogueControlsState,
@@ -3014,7 +3014,7 @@ const catalogueRefineDialog = (
                   [
                     ...backdrop,
                     h.Class(
-                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 [transition:opacity_180ms_ease] data-closed:opacity-0',
+                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 transition-opacity duration-200 ease-in-out data-closed:opacity-0',
                     ),
                   ],
                   [],
@@ -3240,7 +3240,7 @@ const appearanceDialogView = (
                   [
                     ...backdrop,
                     h.Class(
-                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 [transition:opacity_180ms_ease] data-closed:opacity-0',
+                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 transition-opacity duration-200 ease-in-out data-closed:opacity-0',
                     ),
                   ],
                   [],
@@ -3249,7 +3249,7 @@ const appearanceDialogView = (
                   [
                     ...panel,
                     h.Class(
-                      'fixed right-0 bottom-0 left-0 grid max-h-[min(94svh,60rem)] gap-5 overflow-y-auto rounded-t-m3-extra-large border border-outline-variant bg-surface pt-5 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] shadow-m3-2 [transform:translateY(0)] [transition:transform_180ms_ease] data-closed:[transform:translateY(100%)] [@media(min-width:48rem)_and_(min-height:34rem)]:top-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:left-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-3rem),58rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:p-6 [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-m3-extra-large [@media(min-width:48rem)_and_(min-height:34rem)]:[transform:translate(-50%,-50%)] [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:opacity-0 [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:[transform:translate(-50%,-47%)_scale(0.98)]',
+                      'fixed right-0 bottom-0 left-0 grid max-h-[min(94svh,60rem)] gap-5 overflow-y-auto rounded-t-m3-extra-large border border-outline-variant bg-surface pt-5 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] shadow-m3-2 [transform:translateY(0)] transition-transform duration-200 ease-in-out data-closed:[transform:translateY(100%)] [@media(min-width:48rem)_and_(min-height:34rem)]:top-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:left-1/2 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-3rem),58rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:p-6 [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-m3-extra-large [@media(min-width:48rem)_and_(min-height:34rem)]:[transform:translate(-50%,-50%)] [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:opacity-0 [@media(min-width:48rem)_and_(min-height:34rem)]:data-closed:[transform:translate(-50%,-47%)_scale(0.98)]',
                     ),
                   ],
                   [
@@ -3648,7 +3648,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
 };
 
 const compactButtonBase =
-  'cursor-pointer [transition:box-shadow_140ms_ease,background-color_140ms_ease] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-[0.65]';
+  'cursor-pointer transition-[box-shadow,background-color] duration-150 ease-in-out focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-[0.65]';
 
 /**
  * A course card's title anchor carries a whole-card `after:absolute
@@ -3724,7 +3724,7 @@ const savedCourseToggle = (
 };
 
 const courseCardClass =
-  'relative grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low [transition:border-color_140ms_ease,box-shadow_140ms_ease] has-[a:hover]:border-primary has-[a:hover]:shadow-m3-1 has-[a:focus-visible]:border-primary has-[a:focus-visible]:shadow-m3-1 [@media(min-width:64rem)]:items-stretch [@media(min-width:64rem)]:grid-cols-[minmax(16rem,0.85fr)_minmax(0,1.65fr)]';
+  'relative grid gap-4 p-[1.1rem] border border-outline-variant rounded-m3-large bg-surface-container-low transition-[border-color,box-shadow] duration-150 ease-in-out has-[a:hover]:border-primary has-[a:hover]:shadow-m3-1 has-[a:focus-visible]:border-primary has-[a:focus-visible]:shadow-m3-1 [@media(min-width:64rem)]:items-stretch [@media(min-width:64rem)]:grid-cols-[minmax(16rem,0.85fr)_minmax(0,1.65fr)]';
 
 const factDtClass = 'text-current text-xs font-bold tracking-[0.05em] uppercase';
 
@@ -6014,7 +6014,7 @@ const labelDialogView = (model: Model): Html => {
                   [
                     ...backdrop,
                     h.Class(
-                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 [transition:opacity_180ms_ease] data-closed:opacity-0',
+                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 transition-opacity duration-200 ease-in-out data-closed:opacity-0',
                     ),
                   ],
                   [],

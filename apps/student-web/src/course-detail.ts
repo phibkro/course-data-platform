@@ -197,10 +197,10 @@ const fieldLabelClass =
   'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-sm font-semibold';
 
 const fieldInputClass =
-  'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base uppercase [transition:border-color_140ms_ease,box-shadow_140ms_ease] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70';
+  'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base uppercase transition-[border-color,box-shadow] duration-150 ease-in-out focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70';
 
 const buttonPrimaryClass =
-  'min-h-14 px-5 border-0 rounded-[1.75rem] bg-primary text-on-primary shadow-m3-1 font-bold cursor-pointer [transition:box-shadow_140ms_ease,transform_140ms_ease] not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] [@media(max-width:37rem)]:w-full';
+  'min-h-14 px-5 border-0 rounded-[1.75rem] bg-primary text-on-primary shadow-m3-1 font-bold cursor-pointer transition-[box-shadow,transform] duration-150 ease-in-out not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] [@media(max-width:37rem)]:w-full';
 
 const stateCardClass =
   'grid min-h-68 place-items-center content-center p-[clamp(2rem,6vw,4rem)] border border-outline-variant rounded-m3-extra-large bg-surface-container-low text-center [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-[clamp(1.4rem,3vw,2rem)] [&_p]:max-w-144 [&_p]:mx-auto [&_p]:my-1 [&_p]:text-on-surface-variant [&_p]:leading-[1.6]';

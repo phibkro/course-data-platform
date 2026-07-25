@@ -99,14 +99,14 @@ export const selectField = <Message>({
               ),
               icon<Message>(
                 'caret-down',
-                `block flex-none [transition:transform_140ms_ease] group-data-[open]:rotate-180 [&_svg]:block [&_svg]:size-full ${
+                `block flex-none transition-transform duration-150 ease-in-out group-data-[open]:rotate-180 [&_svg]:block [&_svg]:size-full ${
                   compact ? 'size-3.5' : 'size-4'
                 }`,
               ),
             ],
           ),
           itemsClassName:
-            'z-50 min-w-48 max-w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-m3-medium border border-outline-variant bg-surface-container-high shadow-m3-2 outline-none opacity-100 [transition:opacity_120ms_ease,transform_120ms_ease] data-[closed]:opacity-0 data-[closed]:-translate-y-1',
+            'z-50 min-w-48 max-w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-m3-medium border border-outline-variant bg-surface-container-high shadow-m3-2 outline-none opacity-100 transition-[opacity,transform] duration-100 ease-in-out data-[closed]:opacity-0 data-[closed]:-translate-y-1',
           itemsScrollClassName: 'grid max-h-72 gap-0.5 overflow-y-auto p-1.5',
           backdropClassName: 'fixed inset-0 z-0 bg-transparent',
           itemToConfig: (item, { isActive, isSelected }) => ({

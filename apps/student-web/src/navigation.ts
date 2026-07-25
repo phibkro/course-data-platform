@@ -205,7 +205,7 @@ export const desktopNavigation = <Message>(
   return h.aside(
     [
       h.Class(
-        `fixed inset-y-0 left-0 hidden ${collapsed ? 'w-20 px-2' : 'w-66 px-4'} py-6 bg-surface-container-low border-r border-outline-variant [transition:width_180ms_ease] [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:flex-col`,
+        `fixed inset-y-0 left-0 hidden ${collapsed ? 'w-20 px-2' : 'w-66 px-4'} py-6 bg-surface-container-low border-r border-outline-variant transition-[width] duration-200 ease-in-out [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:flex-col`,
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
