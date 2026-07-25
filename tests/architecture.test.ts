@@ -220,6 +220,146 @@ describe('styling belongs to Tailwind', () => {
   });
 });
 
+describe('colour contrast', () => {
+  /**
+   * Material's roles come in pairs: every `on-x` is the foreground that `x`
+   * was chosen to carry. That pairing is the whole reason the token layer
+   * exists, and it is only worth anything if the pair actually meets WCAG AA.
+   *
+   * axe checks contrast on rendered pages, which means it only sees the theme
+   * a test happened to select. Contrast is a pure function of two colours, so
+   * it can be checked exhaustively here instead: every pair, every preset,
+   * both modes. Picking a colour that cannot carry its own foreground stops
+   * being a thing anyone has to notice.
+   */
+  const stylesheet = readFileSync(join(repoRoot, 'apps/student-web/src/styles.css'), 'utf8');
+
+  const blocks = new Map<string, Map<string, string>>();
+  for (const [, selector, body] of stylesheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const declarations = new Map<string, string>();
+    for (const declaration of (body ?? '').split(';')) {
+      const separator = declaration.indexOf(':');
+      if (separator === -1) continue;
+      const name = declaration.slice(0, separator).trim();
+      if (name.startsWith('--')) declarations.set(name, declaration.slice(separator + 1).trim());
+    }
+    if (declarations.size > 0) blocks.set((selector ?? '').trim(), declarations);
+  }
+
+  /** Later selectors override earlier ones, exactly as the cascade resolves them. */
+  const resolve = (selectors: readonly string[]): ReadonlyMap<string, string> => {
+    const merged = new Map<string, string>();
+    for (const selector of selectors) {
+      for (const [name, value] of blocks.get(selector) ?? []) merged.set(name, value);
+    }
+    return merged;
+  };
+
+  const luminanceOf = (linear: readonly number[]): number =>
+    0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
+
+  /**
+   * Both notations resolve to the same linear-light channels, so the rule does
+   * not care which one a token is authored in and keeps holding while they are
+   * migrated.
+   */
+  const relativeLuminance = (colour: string): number | null => {
+    const hex = /^#([0-9a-fA-F]{6})$/.exec(colour);
+    if (hex?.[1] !== undefined) {
+      const digits = hex[1];
+      return luminanceOf(
+        [0, 2, 4].map((offset) => {
+          const value = Number.parseInt(digits.slice(offset, offset + 2), 16) / 255;
+          return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+        }),
+      );
+    }
+
+    const oklch = /^oklch\(\s*([0-9.]+)%?\s+([0-9.]+)\s+([0-9.]+)\s*\)$/.exec(colour);
+    if (oklch?.[1] === undefined || oklch[2] === undefined || oklch[3] === undefined) return null;
+    const raw = Number.parseFloat(oklch[1]);
+    const lightness = colour.includes('%') ? raw / 100 : raw;
+    const chroma = Number.parseFloat(oklch[2]);
+    const radians = (Number.parseFloat(oklch[3]) * Math.PI) / 180;
+    const a = chroma * Math.cos(radians);
+    const b = chroma * Math.sin(radians);
+
+    const long = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+    const medium = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+    const short = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
+
+    return luminanceOf(
+      [
+        4.0767416621 * long - 3.3077115913 * medium + 0.2309699292 * short,
+        -1.2684380046 * long + 2.6097574011 * medium - 0.3413193965 * short,
+        -0.0041960863 * long - 0.7034186147 * medium + 1.707614701 * short,
+      ].map((value) => Math.min(1, Math.max(0, value))),
+    );
+  };
+
+  const contrast = (foreground: string, background: string): number | null => {
+    const first = relativeLuminance(foreground);
+    const second = relativeLuminance(background);
+    if (first === null || second === null) return null;
+    return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+  };
+
+  const presetContexts = [
+    { id: 'fjord', base: 'mist', theme: 'blue' },
+    { id: 'aurora', base: 'zinc', theme: 'violet' },
+    { id: 'birch', base: 'stone', theme: 'amber' },
+    { id: 'heather', base: 'mauve', theme: 'rose' },
+    { id: 'pine', base: 'olive', theme: 'emerald' },
+    { id: 'polar-night', base: 'neutral', theme: 'sky' },
+  ].flatMap((preset) => {
+    const light = [
+      ':root',
+      `:root[data-base-color='${preset.base}']`,
+      `:root[data-theme-color='${preset.theme}']`,
+    ];
+    return [
+      { label: `${preset.id}/light`, selectors: light },
+      {
+        label: `${preset.id}/dark`,
+        selectors: [
+          ...light,
+          ':root.dark',
+          `:root.dark[data-base-color='${preset.base}']`,
+          `:root.dark[data-theme-color='${preset.theme}']`,
+        ],
+      },
+    ];
+  });
+
+  const pairs = presetContexts.flatMap(({ label, selectors }) => {
+    const tokens = resolve(selectors);
+    return [...tokens].flatMap(([name, foreground]) => {
+      if (!name.startsWith('--md-sys-color-on-')) return [];
+      const role = `--md-sys-color-${name.slice('--md-sys-color-on-'.length)}`;
+      const background = tokens.get(role);
+      if (background === undefined) return [];
+      const ratio = contrast(foreground, background);
+      return ratio === null ? [] : [{ label, name, role, ratio }];
+    });
+  });
+
+  test('the scan actually resolved the themed pairs', () => {
+    // A cascade rename would otherwise leave this suite green over nothing.
+    expect(pairs.length).toBeGreaterThan(100);
+  });
+
+  test('every role carries its own foreground at WCAG AA', () => {
+    const offenders = pairs
+      .filter((pair) => pair.ratio < 4.5)
+      .map(
+        (pair) =>
+          `${pair.label} ${pair.name.replace('--md-sys-color-', '')} on ${pair.role.replace('--md-sys-color-', '')}: ${pair.ratio.toFixed(2)}:1`,
+      );
+
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('theme preset swatches', () => {
   /**
    * A preset swatch exists to show what selecting the preset will do. Its
