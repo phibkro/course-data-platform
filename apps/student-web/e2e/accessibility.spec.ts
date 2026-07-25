@@ -502,3 +502,43 @@ test('an empty List offers Explore once, not twice', async ({ page }) => {
    */
   await expect(page.getByRole('link', { name: 'Browse more courses' })).toHaveCount(1);
 });
+
+test('removing a selection asks first, then undo restores the courses and their labels', async ({
+  page,
+}) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('button', { name: 'Save TDT4109 to List' }).click();
+  await page.getByRole('link', { name: 'Saved' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await page.getByRole('button', { name: 'Edit labels for TDT4136' }).click();
+  await dialog.getByLabel('Label name').fill('Autumn');
+  await dialog.getByRole('button', { name: 'Add label' }).click();
+  await expect(dialog.getByRole('checkbox', { name: /Autumn/ })).toBeChecked();
+  await page.getByRole('button', { name: 'Close labels' }).click();
+
+  await page.getByLabel('Select TDT4136').click();
+  await page.getByLabel('Select TDT4109').click();
+  const tray = page.getByRole('region', { name: 'Selected saved courses' });
+  await expect(tray.getByText('2 selected')).toBeVisible();
+
+  // Discarding several courses' notes and labels asks before it acts, in the
+  // tray itself rather than over the page.
+  await tray.getByRole('button', { name: 'Remove selected' }).click();
+  await expect(tray.getByText(/Remove 2 saved courses/)).toBeVisible();
+  await expect(page.getByRole('dialog')).toBeHidden();
+
+  await tray.getByRole('button', { name: 'Keep them' }).click();
+  await expect(page.getByText('2 saved courses', { exact: true })).toBeVisible();
+
+  await tray.getByRole('button', { name: 'Remove selected' }).click();
+  await tray.getByRole('button', { name: 'Yes, remove them' }).click();
+  await expect(page.getByText('You have not saved a course yet')).toBeVisible();
+
+  // Undo restores what the student had, labels included.
+  await page.getByRole('button', { name: 'Undo removing 2 courses' }).click();
+  await expect(page.getByText('2 saved courses', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Autumn/ })).toBeVisible();
+  await expectNoAxeViolations(page);
+});

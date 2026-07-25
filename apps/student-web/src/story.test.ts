@@ -531,7 +531,9 @@ test('undoing a removal restores the exact saved course, its note, and its label
   expect(removedState).toEqual({ ...emptySavedList, labels: savedWithLabel.labels });
   expect(removed.savedListAction).toMatchObject({
     _tag: 'SavedActionRemoved',
-    course: savedWithLabel.savedCourses[0],
+    // Removing one course and removing several are the same act on sets of
+    // different size, so the action always carries a set.
+    courses: [savedWithLabel.savedCourses[0]],
     memberships: savedWithLabel.memberships,
   });
   expect(removeCommands.map(({ name }) => name)).toEqual(['PersistSavedCourses']);

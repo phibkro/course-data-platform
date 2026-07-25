@@ -348,7 +348,7 @@ const savedToggleAvailability = (result: SavedCoursesResult): 'ready' | 'loading
 export const SavedActionIdle = ts('SavedActionIdle');
 export const SavedActionSaved = ts('SavedActionSaved', { courseCode: S.String });
 export const SavedActionRemoved = ts('SavedActionRemoved', {
-  course: SavedCourseSchema,
+  courses: S.Array(SavedCourseSchema),
   memberships: S.Array(LabelMembershipSchema),
 });
 const SavedListActionSchema = S.Union([SavedActionIdle, SavedActionSaved, SavedActionRemoved]);
@@ -411,6 +411,13 @@ export const Model = S.Struct({
   labelDraftColor: LabelColorSchema,
   labelEditing: S.NullOr(S.String),
   labelPendingDelete: S.NullOr(S.String),
+  /**
+   * Removing several saved courses discards notes and labels that cannot be
+   * retyped from the catalogue, so it asks first. One course does not: undo
+   * already restores it, and a prompt for a reversible act just trains the
+   * student to dismiss prompts.
+   */
+  selectionRemovePending: S.Boolean,
   labelError: S.NullOr(LabelRejectionSchema),
   listDensity: ListDensitySchema,
   query: S.String,
@@ -562,6 +569,9 @@ export const ToggledSavedCourseSelection = m('ToggledSavedCourseSelection', {
   isSelected: S.Boolean,
 });
 export const ClearedSavedCourseSelection = m('ClearedSavedCourseSelection');
+export const RequestedRemoveSelected = m('RequestedRemoveSelected');
+export const CancelledRemoveSelected = m('CancelledRemoveSelected');
+export const ConfirmedRemoveSelected = m('ConfirmedRemoveSelected');
 export const RequestedLabelDialog = m('RequestedLabelDialog', {
   courseCodes: S.Array(S.String),
 });
@@ -638,6 +648,9 @@ export const Message = S.Union([
   FailedListDensityPersistence,
   ToggledSavedCourseSelection,
   ClearedSavedCourseSelection,
+  RequestedRemoveSelected,
+  CancelledRemoveSelected,
+  ConfirmedRemoveSelected,
   RequestedLabelDialog,
   GotLabelDialogMessage,
   UpdatedLabelDraftName,
@@ -1244,6 +1257,7 @@ const discardedLabelDraft = {
   labelDraftColor: defaultLabelColor,
   labelError: null,
   labelPendingDelete: null,
+  selectionRemovePending: false,
 } as const satisfies Partial<Model>;
 
 /**
@@ -1951,7 +1965,7 @@ export const update = (
             // selection in the same transition; nothing can act on it after.
             selectedCourseCodes: withoutSelected(model.selectedCourseCodes, identity.courseCode),
             labelDialogTarget: withoutSelected(model.labelDialogTarget, identity.courseCode),
-            savedListAction: SavedActionRemoved({ course, memberships }),
+            savedListAction: SavedActionRemoved({ courses: [course], memberships }),
           },
           [PersistSavedCourses({ state: next })],
         ];
@@ -2023,8 +2037,16 @@ export const update = (
                 [PersistSavedCourses({ state: next })],
               ];
             },
-            SavedActionRemoved: ({ course, memberships }) => {
-              const next = restoreSavedCourse(state, course, memberships);
+            SavedActionRemoved: ({ courses, memberships }) => {
+              const next = courses.reduce(
+                (restored, course) =>
+                  restoreSavedCourse(
+                    restored,
+                    course,
+                    memberships.filter((membership) => membership.savedCourseId === course.id),
+                  ),
+                state,
+              );
               if (next === state) return [{ ...model, savedListAction: SavedActionIdle() }, []];
               return [
                 {
@@ -2052,10 +2074,54 @@ export const update = (
           selectedCourseCodes: isSelected
             ? [...withoutSelected(model.selectedCourseCodes, courseCode), courseCode]
             : withoutSelected(model.selectedCourseCodes, courseCode),
+          // The prompt named a specific set; changing the set retracts it.
+          selectionRemovePending: false,
         },
         [],
       ],
-      ClearedSavedCourseSelection: () => [{ ...model, selectedCourseCodes: [] }, []],
+      ClearedSavedCourseSelection: () => [
+        { ...model, selectedCourseCodes: [], selectionRemovePending: false },
+        [],
+      ],
+      RequestedRemoveSelected: () => [{ ...model, selectionRemovePending: true }, []],
+      CancelledRemoveSelected: () => [{ ...model, selectionRemovePending: false }, []],
+      ConfirmedRemoveSelected: () => {
+        const state = savedListState(model.savedCourses);
+        if (state === null) return [{ ...model, selectionRemovePending: false }, []];
+        const identities = model.selectedCourseCodes
+          .map((courseCode) => courseIdentity(courseCode))
+          .filter((identity) => identity !== null);
+        const courses = identities
+          .map((identity) => findSavedCourse(state, identity))
+          .filter((course) => course !== null);
+        if (courses.length === 0) {
+          return [{ ...model, selectionRemovePending: false, selectedCourseCodes: [] }, []];
+        }
+        // Every membership travels with the removal so undo restores what the
+        // student had, not just the courses.
+        const memberships = identities.flatMap((identity) =>
+          membershipsForSavedCourse(state, identity),
+        );
+        const next = identities.reduce(
+          (remaining, identity) => removeSavedCourse(remaining, identity),
+          state,
+        );
+        return [
+          {
+            ...model,
+            savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
+            noteDrafts: identities.reduce(
+              (drafts, identity) => withoutNoteDraft(drafts, identity.courseCode),
+              model.noteDrafts,
+            ),
+            selectedCourseCodes: [],
+            labelDialogTarget: [],
+            selectionRemovePending: false,
+            savedListAction: SavedActionRemoved({ courses, memberships }),
+          },
+          [PersistSavedCourses({ state: next })],
+        ];
+      },
       /** A density change is a preference, never a change to the saved set: it
        *  persists locally and produces no navigation and no fetch. */
       ChangedListDensity: ({ value }) =>
@@ -2262,6 +2328,7 @@ export const initForHref = (
     labelDraftColor: defaultLabelColor,
     labelEditing: null,
     labelPendingDelete: null,
+    selectionRemovePending: false,
     labelError: null,
     listDensity,
     query: location.query,
@@ -2550,11 +2617,16 @@ const savedListActionStatus = (model: Model): Html => {
           translate(model.locale, 'list.savedStatus', { code: courseCode }),
           translate(model.locale, 'list.undoSave', { code: courseCode }),
         ),
-      SavedActionRemoved: ({ course }) =>
-        banner(
-          translate(model.locale, 'list.removedStatus', { code: course.courseCode }),
-          translate(model.locale, 'list.undoRemove', { code: course.courseCode }),
-        ),
+      SavedActionRemoved: ({ courses }) =>
+        courses.length === 1 && courses[0] !== undefined
+          ? banner(
+              translate(model.locale, 'list.removedStatus', { code: courses[0].courseCode }),
+              translate(model.locale, 'list.undoRemove', { code: courses[0].courseCode }),
+            )
+          : banner(
+              translate(model.locale, 'list.removedManyStatus', { count: courses.length }),
+              translate(model.locale, 'list.undoRemoveMany', { count: courses.length }),
+            ),
     }),
   );
 };
@@ -3556,10 +3628,14 @@ const compactButtonBase =
  */
 const aboveCardOverlayClass = 'relative z-[2]';
 
-const savedToggleClass = (saved: boolean): string =>
+type SavedToggleTone = 'state' | 'destructive';
+
+const savedToggleClass = (saved: boolean, tone: SavedToggleTone): string =>
   `${compactButtonBase} ${aboveCardOverlayClass} inline-flex min-h-11 flex-none items-center gap-2 rounded-[1.5rem] border px-3 text-sm font-bold ${
     saved
-      ? 'border-secondary bg-secondary-container text-on-secondary-container'
+      ? tone === 'destructive'
+        ? 'border-error bg-error-container text-on-error-container'
+        : 'border-secondary bg-secondary-container text-on-secondary-container'
       : 'border-outline bg-surface-container text-primary'
   }`;
 
@@ -3578,6 +3654,7 @@ const savedCourseToggle = (
   availability: 'ready' | 'loading' | 'paused',
   locale: Locale,
   recoveryHref: string,
+  tone: SavedToggleTone = 'state',
 ): Html => {
   const h = html<Message>();
   const ready = availability === 'ready';
@@ -3598,7 +3675,7 @@ const savedCourseToggle = (
       h.button(
         [
           ...attributes.button,
-          h.Class(savedToggleClass(saved)),
+          h.Class(savedToggleClass(saved, tone)),
           h.AriaLabel(accessibleLabel),
           h.Title(title),
         ],
@@ -4780,7 +4857,7 @@ const savedCourseRow = (
               [
                 selectionCheckbox,
                 identityBlock,
-                savedCourseToggle(course.courseCode, true, 'ready', locale, ''),
+                savedCourseToggle(course.courseCode, true, 'ready', locale, '', 'destructive'),
               ],
             ),
             h.p(
@@ -4808,7 +4885,7 @@ const savedCourseRow = (
             [
               selectionCheckbox,
               identityBlock,
-              savedCourseToggle(course.courseCode, true, 'ready', locale, ''),
+              savedCourseToggle(course.courseCode, true, 'ready', locale, '', 'destructive'),
             ],
           ),
           labelsBlock,
@@ -5321,8 +5398,14 @@ const selectionTrayClass =
 
 /**
  * Selection is distinct from saving and stays ephemeral: it lives only in the
- * session, and the tray disappears with it. L2 exposes the one bulk action it
- * can honour — attaching labels.
+ * session, and the tray disappears with it.
+ *
+ * Labelling leads because it is the additive act. Removal is secondary and
+ * asks first, because it discards notes and label attachments across several
+ * courses at once — the confirmation swaps the tray's actions in place rather
+ * than opening a dialog, matching how deleting a label already asks. A single
+ * course still removes without a prompt: undo restores it, and prompting for
+ * a reversible act only teaches the student to dismiss prompts.
  */
 const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): Html => {
   const h = html<Message>();
@@ -5343,24 +5426,77 @@ const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): 
             : translate(locale, 'list.selectionCount', { count: selected.length }),
         ],
       ),
-      h.div(
-        [h.Class('flex flex-wrap items-center gap-2')],
-        [
-          labelDialogAction(
-            selected.map((course) => course.courseCode),
-            locale,
-          ),
-          Button.view<Message>({
-            type: 'button',
-            onClick: ClearedSavedCourseSelection(),
-            toView: (attributes) =>
-              h.button(
-                [...attributes.button, h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`)],
-                [translate(locale, 'list.selectionClear')],
+      model.selectionRemovePending
+        ? h.div(
+            [h.Class('flex flex-wrap items-center gap-2'), h.Role('group')],
+            [
+              h.p(
+                [h.Class('m-0 basis-full text-sm leading-[1.45]'), h.Role('status')],
+                [translate(locale, 'list.selectionRemoveConfirm', { count: selected.length })],
               ),
-          }),
-        ],
-      ),
+              Button.view<Message>({
+                type: 'button',
+                onClick: ConfirmedRemoveSelected(),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(
+                        `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-sm font-bold text-on-error-container`,
+                      ),
+                    ],
+                    [translate(locale, 'list.selectionRemoveConfirmAction')],
+                  ),
+              }),
+              Button.view<Message>({
+                type: 'button',
+                onClick: CancelledRemoveSelected(),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                    ],
+                    [translate(locale, 'list.selectionRemoveCancel')],
+                  ),
+              }),
+            ],
+          )
+        : h.div(
+            [h.Class('flex flex-wrap items-center gap-2')],
+            [
+              labelDialogAction(
+                selected.map((course) => course.courseCode),
+                locale,
+              ),
+              Button.view<Message>({
+                type: 'button',
+                onClick: RequestedRemoveSelected(),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(
+                        `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-sm font-bold text-on-error-container`,
+                      ),
+                    ],
+                    [translate(locale, 'list.selectionRemove')],
+                  ),
+              }),
+              Button.view<Message>({
+                type: 'button',
+                onClick: ClearedSavedCourseSelection(),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                    ],
+                    [translate(locale, 'list.selectionClear')],
+                  ),
+              }),
+            ],
+          ),
     ],
   );
 };
