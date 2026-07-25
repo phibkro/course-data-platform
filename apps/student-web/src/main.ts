@@ -48,7 +48,13 @@ import {
   compareMaximum,
   compareMinimum,
   compareSelection,
+  collectionRejections,
+  collectionsByName,
+  deleteCollection,
   filterSavedCourses,
+  findCollection,
+  matchingCollection,
+  saveCollection,
   filterUnlabeled,
   findLabel,
   hasLabel,
@@ -442,6 +448,13 @@ export const Model = S.Struct({
   selectedCourseCodes: S.Array(S.String),
   labelDialog: Dialog.Model,
   labelDialogTarget: S.Array(S.String),
+  /**
+   * A collection name being typed is a draft: nothing is stored until the
+   * student commits it, the same discipline the label form keeps.
+   */
+  collectionDraftName: S.String,
+  collectionFormOpen: S.Boolean,
+  collectionRejection: S.NullOr(S.Literals(collectionRejections)),
   labelDraftName: S.String,
   labelDraftColor: LabelColorSchema,
   labelEditing: S.NullOr(S.String),
@@ -628,6 +641,12 @@ export const UpdatedLabelDraftName = m('UpdatedLabelDraftName', { value: S.Strin
 export const ChangedLabelDraftColor = m('ChangedLabelDraftColor', { value: LabelColorSchema });
 export const SubmittedLabelForm = m('SubmittedLabelForm');
 export const StampedLabel = m('StampedLabel', { labelId: S.String });
+export const StampedCollection = m('StampedCollection', { collectionId: S.String });
+export const ToggledCollectionForm = m('ToggledCollectionForm', { isOpen: S.Boolean });
+export const UpdatedCollectionDraftName = m('UpdatedCollectionDraftName', { value: S.String });
+export const SubmittedCollection = m('SubmittedCollection');
+export const SelectedCollection = m('SelectedCollection', { collectionId: S.String });
+export const RequestedDeleteCollection = m('RequestedDeleteCollection', { collectionId: S.String });
 export const RequestedEditLabel = m('RequestedEditLabel', { labelId: S.String });
 export const CancelledLabelEdit = m('CancelledLabelEdit');
 export const RequestedDeleteLabel = m('RequestedDeleteLabel', { labelId: S.String });
@@ -709,6 +728,12 @@ export const Message = S.Union([
   ChangedLabelDraftColor,
   SubmittedLabelForm,
   StampedLabel,
+  StampedCollection,
+  ToggledCollectionForm,
+  UpdatedCollectionDraftName,
+  SubmittedCollection,
+  SelectedCollection,
+  RequestedDeleteCollection,
   RequestedEditLabel,
   CancelledLabelEdit,
   RequestedDeleteLabel,
@@ -960,9 +985,25 @@ const newLabelId = (): string =>
     ? `label-${crypto.randomUUID()}`
     : `label-${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffff).toString(36)}`;
 
+const newCollectionId = (): string =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? `collection-${crypto.randomUUID()}`
+    : `collection-${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffff).toString(36)}`;
+
+export const StampCollection = Command.define(
+  'StampCollection',
+  StampedCollection,
+)(Effect.sync(() => StampedCollection({ collectionId: newCollectionId() })));
+
 export const StampLabel = Command.define(
   'StampLabel',
   StampedLabel,
+  StampedCollection,
+  ToggledCollectionForm,
+  UpdatedCollectionDraftName,
+  SubmittedCollection,
+  SelectedCollection,
+  RequestedDeleteCollection,
 )(Effect.sync(() => StampedLabel({ labelId: newLabelId() })));
 
 /** The clock stays in the boundary; `update` receives an observed timestamp. */
@@ -1305,6 +1346,9 @@ const applyLabelFilter = (
  * through this one value, so no path can leave half of it behind.
  */
 const discardedLabelDraft = {
+  collectionDraftName: '',
+  collectionFormOpen: false,
+  collectionRejection: null,
   labelEditing: null,
   labelDraftName: '',
   labelDraftColor: defaultLabelColor,
@@ -2214,6 +2258,77 @@ export const update = (
         { ...model, compareDifferencesOnly: differencesOnly },
         [],
       ],
+      ToggledCollectionForm: ({ isOpen }) => [
+        {
+          ...model,
+          collectionFormOpen: isOpen,
+          collectionDraftName: '',
+          collectionRejection: null,
+        },
+        [],
+      ],
+      // Typing a name changes nothing that is stored, so a rejection from the
+      // previous attempt clears the moment the student edits.
+      UpdatedCollectionDraftName: ({ value }) => [
+        { ...model, collectionDraftName: value, collectionRejection: null },
+        [],
+      ],
+      SubmittedCollection: () => [model, [StampCollection()]],
+      StampedCollection: ({ collectionId }) => {
+        const state = savedListState(model.savedCourses);
+        if (state === null) return [model, []];
+        const result = saveCollection(
+          state,
+          model.collectionDraftName,
+          model.labelFilter,
+          collectionId,
+        );
+        if (result._tag === 'CollectionRejected') {
+          return [{ ...model, collectionRejection: result.reason }, []];
+        }
+        return [
+          {
+            ...model,
+            savedCourses: SavedCoursesReady({ state: result.state, repairedEntries: 0 }),
+            collectionFormOpen: false,
+            collectionDraftName: '',
+            collectionRejection: null,
+          },
+          [PersistSavedCourses({ state: result.state })],
+        ];
+      },
+      /**
+       * Choosing a collection sets the filter it names. The list below never
+       * moves house: the same saved courses are asked a different question,
+       * and the question travels in the URL as it already did.
+       */
+      SelectedCollection: ({ collectionId }) => {
+        const state = savedListState(model.savedCourses);
+        if (state === null) return [model, []];
+        const collection = findCollection(state, collectionId);
+        const filter =
+          collection === null
+            ? emptyLabelFilter
+            : {
+                includeLabelIds: [...collection.filter.includeLabelIds],
+                includeUnlabeled: collection.filter.includeUnlabeled,
+                includeMode: collection.filter.includeMode,
+                excludeLabelIds: [...collection.filter.excludeLabelIds],
+                excludeUnlabeled: collection.filter.excludeUnlabeled,
+              };
+        return applyLabelFilter(model, filter);
+      },
+      /** Deleting a collection deletes a question, never the courses it selected. */
+      RequestedDeleteCollection: ({ collectionId }) => {
+        const state = savedListState(model.savedCourses);
+        if (state === null) return [model, []];
+        const next = deleteCollection(state, collectionId);
+        if (next === state) return [model, []];
+        return [
+          { ...model, savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }) },
+          [PersistSavedCourses({ state: next })],
+        ];
+      },
       RequestedRemoveSelected: () => [{ ...model, selectionRemovePending: true }, []],
       CancelledRemoveSelected: () => [{ ...model, selectionRemovePending: false }, []],
       ConfirmedRemoveSelected: () => {
@@ -2464,6 +2579,9 @@ export const initForHref = (
     labelDraftColor: defaultLabelColor,
     labelEditing: null,
     labelPendingDelete: null,
+    collectionDraftName: '',
+    collectionFormOpen: false,
+    collectionRejection: null,
     selectionRemovePending: false,
     labelError: null,
     listDensity,
@@ -5302,6 +5420,172 @@ const excludeCheckbox = (
  * `Exclude` live behind one progressive disclosure, so the common case stays a
  * single tap and the bounded composition is still reachable by keyboard.
  */
+/**
+ * Collections sit on the filter, not beside the list, because a collection is
+ * a named filter state rather than a container. Choosing one sets the recipe
+ * it names; the rows below are the same saved courses asked a different
+ * question, which is why there is no second place a course can be.
+ */
+const collectionsView = (model: Model, state: SavedListState): Html => {
+  const h = html<Message>();
+  const locale = model.locale;
+  const collections = collectionsByName(state);
+  const active = matchingCollection(state, model.labelFilter);
+  const canSave = isLabelFilterActive(model.labelFilter) && active === null;
+
+  const chip = (isActive: boolean): string =>
+    `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border px-3 text-sm font-bold ${
+      isActive
+        ? 'border-primary bg-primary-container text-on-primary-container'
+        : 'border-outline bg-surface-container text-on-surface'
+    }`;
+
+  const rejectionMessage =
+    model.collectionRejection === null
+      ? null
+      : model.collectionRejection === 'empty-name'
+        ? translate(locale, 'collection.emptyName')
+        : model.collectionRejection === 'duplicate-name'
+          ? translate(locale, 'collection.duplicateName')
+          : model.collectionRejection === 'inactive-filter'
+            ? translate(locale, 'collection.inactiveFilter')
+            : translate(locale, 'collection.limitReached');
+
+  return h.div(
+    [h.Class('grid gap-2'), h.Role('group'), h.AriaLabel(translate(locale, 'collection.heading'))],
+    [
+      h.p([h.Class(factDtClass)], [translate(locale, 'collection.heading')]),
+      h.div(
+        [h.Class('flex flex-wrap items-center gap-2')],
+        [
+          Button.view<Message>({
+            type: 'button',
+            onClick: SelectedCollection({ collectionId: '' }),
+            toView: (attributes) =>
+              h.button(
+                [
+                  ...attributes.button,
+                  h.Class(chip(active === null && !isLabelFilterActive(model.labelFilter))),
+                  h.AriaPressed(String(active === null && !isLabelFilterActive(model.labelFilter))),
+                ],
+                [translate(locale, 'collection.all')],
+              ),
+          }),
+          ...collections.map((collection) =>
+            h.span(
+              [h.Class('inline-flex items-center gap-1')],
+              [
+                Button.view<Message>({
+                  type: 'button',
+                  onClick: SelectedCollection({ collectionId: collection.id }),
+                  toView: (attributes) =>
+                    h.button(
+                      [
+                        ...attributes.button,
+                        h.Class(chip(active?.id === collection.id)),
+                        h.AriaPressed(String(active?.id === collection.id)),
+                      ],
+                      [collection.name],
+                    ),
+                }),
+                Button.view<Message>({
+                  type: 'button',
+                  onClick: RequestedDeleteCollection({ collectionId: collection.id }),
+                  toView: (attributes) =>
+                    h.button(
+                      [
+                        ...attributes.button,
+                        h.Class(
+                          `${compactButtonBase} grid size-11 place-items-center rounded-full border border-outline bg-surface-container text-on-surface-variant`,
+                        ),
+                        h.AriaLabel(
+                          translate(locale, 'collection.deleteNamed', { name: collection.name }),
+                        ),
+                      ],
+                      [icon<Message>('close')],
+                    ),
+                }),
+              ],
+            ),
+          ),
+          model.collectionFormOpen || !canSave
+            ? h.empty
+            : Button.view<Message>({
+                type: 'button',
+                onClick: ToggledCollectionForm({ isOpen: true }),
+                toView: (attributes) =>
+                  h.button(
+                    [...attributes.button, h.Class(groupedAction('neutral'))],
+                    [translate(locale, 'collection.save')],
+                  ),
+              }),
+        ],
+      ),
+      active === null
+        ? h.empty
+        : h.p(
+            [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]')],
+            [translate(locale, 'collection.activeNamed', { name: active.name })],
+          ),
+      model.collectionFormOpen
+        ? h.form(
+            [h.Class('grid gap-2'), h.OnSubmit(SubmittedCollection())],
+            [
+              h.label(
+                [h.Class(fieldLabelClass), h.For('collection-name')],
+                [translate(locale, 'collection.name')],
+              ),
+              h.input([
+                h.Id('collection-name'),
+                h.Class(noteFieldClass),
+                h.Value(model.collectionDraftName),
+                h.Placeholder(translate(locale, 'collection.namePlaceholder')),
+                h.OnInput((value) => UpdatedCollectionDraftName({ value })),
+              ]),
+              rejectionMessage === null
+                ? h.empty
+                : h.p(
+                    [
+                      h.Class(
+                        'm-0 py-2 px-3 rounded-m3-medium bg-warning-container text-on-warning-container text-sm leading-[1.4]',
+                      ),
+                      h.Role('alert'),
+                    ],
+                    [rejectionMessage],
+                  ),
+              h.div(
+                [h.Class(controlGroupClass)],
+                [
+                  Button.view<Message>({
+                    type: 'submit',
+                    toView: (attributes) =>
+                      h.button(
+                        [...attributes.button, h.Class(groupedAction('primary'))],
+                        [translate(locale, 'collection.apply')],
+                      ),
+                  }),
+                  Button.view<Message>({
+                    type: 'button',
+                    onClick: ToggledCollectionForm({ isOpen: false }),
+                    toView: (attributes) =>
+                      h.button(
+                        [...attributes.button, h.Class(groupedAction('neutral'))],
+                        [translate(locale, 'collection.cancel')],
+                      ),
+                  }),
+                ],
+              ),
+              h.p(
+                [h.Class('m-0 text-on-surface-variant text-xs leading-[1.45]')],
+                [translate(locale, 'collection.deleteHelp')],
+              ),
+            ],
+          )
+        : h.empty,
+    ],
+  );
+};
+
 const labelFilterView = (model: Model, state: SavedListState): Html => {
   const h = html<Message>();
   const locale = model.locale;
@@ -5462,6 +5746,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
           labelDialogAction([], locale),
         ],
       ),
+      collectionsView(model, state),
       /**
        * Include and Exclude are peers, so they are shown as peers. Exclusion
        * used to live behind a disclosure, which made the harder half of the

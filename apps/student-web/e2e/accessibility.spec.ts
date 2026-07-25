@@ -757,3 +757,54 @@ test('a saved row stacks first and becomes a line only when it has the width', a
   expect(wide.stacked).toBe(false);
   expect(wide.titleWidth).toBeGreaterThan(narrow.titleWidth);
 });
+
+test('a collection names a filter, and deleting it keeps the courses', async ({ page }) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('button', { name: 'Save TDT4109 to List' }).click();
+  await page.getByRole('link', { name: 'Saved' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await page.getByRole('button', { name: 'Edit labels for TDT4136' }).click();
+  await dialog.getByLabel('Label name').fill('Autumn');
+  await dialog.getByRole('button', { name: 'Add label' }).click();
+  await expect(dialog.getByRole('checkbox', { name: /Autumn/ })).toBeChecked();
+  await page.getByRole('button', { name: 'Close labels' }).click();
+
+  const collections = page.getByRole('group', { name: 'Collections' });
+  // Nothing to name yet: an unfiltered list is the saved list.
+  await expect(collections.getByRole('button', { name: 'Save as collection' })).toHaveCount(0);
+
+  await page
+    .getByRole('button', { name: /^Autumn/ })
+    .first()
+    .click();
+  await expect(page.getByText('Showing 1 of 2 saved courses')).toBeVisible();
+
+  await collections.getByRole('button', { name: 'Save as collection' }).click();
+  await page.getByLabel('Collection name').fill('Autumn shortlist');
+  await page.getByRole('button', { name: 'Save collection' }).click();
+
+  // The active filter is now recognised as the collection it became.
+  await expect(page.getByText('Showing the collection Autumn shortlist.')).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  // Leaving and returning to it is a question being asked again, not courses moving.
+  await collections.getByRole('button', { name: 'All saved courses' }).click();
+  await expect(page.getByText('2 saved courses', { exact: true })).toBeVisible();
+  await collections.getByRole('button', { name: 'Autumn shortlist', exact: true }).click();
+  await expect(page.getByText('Showing 1 of 2 saved courses')).toBeVisible();
+  await expect(page).toHaveURL(/labels=label-/);
+
+  await page.reload();
+  await expect(page.getByText('Showing the collection Autumn shortlist.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Delete the collection Autumn shortlist' }).click();
+  await expect(
+    collections.getByRole('button', { name: 'Autumn shortlist', exact: true }),
+  ).toHaveCount(0);
+  // Deleting the question left both courses and the label untouched.
+  await collections.getByRole('button', { name: 'All saved courses' }).click();
+  await expect(page.getByText('2 saved courses', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Autumn/ }).first()).toBeVisible();
+});
