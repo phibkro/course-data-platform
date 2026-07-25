@@ -332,3 +332,28 @@ test('selecting saved courses offers labelling as the one bulk action', async ({
   await page.reload();
   await expect(tray).toBeHidden();
 });
+
+test('every bottom-navigation destination shares one icon baseline', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium');
+  await waitForEnrichedCatalogue(page);
+
+  const bar = page.getByRole('navigation', { name: 'Primary navigation' });
+  await expect(bar).toBeVisible();
+
+  /**
+   * One destination is a button rather than a link, which is exactly where a
+   * stray `font` shorthand once reset the shared `leading-none` and floated
+   * its icon above the row. Measuring the glyphs keeps that a number rather
+   * than something a person has to notice.
+   */
+  const tops = await bar.evaluate((element) =>
+    [...element.children].map((child) => {
+      const glyph = child.querySelector('svg');
+      return glyph === null ? null : Math.round(glyph.getBoundingClientRect().top);
+    }),
+  );
+
+  const measured = tops.filter((top): top is number => top !== null);
+  expect(measured.length).toBeGreaterThan(1);
+  expect(Math.max(...measured) - Math.min(...measured)).toBe(0);
+});
