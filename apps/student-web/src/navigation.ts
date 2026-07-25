@@ -13,7 +13,40 @@ export interface NavigationItem {
   readonly icon: AppIcon;
   readonly href: string | null;
   readonly isCurrent: boolean;
+  /** 1 is the most important destination. Rank, never a position. */
+  readonly priority: number;
 }
+
+/**
+ * A rail and a bottom bar do not weight their slots the same way. Reading down
+ * a sidebar, first means top. Reaching across a bottom bar one-handed, the
+ * easiest slot is the middle one, and importance falls away towards the
+ * corners. Encoding either order directly would make one surface's convenience
+ * the other's arbitrary sequence.
+ *
+ * So the model carries rank and each surface derives its own seating:
+ *
+ *   sidebar      rank order, top to bottom
+ *   bottom bar   the leading rank takes the middle seat, the rest fill the
+ *                remaining seats in rank order, left to right
+ *
+ * An even number of seats has no middle, so the rule degenerates to plain rank
+ * order — which is the right answer there rather than a special case.
+ */
+export const bottomBarSeating = <T extends { readonly priority: number }>(
+  items: ReadonlyArray<T>,
+): ReadonlyArray<T> => {
+  const ranked = [...items].sort((left, right) => left.priority - right.priority);
+  if (ranked.length % 2 === 0) return ranked;
+
+  const middle = (ranked.length - 1) / 2;
+  const [leading, ...rest] = ranked;
+  if (leading === undefined) return ranked;
+
+  const seats = [...rest];
+  seats.splice(middle, 0, leading);
+  return seats;
+};
 
 /**
  * The desktop sidebar and mobile bottom bar intentionally consume the same
@@ -34,6 +67,7 @@ export const primaryNavigation = (
     icon: 'list',
     href: listHref,
     isCurrent: route === 'list',
+    priority: 2,
   },
   {
     id: 'schedule',
@@ -42,6 +76,7 @@ export const primaryNavigation = (
     icon: 'schedule',
     href: null,
     isCurrent: false,
+    priority: 3,
   },
   {
     id: 'explore',
@@ -50,6 +85,7 @@ export const primaryNavigation = (
     icon: 'explore',
     href: exploreHref,
     isCurrent: route === 'explore',
+    priority: 1,
   },
   {
     id: 'degree',
@@ -58,6 +94,7 @@ export const primaryNavigation = (
     icon: 'degree',
     href: null,
     isCurrent: false,
+    priority: 4,
   },
   {
     id: 'appearance',
@@ -71,6 +108,7 @@ export const primaryNavigation = (
     icon: 'appearance',
     href: appearanceHref,
     isCurrent: route === 'appearance',
+    priority: 5,
   },
 ];
 
@@ -242,23 +280,14 @@ export const desktopNavigation = <Message>(
          * the destination list. The bottom bar has no such footer and carries
          * it as its fifth destination.
          */
-        items
+        [...items]
           .filter((item) => item.id !== 'appearance')
+          .sort((left, right) => left.priority - right.priority)
           .map((item) => desktopItem<Message>(locale, item, collapsed)),
       ),
       h.div(
+        [h.Class(`mt-auto grid gap-4 pt-4 ${collapsed ? '' : 'mx-3'}`)],
         [
-          h.Class(
-            `mt-auto grid gap-4 border-t border-outline-variant pt-4 ${collapsed ? '' : 'mx-3'}`,
-          ),
-        ],
-        [
-          collapsed
-            ? h.empty
-            : h.p(
-                [h.Class('m-0 text-on-surface-variant text-sm leading-[1.5]')],
-                [translate(locale, 'nav.claim')],
-              ),
           h.a(
             [
               h.Href(appearanceHref),
@@ -285,6 +314,16 @@ export const desktopNavigation = <Message>(
             ],
           ),
           languageControl ?? h.empty,
+          collapsed
+            ? h.empty
+            : h.p(
+                [
+                  h.Class(
+                    'm-0 border-t border-outline-variant pt-4 text-on-surface-variant text-sm leading-[1.5]',
+                  ),
+                ],
+                [translate(locale, 'nav.claim')],
+              ),
         ],
       ),
     ],
@@ -306,8 +345,8 @@ export const mobileNavigation = <Message>(
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
-    primaryNavigation(locale, route, exploreHref, listHref, appearanceHref).map((item) =>
-      mobileItem<Message>(locale, item),
+    bottomBarSeating(primaryNavigation(locale, route, exploreHref, listHref, appearanceHref)).map(
+      (item) => mobileItem<Message>(locale, item),
     ),
   );
 };

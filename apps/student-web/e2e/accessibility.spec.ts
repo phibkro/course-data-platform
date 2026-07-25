@@ -426,3 +426,26 @@ test('the sidebar offers exactly one way to reach Style', async ({ page }, testI
   // It lives beside the other preferences, not in the destination list.
   await expect(sidebar.getByRole('navigation').getByRole('link', { name: 'Style' })).toHaveCount(0);
 });
+
+test('Language stays in reach on mobile however far the page has scrolled', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium');
+  await waitForEnrichedCatalogue(page);
+
+  const language = page.locator('main').getByLabel('Language');
+  await expect(language).toBeInViewport();
+
+  // It used to sit at the end of the page, so finding it depended on how far
+  // down a long catalogue the student had already read.
+  await page.mouse.wheel(0, 4000);
+  await expect(language).toBeInViewport();
+});
+
+test('the licence is stated once, on Style', async ({ page }) => {
+  await waitForEnrichedCatalogue(page);
+  await expect(page.getByRole('link', { name: 'AGPL-3.0-only' })).toHaveCount(0);
+
+  await page.goto('/appearance');
+  await expect(page.getByRole('link', { name: 'AGPL-3.0-only' })).toHaveCount(1);
+});

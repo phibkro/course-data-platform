@@ -125,10 +125,9 @@ const lazyCatalogueHeader = createLazy();
 const lazyCatalogueControls = createLazy();
 const lazyCatalogueRefineDialog = createLazy();
 const lazyAppearancePage = createLazy();
-const lazyCatalogueFooter = createLazy();
-const lazyDetailFooter = createLazy();
+const lazyProductFooter = createLazy();
+const lazyMobileLanguageBar = createLazy();
 const lazyListHeader = createLazy();
-const lazyListFooter = createLazy();
 
 export const parseExternalHttpsUrl = (candidate: string | undefined): string | null => {
   if (candidate === undefined) return null;
@@ -2452,6 +2451,7 @@ const appView = (model: Model): Html => {
           h.div(
             [h.Class(mainColumnClass)],
             [
+              lazyMobileLanguageBar(mobileLanguageBar, [model.locale, model.selectFields]),
               savedCoursesPersistenceAlert(model),
               savedListActionStatus(model),
               model.route === 'appearance'
@@ -2588,7 +2588,6 @@ const catalogueView = (model: Model): Html => {
       ]),
       catalogueRefineAction(model),
       catalogueResultView(model),
-      lazyCatalogueFooter(productFooter, [model.locale, model.selectFields]),
     ],
   );
 };
@@ -3296,6 +3295,7 @@ const appearancePageView = (locale: Locale, preference: ThemePreference): Html =
           ),
         ],
       ),
+      lazyProductFooter(productFooter, [locale]),
     ],
   );
 };
@@ -4505,7 +4505,6 @@ const selectedCourseView = (model: Model): Html => {
         ],
       ),
       detailResultView(model.detail, model.locale),
-      lazyDetailFooter(productFooter, [model.locale, model.selectFields]),
     ],
   );
 };
@@ -5994,15 +5993,11 @@ const listView = (model: Model): Html => {
   const h = html<Message>();
   return h.div(
     [h.Class('grid gap-6')],
-    [
-      lazyListHeader(listHeader, [model.locale, exploreUrl(model)]),
-      savedCoursesResultView(model),
-      lazyListFooter(productFooter, [model.locale, model.selectFields]),
-    ],
+    [lazyListHeader(listHeader, [model.locale, exploreUrl(model)]), savedCoursesResultView(model)],
   );
 };
 
-const productFooter = (locale: Locale, selectFields: Model['selectFields']): Html => {
+const productFooter = (locale: Locale): Html => {
   const h = html<Message>();
   const externalLink = (url: string, label: string): Html =>
     h.a(
@@ -6042,8 +6037,28 @@ const productFooter = (locale: Locale, selectFields: Model['selectFields']): Htm
               ],
             ),
           ]),
+    ],
+  );
+};
+
+/**
+ * Language is chrome, not page content. It used to sit at the end of every
+ * page, which meant finding it depended on how far the student had scrolled —
+ * and on a long catalogue that is a long way down. It stays in reach here,
+ * and only on the narrow layout, where the sidebar that already carries it is
+ * hidden.
+ */
+const mobileLanguageBar = (locale: Locale, selectFields: Model['selectFields']): Html => {
+  const h = html<Message>();
+  return h.div(
+    [
+      h.Class(
+        'sticky top-0 z-[4] -mx-4 mb-2 flex justify-end bg-surface px-4 py-2 [@media(min-width:48rem)_and_(min-height:34rem)]:hidden',
+      ),
+    ],
+    [
       h.div(
-        [h.Class('w-full [@media(min-width:48rem)_and_(min-height:34rem)]:hidden')],
+        [h.Class('w-[min(100%,11rem)]')],
         [
           selectControl(
             selectFields,
