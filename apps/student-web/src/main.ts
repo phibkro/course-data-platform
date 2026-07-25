@@ -12,7 +12,7 @@ import { m } from 'foldkit/message';
 import { ts } from 'foldkit/schema';
 import { evo } from 'foldkit/struct';
 
-import { Button, Checkbox, Dialog, Disclosure, Input, RadioGroup } from '@foldkit/ui';
+import { Button, Checkbox, Dialog, Input, RadioGroup } from '@foldkit/ui';
 
 import {
   CourseDecisionSignalsResponseSchema,
@@ -404,7 +404,6 @@ export const Model = S.Struct({
   savedCoursesPersistFailed: S.Boolean,
   labelFilter: LabelFilterSchema,
   labelFilterNotice: S.NullOr(LabelFilterNoticeSchema),
-  labelFilterCombineOpen: S.Boolean,
   selectedCourseCodes: S.Array(S.String),
   labelDialog: Dialog.Model,
   labelDialogTarget: S.Array(S.String),
@@ -555,7 +554,6 @@ export const ChangedLabelFilterMode = m('ChangedLabelFilterMode', {
   mode: S.Literals(labelFilterModes),
 });
 export const ClearedLabelFilter = m('ClearedLabelFilter');
-export const ToggledLabelFilterCombine = m('ToggledLabelFilterCombine', { isOpen: S.Boolean });
 export const ChangedListDensity = m('ChangedListDensity', { value: ListDensitySchema });
 export const PersistedListDensity = m('PersistedListDensity');
 export const FailedListDensityPersistence = m('FailedListDensityPersistence');
@@ -635,7 +633,6 @@ export const Message = S.Union([
   ChangedLabelExclusion,
   ChangedLabelFilterMode,
   ClearedLabelFilter,
-  ToggledLabelFilterCombine,
   ChangedListDensity,
   PersistedListDensity,
   FailedListDensityPersistence,
@@ -2049,7 +2046,6 @@ export const update = (
       ChangedLabelFilterMode: ({ mode }) =>
         applyLabelFilter(model, setLabelFilterMode(model.labelFilter, mode)),
       ClearedLabelFilter: () => applyLabelFilter(model, emptyLabelFilter),
-      ToggledLabelFilterCombine: ({ isOpen }) => [{ ...model, labelFilterCombineOpen: isOpen }, []],
       ToggledSavedCourseSelection: ({ courseCode, isSelected }) => [
         {
           ...model,
@@ -2255,10 +2251,6 @@ export const initForHref = (
     savedCoursesPersistFailed: false,
     labelFilter: location.labelFilter,
     labelFilterNotice: null,
-    labelFilterCombineOpen:
-      location.labelFilter.excludeLabelIds.length > 0 ||
-      location.labelFilter.excludeUnlabeled ||
-      location.labelFilter.includeMode !== 'any',
     selectedCourseCodes: [],
     labelDialog: Dialog.init({
       id: 'saved-course-labels',
@@ -5085,6 +5077,87 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
         ],
       ),
   });
+  const includeChips = labels.map((label) =>
+    Button.view<Message>({
+      type: 'button',
+      onClick: ChangedLabelInclusion({
+        predicate: filterLabel(label.id),
+        isIncluded: !included.has(label.id),
+      }),
+      toView: (attributes) =>
+        h.button(
+          [
+            ...attributes.button,
+            h.Class(labelFilterChipClass(included.has(label.id))),
+            h.AriaPressed(String(included.has(label.id))),
+          ],
+          [
+            labelDot(label.color),
+            h.span([], [label.name]),
+            labelCountBadge(labelCourseCount(state, label.id), locale),
+            excluded.has(label.id)
+              ? h.span(
+                  [h.Class('text-xs font-extrabold uppercase')],
+                  [translate(locale, 'list.filterExcludedBadge')],
+                )
+              : h.empty,
+          ],
+        ),
+    }),
+  );
+
+  /**
+   * `Any` and `All` only differ once two predicates are included: with one,
+   * both readings select the same courses, so offering the choice would be
+   * offering nothing. The switch appears when it starts to mean something, and
+   * carries the size of each outcome so the decision reads as a result rather
+   * than as a connective.
+   */
+  const includedPredicateCount = filter.includeLabelIds.length + (filter.includeUnlabeled ? 1 : 0);
+  const countFor = (mode: LabelFilterMode): number =>
+    filterSavedCourses(state, { ...filter, includeMode: mode }).length;
+  const includeModeControl =
+    includedPredicateCount < 2
+      ? h.empty
+      : RadioGroup.view<LabelFilterMode, Message>({
+          id: 'label-filter-mode',
+          selectedValue: Option.some(filter.includeMode),
+          options: labelFilterModes,
+          ariaLabel: translate(locale, 'list.filterMode'),
+          onSelect: (mode) => ChangedLabelFilterMode({ mode }),
+          toView: ({ group, options }) =>
+            h.div(
+              [
+                ...group,
+                h.Class('inline-flex w-fit overflow-hidden rounded-full border border-outline'),
+              ],
+              options.map((option) =>
+                h.button(
+                  [
+                    ...option.option,
+                    h.Class(
+                      `min-h-11 cursor-pointer border-0 px-4 text-sm font-extrabold ${
+                        option.isSelected
+                          ? 'bg-primary text-on-primary'
+                          : 'bg-surface-container text-on-surface'
+                      }`,
+                    ),
+                  ],
+                  [
+                    translate(
+                      locale,
+                      option.value === 'all' ? 'list.filterModeAll' : 'list.filterModeAny',
+                    ),
+                    h.span(
+                      [h.Class('ml-2 font-bold tabular-nums opacity-[0.75]')],
+                      [countFor(option.value).toLocaleString(localeTag(locale))],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        });
+
   return h.section(
     [
       h.Class(
@@ -5100,156 +5173,68 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
           labelDialogAction([], locale),
         ],
       ),
+      /**
+       * Include and Exclude are peers, so they are shown as peers. Exclusion
+       * used to live behind a disclosure, which made the harder half of the
+       * language the hidden half.
+       */
       h.div(
+        [h.Class('grid gap-2')],
         [
-          h.Class('flex flex-wrap gap-2'),
-          h.Role('group'),
-          h.AriaLabel(translate(locale, 'list.filterHeading')),
-        ],
-        [
-          ...labels.map((label) =>
-            Button.view<Message>({
-              type: 'button',
-              onClick: ChangedLabelInclusion({
-                predicate: filterLabel(label.id),
-                isIncluded: !included.has(label.id),
-              }),
-              toView: (attributes) =>
-                h.button(
-                  [
-                    ...attributes.button,
-                    h.Class(labelFilterChipClass(included.has(label.id))),
-                    h.AriaPressed(String(included.has(label.id))),
-                  ],
-                  [
-                    labelDot(label.color),
-                    h.span([], [label.name]),
-                    labelCountBadge(labelCourseCount(state, label.id), locale),
-                    excluded.has(label.id)
-                      ? h.span(
-                          [h.Class('text-xs font-extrabold uppercase')],
-                          [translate(locale, 'list.filterExcludedBadge')],
-                        )
-                      : h.empty,
-                  ],
-                ),
-            }),
+          h.div(
+            [h.Class('flex flex-wrap items-center justify-between gap-2')],
+            [
+              h.p([h.Class(factDtClass)], [translate(locale, 'list.filterIncludeHeading')]),
+              includeModeControl,
+            ],
           ),
-          unlabeledChip,
+          h.div(
+            [
+              h.Class('flex flex-wrap gap-2'),
+              h.Role('group'),
+              h.AriaLabel(translate(locale, 'list.filterIncludeHeading')),
+            ],
+            [...includeChips, unlabeledChip],
+          ),
         ],
       ),
-      Disclosure.view<Message>({
-        id: 'label-filter-combine',
-        isOpen: model.labelFilterCombineOpen,
-        onToggle: (isOpen) => ToggledLabelFilterCombine({ isOpen }),
-        toView: ({ button, panel, animatePanel }) =>
+      h.div(
+        [h.Class('grid gap-2')],
+        [
+          h.p([h.Class(factDtClass)], [translate(locale, 'list.filterExcludeHeading')]),
           h.div(
-            [h.Class('grid gap-2')],
             [
-              h.button(
-                [
-                  ...button,
-                  h.Class(
-                    `${compactButtonBase} inline-flex min-h-11 w-fit items-center gap-2 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-sm font-bold text-primary`,
-                  ),
-                ],
-                [translate(locale, 'list.filterCombine')],
-              ),
-              animatePanel(
-                h.div(
-                  [
-                    ...panel,
-                    h.Class('grid gap-4 pt-2'),
-                    // The panel stays mounted while collapsed so animatePanel
-                    // has something to transition, and the primitive marks it
-                    // aria-hidden — but that alone leaves its RadioGroup and
-                    // checkboxes still tab-reachable, an aria-hidden-focus
-                    // violation. `inert` removes focusability to match.
-                    h.Inert(!model.labelFilterCombineOpen),
-                  ],
-                  [
-                    RadioGroup.view<LabelFilterMode, Message>({
-                      id: 'label-filter-mode',
-                      selectedValue: Option.some(filter.includeMode),
-                      options: labelFilterModes,
-                      ariaLabel: translate(locale, 'list.filterMode'),
-                      onSelect: (mode) => ChangedLabelFilterMode({ mode }),
-                      toView: ({ group, options }) =>
-                        h.div(
-                          [h.Class('grid gap-2')],
-                          [
-                            h.p([h.Class(factDtClass)], [translate(locale, 'list.filterMode')]),
-                            h.div(
-                              [
-                                ...group,
-                                h.Class(
-                                  'inline-flex overflow-hidden rounded-full border border-outline w-fit',
-                                ),
-                              ],
-                              options.map((option) =>
-                                h.button(
-                                  [
-                                    ...option.option,
-                                    h.Class(
-                                      `min-h-11 cursor-pointer border-0 px-4 text-sm font-extrabold ${
-                                        option.isSelected
-                                          ? 'bg-primary text-on-primary'
-                                          : 'bg-surface-container text-on-surface'
-                                      }`,
-                                    ),
-                                  ],
-                                  [
-                                    translate(
-                                      locale,
-                                      option.value === 'all'
-                                        ? 'list.filterModeAll'
-                                        : 'list.filterModeAny',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                    }),
-                    h.div(
-                      [h.Class('grid gap-2')],
-                      [
-                        h.p(
-                          [h.Class(factDtClass)],
-                          [translate(locale, 'list.filterExcludeHeading')],
-                        ),
-                        h.div(
-                          [h.Class('flex flex-wrap gap-2')],
-                          [
-                            ...labels.map((label) =>
-                              excludeCheckbox(
-                                `exclude-${label.id}`,
-                                excluded.has(label.id),
-                                filterLabel(label.id),
-                                label.name,
-                                labelDot(label.color),
-                                locale,
-                              ),
-                            ),
-                            excludeCheckbox(
-                              'exclude-unlabeled',
-                              filter.excludeUnlabeled,
-                              filterUnlabeled,
-                              unlabeledName,
-                              h.empty,
-                              locale,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
+              h.Class('flex flex-wrap gap-2'),
+              h.Role('group'),
+              h.AriaLabel(translate(locale, 'list.filterExcludeHeading')),
+            ],
+            [
+              ...labels.map((label) =>
+                excludeCheckbox(
+                  `exclude-${label.id}`,
+                  excluded.has(label.id),
+                  filterLabel(label.id),
+                  label.name,
+                  labelDot(label.color),
+                  locale,
                 ),
+              ),
+              excludeCheckbox(
+                'exclude-unlabeled',
+                filter.excludeUnlabeled,
+                filterUnlabeled,
+                unlabeledName,
+                h.empty,
+                locale,
               ),
             ],
           ),
-      }),
+          h.p(
+            [h.Class('m-0 text-on-surface-variant text-xs leading-[1.45]')],
+            [translate(locale, 'list.filterExcludeHelp')],
+          ),
+        ],
+      ),
       h.p(
         [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]'), h.AriaLive('polite')],
         [labelFilterSummary(state, filter, locale)],

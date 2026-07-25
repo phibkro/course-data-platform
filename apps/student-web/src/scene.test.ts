@@ -656,7 +656,7 @@ describe('label collections scene', () => {
     Scene.scene(
       { update, view },
       Scene.with(listModel()),
-      Scene.expect(Scene.role('group', { name: 'Filter by label' })).toExist(),
+      Scene.expect(Scene.role('group', { name: 'Include labels' })).toExist(),
       // The chip names itself from its own content: label name, count, and the
       // counted unit, so no digit stands alone and no colour carries meaning.
       Scene.expect(Scene.role('button', { name: /AI.*1.*saved course/ })).toExist(),
@@ -680,29 +680,22 @@ describe('label collections scene', () => {
     );
   });
 
-  test('All and Exclude live behind one progressive disclosure', () => {
+  test('Include and Exclude are peers, and the mode switch appears only when it decides something', () => {
     Scene.scene(
       { update, view },
       Scene.with(listModel()),
-      Scene.expect(Scene.role('button', { name: 'Combine labels' })).toExist(),
-      Scene.expect(Scene.role('radiogroup', { name: 'Match included labels' })).toExist(),
+      Scene.expect(Scene.role('group', { name: 'Include labels' })).toExist(),
+      Scene.expect(Scene.role('group', { name: 'Exclude labels' })).toExist(),
       Scene.expect(Scene.label('Exclude AI')).toExist(),
       Scene.expect(Scene.label('Exclude Group heavy')).toExist(),
-    );
-  });
-
-  test('the collapsed "Combine labels" panel is inert so its Any/All and Exclude controls cannot be focused', () => {
-    Scene.scene(
-      { update, view },
-      Scene.with(listModel()),
-      // The Disclosure primitive keeps the panel mounted and marks it
-      // aria-hidden while collapsed (needed for the height transition), but
-      // leaves removing focusability of its own descendants to the app —
-      // otherwise a focusable RadioGroup/Checkbox inside an aria-hidden
-      // ancestor is an aria-hidden-focus violation.
-      Scene.expect(Scene.selector('#label-filter-combine-panel')).toHaveAttr('inert', 'true'),
-      Scene.click(Scene.role('button', { name: 'Combine labels' })),
-      Scene.expect(Scene.selector('#label-filter-combine-panel')).toHaveAttr('inert', 'false'),
+      // Any and All select the same courses until a second predicate is
+      // included, so until then the choice would be a choice of nothing.
+      Scene.expect(Scene.role('radiogroup', { name: 'Match included labels' })).toBeAbsent(),
+      Scene.click(Scene.role('button', { name: /^AI/ })),
+      Scene.Command.resolve(Navigate, CompletedNavigation()),
+      Scene.expect(Scene.role('radiogroup', { name: 'Match included labels' })).toBeAbsent(),
+      Scene.click(Scene.role('button', { name: /^Group heavy/ })),
+      Scene.Command.resolve(Navigate, CompletedNavigation()),
       Scene.expect(Scene.role('radiogroup', { name: 'Match included labels' })).toExist(),
     );
   });
@@ -710,7 +703,7 @@ describe('label collections scene', () => {
   test('excluding a label subtracts it and says so in plain language', () => {
     Scene.scene(
       { update, view },
-      Scene.with({ ...listModel(), labelFilterCombineOpen: true }),
+      Scene.with(listModel()),
       Scene.click(Scene.label('Exclude AI')),
       Scene.Command.resolve(Navigate, CompletedNavigation()),
       Scene.expect(Scene.text('Showing saved courses, excluding AI.')).toExist(),
@@ -752,7 +745,7 @@ describe('label collections scene', () => {
   test('excluding Unlabeled means labelled courses only, in plain language', () => {
     Scene.scene(
       { update, view },
-      Scene.with({ ...listModel(), labelFilterCombineOpen: true }),
+      Scene.with(listModel()),
       Scene.click(Scene.label('Exclude Unlabeled')),
       Scene.Command.resolve(Navigate, CompletedNavigation()),
       Scene.expect(Scene.text('Showing saved courses, excluding Unlabeled.')).toExist(),

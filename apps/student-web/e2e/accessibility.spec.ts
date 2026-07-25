@@ -270,15 +270,7 @@ test('labels compose collections, stay in the URL, and survive history and reloa
   // address bar, before driving the next interaction.
   await expect(page.getByText('Showing saved courses in Autumn 2027.')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Combine labels' }).click();
-  // The disclosure panel is `inert` while collapsed and its click resolving
-  // does not guarantee the open-state re-render has landed. Wait for
-  // aria-expanded to flip before acting on its now-actionable contents;
-  // clicking through a still-inert panel silently drops the event.
-  await expect(page.getByRole('button', { name: 'Combine labels' })).toHaveAttribute(
-    'aria-expanded',
-    'true',
-  );
+  // Exclusion is a peer of inclusion rather than something to reveal first.
   await page.getByLabel('Exclude Autumn 2027').click();
   await expect(page).toHaveURL(/notLabels=label-/);
   await expect(page.getByText('No saved courses match this label combination')).toBeVisible();
@@ -453,4 +445,47 @@ test('the licence is stated once, on Style', async ({ page }) => {
 
   await page.goto('/appearance');
   await expect(page.getByRole('link', { name: 'AGPL-3.0-only' })).toHaveCount(1);
+});
+
+test('the match switch appears with its outcomes once a second label is included', async ({
+  page,
+}) => {
+  await waitForEnrichedCatalogue(page);
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('button', { name: 'Save TDT4109 to List' }).click();
+  await page.getByRole('link', { name: 'Saved' }).click();
+
+  const label = async (name: string, courseCode: string): Promise<void> => {
+    await page.getByRole('button', { name: `Edit labels for ${courseCode}` }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Label name').fill(name);
+    await dialog.getByRole('button', { name: 'Add label' }).click();
+    await expect(dialog.getByRole('checkbox', { name: new RegExp(name) })).toBeChecked();
+    await page.getByRole('button', { name: 'Close labels' }).click();
+    await expect(dialog).toBeHidden();
+  };
+  await label('Autumn', 'TDT4136');
+  await label('Norwegian', 'TDT4109');
+
+  const mode = page.getByRole('radiogroup', { name: 'Match included labels' });
+  await expect(mode).toBeHidden();
+
+  // One predicate reads the same either way, so the choice is not offered.
+  await page
+    .getByRole('button', { name: /^Autumn/ })
+    .first()
+    .click();
+  await expect(mode).toBeHidden();
+
+  /**
+   * With two, the readings diverge — and the switch says what each one
+   * selects, so the student picks a result rather than a connective.
+   */
+  await page
+    .getByRole('button', { name: /^Norwegian/ })
+    .first()
+    .click();
+  await expect(mode).toBeVisible();
+  await expect(mode.getByRole('radio', { name: /Any/ })).toContainText('2');
+  await expect(mode.getByRole('radio', { name: /All/ })).toContainText('0');
 });
