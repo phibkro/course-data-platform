@@ -67,7 +67,7 @@ export const primaryNavigation = (
      * name stays the full one. The route is `/appearance` either way.
      */
     label: translate(locale, 'appearance.navLabel'),
-    accessibleLabel: translate(locale, 'appearance.label'),
+    accessibleLabel: translate(locale, 'appearance.navLabel'),
     icon: 'appearance',
     href: appearanceHref,
     isCurrent: route === 'appearance',
@@ -236,7 +236,15 @@ export const desktopNavigation = <Message>(
       ),
       h.nav(
         [h.Class('grid gap-1')],
-        items.map((item) => desktopItem<Message>(locale, item, collapsed)),
+        /**
+         * The sidebar keeps Appearance beside the language control at the
+         * bottom, where the other preferences live, so it is not repeated in
+         * the destination list. The bottom bar has no such footer and carries
+         * it as its fifth destination.
+         */
+        items
+          .filter((item) => item.id !== 'appearance')
+          .map((item) => desktopItem<Message>(locale, item, collapsed)),
       ),
       h.div(
         [
@@ -264,14 +272,15 @@ export const desktopNavigation = <Message>(
                 }`,
               ),
               ...(route === 'appearance' ? [h.AriaCurrent('page')] : []),
-              h.AriaLabel(translate(locale, 'appearance.label')),
-              h.Title(translate(locale, 'appearance.label')),
+              // No aria-label: the accessible name is the visible word, so the
+              // two cannot disagree once the sidebar collapses it to an icon.
+              h.Title(translate(locale, 'appearance.navLabel')),
             ],
             [
               icon<Message>('appearance', 'block size-5 [&_svg]:block [&_svg]:size-full'),
               h.span(
                 [h.Class(collapsed ? 'sr-only' : '')],
-                [translate(locale, 'appearance.label')],
+                [translate(locale, 'appearance.navLabel')],
               ),
             ],
           ),

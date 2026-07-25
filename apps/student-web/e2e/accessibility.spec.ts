@@ -71,7 +71,7 @@ test('Refine listboxes remain interactive above the dialog', async ({ page }) =>
 
 test('Appearance is a destination with no detectable WCAG A/AA violations', async ({ page }) => {
   await waitForEnrichedCatalogue(page);
-  await page.getByRole('link', { name: 'Appearance' }).first().click();
+  await page.getByRole('link', { name: 'Style' }).first().click();
 
   await expect(page).toHaveURL(/\/appearance(?:\?|$)/);
   await expect(page.getByRole('heading', { name: 'Theme lab' })).toBeVisible();
@@ -115,7 +115,7 @@ test('desktop sidebar collapse preference survives reload', async ({ page }, tes
 
 test('theme preference applies immediately and survives reload', async ({ page }) => {
   await waitForEnrichedCatalogue(page);
-  await page.getByRole('link', { name: 'Appearance' }).first().click();
+  await page.getByRole('link', { name: 'Style' }).first().click();
   await page.getByRole('button', { name: /Pine/ }).click();
   await page.getByRole('button', { name: 'Dark' }).click();
 
@@ -387,4 +387,42 @@ test('a course reporting both grading scales offers a choice of view', async ({ 
   const letters = scale.getByRole('button', { name: 'Letter grades' });
   await letters.click();
   await expect(letters).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('the main column is centred in the space the sidebar leaves', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium');
+  await page.setViewportSize({ width: 1900, height: 1000 });
+  await waitForEnrichedCatalogue(page);
+
+  /**
+   * The sidebar is fixed, so the column is offset by a margin. An explicit
+   * margin beats `auto`, which once left every spare pixel on the right. The
+   * gap either side of the column should match.
+   */
+  const gaps = await page.evaluate(() => {
+    const main = document.querySelector('main');
+    const column = main?.firstElementChild;
+    const sidebar = document.querySelector('aside');
+    if (!main || !column || !sidebar) return null;
+    const box = column.getBoundingClientRect();
+    const rail = sidebar.getBoundingClientRect();
+    return {
+      left: Math.round(box.left - rail.right),
+      right: Math.round(window.innerWidth - box.right),
+    };
+  });
+
+  expect(gaps).not.toBeNull();
+  expect(Math.abs(gaps!.left - gaps!.right)).toBeLessThanOrEqual(2);
+  expect(gaps!.left).toBeGreaterThan(0);
+});
+
+test('the sidebar offers exactly one way to reach Style', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium');
+  await waitForEnrichedCatalogue(page);
+
+  const sidebar = page.getByRole('complementary', { name: 'Primary navigation' });
+  await expect(sidebar.getByRole('link', { name: 'Style' })).toHaveCount(1);
+  // It lives beside the other preferences, not in the destination list.
+  await expect(sidebar.getByRole('navigation').getByRole('link', { name: 'Style' })).toHaveCount(0);
 });

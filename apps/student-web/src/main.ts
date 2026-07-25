@@ -2379,12 +2379,26 @@ const eyebrowClass = 'mb-2 text-primary text-xs font-extrabold tracking-[0.1em] 
 const fieldLabelClass =
   'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-sm font-semibold';
 
+/**
+ * The sidebar is fixed, so the main column is offset to clear it. That offset
+ * has to be a margin, and an explicit `margin-left` beats `margin-left: auto`
+ * — so capping the width here left every spare pixel on the right instead of
+ * splitting it. The offset stays, and the cap moves inside.
+ */
 const mainContentClass = (sidebarCollapsed: boolean): string =>
-  `w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:64rem)]:px-10 ${
+  `w-full pt-4 px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:64rem)]:px-10 ${
     sidebarCollapsed
-      ? '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-20'
-      : '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66'
+      ? '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[calc(100%-5rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-20'
+      : '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[calc(100%-16.5rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66'
   }`;
+
+/**
+ * One reading column, centred in whatever space the sidebar leaves. 76rem is
+ * about 100 characters at the body size — wide enough for the three-column
+ * course card, short enough that a heading does not run away from the text
+ * under it.
+ */
+const mainColumnClass = 'mx-auto w-full max-w-[76rem]';
 
 const buttonBase =
   'cursor-pointer transition-[box-shadow,transform] duration-150 ease-in-out focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] [@media(max-width:37rem)]:w-full';
@@ -2435,15 +2449,23 @@ const appView = (model: Model): Html => {
       h.main(
         [h.Class(mainContentClass(model.sidebarCollapsed))],
         [
-          savedCoursesPersistenceAlert(model),
-          savedListActionStatus(model),
-          model.route === 'appearance'
-            ? lazyAppearancePage(appearancePageFromValues, [model.locale, model.themePreference])
-            : model.route === 'list'
-              ? listView(model)
-              : model.selectedCode === null
-                ? catalogueView(model)
-                : selectedCourseView(model),
+          h.div(
+            [h.Class(mainColumnClass)],
+            [
+              savedCoursesPersistenceAlert(model),
+              savedListActionStatus(model),
+              model.route === 'appearance'
+                ? lazyAppearancePage(appearancePageFromValues, [
+                    model.locale,
+                    model.themePreference,
+                  ])
+                : model.route === 'list'
+                  ? listView(model)
+                  : model.selectedCode === null
+                    ? catalogueView(model)
+                    : selectedCourseView(model),
+            ],
+          ),
         ],
       ),
       lazyCatalogueRefineDialog(catalogueRefineDialogFromValues, [

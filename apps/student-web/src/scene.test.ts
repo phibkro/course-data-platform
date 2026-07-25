@@ -57,7 +57,7 @@ describe('browse-first catalogue scene', () => {
       Scene.expect(Scene.label('Search courses')).toExist(),
       Scene.expect(Scene.label('Campus')).toExist(),
       Scene.expect(Scene.role('button', { name: 'Refine' })).toExist(),
-      Scene.expect(Scene.role('link', { name: 'Appearance' })).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Style' })).toExist(),
       Scene.expect(Scene.label('Study level')).toBeAbsent(),
       Scene.expect(Scene.label('Sort')).toBeAbsent(),
       Scene.expect(Scene.role('link', { name: 'Explore' })).toExist(),
