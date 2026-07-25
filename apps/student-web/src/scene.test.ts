@@ -468,7 +468,7 @@ describe('local List scene', () => {
       { update, view },
       Scene.with({
         ...listModel(emptySavedList),
-        savedListAction: SavedActionSaved({ courseCode: 'TDT4136' }),
+        savedListActions: [SavedActionSaved({ courseCode: 'TDT4136' })],
       }),
       Scene.expect(Scene.text('TDT4136 saved to List.')).toExist(),
       Scene.click(Scene.role('button', { name: 'Dismiss' })),

@@ -579,3 +579,32 @@ test('the undo toast sits above the bottom bar and never moves the page', async 
   expect(gap!).toBeGreaterThanOrEqual(0);
   expect(gap!).toBeLessThan(40);
 });
+
+test('undoable actions stack, each keeping its own way back', async ({ page }) => {
+  await waitForEnrichedCatalogue(page);
+
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('button', { name: 'Save TDT4109 to List' }).click();
+
+  // A second action must not cost the student the first one's undo.
+  await expect(page.getByRole('button', { name: 'Undo saving TDT4136' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo saving TDT4109' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Dismiss all/ })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Undo saving TDT4136' }).click();
+  await expect(page.getByRole('button', { name: 'Save TDT4136 to List' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Remove TDT4109 from List' })).toBeVisible();
+
+  // One left, so the group control has nothing to group.
+  await expect(page.getByRole('button', { name: /Dismiss all/ })).toBeHidden();
+
+  await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
+  await page.getByRole('button', { name: 'Save IT2805 to List' }).click();
+  await expect(page.getByRole('button', { name: /Dismiss all/ })).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  await page.getByRole('button', { name: /Dismiss all/ }).click();
+  await expect(page.getByRole('button', { name: /^Undo/ })).toHaveCount(0);
+  // Dismissing a notice is not undoing it: the saves stand.
+  await expect(page.getByRole('button', { name: 'Remove IT2805 from List' })).toBeVisible();
+});

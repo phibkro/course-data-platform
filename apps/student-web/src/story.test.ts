@@ -45,7 +45,6 @@ import {
   RequestedSaveCourse,
   RequestedSavedCoursesReset,
   RequestedUndoSavedListAction,
-  SavedActionIdle,
   SavedActionSaved,
   SavedCoursesReady,
   StampSavedCourse,
@@ -489,17 +488,20 @@ test('a save carries an explicit confirmation that Undo removes, persisting the 
     StampedSavedCourse({ courseCode: 'TDT4136', savedAt }),
   );
 
-  expect(saved.savedListAction).toMatchObject({
+  expect(saved.savedListActions[0]).toMatchObject({
     _tag: 'SavedActionSaved',
     courseCode: 'TDT4136',
   });
   expect(saveCommands.map(({ name }) => name)).toEqual(['PersistSavedCourses']);
 
-  const [undone, undoCommands] = update(saved, RequestedUndoSavedListAction());
+  const [undone, undoCommands] = update(
+    saved,
+    RequestedUndoSavedListAction({ key: 'saved:TDT4136' }),
+  );
   const state = undone.savedCourses._tag === 'SavedCoursesReady' ? undone.savedCourses.state : null;
 
   expect(state?.savedCourses).toEqual([]);
-  expect(undone.savedListAction).toEqual(SavedActionIdle());
+  expect(undone.savedListActions).toEqual([]);
   expect(undoCommands.map(({ name }) => name)).toEqual(['PersistSavedCourses']);
   expect(undoCommands[0]?.args).toMatchObject({ state: emptySavedList });
 });
@@ -529,7 +531,7 @@ test('undoing a removal restores the exact saved course, its note, and its label
     removed.savedCourses._tag === 'SavedCoursesReady' ? removed.savedCourses.state : null;
 
   expect(removedState).toEqual({ ...emptySavedList, labels: savedWithLabel.labels });
-  expect(removed.savedListAction).toMatchObject({
+  expect(removed.savedListActions[0]).toMatchObject({
     _tag: 'SavedActionRemoved',
     // Removing one course and removing several are the same act on sets of
     // different size, so the action always carries a set.
@@ -538,12 +540,16 @@ test('undoing a removal restores the exact saved course, its note, and its label
   });
   expect(removeCommands.map(({ name }) => name)).toEqual(['PersistSavedCourses']);
 
-  const [restored, undoCommands] = update(removed, RequestedUndoSavedListAction());
+  const [restored, undoCommands] = update(
+    removed,
+    // A removal's notice is keyed by the removal, not by the earlier save.
+    RequestedUndoSavedListAction({ key: 'removed:TDT4136' }),
+  );
   const restoredState =
     restored.savedCourses._tag === 'SavedCoursesReady' ? restored.savedCourses.state : null;
 
   expect(restoredState).toEqual(savedWithLabel);
-  expect(restored.savedListAction).toEqual(SavedActionIdle());
+  expect(restored.savedListActions).toEqual([]);
   expect(undoCommands.map(({ name }) => name)).toEqual(['PersistSavedCourses']);
   expect(undoCommands[0]?.args).toMatchObject({ state: savedWithLabel });
 });
@@ -551,12 +557,18 @@ test('undoing a removal restores the exact saved course, its note, and its label
 test('a repeated Undo is inert once the ephemeral snapshot has already been consumed', () => {
   const model = readyModel();
   const [saved] = update(model, StampedSavedCourse({ courseCode: 'TDT4136', savedAt }));
-  const [firstUndo, firstCommands] = update(saved, RequestedUndoSavedListAction());
+  const [firstUndo, firstCommands] = update(
+    saved,
+    RequestedUndoSavedListAction({ key: 'saved:TDT4136' }),
+  );
 
   expect(firstCommands.map(({ name }) => name)).toEqual(['PersistSavedCourses']);
-  expect(firstUndo.savedListAction).toEqual(SavedActionIdle());
+  expect(firstUndo.savedListActions).toEqual([]);
 
-  const [secondUndo, secondCommands] = update(firstUndo, RequestedUndoSavedListAction());
+  const [secondUndo, secondCommands] = update(
+    firstUndo,
+    RequestedUndoSavedListAction({ key: 'saved:TDT4136' }),
+  );
 
   expect(secondUndo).toBe(firstUndo);
   expect(secondCommands).toEqual([]);
@@ -565,9 +577,9 @@ test('a repeated Undo is inert once the ephemeral snapshot has already been cons
 test('dismissing the saved-list status clears the snapshot without persisting anything', () => {
   const model = readyModel();
   const [saved] = update(model, StampedSavedCourse({ courseCode: 'TDT4136', savedAt }));
-  const [dismissed, commands] = update(saved, DismissedSavedListAction());
+  const [dismissed, commands] = update(saved, DismissedSavedListAction({ key: 'saved:TDT4136' }));
 
-  expect(dismissed.savedListAction).toEqual(SavedActionIdle());
+  expect(dismissed.savedListActions).toEqual([]);
   expect(commands).toEqual([]);
 });
 
@@ -943,12 +955,12 @@ test('label actions are inert while saved state is unreadable', () => {
 test('undoing a save also drops the course from selection and label targets', () => {
   const model = {
     ...listModel(labelledState()),
-    savedListAction: SavedActionSaved({ courseCode: 'TDT4136' }),
+    savedListActions: [SavedActionSaved({ courseCode: 'TDT4136' })],
     selectedCourseCodes: ['TDT4136', 'TMA4100'],
     labelDialogTarget: ['TDT4136'],
   };
 
-  const [undone] = update(model, RequestedUndoSavedListAction());
+  const [undone] = update(model, RequestedUndoSavedListAction({ key: 'saved:TDT4136' }));
 
   expect(readyStateOf(undone).savedCourses.map((course) => course.courseCode)).toEqual(['TMA4100']);
   expect(undone.selectedCourseCodes).toEqual(['TMA4100']);

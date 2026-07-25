@@ -345,13 +345,43 @@ const savedToggleAvailability = (result: SavedCoursesResult): 'ready' | 'loading
  * drive the ` · Undo` confirmation. It is never persisted: Dismiss and a
  * later action simply replace it.
  */
-export const SavedActionIdle = ts('SavedActionIdle');
 export const SavedActionSaved = ts('SavedActionSaved', { courseCode: S.String });
 export const SavedActionRemoved = ts('SavedActionRemoved', {
   courses: S.Array(SavedCourseSchema),
   memberships: S.Array(LabelMembershipSchema),
 });
-const SavedListActionSchema = S.Union([SavedActionIdle, SavedActionSaved, SavedActionRemoved]);
+const SavedListNoticeSchema = S.Union([SavedActionSaved, SavedActionRemoved]);
+type SavedListNotice = typeof SavedListNoticeSchema.Type;
+
+/**
+ * How many undoable actions stay offered at once. Each carries the snapshot
+ * needed to reverse it, so the queue is bounded rather than a history: past
+ * the third, the oldest snapshot is dropped instead of being kept forever.
+ */
+const savedListNoticeLimit = 3;
+
+/**
+ * A notice is keyed by what happened, so repeating an action refreshes its
+ * notice rather than stacking a second copy of the same sentence.
+ */
+const savedListNoticeKey = (notice: SavedListNotice): string =>
+  notice._tag === 'SavedActionSaved'
+    ? `saved:${notice.courseCode}`
+    : `removed:${notice.courses.map((course) => course.courseCode).join(',')}`;
+
+const withNotice = (
+  notices: ReadonlyArray<SavedListNotice>,
+  notice: SavedListNotice,
+): ReadonlyArray<SavedListNotice> =>
+  [
+    notice,
+    ...notices.filter((existing) => savedListNoticeKey(existing) !== savedListNoticeKey(notice)),
+  ].slice(0, savedListNoticeLimit);
+
+const withoutNotice = (
+  notices: ReadonlyArray<SavedListNotice>,
+  key: string,
+): ReadonlyArray<SavedListNotice> => notices.filter((notice) => savedListNoticeKey(notice) !== key);
 
 const NoteDraftSchema = S.Struct({ courseCode: S.String, value: S.String });
 
@@ -399,7 +429,7 @@ export const Model = S.Struct({
   locale: LocaleSchema,
   route: RouteSchema,
   savedCourses: SavedCoursesResultSchema,
-  savedListAction: SavedListActionSchema,
+  savedListActions: S.Array(SavedListNoticeSchema),
   noteDrafts: S.Array(NoteDraftSchema),
   savedCoursesPersistFailed: S.Boolean,
   labelFilter: LabelFilterSchema,
@@ -542,8 +572,11 @@ export const SubmittedSavedNote = m('SubmittedSavedNote', { courseCode: S.String
 export const RequestedSavedCoursesReset = m('RequestedSavedCoursesReset');
 export const PersistedSavedCourses = m('PersistedSavedCourses');
 export const FailedSavedCoursesPersistence = m('FailedSavedCoursesPersistence');
-export const RequestedUndoSavedListAction = m('RequestedUndoSavedListAction');
-export const DismissedSavedListAction = m('DismissedSavedListAction');
+export const RequestedUndoSavedListAction = m('RequestedUndoSavedListAction', {
+  key: S.String,
+});
+export const DismissedSavedListAction = m('DismissedSavedListAction', { key: S.String });
+export const DismissedAllSavedListActions = m('DismissedAllSavedListActions');
 /**
  * Filter messages carry the state the student asked for, not a flip of
  * whatever the model holds when the message lands. A duplicate click, a
@@ -639,6 +672,7 @@ export const Message = S.Union([
   FailedSavedCoursesPersistence,
   RequestedUndoSavedListAction,
   DismissedSavedListAction,
+  DismissedAllSavedListActions,
   ChangedLabelInclusion,
   ChangedLabelExclusion,
   ChangedLabelFilterMode,
@@ -1946,7 +1980,13 @@ export const update = (
           courseCode,
         );
         if (next === model) return [next, commands];
-        return [{ ...next, savedListAction: SavedActionSaved({ courseCode }) }, commands];
+        return [
+          {
+            ...next,
+            savedListActions: withNotice(model.savedListActions, SavedActionSaved({ courseCode })),
+          },
+          commands,
+        ];
       },
       RequestedRemoveSavedCourse: ({ courseCode }) => {
         const state = savedListState(model.savedCourses);
@@ -1965,7 +2005,10 @@ export const update = (
             // selection in the same transition; nothing can act on it after.
             selectedCourseCodes: withoutSelected(model.selectedCourseCodes, identity.courseCode),
             labelDialogTarget: withoutSelected(model.labelDialogTarget, identity.courseCode),
-            savedListAction: SavedActionRemoved({ courses: [course], memberships }),
+            savedListActions: withNotice(
+              model.savedListActions,
+              SavedActionRemoved({ courses: [course], memberships }),
+            ),
           },
           [PersistSavedCourses({ state: next })],
         ];
@@ -1992,7 +2035,7 @@ export const update = (
           ...model,
           savedCourses: SavedCoursesReady({ state: emptySavedList, repairedEntries: 0 }),
           noteDrafts: [],
-          savedListAction: SavedActionIdle(),
+          savedListActions: [],
           selectedCourseCodes: [],
           labelDialogTarget: [],
           labelFilter: emptyLabelFilter,
@@ -2015,22 +2058,25 @@ export const update = (
        * Both branches are idempotent, so a stale or repeated Undo is inert
        * once the snapshot has already been consumed.
        */
-      RequestedUndoSavedListAction: () => {
+      RequestedUndoSavedListAction: ({ key }) => {
         const state = savedListState(model.savedCourses);
-        if (state === null) return [model, []];
-        return M.value(model.savedListAction).pipe(
+        const notice = model.savedListActions.find(
+          (candidate) => savedListNoticeKey(candidate) === key,
+        );
+        if (state === null || notice === undefined) return [model, []];
+        const remaining = withoutNotice(model.savedListActions, key);
+        return M.value(notice).pipe(
           M.withReturnType<readonly [Model, ReadonlyArray<Command.Command<Message>>]>(),
           M.tagsExhaustive({
-            SavedActionIdle: () => [model, []],
             SavedActionSaved: ({ courseCode }) => {
               const identity = courseIdentity(courseCode);
               const next = identity === null ? state : removeSavedCourse(state, identity);
-              if (next === state) return [{ ...model, savedListAction: SavedActionIdle() }, []];
+              if (next === state) return [{ ...model, savedListActions: remaining }, []];
               return [
                 {
                   ...model,
                   savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
-                  savedListAction: SavedActionIdle(),
+                  savedListActions: [],
                   selectedCourseCodes: withoutSelected(model.selectedCourseCodes, courseCode),
                   labelDialogTarget: withoutSelected(model.labelDialogTarget, courseCode),
                 },
@@ -2047,12 +2093,12 @@ export const update = (
                   ),
                 state,
               );
-              if (next === state) return [{ ...model, savedListAction: SavedActionIdle() }, []];
+              if (next === state) return [{ ...model, savedListActions: remaining }, []];
               return [
                 {
                   ...model,
                   savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
-                  savedListAction: SavedActionIdle(),
+                  savedListActions: [],
                 },
                 [PersistSavedCourses({ state: next })],
               ];
@@ -2060,7 +2106,11 @@ export const update = (
           }),
         );
       },
-      DismissedSavedListAction: () => [{ ...model, savedListAction: SavedActionIdle() }, []],
+      DismissedSavedListAction: ({ key }) => [
+        { ...model, savedListActions: withoutNotice(model.savedListActions, key) },
+        [],
+      ],
+      DismissedAllSavedListActions: () => [{ ...model, savedListActions: [] }, []],
       ChangedLabelInclusion: ({ predicate, isIncluded }) =>
         applyLabelFilter(model, setPredicateIncluded(model.labelFilter, predicate, isIncluded)),
       ChangedLabelExclusion: ({ predicate, isExcluded }) =>
@@ -2117,7 +2167,10 @@ export const update = (
             selectedCourseCodes: [],
             labelDialogTarget: [],
             selectionRemovePending: false,
-            savedListAction: SavedActionRemoved({ courses, memberships }),
+            savedListActions: withNotice(
+              model.savedListActions,
+              SavedActionRemoved({ courses, memberships }),
+            ),
           },
           [PersistSavedCourses({ state: next })],
         ];
@@ -2312,7 +2365,7 @@ export const initForHref = (
     locale: location.locale,
     route: location.route,
     savedCourses: SavedCoursesLoading(),
-    savedListAction: SavedActionIdle(),
+    savedListActions: [],
     noteDrafts: [],
     savedCoursesPersistFailed: false,
     labelFilter: location.labelFilter,
@@ -2579,39 +2632,28 @@ const savedCoursesPersistenceAlert = (model: Model): Html => {
  */
 const savedListActionStatus = (model: Model): Html => {
   const h = html<Message>();
-  const savedListActionButtonClass = `${compactButtonBase} ${buttonSecondary}`;
-  const dismiss = Button.view<Message>({
-    type: 'button',
-    onClick: DismissedSavedListAction(),
-    toView: (attributes) =>
-      h.button(
-        [...attributes.button, h.Class(savedListActionButtonClass)],
-        [translate(model.locale, 'list.dismissStatus')],
-      ),
-  });
-  const undo = (undoLabel: string): Html =>
-    Button.view<Message>({
-      type: 'button',
-      onClick: RequestedUndoSavedListAction(),
-      toView: (attributes) =>
-        h.button(
-          [...attributes.button, h.Class(savedListActionButtonClass), h.AriaLabel(undoLabel)],
-          [translate(model.locale, 'list.undo')],
-        ),
-    });
-  /**
-   * The banner reports something that already happened, so it must not push
-   * the page around to say so: it is positioned rather than in flow. It also
-   * never times out — an undo the student blinked past is an undo they do not
-   * have — so it stays until dismissed or until the next action replaces it.
-   *
-   * Placement follows where the eye already is. On the narrow layout that is
-   * the bottom bar, so the banner sits directly above it, clearing the
-   * selection tray when that is showing too. On a wide layout it settles into
-   * the bottom-right corner, out of the reading column entirely.
-   */
-  const banner = (message: string, undoLabel: string): Html =>
-    h.div(
+  const notices = model.savedListActions;
+  if (notices.length === 0) return h.empty;
+  const buttonClass = `${compactButtonBase} ${buttonSecondary}`;
+
+  const noticeCard = (notice: SavedListNotice): Html => {
+    const key = savedListNoticeKey(notice);
+    const single = notice._tag === 'SavedActionRemoved' && notice.courses.length === 1;
+    const removed = notice._tag === 'SavedActionRemoved' ? notice.courses : [];
+    const message =
+      notice._tag === 'SavedActionSaved'
+        ? translate(model.locale, 'list.savedStatus', { code: notice.courseCode })
+        : single && removed[0] !== undefined
+          ? translate(model.locale, 'list.removedStatus', { code: removed[0].courseCode })
+          : translate(model.locale, 'list.removedManyStatus', { count: removed.length });
+    const undoLabel =
+      notice._tag === 'SavedActionSaved'
+        ? translate(model.locale, 'list.undoSave', { code: notice.courseCode })
+        : single && removed[0] !== undefined
+          ? translate(model.locale, 'list.undoRemove', { code: removed[0].courseCode })
+          : translate(model.locale, 'list.undoRemoveMany', { count: removed.length });
+
+    return h.div(
       [
         h.Class(
           'pointer-events-auto flex flex-wrap items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface-container py-[0.9rem] px-4 text-on-surface shadow-m3-2',
@@ -2621,29 +2663,62 @@ const savedListActionStatus = (model: Model): Html => {
       ],
       [
         h.p([h.Class('m-0')], [message]),
-        h.div([h.Class('flex items-center gap-2')], [undo(undoLabel), dismiss]),
+        h.div(
+          [h.Class('flex items-center gap-2')],
+          [
+            Button.view<Message>({
+              type: 'button',
+              onClick: RequestedUndoSavedListAction({ key }),
+              toView: (attributes) =>
+                h.button(
+                  [...attributes.button, h.Class(buttonClass), h.AriaLabel(undoLabel)],
+                  [translate(model.locale, 'list.undo')],
+                ),
+            }),
+            Button.view<Message>({
+              type: 'button',
+              onClick: DismissedSavedListAction({ key }),
+              // Its own name: sharing Undo's would give two buttons one
+              // accessible name for opposite outcomes.
+              toView: (attributes) =>
+                h.button(
+                  [...attributes.button, h.Class(buttonClass)],
+                  [translate(model.locale, 'list.dismissStatus')],
+                ),
+            }),
+          ],
+        ),
       ],
     );
-  return M.value(model.savedListAction).pipe(
-    M.withReturnType<Html>(),
-    M.tagsExhaustive({
-      SavedActionIdle: () => h.empty,
-      SavedActionSaved: ({ courseCode }) =>
-        banner(
-          translate(model.locale, 'list.savedStatus', { code: courseCode }),
-          translate(model.locale, 'list.undoSave', { code: courseCode }),
-        ),
-      SavedActionRemoved: ({ courses }) =>
-        courses.length === 1 && courses[0] !== undefined
-          ? banner(
-              translate(model.locale, 'list.removedStatus', { code: courses[0].courseCode }),
-              translate(model.locale, 'list.undoRemove', { code: courses[0].courseCode }),
-            )
-          : banner(
-              translate(model.locale, 'list.removedManyStatus', { count: courses.length }),
-              translate(model.locale, 'list.undoRemoveMany', { count: courses.length }),
-            ),
-    }),
+  };
+
+  /**
+   * Each notice keeps its own Undo, so a second action does not cost the
+   * student the first one. Clearing them one at a time is the tax that
+   * stacking introduces, so the group offers a single way out once there is
+   * more than one to clear.
+   */
+  return h.div(
+    [h.Class('pointer-events-none grid gap-2')],
+    [
+      ...notices.map(noticeCard),
+      notices.length < 2
+        ? h.empty
+        : h.div(
+            [h.Class('pointer-events-auto flex justify-end')],
+            [
+              Button.view<Message>({
+                type: 'button',
+                onClick: DismissedAllSavedListActions(),
+                toView: (attributes) =>
+                  h.button(
+                    [...attributes.button, h.Class(`${buttonClass} min-h-11`)],
+                    [translate(model.locale, 'list.dismissAllStatus', { count: notices.length })],
+                  ),
+              }),
+            ],
+          ),
+    ],
   );
 };
 
