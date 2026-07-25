@@ -32,16 +32,20 @@ import { collaborationIconName, icon, termSeasonIconName, type AppIcon } from '.
 import { desktopNavigation, mobileNavigation } from './navigation';
 import {
   LabelMembershipSchema,
+  LabelPredicateSchema,
   SavedCourseSchema,
   SavedListLoadSchema,
   SavedListStateSchema,
   attachLabel,
   createLabel,
+  defaultLabelColor,
   deleteLabel,
   detachLabel,
   editLabel,
   emptyLabelFilter,
+  filterLabel,
   filterSavedCourses,
+  filterUnlabeled,
   findLabel,
   hasLabel,
   isLabelFilterActive,
@@ -53,14 +57,18 @@ import {
   labelsForSavedCourse,
   labelsMaxCount,
   normalizeLabelFilter,
-  setLabelExcluded,
   setLabelFilterMode,
-  toggleIncludeLabel,
+  setPredicateExcluded,
+  setPredicateIncluded,
+  unlabeledCourseCount,
+  validateLabelEdit,
   validateNewLabel,
   type Label,
   type LabelColor,
   type LabelFilter,
   type LabelFilterMode,
+  type LabelPredicate,
+  type LabelRejection,
   type LabelResult,
   courseIdentity,
   emptySavedList,
@@ -108,6 +116,7 @@ const EXPLORE_PATH = '/';
 const LIST_PATH = '/list';
 const EXPLORE_APPEARANCE_PATH = '/appearance';
 const LIST_APPEARANCE_PATH = '/list/appearance';
+const listDensityStorageKey = 'course-lens:list-density';
 const lazyCourseCard = createKeyedLazy();
 const lazySavedCourseRow = createKeyedLazy();
 const lazyDesktopNavigation = createLazy();
@@ -357,8 +366,10 @@ const LabelColorSchema = S.Literals(labelColors);
  */
 const LabelFilterSchema = S.Struct({
   includeLabelIds: S.Array(S.String),
+  includeUnlabeled: S.Boolean,
   includeMode: S.Literals(labelFilterModes),
   excludeLabelIds: S.Array(S.String),
+  excludeUnlabeled: S.Boolean,
 });
 
 /**
@@ -369,12 +380,22 @@ const LabelFilterSchema = S.Struct({
 const LabelFilterNoticeSchema = S.Struct({
   unknownCount: S.Number,
   contradictoryLabelIds: S.Array(S.String),
+  contradictoryUnlabeled: S.Boolean,
 });
 
 const LabelRejectionSchema = S.Literals(labelRejections);
 
 const RouteSchema = S.Literals(['explore', 'list']);
 type Route = typeof RouteSchema.Type;
+
+/**
+ * How much of each saved course a List row shows. It is a local display
+ * preference: it changes nothing about the saved set, its labels, or the
+ * collection recipe, so it stays out of the URL and out of student data.
+ */
+export const listDensities = ['card', 'compact'] as const;
+const ListDensitySchema = S.Literals(listDensities);
+export type ListDensity = typeof ListDensitySchema.Type;
 
 export const Model = S.Struct({
   locale: LocaleSchema,
@@ -394,6 +415,7 @@ export const Model = S.Struct({
   labelEditing: S.NullOr(S.String),
   labelPendingDelete: S.NullOr(S.String),
   labelError: S.NullOr(LabelRejectionSchema),
+  listDensity: ListDensitySchema,
   query: S.String,
   term: S.String,
   campus: CampusSchema,
@@ -523,9 +545,17 @@ export const PersistedSavedCourses = m('PersistedSavedCourses');
 export const FailedSavedCoursesPersistence = m('FailedSavedCoursesPersistence');
 export const RequestedUndoSavedListAction = m('RequestedUndoSavedListAction');
 export const DismissedSavedListAction = m('DismissedSavedListAction');
-export const ToggledLabelInclude = m('ToggledLabelInclude', { labelId: S.String });
-export const ToggledLabelExclude = m('ToggledLabelExclude', {
-  labelId: S.String,
+/**
+ * Filter messages carry the state the student asked for, not a flip of
+ * whatever the model holds when the message lands. A duplicate click, a
+ * bubbled event, or a stale history echo therefore cannot undo a selection.
+ */
+export const ChangedLabelInclusion = m('ChangedLabelInclusion', {
+  predicate: LabelPredicateSchema,
+  isIncluded: S.Boolean,
+});
+export const ChangedLabelExclusion = m('ChangedLabelExclusion', {
+  predicate: LabelPredicateSchema,
   isExcluded: S.Boolean,
 });
 export const ChangedLabelFilterMode = m('ChangedLabelFilterMode', {
@@ -533,6 +563,9 @@ export const ChangedLabelFilterMode = m('ChangedLabelFilterMode', {
 });
 export const ClearedLabelFilter = m('ClearedLabelFilter');
 export const ToggledLabelFilterCombine = m('ToggledLabelFilterCombine', { isOpen: S.Boolean });
+export const ChangedListDensity = m('ChangedListDensity', { value: ListDensitySchema });
+export const PersistedListDensity = m('PersistedListDensity');
+export const FailedListDensityPersistence = m('FailedListDensityPersistence');
 export const ToggledSavedCourseSelection = m('ToggledSavedCourseSelection', {
   courseCode: S.String,
   isSelected: S.Boolean,
@@ -607,11 +640,14 @@ export const Message = S.Union([
   FailedSavedCoursesPersistence,
   RequestedUndoSavedListAction,
   DismissedSavedListAction,
-  ToggledLabelInclude,
-  ToggledLabelExclude,
+  ChangedLabelInclusion,
+  ChangedLabelExclusion,
   ChangedLabelFilterMode,
   ClearedLabelFilter,
   ToggledLabelFilterCombine,
+  ChangedListDensity,
+  PersistedListDensity,
+  FailedListDensityPersistence,
   ToggledSavedCourseSelection,
   ClearedSavedCourseSelection,
   RequestedLabelDialog,
@@ -791,6 +827,23 @@ export const PersistSidebarPreference = Command.define(
   }).pipe(
     Effect.as(PersistedSidebarPreference()),
     Effect.catch(() => Effect.succeed(FailedSidebarPreferencePersistence())),
+  ),
+);
+
+export const PersistListDensity = Command.define(
+  'PersistListDensity',
+  { density: ListDensitySchema },
+  PersistedListDensity,
+  FailedListDensityPersistence,
+)(({ density }) =>
+  Effect.try({
+    try: () => {
+      localStorage.setItem(listDensityStorageKey, density);
+    },
+    catch: () => new Error('List density preference could not be persisted'),
+  }).pipe(
+    Effect.as(PersistedListDensity()),
+    Effect.catch(() => Effect.succeed(FailedListDensityPersistence())),
   ),
 );
 
@@ -1044,10 +1097,14 @@ const normalizedUrl = (
   if (pathname === LIST_PATH || pathname === LIST_APPEARANCE_PATH) {
     const filter = model.labelFilter;
     if (filter.includeLabelIds.length > 0) params.set('labels', filter.includeLabelIds.join(','));
+    // `Unlabeled` is a derived predicate with no id, so it travels as its own
+    // flag rather than as a reserved value inside the id list.
+    if (filter.includeUnlabeled) params.set('unlabeled', '1');
     if (filter.includeMode !== 'any') params.set('labelMode', filter.includeMode);
     if (filter.excludeLabelIds.length > 0) {
       params.set('notLabels', filter.excludeLabelIds.join(','));
     }
+    if (filter.excludeUnlabeled) params.set('notUnlabeled', '1');
   }
   const query = params.toString();
   return query.length === 0 ? pathname : `${pathname}?${query}`;
@@ -1066,6 +1123,8 @@ const sameLabelIds = (left: ReadonlyArray<string>, right: ReadonlyArray<string>)
 
 const sameLabelFilter = (left: LabelFilter, right: LabelFilter): boolean =>
   left.includeMode === right.includeMode &&
+  left.includeUnlabeled === right.includeUnlabeled &&
+  left.excludeUnlabeled === right.excludeUnlabeled &&
   sameLabelIds(left.includeLabelIds, right.includeLabelIds) &&
   sameLabelIds(left.excludeLabelIds, right.excludeLabelIds);
 
@@ -1171,6 +1230,7 @@ const canonicalizeLabelFilter = (
     labelFilterNotice: {
       unknownCount: normalized.unknownLabelIds.length,
       contradictoryLabelIds: normalized.contradictoryLabelIds,
+      contradictoryUnlabeled: normalized.contradictoryUnlabeled,
     },
   };
   return [
@@ -1190,6 +1250,32 @@ const applyLabelFilter = (
   if (sameLabelFilter(filter, model.labelFilter)) return [model, []];
   const next: Model = { ...model, labelFilter: filter, labelFilterNotice: null };
   return [next, [Navigate({ href: currentUrl(next, null), mode: 'push' })]];
+};
+
+/**
+ * Everything the label form owns, returned to its initial state. Opening the
+ * dialog, closing it by any route, and cancelling an edit all discard the draft
+ * through this one value, so no path can leave half of it behind.
+ */
+const discardedLabelDraft = {
+  labelEditing: null,
+  labelDraftName: '',
+  labelDraftColor: defaultLabelColor,
+  labelError: null,
+  labelPendingDelete: null,
+} as const satisfies Partial<Model>;
+
+/**
+ * The reason the current draft would be refused, or `null` if Apply would
+ * succeed. The dialog uses it to keep already-visible feedback in step with the
+ * draft being corrected; it decides nothing the transition would not.
+ */
+const labelDraftRejection = (model: Model): LabelRejection | null => {
+  const state = savedListState(model.savedCourses);
+  if (state === null) return null;
+  return model.labelEditing === null
+    ? validateNewLabel(state, model.labelDraftName)
+    : validateLabelEdit(state, model.labelEditing, model.labelDraftName);
 };
 
 /**
@@ -1341,8 +1427,10 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
       path.route === 'list'
         ? {
             includeLabelIds: parseLabelIds(url.searchParams.get('labels')),
+            includeUnlabeled: url.searchParams.get('unlabeled') === '1',
             includeMode: oneOf(url.searchParams.get('labelMode') ?? 'any', labelFilterModes, 'any'),
             excludeLabelIds: parseLabelIds(url.searchParams.get('notLabels')),
+            excludeUnlabeled: url.searchParams.get('notUnlabeled') === '1',
           }
         : emptyLabelFilter,
   };
@@ -2004,10 +2092,10 @@ export const update = (
         );
       },
       DismissedSavedListAction: () => [{ ...model, savedListAction: SavedActionIdle() }, []],
-      ToggledLabelInclude: ({ labelId }) =>
-        applyLabelFilter(model, toggleIncludeLabel(model.labelFilter, labelId)),
-      ToggledLabelExclude: ({ labelId, isExcluded }) =>
-        applyLabelFilter(model, setLabelExcluded(model.labelFilter, labelId, isExcluded)),
+      ChangedLabelInclusion: ({ predicate, isIncluded }) =>
+        applyLabelFilter(model, setPredicateIncluded(model.labelFilter, predicate, isIncluded)),
+      ChangedLabelExclusion: ({ predicate, isExcluded }) =>
+        applyLabelFilter(model, setPredicateExcluded(model.labelFilter, predicate, isExcluded)),
       ChangedLabelFilterMode: ({ mode }) =>
         applyLabelFilter(model, setLabelFilterMode(model.labelFilter, mode)),
       ClearedLabelFilter: () => applyLabelFilter(model, emptyLabelFilter),
@@ -2022,6 +2110,14 @@ export const update = (
         [],
       ],
       ClearedSavedCourseSelection: () => [{ ...model, selectedCourseCodes: [] }, []],
+      /** A density change is a preference, never a change to the saved set: it
+       *  persists locally and produces no navigation and no fetch. */
+      ChangedListDensity: ({ value }) =>
+        model.listDensity === value
+          ? [model, []]
+          : [{ ...model, listDensity: value }, [PersistListDensity({ density: value })]],
+      PersistedListDensity: () => [model, []],
+      FailedListDensityPersistence: () => [model, []],
       /**
        * One dialog owns label creation, editing, and attachment. Opening it
        * carries the explicit target: a single row, the current selection, or
@@ -2030,18 +2126,14 @@ export const update = (
       RequestedLabelDialog: ({ courseCodes }) => {
         const [labelDialog, commands] = Dialog.open(model.labelDialog);
         return [
-          {
-            ...model,
-            labelDialog,
-            labelDialogTarget: courseCodes,
-            labelEditing: null,
-            labelDraftName: '',
-            labelError: null,
-            labelPendingDelete: null,
-          },
+          { ...model, ...discardedLabelDraft, labelDialog, labelDialogTarget: courseCodes },
           Command.mapMessages(commands, (message) => GotLabelDialogMessage({ message })),
         ];
       },
+      /**
+       * Cancel, the backdrop, and Escape all arrive here as one close, so the
+       * draft is discarded on exactly one path rather than three.
+       */
       GotLabelDialogMessage: ({ message: dialogMessage }) => {
         const [labelDialog, commands] = Dialog.update(model.labelDialog, dialogMessage);
         const closing = dialogMessage._tag === 'RequestedClose';
@@ -2049,28 +2141,33 @@ export const update = (
           {
             ...model,
             labelDialog,
-            ...(closing
-              ? {
-                  labelEditing: null,
-                  labelDraftName: '',
-                  labelError: null,
-                  labelDialogTarget: [],
-                  labelPendingDelete: null,
-                }
-              : {}),
+            ...(closing ? { ...discardedLabelDraft, labelDialogTarget: [] } : {}),
           },
           Command.mapMessages(commands, (message) => GotLabelDialogMessage({ message })),
         ];
       },
-      UpdatedLabelDraftName: ({ value }) => [
-        { ...model, labelDraftName: value, labelError: null },
-        [],
-      ],
+      /**
+       * The draft is the only thing that changes while the student types. Once
+       * an Apply attempt has produced feedback, the feedback is recomputed from
+       * the draft being corrected, so it never describes a name that is no
+       * longer on screen — and it stays absent until that first attempt.
+       */
+      UpdatedLabelDraftName: ({ value }) => {
+        const next: Model = { ...model, labelDraftName: value };
+        return [
+          { ...next, labelError: model.labelError === null ? null : labelDraftRejection(next) },
+          [],
+        ];
+      },
+      /**
+       * Colour is draft state like the name. Choosing one never creates,
+       * updates, or attaches a label; only Apply does.
+       */
       ChangedLabelDraftColor: ({ value }) => [{ ...model, labelDraftColor: value }, []],
       /**
-       * Creating a label needs an id from the boundary, so the rules are
-       * checked here first: an empty or duplicate name never reaches the
-       * command, and the student keeps the draft they have to fix.
+       * Apply is the single transition. Creating needs an id from the boundary,
+       * so the rules are checked here first: an empty or duplicate name never
+       * reaches the command, and the student keeps the draft they have to fix.
        */
       SubmittedLabelForm: () => {
         const state = savedListState(model.savedCourses);
@@ -2083,7 +2180,7 @@ export const update = (
               name: model.labelDraftName,
               color: model.labelDraftColor,
             }),
-            { labelEditing: null, labelDraftName: '' },
+            { labelEditing: null, labelDraftName: '', labelDraftColor: defaultLabelColor },
           );
         }
         const rejection = validateNewLabel(state, model.labelDraftName);
@@ -2102,9 +2199,9 @@ export const update = (
           name: model.labelDraftName,
           color: model.labelDraftColor,
         });
-        if (created._tag !== 'LabelApplied') {
-          return applyLabelResult(model, created, { labelDraftName: '' });
-        }
+        // A refused create attaches nothing: the draft stays exactly as the
+        // student left it so they can correct the reason and try again.
+        if (created._tag !== 'LabelApplied') return applyLabelResult(model, created);
         const targets = labelTargetIdentities(created.state, model.labelDialogTarget);
         const attached = attachLabel(created.state, labelId, targets);
         return applyLabelResult(
@@ -2112,6 +2209,7 @@ export const update = (
           { _tag: 'LabelApplied', state: attached },
           {
             labelDraftName: '',
+            labelDraftColor: defaultLabelColor,
           },
         );
       },
@@ -2130,10 +2228,7 @@ export const update = (
           [],
         ];
       },
-      CancelledLabelEdit: () => [
-        { ...model, labelEditing: null, labelDraftName: '', labelError: null },
-        [],
-      ],
+      CancelledLabelEdit: () => [{ ...model, ...discardedLabelDraft }, []],
       /** Deletion is permanent and drops every membership on the label, so a
        *  single click only arms an in-dialog confirmation. Nothing is removed
        *  until the student explicitly confirms that specific label. */
@@ -2150,9 +2245,12 @@ export const update = (
         if (state === null) return [model, []];
         const result = deleteLabel(state, labelId);
         if (result._tag !== 'LabelApplied') return applyLabelResult(model, result);
+        // Deleting the label currently being edited discards that draft rather
+        // than leaving the form pointed at something that no longer exists.
         return applyLabelStateChange(model, result.state, {
-          labelEditing: model.labelEditing === labelId ? null : model.labelEditing,
-          labelDraftName: model.labelEditing === labelId ? '' : model.labelDraftName,
+          ...(model.labelEditing === labelId
+            ? { labelEditing: null, labelDraftName: '', labelDraftColor: defaultLabelColor }
+            : {}),
           labelPendingDelete: null,
         });
       },
@@ -2195,6 +2293,7 @@ export const initForHref = (
   fallbackLocale: Locale = 'en',
   sidebarCollapsed = false,
   themePreference: ThemePreference = defaultThemePreference,
+  listDensity: ListDensity = 'card',
 ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
   const location = parseLocation(href, fallbackLocale);
   const initialAppearanceDialog = Dialog.init({
@@ -2215,7 +2314,9 @@ export const initForHref = (
     labelFilter: location.labelFilter,
     labelFilterNotice: null,
     labelFilterCombineOpen:
-      location.labelFilter.excludeLabelIds.length > 0 || location.labelFilter.includeMode !== 'any',
+      location.labelFilter.excludeLabelIds.length > 0 ||
+      location.labelFilter.excludeUnlabeled ||
+      location.labelFilter.includeMode !== 'any',
     selectedCourseCodes: [],
     labelDialog: Dialog.init({
       id: 'saved-course-labels',
@@ -2224,10 +2325,11 @@ export const initForHref = (
     }),
     labelDialogTarget: [],
     labelDraftName: '',
-    labelDraftColor: labelColors[0],
+    labelDraftColor: defaultLabelColor,
     labelEditing: null,
     labelPendingDelete: null,
     labelError: null,
+    listDensity,
     query: location.query,
     term: location.term,
     campus: location.campus,
@@ -2286,6 +2388,7 @@ export const init: Runtime.ApplicationInit<Model, Message> = () =>
     browserPreferredLocale(),
     browserSidebarCollapsed(),
     readThemePreference(),
+    browserListDensity(),
   );
 
 export const routingInit: Runtime.RoutingApplicationInit<Model, Message> = (url) =>
@@ -2294,6 +2397,7 @@ export const routingInit: Runtime.RoutingApplicationInit<Model, Message> = (url)
     browserPreferredLocale(),
     browserSidebarCollapsed(),
     readThemePreference(),
+    browserListDensity(),
   );
 
 const browserPreferredLocale = (): Locale => {
@@ -2308,6 +2412,14 @@ const browserPreferredLocale = (): Locale => {
 const browserSidebarCollapsed = (): boolean => {
   if (typeof window === 'undefined') return false;
   return localStorage.getItem('course-lens:sidebar-collapsed') === '1';
+};
+
+/** Stored preferences are untrusted input too: anything that is not one of the
+ *  two densities reads as the default rather than reaching the model. */
+const browserListDensity = (): ListDensity => {
+  if (typeof window === 'undefined') return 'card';
+  const stored = localStorage.getItem(listDensityStorageKey);
+  return listDensities.find((density) => density === stored) ?? 'card';
 };
 
 const documentTitle = (model: Model): string => {
@@ -2328,7 +2440,7 @@ const fieldLabelClass =
   'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-[0.85rem] font-[650]';
 
 const mainContentClass = (sidebarCollapsed: boolean): string =>
-  `w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:64rem)]:px-10 ${
+  `w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:64rem)]:px-10 ${
     sidebarCollapsed
       ? '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-20'
       : '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66'
@@ -2811,7 +2923,7 @@ const activeRefinementCount = (model: Model): number =>
   ].filter(Boolean).length;
 
 const catalogueRefineActionClass =
-  'fixed z-11 right-[max(1rem,env(safe-area-inset-right))] bottom-[calc(6rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:sticky [@media(min-width:48rem)_and_(min-height:34rem)]:z-5 [@media(min-width:48rem)_and_(min-height:34rem)]:top-4 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:min-h-17 [@media(min-width:48rem)_and_(min-height:34rem)]:items-center [@media(min-width:48rem)_and_(min-height:34rem)]:justify-between [@media(min-width:48rem)_and_(min-height:34rem)]:gap-4 [@media(min-width:48rem)_and_(min-height:34rem)]:py-[0.65rem] [@media(min-width:48rem)_and_(min-height:34rem)]:pr-3 [@media(min-width:48rem)_and_(min-height:34rem)]:pl-4 [@media(min-width:48rem)_and_(min-height:34rem)]:border [@media(min-width:48rem)_and_(min-height:34rem)]:border-outline-variant [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-[1.5rem] [@media(min-width:48rem)_and_(min-height:34rem)]:bg-[color-mix(in_srgb,var(--md-sys-color-surface-container)_92%,transparent)] [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-m3-1 [@media(min-width:48rem)_and_(min-height:34rem)]:backdrop-blur-[1rem]';
+  'fixed z-11 right-[max(1rem,env(safe-area-inset-right))] bottom-[calc(5rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:sticky [@media(min-width:48rem)_and_(min-height:34rem)]:z-5 [@media(min-width:48rem)_and_(min-height:34rem)]:top-4 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:min-h-17 [@media(min-width:48rem)_and_(min-height:34rem)]:items-center [@media(min-width:48rem)_and_(min-height:34rem)]:justify-between [@media(min-width:48rem)_and_(min-height:34rem)]:gap-4 [@media(min-width:48rem)_and_(min-height:34rem)]:py-[0.65rem] [@media(min-width:48rem)_and_(min-height:34rem)]:pr-3 [@media(min-width:48rem)_and_(min-height:34rem)]:pl-4 [@media(min-width:48rem)_and_(min-height:34rem)]:border [@media(min-width:48rem)_and_(min-height:34rem)]:border-outline-variant [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-[1.5rem] [@media(min-width:48rem)_and_(min-height:34rem)]:bg-[color-mix(in_srgb,var(--md-sys-color-surface-container)_92%,transparent)] [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-m3-1 [@media(min-width:48rem)_and_(min-height:34rem)]:backdrop-blur-[1rem]';
 
 const catalogueRefineActionSummaryClass =
   'hidden [@media(min-width:48rem)_and_(min-height:34rem)]:grid [@media(min-width:48rem)_and_(min-height:34rem)]:min-w-0 [@media(min-width:48rem)_and_(min-height:34rem)]:gap-[0.15rem]';
@@ -3694,12 +3806,28 @@ const courseTitle = (course: CourseSearchItemDtoType, locale: Locale): string =>
  * Identity and offering facts keep the same slots and order wherever a course
  * is summarized, so a missing value stays visible instead of disappearing.
  */
-const courseIdentityFacts = (
+type CourseOffering = Extract<
+  CourseSearchItemDtoType['offerings'],
+  { readonly state: 'known' }
+>['value'][number];
+
+interface CourseOfferingFacts {
+  readonly offering: CourseOffering | null;
+  readonly place: string;
+  readonly term: string;
+  readonly credits: string;
+}
+
+/**
+ * The identity and current offering, resolved once. Card and compact rows read
+ * the same values, so a density choice can never change what a course is said
+ * to be — and a non-known state stays the state it was, never a blank.
+ */
+const courseOfferingFacts = (
   course: CourseSearchItemDtoType,
   decisionSignal: DecisionSignal,
   locale: Locale,
-): Html => {
-  const h = html<Message>();
+): CourseOfferingFacts => {
   const offering =
     course.offerings.state === 'known' && course.offerings.value.length > 0
       ? (course.offerings.value[0] ?? null)
@@ -3730,6 +3858,16 @@ const courseIdentityFacts = (
           }).format(creditsFact.value),
         })
       : factStateLabel(creditsFact.state, locale);
+  return { offering, place, term, credits };
+};
+
+const courseIdentityFacts = (
+  course: CourseSearchItemDtoType,
+  decisionSignal: DecisionSignal,
+  locale: Locale,
+): Html => {
+  const h = html<Message>();
+  const { offering, place, term, credits } = courseOfferingFacts(course, decisionSignal, locale);
   return h.dl(
     [h.Class('grid gap-x-4 gap-y-3 grid-cols-2')],
     [
@@ -4529,7 +4667,6 @@ const listHeader = (locale: Locale, exploreHref: string): Html => {
  */
 const labelChipTone = (color: LabelColor): string =>
   M.value(color).pipe(
-    M.when('blue', () => 'bg-label-blue text-on-label-blue'),
     M.when('violet', () => 'bg-label-violet text-on-label-violet'),
     M.when('amber', () => 'bg-label-amber text-on-label-amber'),
     M.when('rose', () => 'bg-label-rose text-on-label-rose'),
@@ -4540,7 +4677,6 @@ const labelChipTone = (color: LabelColor): string =>
 
 const labelDotTone = (color: LabelColor): string =>
   M.value(color).pipe(
-    M.when('blue', () => 'bg-label-blue'),
     M.when('violet', () => 'bg-label-violet'),
     M.when('amber', () => 'bg-label-amber'),
     M.when('rose', () => 'bg-label-rose'),
@@ -4551,7 +4687,6 @@ const labelDotTone = (color: LabelColor): string =>
 
 const labelColorName = (color: LabelColor, locale: Locale): string =>
   M.value(color).pipe(
-    M.when('blue', () => translate(locale, 'label.colorBlue')),
     M.when('violet', () => translate(locale, 'label.colorViolet')),
     M.when('amber', () => translate(locale, 'label.colorAmber')),
     M.when('rose', () => translate(locale, 'label.colorRose')),
@@ -4563,9 +4698,12 @@ const labelColorName = (color: LabelColor, locale: Locale): string =>
 const labelChipClass = (color: LabelColor): string =>
   `inline-flex min-h-7 items-center gap-1.5 rounded-full border border-outline-variant px-2.5 text-[0.78rem] font-[750] ${labelChipTone(color)}`;
 
-const labelChip = (label: Label): Html => {
+const labelChip = (label: Label, id: string | null = null): Html => {
   const h = html<Message>();
-  return h.span([h.Class(labelChipClass(label.color))], [label.name]);
+  return h.span(
+    [h.Class(labelChipClass(label.color)), ...(id === null ? [] : [h.Id(id)])],
+    [label.name],
+  );
 };
 
 const labelDot = (color: LabelColor): Html => {
@@ -4622,6 +4760,7 @@ const savedCourseRow = (
   isSelected: boolean,
   locale: Locale,
   outcomeView: OutcomeView,
+  density: ListDensity,
 ): Html => {
   const h = html<Message>();
   const noteFieldId = `saved-note-${course.courseCode}`;
@@ -4668,6 +4807,93 @@ const savedCourseRow = (
         [translate(locale, 'list.openLabels')],
       ),
   });
+  const identityBlock = h.div(
+    [h.Class('min-w-0 flex-1')],
+    [
+      h.p(
+        [h.Class('mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase')],
+        [course.courseCode],
+      ),
+      h.h3(
+        [
+          h.Class(
+            density === 'compact' ? 'text-[1rem] leading-[1.3]' : 'text-[1.1rem] leading-[1.35]',
+          ),
+        ],
+        [
+          h.a(
+            [
+              h.Href(href),
+              h.AriaLabel(
+                title === null
+                  ? openLabel
+                  : translate(locale, 'course.open', {
+                      code: course.courseCode,
+                      title,
+                    }),
+              ),
+              h.Class('text-on-surface'),
+            ],
+            [title ?? openLabel],
+          ),
+        ],
+      ),
+    ],
+  );
+  const labelsBlock = h.div(
+    [
+      h.Class('flex flex-wrap items-center gap-2'),
+      h.Role('group'),
+      h.AriaLabel(translate(locale, 'list.rowLabels', { code: course.courseCode })),
+    ],
+    [
+      ...labels.map((label) => labelChip(label)),
+      labels.length === 0
+        ? h.span(
+            [h.Class('text-on-surface-variant text-[0.8rem]')],
+            [translate(locale, 'list.rowNoLabels')],
+          )
+        : h.empty,
+      labelsAction,
+    ],
+  );
+  /**
+   * Compact keeps the same saved-course identity, its current offering, its
+   * labels, and its primary actions in one scan line. The evidence, findings,
+   * and private note are not rewritten or summarized here — they stay whole in
+   * card view and in Inspect, so density never changes what is known.
+   */
+  if (density === 'compact') {
+    const facts =
+      item === null ? null : courseOfferingFacts(item, decisionSignal ?? 'idle', locale);
+    return h.li(
+      [],
+      [
+        h.article(
+          [h.Class(`${savedRowClass} gap-2 p-[0.8rem]`)],
+          [
+            h.div(
+              [h.Class('flex items-start justify-between gap-3')],
+              [
+                selectionCheckbox,
+                identityBlock,
+                savedCourseToggle(course.courseCode, true, 'ready', locale, ''),
+              ],
+            ),
+            h.p(
+              [h.Class('m-0 text-on-surface-variant text-[0.82rem] leading-[1.4]')],
+              [
+                facts === null
+                  ? translate(locale, 'list.factsNotLoaded')
+                  : `${facts.credits} · ${facts.term} · ${facts.place}`,
+              ],
+            ),
+            labelsBlock,
+          ],
+        ),
+      ],
+    );
+  }
   return h.li(
     [],
     [
@@ -4678,59 +4904,11 @@ const savedCourseRow = (
             [h.Class('flex items-start justify-between gap-3')],
             [
               selectionCheckbox,
-              h.div(
-                [h.Class('min-w-0 flex-1')],
-                [
-                  h.p(
-                    [
-                      h.Class(
-                        'mb-[0.3rem] text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase',
-                      ),
-                    ],
-                    [course.courseCode],
-                  ),
-                  h.h3(
-                    [h.Class('text-[1.1rem] leading-[1.35]')],
-                    [
-                      h.a(
-                        [
-                          h.Href(href),
-                          h.AriaLabel(
-                            title === null
-                              ? openLabel
-                              : translate(locale, 'course.open', {
-                                  code: course.courseCode,
-                                  title,
-                                }),
-                          ),
-                          h.Class('text-on-surface'),
-                        ],
-                        [title ?? openLabel],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+              identityBlock,
               savedCourseToggle(course.courseCode, true, 'ready', locale, ''),
             ],
           ),
-          h.div(
-            [
-              h.Class('flex flex-wrap items-center gap-2'),
-              h.Role('group'),
-              h.AriaLabel(translate(locale, 'list.rowLabels', { code: course.courseCode })),
-            ],
-            [
-              ...labels.map((label) => labelChip(label)),
-              labels.length === 0
-                ? h.span(
-                    [h.Class('text-on-surface-variant text-[0.8rem]')],
-                    [translate(locale, 'list.rowNoLabels')],
-                  )
-                : h.empty,
-              labelsAction,
-            ],
-          ),
+          labelsBlock,
           item === null
             ? h.div(
                 [
@@ -4820,14 +4998,11 @@ const savedCourseRow = (
 const savedCountLabel = (count: number, locale: Locale): string =>
   count === 1 ? translate(locale, 'list.countOne') : translate(locale, 'list.countMany', { count });
 
-const labelNameList = (
-  labels: ReadonlyArray<Label>,
+const nameList = (
+  names: ReadonlyArray<string>,
   locale: Locale,
   type: 'conjunction' | 'disjunction',
-): string =>
-  new Intl.ListFormat(localeTag(locale), { style: 'long', type }).format(
-    labels.map((label) => label.name),
-  );
+): string => new Intl.ListFormat(localeTag(locale), { style: 'long', type }).format(names);
 
 const labelsFromIds = (
   state: SavedListState,
@@ -4838,19 +5013,33 @@ const labelsFromIds = (
     .filter((label): label is Label => label !== null);
 
 /**
+ * The names a filter group selects, with the derived `Unlabeled` set reading as
+ * one more name so the restated sentence never has to special-case it.
+ */
+const predicateNames = (
+  state: SavedListState,
+  labelIds: ReadonlyArray<string>,
+  unlabeled: boolean,
+  locale: Locale,
+): ReadonlyArray<string> => [
+  ...labelsFromIds(state, labelIds).map((label) => label.name),
+  ...(unlabeled ? [translate(locale, 'list.filterUnlabeled')] : []),
+];
+
+/**
  * The active recipe restated in the student's language. `All` reads as a
  * conjunction and `Any` as a disjunction, so the sentence and the switch can
  * never disagree about what is being shown.
  */
 const labelFilterSummary = (state: SavedListState, filter: LabelFilter, locale: Locale): string => {
-  const included = labelsFromIds(state, filter.includeLabelIds);
-  const excluded = labelsFromIds(state, filter.excludeLabelIds);
-  const includedText = labelNameList(
+  const included = predicateNames(state, filter.includeLabelIds, filter.includeUnlabeled, locale);
+  const excluded = predicateNames(state, filter.excludeLabelIds, filter.excludeUnlabeled, locale);
+  const includedText = nameList(
     included,
     locale,
     filter.includeMode === 'all' ? 'conjunction' : 'disjunction',
   );
-  const excludedText = labelNameList(excluded, locale, 'conjunction');
+  const excludedText = nameList(excluded, locale, 'conjunction');
   if (included.length > 0 && excluded.length > 0) {
     return translate(locale, 'list.filterSummaryBoth', {
       labels: includedText,
@@ -4872,6 +5061,48 @@ const labelFilterChipClass = (included: boolean): string =>
       ? 'border-primary bg-primary-container text-on-primary-container'
       : 'border-outline bg-surface-container text-on-surface'
   }`;
+
+/**
+ * One exclusion control for every predicate: a real label carries its colour
+ * dot, the derived `Unlabeled` set carries none, and both read the same way.
+ */
+const excludeCheckbox = (
+  id: string,
+  isExcluded: boolean,
+  predicate: LabelPredicate,
+  name: string,
+  dot: Html,
+  locale: Locale,
+): Html => {
+  const h = html<Message>();
+  return Checkbox.view<Message>({
+    id,
+    isChecked: isExcluded,
+    onToggle: (checked) => ChangedLabelExclusion({ predicate, isExcluded: checked }),
+    toView: (attributes) =>
+      h.label(
+        [
+          ...attributes.label,
+          h.Class(
+            'inline-flex min-h-11 items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-[0.82rem] text-on-surface-variant cursor-pointer has-[[data-checked]]:border-error has-[[data-checked]]:bg-error-container has-[[data-checked]]:text-on-error-container',
+          ),
+        ],
+        [
+          h.span(
+            [
+              ...attributes.checkbox,
+              h.Class(
+                'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-[0.7rem] leading-none',
+              ),
+            ],
+            [isExcluded ? '✓' : ''],
+          ),
+          dot,
+          h.span([], [translate(locale, 'list.filterExclude', { name })]),
+        ],
+      ),
+  });
+};
 
 /**
  * Label chips are the ordinary path: tap a label to include it. `All` and
@@ -4903,8 +5134,45 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
   const filter = model.labelFilter;
   const included = new Set(filter.includeLabelIds);
   const excluded = new Set(filter.excludeLabelIds);
-  const contradictory = labelsFromIds(state, model.labelFilterNotice?.contradictoryLabelIds ?? []);
+  const contradictory = predicateNames(
+    state,
+    model.labelFilterNotice?.contradictoryLabelIds ?? [],
+    model.labelFilterNotice?.contradictoryUnlabeled ?? false,
+    locale,
+  );
   const unknownCount = model.labelFilterNotice?.unknownCount ?? 0;
+  const unsatisfiable = normalizeLabelFilter(state, filter).isUnsatisfiable;
+  const unlabeledName = translate(locale, 'list.filterUnlabeled');
+  /**
+   * `Unlabeled` sits with the label chips because it is one more way to name a
+   * collection, but it is derived from membership rather than stored: it has no
+   * colour swatch, cannot be renamed, and cannot go stale.
+   */
+  const unlabeledChip = Button.view<Message>({
+    type: 'button',
+    onClick: ChangedLabelInclusion({
+      predicate: filterUnlabeled,
+      isIncluded: !filter.includeUnlabeled,
+    }),
+    toView: (attributes) =>
+      h.button(
+        [
+          ...attributes.button,
+          h.Class(`${labelFilterChipClass(filter.includeUnlabeled)} border-dashed`),
+          h.AriaPressed(String(filter.includeUnlabeled)),
+        ],
+        [
+          h.span([], [unlabeledName]),
+          labelCountBadge(unlabeledCourseCount(state), locale),
+          filter.excludeUnlabeled
+            ? h.span(
+                [h.Class('text-[0.72rem] font-[800] uppercase')],
+                [translate(locale, 'list.filterExcludedBadge')],
+              )
+            : h.empty,
+        ],
+      ),
+  });
   return h.section(
     [
       h.Class(
@@ -4926,31 +5194,37 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
           h.Role('group'),
           h.AriaLabel(translate(locale, 'list.filterHeading')),
         ],
-        labels.map((label) =>
-          Button.view<Message>({
-            type: 'button',
-            onClick: ToggledLabelInclude({ labelId: label.id }),
-            toView: (attributes) =>
-              h.button(
-                [
-                  ...attributes.button,
-                  h.Class(labelFilterChipClass(included.has(label.id))),
-                  h.AriaPressed(String(included.has(label.id))),
-                ],
-                [
-                  labelDot(label.color),
-                  h.span([], [label.name]),
-                  labelCountBadge(labelCourseCount(state, label.id), locale),
-                  excluded.has(label.id)
-                    ? h.span(
-                        [h.Class('text-[0.72rem] font-[800] uppercase')],
-                        [translate(locale, 'list.filterExcludedBadge')],
-                      )
-                    : h.empty,
-                ],
-              ),
-          }),
-        ),
+        [
+          ...labels.map((label) =>
+            Button.view<Message>({
+              type: 'button',
+              onClick: ChangedLabelInclusion({
+                predicate: filterLabel(label.id),
+                isIncluded: !included.has(label.id),
+              }),
+              toView: (attributes) =>
+                h.button(
+                  [
+                    ...attributes.button,
+                    h.Class(labelFilterChipClass(included.has(label.id))),
+                    h.AriaPressed(String(included.has(label.id))),
+                  ],
+                  [
+                    labelDot(label.color),
+                    h.span([], [label.name]),
+                    labelCountBadge(labelCourseCount(state, label.id), locale),
+                    excluded.has(label.id)
+                      ? h.span(
+                          [h.Class('text-[0.72rem] font-[800] uppercase')],
+                          [translate(locale, 'list.filterExcludedBadge')],
+                        )
+                      : h.empty,
+                  ],
+                ),
+            }),
+          ),
+          unlabeledChip,
+        ],
       ),
       Disclosure.view<Message>({
         id: 'label-filter-combine',
@@ -5035,43 +5309,26 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
                         ),
                         h.div(
                           [h.Class('flex flex-wrap gap-2')],
-                          labels.map((label) =>
-                            Checkbox.view<Message>({
-                              id: `exclude-${label.id}`,
-                              isChecked: excluded.has(label.id),
-                              onToggle: (isExcluded) =>
-                                ToggledLabelExclude({ labelId: label.id, isExcluded }),
-                              toView: (attributes) =>
-                                h.label(
-                                  [
-                                    ...attributes.label,
-                                    h.Class(
-                                      'inline-flex min-h-11 items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-[0.82rem] text-on-surface-variant cursor-pointer has-[[data-checked]]:border-error has-[[data-checked]]:bg-error-container has-[[data-checked]]:text-on-error-container',
-                                    ),
-                                  ],
-                                  [
-                                    h.span(
-                                      [
-                                        ...attributes.checkbox,
-                                        h.Class(
-                                          'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-[0.7rem] leading-none',
-                                        ),
-                                      ],
-                                      [excluded.has(label.id) ? '✓' : ''],
-                                    ),
-                                    labelDot(label.color),
-                                    h.span(
-                                      [],
-                                      [
-                                        translate(locale, 'list.filterExclude', {
-                                          name: label.name,
-                                        }),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                            }),
-                          ),
+                          [
+                            ...labels.map((label) =>
+                              excludeCheckbox(
+                                `exclude-${label.id}`,
+                                excluded.has(label.id),
+                                filterLabel(label.id),
+                                label.name,
+                                labelDot(label.color),
+                                locale,
+                              ),
+                            ),
+                            excludeCheckbox(
+                              'exclude-unlabeled',
+                              filter.excludeUnlabeled,
+                              filterUnlabeled,
+                              unlabeledName,
+                              h.empty,
+                              locale,
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -5099,10 +5356,25 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
             ],
             [
               translate(locale, 'list.filterContradiction', {
-                labels: labelNameList(contradictory, locale, 'conjunction'),
+                labels: nameList(contradictory, locale, 'conjunction'),
               }),
             ],
           ),
+      // An `All` of Unlabeled and a real label cannot match anything: a course
+      // either carries a label or carries none. The recipe is kept as asked and
+      // explained here, rather than silently rewritten or shown as an empty List
+      // with no reason.
+      unsatisfiable
+        ? h.p(
+            [
+              h.Class(
+                'm-0 py-2 px-3 rounded-m3-medium bg-warning-container text-on-warning-container text-[0.82rem] leading-[1.4]',
+              ),
+              h.Role('status'),
+            ],
+            [translate(locale, 'list.filterUnsatisfiable', { unlabeled: unlabeledName })],
+          )
+        : h.empty,
       unknownCount === 0
         ? h.empty
         : h.p(
@@ -5155,7 +5427,7 @@ const labelDialogAction = (courseCodes: ReadonlyArray<string>, locale: Locale): 
 };
 
 const selectionTrayClass =
-  'sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-9 flex flex-wrap items-center justify-between gap-3 p-3 border border-outline rounded-[1.5rem] bg-surface-container-high shadow-m3-2 [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-4';
+  'sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-9 flex flex-wrap items-center justify-between gap-3 p-3 border border-outline rounded-[1.5rem] bg-surface-container-high shadow-m3-2 [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-4';
 
 /**
  * Selection is distinct from saving and stays ephemeral: it lives only in the
@@ -5282,6 +5554,51 @@ const savedCoursesRecoveryView = (
   );
 };
 
+/**
+ * The density switch. It is a display preference, so it sits with the count
+ * rather than with the collection recipe, stays out of the URL, and never
+ * changes which courses are shown.
+ */
+const listDensityChoice = (density: ListDensity, locale: Locale): Html => {
+  const h = html<Message>();
+  return RadioGroup.view<ListDensity, Message>({
+    id: 'list-density',
+    selectedValue: Option.some(density),
+    options: listDensities,
+    ariaLabel: translate(locale, 'list.density'),
+    orientation: 'Horizontal',
+    onSelect: (value) => ChangedListDensity({ value }),
+    toView: ({ group, options }) =>
+      h.div(
+        [
+          ...group,
+          h.Class('inline-flex w-fit flex-none overflow-hidden rounded-full border border-outline'),
+        ],
+        options.map((option) =>
+          h.button(
+            [
+              ...option.option,
+              h.Type('button'),
+              h.Class(
+                `min-h-11 cursor-pointer border-0 px-3 text-[0.8rem] font-[750] ${
+                  option.isSelected
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-surface-container text-on-surface'
+                }`,
+              ),
+            ],
+            [
+              translate(
+                locale,
+                option.value === 'card' ? 'list.densityCard' : 'list.densityCompact',
+              ),
+            ],
+          ),
+        ),
+      ),
+  });
+};
+
 const savedCourseListView = (model: Model, state: SavedListState, repaired: number): Html => {
   const h = html<Message>();
   const total = savedCoursesNewestFirst(state);
@@ -5332,6 +5649,7 @@ const savedCourseListView = (model: Model, state: SavedListState, repaired: numb
                 : savedCountLabel(total.length, model.locale),
             ],
           ),
+          listDensityChoice(model.listDensity, model.locale),
         ],
       ),
       // A collection that matches nothing is a filter outcome, never a failure
@@ -5367,6 +5685,7 @@ const savedCourseListView = (model: Model, state: SavedListState, repaired: numb
                 selectedCodes.has(course.courseCode),
                 model.locale,
                 model.outcomeView,
+                model.listDensity,
               ]),
             ),
           ),
@@ -5410,6 +5729,11 @@ const labelDialogView = (model: Model): Html => {
         ? translate(locale, 'list.labelsForCourse', { code: targets[0]!.courseCode })
         : translate(locale, 'list.labelsForSelection', { count: targets.length });
   const error = labelErrorMessage(model);
+  const labelErrorId = 'label-draft-name-error';
+  // `limit-reached` and `unknown-label` are not about the text in the field, so
+  // they are announced without marking the input itself invalid.
+  const nameError =
+    model.labelError === 'empty-name' || model.labelError === 'duplicate-name' ? error : null;
   const attachmentOf = (
     label: Label,
   ): Readonly<{ matched: number; all: boolean; some: boolean }> => {
@@ -5422,23 +5746,36 @@ const labelDialogView = (model: Model): Html => {
     const attachment = attachmentOf(label);
     const count = state === null ? 0 : labelCourseCount(state, label.id);
     const confirmingDelete = model.labelPendingDelete === label.id;
+    const labelNameId = `label-row-name-${label.id}`;
+    const confirmPromptId = `label-row-confirm-${label.id}`;
     /**
+     * Repeated row actions keep one stable visible wording. Interpolating the
+     * label name into every button would make each row a different width and
+     * read as a ragged column; the association is carried instead by the row's
+     * action group, which is named for the label, and by each button's
+     * accessible description, which points back at the row's own name.
+     *
      * Deletion is permanent and drops every membership on the label, so a
-     * misclick cannot delete it: the row's own actions swap for an explicit
+     * misclick cannot delete it: the group's contents swap for an explicit
      * confirm/cancel pair rather than deleting on the first click. No new
      * dialog or focus trap is introduced; both controls stay inside the
-     * existing labels Dialog.
+     * existing labels Dialog and inside the same, still-named group.
      */
-    const actions = confirmingDelete
-      ? h.div(
-          [
-            h.Class('flex flex-wrap items-center justify-end gap-2'),
-            h.Role('status'),
-            h.AriaLive('polite'),
-          ],
-          [
+    const actions = h.div(
+      [
+        h.Class('flex flex-none flex-wrap items-center justify-end gap-2'),
+        h.Role('group'),
+        h.AriaLabel(translate(locale, 'list.labelRowActions', { name: label.name })),
+      ],
+      confirmingDelete
+        ? [
             h.span(
-              [h.Class('text-error text-[0.8rem]')],
+              [
+                h.Id(confirmPromptId),
+                h.Role('status'),
+                h.AriaLive('polite'),
+                h.Class('text-error text-[0.8rem]'),
+              ],
               [translate(locale, 'list.deleteLabelConfirm', { name: label.name })],
             ),
             Button.view<Message>({
@@ -5449,9 +5786,9 @@ const labelDialogView = (model: Model): Html => {
                   [
                     ...attributes.button,
                     h.Class(deleteLabelButtonClass),
-                    h.AriaLabel(translate(locale, 'list.deleteLabel', { name: label.name })),
+                    h.AriaDescribedBy(confirmPromptId),
                   ],
-                  [translate(locale, 'list.deleteLabel', { name: label.name })],
+                  [translate(locale, 'list.deleteLabel')],
                 ),
             }),
             Button.view<Message>({
@@ -5466,11 +5803,8 @@ const labelDialogView = (model: Model): Html => {
                   [translate(locale, 'list.cancelDeleteLabel')],
                 ),
             }),
-          ],
-        )
-      : h.div(
-          [h.Class('flex flex-none items-center gap-2')],
-          [
+          ]
+        : [
             Button.view<Message>({
               type: 'button',
               onClick: RequestedEditLabel({ labelId: label.id }),
@@ -5479,9 +5813,9 @@ const labelDialogView = (model: Model): Html => {
                   [
                     ...attributes.button,
                     h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
-                    h.AriaLabel(translate(locale, 'list.editLabel', { name: label.name })),
+                    h.AriaDescribedBy(labelNameId),
                   ],
-                  [translate(locale, 'list.editLabel', { name: label.name })],
+                  [translate(locale, 'list.editLabel')],
                 ),
             }),
             Button.view<Message>({
@@ -5492,18 +5826,18 @@ const labelDialogView = (model: Model): Html => {
                   [
                     ...attributes.button,
                     h.Class(deleteLabelButtonClass),
-                    h.AriaLabel(translate(locale, 'list.deleteLabel', { name: label.name })),
+                    h.AriaDescribedBy(labelNameId),
                   ],
-                  [translate(locale, 'list.deleteLabel', { name: label.name })],
+                  [translate(locale, 'list.deleteLabel')],
                 ),
             }),
           ],
-        );
+    );
     const identity =
       targets.length === 0
         ? h.div(
             [h.Class('flex min-w-0 flex-1 items-center gap-2')],
-            [labelChip(label), labelCountBadge(count, locale)],
+            [labelChip(label, labelNameId), labelCountBadge(count, locale)],
           )
         : Checkbox.view<Message>({
             id: `label-target-${label.id}`,
@@ -5521,7 +5855,7 @@ const labelDialogView = (model: Model): Html => {
                     [...attributes.checkbox, h.Class(rowCheckboxClass)],
                     [attachment.all ? '✓' : attachment.some ? '–' : ''],
                   ),
-                  labelChip(label),
+                  labelChip(label, labelNameId),
                   h.span(
                     [h.Class('text-on-surface-variant text-[0.78rem]')],
                     [
@@ -5564,6 +5898,10 @@ const labelDialogView = (model: Model): Html => {
               h.button(
                 [
                   ...option.option,
+                  // A bare <button> inside a <form> defaults to type="submit",
+                  // so without this a colour choice would also Apply the form:
+                  // browsing colours would create, rename, and attach labels.
+                  h.Type('button'),
                   h.Class(
                     `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border px-3 text-[0.8rem] font-[750] ${labelChipTone(option.value)} ${
                       option.isSelected ? 'border-primary' : 'border-outline-variant'
@@ -5604,6 +5942,12 @@ const labelDialogView = (model: Model): Html => {
                   'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-[1rem] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]',
                 ),
                 h.Autocomplete('off'),
+                // Feedback is absent until an Apply attempt; once present it is
+                // tied to the field it describes, so a screen reader reaches it
+                // from the input rather than only through the live region.
+                ...(nameError === null
+                  ? []
+                  : [h.AriaInvalid(true), h.AriaDescribedBy(labelErrorId)]),
               ]),
             ],
           ),
@@ -5716,6 +6060,7 @@ const labelDialogView = (model: Model): Html => {
                       ? h.empty
                       : h.p(
                           [
+                            h.Id(labelErrorId),
                             h.Class(
                               'm-0 py-3 px-4 border border-error rounded-m3-medium bg-error-container text-on-error-container',
                             ),

@@ -1,3 +1,4 @@
+import { Dialog } from '@foldkit/ui';
 import { Story } from 'foldkit';
 import { expect, test } from 'vitest';
 
@@ -11,10 +12,12 @@ import {
   ChangedCampus,
   ChangedLabelDraftColor,
   ChangedLabelFilterMode,
+  ChangedListDensity,
   ChangedLocale,
   ChangedThemePreset,
   ChangedUrl,
   CancelledLabelDelete,
+  CancelledLabelEdit,
   CatalogueEmpty,
   ClearedSavedCourseSelection,
   CompletedNavigation,
@@ -24,6 +27,7 @@ import {
   FetchCourseSearch,
   FetchDecisionSignals,
   FetchGradeSignals,
+  GotLabelDialogMessage,
   GradeSignalsSuccess,
   LoadedSavedCourses,
   Navigate,
@@ -51,8 +55,8 @@ import {
   SucceededCourseSearch,
   SucceededDecisionSignals,
   SucceededGradeSignals,
-  ToggledLabelExclude,
-  ToggledLabelInclude,
+  ChangedLabelExclusion,
+  ChangedLabelInclusion,
   ToggledLabelOnTarget,
   ToggledSavedCourseSelection,
   ToggledSidebar,
@@ -72,10 +76,14 @@ import {
   attachLabel,
   courseIdentity,
   createLabel,
+  defaultLabelColor,
   emptyLabelFilter,
   emptySavedList,
+  filterLabel,
+  filterUnlabeled,
   findSavedCourse,
   saveCourse,
+  savedListSchemaVersion,
   type SavedListState,
 } from './saved-courses';
 
@@ -497,7 +505,7 @@ test('a save carries an explicit confirmation that Undo removes, persisting the 
 
 test('undoing a removal restores the exact saved course, its note, and its label memberships', () => {
   const savedWithLabel: SavedListState = {
-    version: 1,
+    version: savedListSchemaVersion,
     savedCourses: [
       {
         id: 'ntnu:TDT4136',
@@ -508,7 +516,7 @@ test('undoing a removal restores the exact saved course, its note, and its label
         observedDataRevision: null,
       },
     ],
-    labels: [{ id: 'label-1', name: 'Autumn 2027', color: 'blue' }],
+    labels: [{ id: 'label-1', name: 'Autumn 2027', color: 'sky' }],
     memberships: [{ savedCourseId: 'ntnu:TDT4136', labelId: 'label-1' }],
   };
 
@@ -655,7 +663,7 @@ const twoSavedCourses = (): SavedListState =>
 
 const labelledState = (): SavedListState => {
   const state = twoSavedCourses();
-  const created = createLabel(state, { id: 'label-ai', name: 'AI', color: 'blue' });
+  const created = createLabel(state, { id: 'label-ai', name: 'AI', color: 'sky' });
   if (created._tag !== 'LabelApplied') throw new Error('fixture label must be created');
   return attachLabel(created.state, 'label-ai', [tdt4136]);
 };
@@ -682,7 +690,7 @@ test('a label id comes from a boundary command, never from the pure update', () 
   const [created, createCommands] = update(submitted, StampedLabel({ labelId: 'label-1' }));
   const state = readyStateOf(created);
 
-  expect(state.labels).toEqual([{ id: 'label-1', name: 'Autumn 2027', color: 'blue' }]);
+  expect(state.labels).toEqual([{ id: 'label-1', name: 'Autumn 2027', color: 'sky' }]);
   // A label created from a course target is attached in the same transition.
   expect(state.memberships).toEqual([{ savedCourseId: 'ntnu:TDT4136', labelId: 'label-1' }]);
   expect(created.labelDraftName).toBe('');
@@ -704,7 +712,7 @@ test('renaming and recolouring a label is one persisted transition that keeps me
   const [editing] = update(model, RequestedEditLabel({ labelId: 'label-ai' }));
 
   expect(editing.labelDraftName).toBe('AI');
-  expect(editing.labelDraftColor).toBe('blue');
+  expect(editing.labelDraftColor).toBe('sky');
 
   const [renamed] = update(editing, UpdatedLabelDraftName({ value: 'Artificial intelligence' }));
   const [recoloured] = update(renamed, ChangedLabelDraftColor({ value: 'emerald' }));
@@ -769,11 +777,7 @@ test('cancelling an armed label delete preserves the label and its memberships e
 test('confirming an armed label delete clears its memberships and rewrites the filter to the canonical recipe', () => {
   const model = {
     ...listModel(labelledState()),
-    labelFilter: {
-      includeLabelIds: ['label-ai'],
-      includeMode: 'any' as const,
-      excludeLabelIds: [],
-    },
+    labelFilter: { ...emptyLabelFilter, includeLabelIds: ['label-ai'] },
   };
 
   const [armed] = update(model, RequestedDeleteLabel({ labelId: 'label-ai' }));
@@ -794,7 +798,10 @@ test('confirming an armed label delete clears its memberships and rewrites the f
 
 test('a label filter change is a history entry that never refetches the catalogue', () => {
   const model = listModel(labelledState());
-  const [filtered, commands] = update(model, ToggledLabelInclude({ labelId: 'label-ai' }));
+  const [filtered, commands] = update(
+    model,
+    ChangedLabelInclusion({ predicate: filterLabel('label-ai'), isIncluded: true }),
+  );
 
   expect(filtered.labelFilter.includeLabelIds).toEqual(['label-ai']);
   expect(commands.map(({ name }) => name)).toEqual(['Navigate']);
@@ -815,7 +822,10 @@ test('a label filter change is a history entry that never refetches the catalogu
 
 test('All and Exclude are URL-backed and Explore URLs never carry the recipe', () => {
   const model = listModel(labelledState());
-  const [included] = update(model, ToggledLabelInclude({ labelId: 'label-ai' }));
+  const [included] = update(
+    model,
+    ChangedLabelInclusion({ predicate: filterLabel('label-ai'), isIncluded: true }),
+  );
   const [strict, strictCommands] = update(included, ChangedLabelFilterMode({ mode: 'all' }));
 
   expect(strictCommands[0]?.args).toMatchObject({
@@ -824,12 +834,12 @@ test('All and Exclude are URL-backed and Explore URLs never carry the recipe', (
 
   const [excluded, excludeCommands] = update(
     strict,
-    ToggledLabelExclude({ labelId: 'label-ai', isExcluded: true }),
+    ChangedLabelExclusion({ predicate: filterLabel('label-ai'), isExcluded: true }),
   );
 
   // Last explicit action wins: moving a label to Exclude removes it from Include.
   expect(excluded.labelFilter).toEqual({
-    includeLabelIds: [],
+    ...emptyLabelFilter,
     includeMode: 'all',
     excludeLabelIds: ['label-ai'],
   });
@@ -842,7 +852,7 @@ test('All and Exclude are URL-backed and Explore URLs never carry the recipe', (
   // desired state again rather than toggling back off.
   const [excludedAgain, excludeAgainCommands] = update(
     excluded,
-    ToggledLabelExclude({ labelId: 'label-ai', isExcluded: true }),
+    ChangedLabelExclusion({ predicate: filterLabel('label-ai'), isExcluded: true }),
   );
   expect(excludedAgain.labelFilter).toEqual(excluded.labelFilter);
   expect(excludeAgainCommands).toEqual([]);
@@ -861,6 +871,7 @@ test('a shared recipe is normalized against the loaded label set and restated, n
   );
 
   expect(model.labelFilter).toEqual({
+    ...emptyLabelFilter,
     includeLabelIds: ['label-ai', 'label-gone'],
     includeMode: 'all',
     excludeLabelIds: ['label-ai'],
@@ -874,13 +885,14 @@ test('a shared recipe is normalized against the loaded label set and restated, n
   // Exclude wins for a URL with no action order, unknown ids are dropped, and
   // both facts are kept for the interface to restate.
   expect(loaded.labelFilter).toEqual({
-    includeLabelIds: [],
+    ...emptyLabelFilter,
     includeMode: 'all',
     excludeLabelIds: ['label-ai'],
   });
   expect(loaded.labelFilterNotice).toEqual({
     unknownCount: 1,
     contradictoryLabelIds: ['label-ai'],
+    contradictoryUnlabeled: false,
   });
   expect(commands.map(({ name }) => name)).toEqual(['Navigate']);
   expect(commands[0]?.args).toMatchObject({
@@ -938,4 +950,214 @@ test('undoing a save also drops the course from selection and label targets', ()
   expect(readyStateOf(undone).savedCourses.map((course) => course.courseCode)).toEqual(['TMA4100']);
   expect(undone.selectedCourseCodes).toEqual(['TMA4100']);
   expect(undone.labelDialogTarget).toEqual([]);
+});
+
+test('choosing a colour is draft state: it never creates, updates, or attaches a label', () => {
+  const [open] = update(
+    listModel(labelledState()),
+    RequestedLabelDialog({ courseCodes: ['TDT4136'] }),
+  );
+  const named = update(open, UpdatedLabelDraftName({ value: 'Autumn 2027' }))[0];
+  const before = readyStateOf(named);
+
+  const [recoloured, commands] = update(named, ChangedLabelDraftColor({ value: 'emerald' }));
+
+  expect(recoloured.labelDraftColor).toBe('emerald');
+  expect(commands).toEqual([]);
+  expect(readyStateOf(recoloured)).toBe(before);
+
+  // The same holds while editing an existing label: the colour moves in the
+  // draft only, and the stored label is untouched until Apply.
+  const [editing] = update(named, RequestedEditLabel({ labelId: 'label-ai' }));
+  const [editRecoloured, editCommands] = update(editing, ChangedLabelDraftColor({ value: 'rose' }));
+
+  expect(editCommands).toEqual([]);
+  expect(readyStateOf(editRecoloured).labels).toEqual(labelledState().labels);
+});
+
+test('closing the dialog by any route discards the draft, including the chosen colour', () => {
+  const [open] = update(
+    listModel(labelledState()),
+    RequestedLabelDialog({ courseCodes: ['TDT4136'] }),
+  );
+  const drafted = {
+    ...update(open, UpdatedLabelDraftName({ value: 'Autumn 2027' }))[0],
+    labelDraftColor: 'rose' as const,
+    labelError: 'empty-name' as const,
+  };
+
+  // Cancel, the backdrop, and Escape all reach update as one close request.
+  const [closed] = update(drafted, GotLabelDialogMessage({ message: Dialog.RequestedClose() }));
+
+  expect(closed.labelDraftName).toBe('');
+  expect(closed.labelDraftColor).toBe(defaultLabelColor);
+  expect(closed.labelError).toBeNull();
+  expect(closed.labelEditing).toBeNull();
+  expect(closed.labelDialogTarget).toEqual([]);
+  expect(readyStateOf(closed)).toEqual(labelledState());
+
+  // Cancelling an edit discards the same draft without closing the dialog.
+  const [editing] = update(drafted, RequestedEditLabel({ labelId: 'label-ai' }));
+  const [cancelled] = update(editing, CancelledLabelEdit());
+  expect(cancelled.labelDraftName).toBe('');
+  expect(cancelled.labelDraftColor).toBe(defaultLabelColor);
+  expect(cancelled.labelEditing).toBeNull();
+});
+
+test('name feedback is absent until an Apply attempt, then follows the draft being corrected', () => {
+  const [open] = update(
+    listModel(labelledState()),
+    RequestedLabelDialog({ courseCodes: ['TDT4136'] }),
+  );
+
+  // Typing an empty, then duplicate, name says nothing before Apply is pressed.
+  const typed = update(open, UpdatedLabelDraftName({ value: 'ai' }))[0];
+  expect(typed.labelError).toBeNull();
+
+  const [rejected] = update(typed, SubmittedLabelForm());
+  expect(rejected.labelError).toBe('duplicate-name');
+
+  // While correcting, the message tracks the draft rather than disappearing on
+  // the first keystroke or describing a name that is no longer on screen.
+  const [emptied] = update(rejected, UpdatedLabelDraftName({ value: '   ' }));
+  expect(emptied.labelError).toBe('empty-name');
+
+  const [stillDuplicate] = update(emptied, UpdatedLabelDraftName({ value: 'AI' }));
+  expect(stillDuplicate.labelError).toBe('duplicate-name');
+
+  const [corrected] = update(stillDuplicate, UpdatedLabelDraftName({ value: 'Autumn 2027' }));
+  expect(corrected.labelError).toBeNull();
+});
+
+test('a refused create attaches nothing and leaves the draft exactly as it was', () => {
+  const model = {
+    ...listModel(labelledState()),
+    labelDialogTarget: ['TDT4136'],
+    labelDraftName: 'ai',
+    labelDraftColor: 'rose' as const,
+  };
+
+  // The id arrives from the boundary, but the rules are checked again with it in
+  // hand, so a slow round trip cannot smuggle a duplicate past them.
+  const [refused, commands] = update(model, StampedLabel({ labelId: 'label-late' }));
+
+  expect(commands).toEqual([]);
+  expect(refused.labelError).toBe('duplicate-name');
+  expect(refused.labelDraftName).toBe('ai');
+  expect(refused.labelDraftColor).toBe('rose');
+  expect(readyStateOf(refused)).toEqual(labelledState());
+});
+
+test('Unlabeled is URL-backed like any other predicate and stays canonical', () => {
+  const model = listModel(labelledState());
+  const [included, includeCommands] = update(
+    model,
+    ChangedLabelInclusion({ predicate: filterUnlabeled, isIncluded: true }),
+  );
+
+  expect(included.labelFilter).toEqual({ ...emptyLabelFilter, includeUnlabeled: true });
+  expect(includeCommands[0]?.args).toMatchObject({
+    href: '/list?lang=en&unlabeled=1',
+    mode: 'push',
+  });
+
+  // A duplicate identical message asks for the same state again rather than
+  // toggling it back off.
+  const [again, againCommands] = update(
+    included,
+    ChangedLabelInclusion({ predicate: filterUnlabeled, isIncluded: true }),
+  );
+  expect(again.labelFilter).toEqual(included.labelFilter);
+  expect(againCommands).toEqual([]);
+
+  const [excluded, excludeCommands] = update(
+    included,
+    ChangedLabelExclusion({ predicate: filterUnlabeled, isExcluded: true }),
+  );
+  expect(excluded.labelFilter).toEqual({ ...emptyLabelFilter, excludeUnlabeled: true });
+  expect(excludeCommands[0]?.args).toMatchObject({ href: '/list?lang=en&notUnlabeled=1' });
+
+  // History restores the recipe from the URL without refetching the catalogue.
+  const [restored, restoredCommands] = update(
+    excluded,
+    ChangedUrl({ href: 'http://course-lens.local/list?lang=en&unlabeled=1&labelMode=all' }),
+  );
+  expect(restored.labelFilter).toEqual({
+    ...emptyLabelFilter,
+    includeUnlabeled: true,
+    includeMode: 'all',
+  });
+  expect(restoredCommands.some(({ name }) => name === 'FetchCourseSearch')).toBe(false);
+});
+
+test('including a label is a set, so a stale history echo cannot drop the second one', () => {
+  const model = listModel(labelledState());
+  const ai = ChangedLabelInclusion({ predicate: filterLabel('label-ai'), isIncluded: true });
+  const heavy = ChangedLabelInclusion({ predicate: filterLabel('label-heavy'), isIncluded: true });
+
+  const [first] = update(model, ai);
+  const [second] = update(first, heavy);
+  expect(second.labelFilter.includeLabelIds).toEqual(['label-ai', 'label-heavy']);
+
+  // The first navigation's echo can land after the second chip was pressed.
+  const [echoed] = update(
+    second,
+    ChangedUrl({ href: 'http://course-lens.local/list?lang=en&labels=label-ai' }),
+  );
+  // The echo is the URL's own claim about the recipe, so it wins — but pressing
+  // the chip again asks for the same state rather than flipping it back off.
+  const [repaired] = update(echoed, heavy);
+  expect(repaired.labelFilter.includeLabelIds).toEqual(['label-ai', 'label-heavy']);
+  expect(update(repaired, heavy)[1]).toEqual([]);
+});
+
+test('the display density is a local preference: it persists and never touches the saved set', () => {
+  const model = listModel(labelledState());
+  expect(model.listDensity).toBe('card');
+
+  const [compact, commands] = update(model, ChangedListDensity({ value: 'compact' }));
+
+  expect(compact.listDensity).toBe('compact');
+  expect(commands.map(({ name }) => name)).toEqual(['PersistListDensity']);
+  expect(commands[0]?.args).toMatchObject({ density: 'compact' });
+  // Density is a display choice: no navigation, no fetch, and the same courses,
+  // labels, and memberships as before.
+  expect(commands.some(({ name }) => name === 'Navigate')).toBe(false);
+  expect(readyStateOf(compact)).toBe(readyStateOf(model));
+  expect(compact.labelFilter).toEqual(model.labelFilter);
+
+  // Choosing the density that is already active is a no-op, not a rewrite.
+  expect(update(compact, ChangedListDensity({ value: 'compact' }))).toEqual([compact, []]);
+
+  // A stored preference is honoured on the next visit.
+  expect(
+    initForHref('http://course-lens.local/list', 'en', false, undefined, 'compact')[0].listDensity,
+  ).toBe('compact');
+});
+
+test('a shared recipe that includes and excludes Unlabeled is restated, not silently emptied', () => {
+  const [model] = initForHref('http://course-lens.local/list?unlabeled=1&notUnlabeled=1');
+
+  expect(model.labelFilter).toEqual({
+    ...emptyLabelFilter,
+    includeUnlabeled: true,
+    excludeUnlabeled: true,
+  });
+
+  const [loaded, commands] = update(
+    model,
+    LoadedSavedCourses({ load: SavedListLoaded({ state: labelledState(), repairedEntries: 0 }) }),
+  );
+
+  // Exclude wins for a URL with no action order, and the rewrite is disclosed.
+  expect(loaded.labelFilter).toEqual({ ...emptyLabelFilter, excludeUnlabeled: true });
+  expect(loaded.labelFilterNotice).toEqual({
+    unknownCount: 0,
+    contradictoryLabelIds: [],
+    contradictoryUnlabeled: true,
+  });
+  expect(commands[0]?.args).toMatchObject({
+    href: '/list?lang=en&notUnlabeled=1',
+    mode: 'replace',
+  });
 });

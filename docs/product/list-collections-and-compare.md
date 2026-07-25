@@ -25,16 +25,47 @@ The complete journey works without an account:
 5. Compare meaningful differences.
 6. Send a selected collection to Schedule or a Degree scenario later.
 
+## Interaction intent
+
+List is a student memory aid and decision surface, not a taxonomy
+administration tool. A student may be comparing courses between classes, on a
+phone, without having decided what their categories mean yet. The interaction
+therefore optimizes for low-risk exploration and later cleanup:
+
+- saving first must remain easier than organizing first;
+- browsing a colour, typing a draft name, opening Refine, or switching display
+  density has no hidden data effect;
+- Apply is the explicit boundary for a label mutation;
+- `Unlabeled` behaves like an inbox for saved courses that still need
+  organization;
+- spatial grouping provides visual action context, while semantic structure
+  provides the same context without vision;
+- compact mode reduces scanning cost rather than merely shrinking the same
+  card;
+- named Collections preserve a useful question over the List; they do not
+  create another place where a course can be lost or duplicated.
+
+When a technically convenient interaction conflicts with reversibility,
+predictability, or scanability, those student-facing properties win.
+
 ## Product boundary
 
 There is one canonical saved-course set. Folders and independent lists are not
 separate containers that copy or move courses.
 
+The student-facing navigation label is **Saved** because it names the content
+and follows directly from the Save action. **List** remains the domain term in
+this specification and the stable `/list` route; changing internal names does
+not improve the journey.
+
 - **List** is every saved course.
 - **Label** is a student-owned name and colour attached to zero or more saved
   courses.
-- **Collection** is the derived set of saved courses carrying a label.
-- **Combined view** is a bounded expression over labels.
+- **Label view** is the derived set of saved courses carrying a label.
+- **Combined view** is an unsaved bounded expression over labels.
+- **Collection** is an optional student-named saved combined-view recipe. It
+  stores rules, not copied course identities, so its membership changes as
+  labels change.
 - **Compare selection** is an ephemeral selection of two to four saved courses.
 
 A course saved under several labels still has one saved-course identity, one
@@ -154,29 +185,65 @@ light/dark pairs; they do not introduce direct palette utilities or hex values.
   colour mode.
 - Renaming or recolouring a label updates every projection because membership
   refers to stable label identity.
+- The editor is transactional. Name and colour changes remain draft state until
+  the student chooses `Apply`; closing or cancelling discards them.
+- Empty-name and duplicate-name feedback appears only after an Apply attempt,
+  then updates as the student corrects the submitted draft.
+- Creating a label from a course or bulk-selection context attaches it only in
+  the same successful Apply transition. Browsing colours never creates or
+  attaches a label.
+- Repeated row actions use stable visible labels such as `Edit label` and
+  `Delete label`. Row structure, focus order, and accessible descriptions
+  provide the associated label context without producing visually ragged
+  action text.
+- The student-facing palette favours distinct Nordic nature names. `Sky`
+  remains and `Blue` is retired because the two are not reliably
+  distinguishable. Persisted legacy `blue` values are parsed at the storage
+  boundary and migrated deterministically to `sky`; new state never writes
+  `blue`.
 
 ## Collection composition
 
-The persisted model supports the requested useful set operations without a
-recursive query language:
+The filter model supports useful set operations without a recursive query
+language:
 
 ```ts
-interface LabelFilter {
-  readonly includeLabelIds: ReadonlyArray<LabelId>;
-  readonly includeMode: "any" | "all";
-  readonly excludeLabelIds: ReadonlyArray<LabelId>;
+type LabelPredicate =
+  | { readonly type: "label"; readonly labelId: LabelId }
+  | { readonly type: "unlabeled" };
+
+interface LabelRule {
+  readonly anyOf: ReadonlyArray<LabelPredicate>;
+  readonly allOf: ReadonlyArray<LabelPredicate>;
+  readonly noneOf: ReadonlyArray<LabelPredicate>;
 }
 ```
 
 For the universe `U` of saved courses:
 
-- no included labels yields `U`;
-- `any` yields the union of included label collections;
-- `all` yields their intersection;
-- excluded label collections are subtracted from that result.
+- an empty `anyOf` group has identity `U`; otherwise it yields the union of its
+  predicates;
+- an empty `allOf` group has identity `U`; otherwise it yields the intersection
+  of its predicates;
+- the positive result is `anyOf ∩ allOf`;
+- `noneOf` predicates are unioned and subtracted from that positive result;
+- `unlabeled` is the derived set of saved courses with zero memberships;
+- excluding `unlabeled` therefore means “show only labelled courses.”
 
-Contradictory input, such as including and excluding the same label, is
-normalized visibly rather than producing a surprising empty view.
+The ordinary UI may initially expose one positive group as an `Any`/`All`
+choice, but the canonical rule can represent both groups. This supports saved
+recipes such as “any of AI or Design, all of Autumn 2027, excluding
+Group-heavy” without a recursive expression builder.
+
+Contradictory input, such as including and excluding the same predicate, is
+normalized visibly rather than producing a surprising empty view. An
+`allOf(unlabeled, label X)` rule is unsatisfiable by definition and is explained
+or prevented before Apply rather than presented as an unexplained empty List.
+
+The algebra has table-driven examples plus exhaustive small-universe tests.
+Those tests cover empty groups, duplicate predicates, Any/All overlap,
+exclusion, unlabeled membership, contradictory recipes, and permutation
+invariance.
 
 The ordinary UI starts with label chips and defaults to `Any`. `All` and
 `Exclude` live in a progressively disclosed `Combine labels` control. The
@@ -185,19 +252,39 @@ current expression is restated in plain language:
 > In Autumn 2027 and Remote candidates, excluding Group-heavy.
 
 The URL may encode the active expression. It shares the filter recipe, not the
-recipient's private saved data. Named compound saved views are deferred until
-repeated use demonstrates value.
+recipient's private saved data.
+
+A student can save the active expression as a named Collection. A Collection
+persists the normalized `LabelRule`, has stable identity, can be renamed or
+deleted without affecting labels, and opens as the same shareable URL recipe.
+Deleting a referenced label visibly simplifies affected Collections; it never
+silently points the rule at another label.
 
 ## List information architecture
 
 The page contains:
 
 1. heading, saved count, and a route back to Explore;
-2. label chips with collection counts;
-3. active combined-view summary and clear action;
-4. stable saved-course summaries;
-5. a selection action tray when courses are selected;
-6. recovery, offline, stale, and empty states.
+2. a compact/card view switch;
+3. label chips with collection counts;
+4. active combined-view summary and clear action;
+5. stable saved-course summaries;
+6. a selection action tray when courses are selected;
+7. recovery, offline, stale, and empty states.
+
+Card view preserves the full decision profile, private note, labels, and
+evidence summary. Compact view prioritizes course identity, offering, labels,
+and primary actions in a stable scan line; secondary evidence remains available
+through Inspect. The chosen density is a local display preference and does not
+change collection membership or factual state.
+
+The projection contract is reusable across Explore and List, but each surface
+chooses its information content. Reuse must not make Explore display private
+List notes or make compact List rows lose their label context.
+
+`Refine` remains reachable at every scroll position. Mobile uses a fixed action
+above the bottom navigation; wider layouts use a sticky control aligned with
+the content or sidebar rather than a floating mobile-style button.
 
 Saved summaries reuse the order defined in the student experience contract:
 
@@ -261,6 +348,10 @@ when the referenced courses remain saved.
 ## Responsive and accessible behaviour
 
 - Mobile List preserves the same information order as desktop.
+- Mobile bottom navigation uses equal vertical alignment for every destination;
+  Explore does not protrude above its peers. Excess top padding is removed, and
+  the narrow label `Style` replaces `Appearance` while the stable
+  `/appearance` route remains unchanged.
 - The bottom navigation activates List only when the first useful saved-course
   journey is delivered.
 - Pointer, keyboard, and touch selection expose the same actions.
@@ -294,8 +385,16 @@ when the referenced courses remain saved.
 
 - create, rename, recolour, and delete labels;
 - attach/detach one or many saved courses;
-- Any/All/Exclude composition;
+- transactional Apply semantics and submission-timed validation;
+- Any/All/Exclude/Unlabeled composition with exhaustive algebra tests;
 - URL-backed filter state and translated plain-language summary.
+
+### L2.1: List ergonomics and saved recipes
+
+- compact/card projections and a persistent density choice;
+- scroll-accessible Refine on mobile and desktop;
+- named Collections that persist normalized label rules;
+- explicit recovery when a referenced label is later deleted.
 
 ### L3: Compare
 
@@ -319,6 +418,11 @@ when the referenced courses remain saved.
   never silently discarded.
 - A course belongs to several labelled collections without duplication.
 - Any, All, and Exclude produce deterministic tested sets.
+- Unlabeled is derived from membership and composes predictably with the same
+  rule algebra.
+- Label drafts never persist or attach until Apply succeeds.
+- Compact and card views contain the same saved-course identities and label
+  memberships.
 - Removing a saved course clears dependent memberships and comparison state
   atomically.
 - Compare preserves every non-known factual state.
@@ -332,6 +436,8 @@ when the referenced courses remain saved.
 - public or collaborative collections;
 - nested folders;
 - arbitrary recursive collection expressions;
-- social ranking and popularity;
+- social ranking and popularity. A later opt-in experiment may suggest labels
+  only from thresholded aggregate counts, with normalization, abuse controls,
+  and a clear explanation that private List contents otherwise remain local;
 - automatic course recommendations;
 - Schedule and Degree behaviour before their stated data gates.

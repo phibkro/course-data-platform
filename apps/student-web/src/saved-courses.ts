@@ -23,19 +23,27 @@ import { ts } from 'foldkit/schema';
 
 export const savedListStorageKey = 'course-lens:list';
 
-export const savedListSchemaVersion = 1;
+/**
+ * Version 1 offered both `blue` and `sky`, which are not reliably
+ * distinguishable. Version 2 retires `blue`; a stored version 1 is migrated at
+ * the boundary and version 2 can no longer express the retired colour.
+ */
+export const savedListSchemaVersion = 2;
 
 export const noteMaxLength = 2000;
 
 /**
  * Label colours are a constrained repository-owned set that mirrors the
- * semantic theme families. Label creation ships in the following slice; the
- * fields exist in schema version 1 so that stored state does not need a
- * migration to gain them.
+ * semantic theme families. `blue` was retired from the selectable palette
+ * because it was not reliably distinguishable from `sky`; see
+ * `migrateSchemaVersion1`, which is the only place a stored `blue` can still
+ * appear, and only for as long as it takes to rewrite it.
  */
-export const labelColors = ['blue', 'violet', 'amber', 'rose', 'emerald', 'sky'] as const;
+export const labelColors = ['sky', 'violet', 'amber', 'rose', 'emerald'] as const;
 
 export type LabelColor = (typeof labelColors)[number];
+
+export const defaultLabelColor: LabelColor = 'sky';
 
 const LabelColorSchema = S.Literals(labelColors);
 
@@ -333,6 +341,23 @@ export const validateNewLabel = (state: SavedListState, name: string): LabelReje
   return null;
 };
 
+/**
+ * The rules for an edited label, in one place, so the dialog can restate the
+ * reason an Apply would be refused without re-deriving it. `editLabel` applies
+ * the same rules; this never decides anything the transition would not.
+ */
+export const validateLabelEdit = (
+  state: SavedListState,
+  labelId: string,
+  name: string,
+): LabelRejection | null => {
+  if (findLabel(state, labelId) === null) return 'unknown-label';
+  const normalized = normalizeLabelName(name);
+  if (normalized === null) return 'empty-name';
+  const clash = findLabelByName(state, normalized);
+  return clash !== null && clash.id !== labelId ? 'duplicate-name' : null;
+};
+
 export const createLabel = (
   state: SavedListState,
   input: Readonly<{ id: string; name: string; color: LabelColor }>,
@@ -356,12 +381,12 @@ export const editLabel = (
   labelId: string,
   input: Readonly<{ name: string; color: LabelColor }>,
 ): LabelResult => {
+  const rejection = validateLabelEdit(state, labelId, input.name);
+  if (rejection !== null) return labelRejected(rejection);
   const existing = findLabel(state, labelId);
-  if (existing === null) return labelRejected('unknown-label');
   const name = normalizeLabelName(input.name);
+  if (existing === null) return labelRejected('unknown-label');
   if (name === null) return labelRejected('empty-name');
-  const clash = findLabelByName(state, name);
-  if (clash !== null && clash.id !== labelId) return labelRejected('duplicate-name');
   if (existing.name === name && existing.color === input.color) return labelUnchanged;
   return labelApplied({
     ...state,
@@ -422,24 +447,49 @@ export const labelFilterModes = ['any', 'all'] as const;
 export type LabelFilterMode = (typeof labelFilterModes)[number];
 
 /**
- * The whole collection language: included labels combined by `any` or `all`,
- * minus excluded labels. Deliberately not recursive — there is no nesting, no
- * operator precedence, and no expression to parse.
+ * What a filter group can select. `Unlabeled` is derived from membership rather
+ * than stored: it is exactly the saved courses carrying no label at all, so it
+ * needs no identity, cannot be renamed, and cannot go stale.
+ */
+export const FilterLabel = ts('FilterLabel', { labelId: S.String });
+export const FilterUnlabeled = ts('FilterUnlabeled');
+export const LabelPredicateSchema = S.Union([FilterLabel, FilterUnlabeled]);
+export type LabelPredicate = typeof LabelPredicateSchema.Type;
+
+export const filterLabel = (labelId: string): LabelPredicate => FilterLabel({ labelId });
+export const filterUnlabeled: LabelPredicate = FilterUnlabeled();
+
+/**
+ * The whole collection language: included predicates combined by `any` or
+ * `all`, minus excluded predicates. Deliberately not recursive — there is no
+ * nesting, no operator precedence, and no expression to parse.
+ *
+ * The flat fields are the canonical encoding of the predicate sets: label ids
+ * carry order and identity, and `unlabeled` is a flag because it is a single
+ * derived predicate with no identity of its own. Encoding it this way keeps
+ * equality, URL round-tripping, and canonical ordering free.
  */
 export interface LabelFilter {
   readonly includeLabelIds: ReadonlyArray<string>;
+  readonly includeUnlabeled: boolean;
   readonly includeMode: LabelFilterMode;
   readonly excludeLabelIds: ReadonlyArray<string>;
+  readonly excludeUnlabeled: boolean;
 }
 
 export const emptyLabelFilter: LabelFilter = {
   includeLabelIds: [],
+  includeUnlabeled: false,
   includeMode: 'any',
   excludeLabelIds: [],
+  excludeUnlabeled: false,
 };
 
 export const isLabelFilterActive = (filter: LabelFilter): boolean =>
-  filter.includeLabelIds.length > 0 || filter.excludeLabelIds.length > 0;
+  filter.includeLabelIds.length > 0 ||
+  filter.excludeLabelIds.length > 0 ||
+  filter.includeUnlabeled ||
+  filter.excludeUnlabeled;
 
 export interface NormalizedLabelFilter {
   readonly filter: LabelFilter;
@@ -449,6 +499,13 @@ export interface NormalizedLabelFilter {
    *  dropped from the included set so the view never shows an unexplained
    *  empty collection. */
   readonly contradictoryLabelIds: ReadonlyArray<string>;
+  /** `Unlabeled` requested as both included and excluded, resolved the same way. */
+  readonly contradictoryUnlabeled: boolean;
+  /** `All` of `Unlabeled` and at least one real label. A course cannot both
+   *  carry a label and carry none, so this recipe is unsatisfiable by
+   *  definition. It is kept, not rewritten, so the interface can explain it
+   *  instead of presenting an unexplained empty List. */
+  readonly isUnsatisfiable: boolean;
 }
 
 const distinct = (values: ReadonlyArray<string>): ReadonlyArray<string> =>
@@ -467,14 +524,21 @@ export const normalizeLabelFilter = (
     known.has(labelId),
   );
   const contradictoryLabelIds = includeCandidates.filter((labelId) => excluded.has(labelId));
+  const contradictoryUnlabeled = filter.includeUnlabeled && filter.excludeUnlabeled;
+  const includeLabelIds = includeCandidates.filter((labelId) => !excluded.has(labelId));
+  const includeUnlabeled = filter.includeUnlabeled && !filter.excludeUnlabeled;
   return {
     filter: {
-      includeLabelIds: includeCandidates.filter((labelId) => !excluded.has(labelId)),
+      includeLabelIds,
+      includeUnlabeled,
       includeMode: filter.includeMode,
       excludeLabelIds,
+      excludeUnlabeled: filter.excludeUnlabeled,
     },
     unknownLabelIds,
     contradictoryLabelIds,
+    contradictoryUnlabeled,
+    isUnsatisfiable: filter.includeMode === 'all' && includeUnlabeled && includeLabelIds.length > 0,
   };
 };
 
@@ -482,6 +546,10 @@ export const normalizeLabelFilter = (
  * Applies a filter to the canonical saved set. The order is always the
  * canonical newest-first order, so a collection is a view over one List rather
  * than a second container with its own ordering.
+ *
+ * An empty positive group has identity `U`; a non-empty one is the union
+ * (`any`) or the intersection (`all`) of its predicates. Excluded predicates
+ * are unioned and subtracted from that result.
  */
 export const filterSavedCourses = (
   state: SavedListState,
@@ -497,41 +565,78 @@ export const filterSavedCourses = (
     );
   return universe.filter((course) => {
     const attached = attachedTo(course);
+    const isUnlabeled = attached.size === 0;
     if (normalized.excludeLabelIds.some((labelId) => attached.has(labelId))) return false;
-    if (normalized.includeLabelIds.length === 0) return true;
-    return normalized.includeMode === 'all'
-      ? normalized.includeLabelIds.every((labelId) => attached.has(labelId))
-      : normalized.includeLabelIds.some((labelId) => attached.has(labelId));
+    if (normalized.excludeUnlabeled && isUnlabeled) return false;
+    const positives = [
+      ...normalized.includeLabelIds.map((labelId) => attached.has(labelId)),
+      ...(normalized.includeUnlabeled ? [isUnlabeled] : []),
+    ];
+    if (positives.length === 0) return true;
+    return normalized.includeMode === 'all' ? positives.every(Boolean) : positives.some(Boolean);
   });
 };
 
 /**
- * Including a label that is currently excluded moves it rather than creating a
- * contradiction, so the interactive path can never build one; only a shared or
- * stale URL can, and `normalizeLabelFilter` reports that visibly.
+ * Sets whether a predicate is included, rather than toggling relative to the
+ * current filter, so a duplicate identical message — for instance a click that
+ * bubbles from a control to its wrapping label and fires twice, or a stale URL
+ * echo arriving after a second click — cannot flip it back off. The desired
+ * state comes from what the student saw, not from what the model happens to
+ * hold when the message lands.
+ *
+ * Including a predicate that is currently excluded moves it rather than
+ * creating a contradiction, so the interactive path can never build one; only a
+ * shared or stale URL can, and `normalizeLabelFilter` reports that visibly.
  */
-export const toggleIncludeLabel = (filter: LabelFilter, labelId: string): LabelFilter =>
-  filter.includeLabelIds.includes(labelId)
-    ? { ...filter, includeLabelIds: filter.includeLabelIds.filter((id) => id !== labelId) }
-    : {
-        ...filter,
-        includeLabelIds: [...filter.includeLabelIds, labelId],
-        excludeLabelIds: filter.excludeLabelIds.filter((id) => id !== labelId),
-      };
+export const setPredicateIncluded = (
+  filter: LabelFilter,
+  predicate: LabelPredicate,
+  isIncluded: boolean,
+): LabelFilter => {
+  if (predicate._tag === 'FilterUnlabeled') {
+    if (!isIncluded) {
+      return filter.includeUnlabeled ? { ...filter, includeUnlabeled: false } : filter;
+    }
+    if (filter.includeUnlabeled && !filter.excludeUnlabeled) return filter;
+    return { ...filter, includeUnlabeled: true, excludeUnlabeled: false };
+  }
+  const { labelId } = predicate;
+  if (!isIncluded) {
+    return filter.includeLabelIds.includes(labelId)
+      ? { ...filter, includeLabelIds: filter.includeLabelIds.filter((id) => id !== labelId) }
+      : filter;
+  }
+  if (filter.includeLabelIds.includes(labelId) && !filter.excludeLabelIds.includes(labelId)) {
+    return filter;
+  }
+  return {
+    ...filter,
+    includeLabelIds: filter.includeLabelIds.includes(labelId)
+      ? filter.includeLabelIds
+      : [...filter.includeLabelIds, labelId],
+    excludeLabelIds: filter.excludeLabelIds.filter((id) => id !== labelId),
+  };
+};
 
 /**
- * Sets whether a label is excluded, rather than toggling relative to the
- * current filter, so a duplicate identical message — for instance a Checkbox
- * click that bubbles from the control to its wrapping label and fires twice —
- * cannot flip it back off. Excluding moves the label out of Include (the last
- * explicit action wins) and is a no-op if it is already excluded and not
- * included; un-excluding is a no-op if it was not excluded.
+ * The mirror of `setPredicateIncluded`. Excluding moves the predicate out of
+ * Include (the last explicit action wins) and is a no-op when it is already
+ * excluded and not included; un-excluding is a no-op when it was not excluded.
  */
-export const setLabelExcluded = (
+export const setPredicateExcluded = (
   filter: LabelFilter,
-  labelId: string,
+  predicate: LabelPredicate,
   isExcluded: boolean,
 ): LabelFilter => {
+  if (predicate._tag === 'FilterUnlabeled') {
+    if (!isExcluded) {
+      return filter.excludeUnlabeled ? { ...filter, excludeUnlabeled: false } : filter;
+    }
+    if (filter.excludeUnlabeled && !filter.includeUnlabeled) return filter;
+    return { ...filter, excludeUnlabeled: true, includeUnlabeled: false };
+  }
+  const { labelId } = predicate;
   if (!isExcluded) {
     return filter.excludeLabelIds.includes(labelId)
       ? { ...filter, excludeLabelIds: filter.excludeLabelIds.filter((id) => id !== labelId) }
@@ -547,6 +652,12 @@ export const setLabelExcluded = (
       : [...filter.excludeLabelIds, labelId],
     includeLabelIds: filter.includeLabelIds.filter((id) => id !== labelId),
   };
+};
+
+/** The saved courses carrying no label at all — the derived `Unlabeled` set. */
+export const unlabeledCourseCount = (state: SavedListState): number => {
+  const labelled = new Set(state.memberships.map((membership) => membership.savedCourseId));
+  return state.savedCourses.filter((course) => !labelled.has(course.id)).length;
 };
 
 export const setLabelFilterMode = (filter: LabelFilter, mode: LabelFilterMode): LabelFilter =>
@@ -586,11 +697,40 @@ export type SavedListLoad =
   | ReturnType<typeof SavedListCorrupt>;
 
 /**
- * Migrations from released older schema versions. Schema version 1 is the
- * first released shape, so the table is empty: an older or unknown version is
- * reported as unsupported rather than reinterpreted as the current one.
+ * Legacy colour values and the colour that replaces them. A migration is a
+ * total rewrite of the retired vocabulary, so nothing downstream ever has to
+ * ask whether a stored colour is still selectable.
  */
-const migrations: Readonly<Record<number, (value: unknown) => unknown>> = {};
+const retiredLabelColors: Readonly<Record<string, LabelColor>> = { blue: 'sky' };
+
+/**
+ * Version 1 -> 2: `blue` is retired in favour of `sky`. The value is still
+ * untrusted here — it has not been decoded yet — so every branch tolerates a
+ * shape the schema will reject a moment later rather than assuming one.
+ */
+const migrateSchemaVersion1 = (value: unknown): unknown => {
+  if (typeof value !== 'object' || value === null) return value;
+  const record = value as Readonly<Record<string, unknown>>;
+  const labels = Array.isArray(record.labels)
+    ? record.labels.map((label: unknown) => {
+        if (typeof label !== 'object' || label === null) return label;
+        const entry = label as Readonly<Record<string, unknown>>;
+        const replacement =
+          typeof entry.color === 'string' ? retiredLabelColors[entry.color] : undefined;
+        return replacement === undefined ? label : { ...entry, color: replacement };
+      })
+    : record.labels;
+  return { ...record, version: 2, labels };
+};
+
+/**
+ * Migrations from released older schema versions, keyed by the version they
+ * migrate away from. A version with no entry is reported as unsupported rather
+ * than reinterpreted as the current one.
+ */
+const migrations: Readonly<Record<number, (value: unknown) => unknown>> = {
+  1: migrateSchemaVersion1,
+};
 
 interface RepairedList {
   readonly state: SavedListState;
@@ -642,7 +782,7 @@ const repairSavedList = (state: SavedListState): RepairedList => {
   const seenMemberships = new Set<string>();
 
   for (const membership of state.memberships) {
-    const key = `${membership.savedCourseId} ${membership.labelId}`;
+    const key = JSON.stringify([membership.savedCourseId, membership.labelId]);
     if (
       !seenCourseIds.has(membership.savedCourseId) ||
       !seenLabelIds.has(membership.labelId) ||

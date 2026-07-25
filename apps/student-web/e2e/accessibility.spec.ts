@@ -144,7 +144,7 @@ test('a saved course survives reload and the List has no detectable WCAG A/AA vi
     .poll(() => page.evaluate(() => localStorage.getItem('course-lens:list')))
     .toContain('TDT4136');
 
-  await page.getByRole('link', { name: 'List' }).click();
+  await page.getByRole('link', { name: 'Saved' }).click();
   await expect(page).toHaveURL(/\/list(?:\?|$)/);
   await expect(page.getByRole('heading', { name: 'Your saved courses' })).toBeVisible();
   await expect(page.getByText('1 saved course', { exact: true })).toBeVisible();
@@ -215,7 +215,7 @@ test('labels compose collections, stay in the URL, and survive history and reloa
 }) => {
   await waitForEnrichedCatalogue(page);
   await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
-  await page.getByRole('link', { name: 'List' }).click();
+  await page.getByRole('link', { name: 'Saved' }).click();
   await expect(page.getByRole('heading', { name: 'Your saved courses' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Edit labels for TDT4136' }).click();
@@ -226,9 +226,18 @@ test('labels compose collections, stay in the URL, and survive history and reloa
 
   await dialog.getByLabel('Label name').fill('Autumn 2027');
   // The colour choice is a radio group: it owns roving focus and arrow keys.
-  await dialog.getByRole('radio', { name: 'Blue' }).focus();
+  await dialog.getByRole('radio', { name: 'Sky' }).focus();
   await page.keyboard.press('ArrowRight');
   await expect(dialog.getByRole('radio', { name: 'Violet' })).toBeChecked();
+
+  // Browsing colours is draft state. The swatches sit inside the label form, so
+  // a real click must not submit it: nothing is created, renamed, or attached
+  // until Apply, and the draft name is still there to Apply with.
+  await dialog.getByRole('radio', { name: 'Emerald' }).click();
+  await expect(dialog.getByRole('radio', { name: 'Emerald' })).toBeChecked();
+  await expect(dialog.getByText('You have not created a label yet.')).toBeVisible();
+  await expect(dialog.getByLabel('Label name')).toHaveValue('Autumn 2027');
+  await expect(dialog.getByRole('alert')).toBeHidden();
 
   await dialog.getByRole('button', { name: 'Add label' }).click();
   await expect(dialog.getByRole('checkbox', { name: /Autumn 2027/ })).toBeChecked();
@@ -272,6 +281,31 @@ test('labels compose collections, stay in the URL, and survive history and reloa
   await expect(page).not.toHaveURL(/labels=|notLabels=/);
   await expect(page.getByText('1 saved course', { exact: true })).toBeVisible();
 
+  // Unlabeled is derived from membership: the only saved course carries the new
+  // label, so the derived collection is empty and says so as a filter outcome.
+  await page.getByRole('button', { name: /^Unlabeled/ }).click();
+  await expect(page).toHaveURL(/unlabeled=1/);
+  await expect(page.getByText('Showing saved courses in Unlabeled.')).toBeVisible();
+  await expect(page.getByText('No saved courses match this label combination')).toBeVisible();
+  await expectNoAxeViolations(page);
+  await page.getByRole('button', { name: 'Clear label filter' }).first().click();
+  await expect(page).not.toHaveURL(/unlabeled=/);
+
+  // Repeated row actions read the same in every row; the row's action group and
+  // each button's description carry which label they act on.
+  await page.getByRole('button', { name: 'Edit labels for TDT4136' }).click();
+  const actions = page.getByRole('group', { name: 'Actions for Autumn 2027' });
+  await expect(actions.getByRole('button', { name: 'Edit label' })).toBeVisible();
+  await expect(actions.getByRole('button', { name: 'Delete label' })).toBeVisible();
+
+  // Escape belongs to the Dialog primitive and discards the draft with it.
+  await dialog.getByLabel('Label name').fill('Draft that is thrown away');
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole('button', { name: 'Edit labels for TDT4136' }).click();
+  await expect(dialog.getByLabel('Label name')).toHaveValue('');
+
+  await page.getByRole('button', { name: 'Close labels' }).click();
   await page.reload();
   await expect(page.getByRole('button', { name: /^Autumn 2027/ })).toBeVisible();
 });
@@ -279,7 +313,7 @@ test('labels compose collections, stay in the URL, and survive history and reloa
 test('selecting saved courses offers labelling as the one bulk action', async ({ page }) => {
   await waitForEnrichedCatalogue(page);
   await page.getByRole('button', { name: 'Save TDT4136 to List' }).click();
-  await page.getByRole('link', { name: 'List' }).click();
+  await page.getByRole('link', { name: 'Saved' }).click();
 
   const tray = page.getByRole('region', { name: 'Selected saved courses' });
   await expect(tray).toBeHidden();

@@ -118,16 +118,19 @@ const desktopItem = <Message>(locale: Locale, item: NavigationItem, collapsed: b
       );
 };
 
+/**
+ * Every destination shares one vertical rhythm: the same box, the same
+ * alignment, and the same baseline for its label. Explore stays visually
+ * distinct through its filled icon, not by protruding above its peers.
+ */
 const mobileItemLayout = (isPrimary: boolean, isCurrent = false): string =>
-  isPrimary
-    ? 'flex min-w-0 min-h-15 items-center justify-start gap-[0.2rem] flex-col text-primary text-xs font-[650] leading-none no-underline -translate-y-[1.35rem] [-webkit-tap-highlight-color:transparent]'
-    : `flex min-w-0 min-h-15 items-center justify-end gap-[0.2rem] flex-col ${
-        isCurrent ? 'text-primary font-[800]' : 'text-on-surface-variant font-[650]'
-      } text-xs leading-none no-underline [-webkit-tap-highlight-color:transparent]`;
+  `flex min-w-0 min-h-13 items-center justify-center gap-[0.2rem] flex-col ${
+    isPrimary || isCurrent ? 'text-primary font-[800]' : 'text-on-surface-variant font-[650]'
+  } text-xs leading-none no-underline [-webkit-tap-highlight-color:transparent]`;
 
 const mobileItemIcon = (isPrimary: boolean): string =>
   isPrimary
-    ? 'grid size-15 place-items-center rounded-full bg-primary text-on-primary shadow-m3-2 p-4 leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full'
+    ? 'grid size-8 place-items-center rounded-full bg-primary text-on-primary p-1.5 leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full'
     : 'grid size-8 place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
 
 const mobileItem = <Message>(
@@ -143,7 +146,10 @@ const mobileItem = <Message>(
   ];
 
   if (item.id === 'more' && onAppearance !== undefined) {
-    const appearanceLabel = translate(locale, 'appearance.label');
+    // The bottom bar gives each destination about eight characters before it
+    // truncates, so the narrow label is the short word. The route stays
+    // `/appearance` and the dialog keeps its full name.
+    const appearanceLabel = translate(locale, 'appearance.navLabel');
     return h.button(
       [
         h.Type('button'),
@@ -203,20 +209,11 @@ export const desktopNavigation = <Message>(
         [
           h.Class(
             collapsed
-              ? 'flex flex-col items-center gap-2 pt-2 pb-7'
-              : 'flex items-center gap-3 pt-2 px-3 pb-8 text-[1.125rem] font-[750] tracking-[-0.02em]',
+              ? 'flex min-h-10 items-center justify-center pt-2 pb-8'
+              : 'flex min-h-10 items-center gap-3 pt-2 px-3 pb-8 text-[1.125rem] font-[750] tracking-[-0.02em]',
           ),
         ],
         [
-          h.span(
-            [
-              h.Class(
-                'grid size-10 place-items-center rounded-[0.875rem] bg-primary text-on-primary',
-              ),
-              h.AriaHidden(true),
-            ],
-            ['C'],
-          ),
           h.span(
             [h.Class(collapsed ? 'sr-only' : 'min-w-0 flex-1')],
             [translate(locale, 'app.name')],
@@ -299,7 +296,7 @@ export const mobileNavigation = <Message>(
   return h.nav(
     [
       h.Class(
-        'fixed z-10 inset-x-0 bottom-0 grid grid-cols-5 min-h-[calc(4.75rem_+_env(safe-area-inset-bottom))] pt-2 pr-[max(0.25rem,env(safe-area-inset-right))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.25rem,env(safe-area-inset-left))] border-t border-outline-variant bg-surface-container shadow-m3-2 [@media(min-width:48rem)_and_(min-height:34rem)]:hidden',
+        'fixed z-10 inset-x-0 bottom-0 grid grid-cols-5 min-h-[calc(4rem_+_env(safe-area-inset-bottom))] pt-1 pr-[max(0.25rem,env(safe-area-inset-right))] pb-[max(0.375rem,env(safe-area-inset-bottom))] pl-[max(0.25rem,env(safe-area-inset-left))] border-t border-outline-variant bg-surface-container shadow-m3-2 [@media(min-width:48rem)_and_(min-height:34rem)]:hidden',
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],

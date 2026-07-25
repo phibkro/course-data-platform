@@ -189,7 +189,7 @@ export const init: Runtime.ApplicationInit<Model, Message> = () => {
 };
 
 const mainContentClass =
-  'w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66 [@media(min-width:64rem)]:px-10';
+  'w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66 [@media(min-width:64rem)]:px-10';
 
 const eyebrowClass = 'mb-2 text-primary text-[0.78rem] font-[800] tracking-[0.1em] uppercase';
 
