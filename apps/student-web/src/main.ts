@@ -3321,7 +3321,7 @@ const appearanceDialogView = (
                                   [
                                     h.Type('button'),
                                     h.Class(
-                                      `theme-preset-card theme-preset-card--${preset.id} relative grid min-h-28 gap-2 overflow-hidden rounded-m3-large border p-3 text-left [font:inherit] cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
+                                      `theme-preset-card theme-preset-card--${preset.id} relative grid min-h-28 gap-2 overflow-hidden rounded-m3-large border p-3 text-left cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
                                         isSelected
                                           ? 'border-primary shadow-[0_0_0_2px_var(--md-sys-color-primary)]'
                                           : 'border-outline-variant'
@@ -3385,7 +3385,7 @@ const appearanceDialogView = (
                                       [
                                         h.Type('button'),
                                         h.Class(
-                                          `min-h-11 border-0 border-r border-outline last:border-r-0 [font:inherit] font-bold cursor-pointer ${
+                                          `min-h-11 border-0 border-r border-outline last:border-r-0 font-bold cursor-pointer ${
                                             preference.mode === mode
                                               ? 'bg-primary text-on-primary'
                                               : 'bg-surface-container text-on-surface'
@@ -4751,7 +4751,7 @@ const rowCheckboxClass =
   'grid size-6 flex-none place-items-center rounded-[0.4rem] border-2 border-outline text-sm leading-none cursor-pointer has-[[data-checked]]:border-primary';
 
 const noteFieldClass =
-  'w-full min-h-20 p-3 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base leading-[1.45] [font:inherit] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]';
+  'w-full min-h-20 p-3 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base leading-[1.45] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]';
 
 /**
  * A saved row shows the student's own material (identity, note, actions) plus

@@ -77,7 +77,7 @@ export const selectField = <Message>({
           ariaLabelledBy: labelId,
           anchor: { placement: 'bottom-start', gap: 6, padding: 8, portal },
           className: 'relative min-w-0',
-          buttonClassName: `flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface px-3 text-left text-on-surface [font:inherit] cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 data-[open]:border-primary ${
+          buttonClassName: `flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface px-3 text-left text-on-surface cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 data-[open]:border-primary ${
             compact ? 'min-h-11 gap-1 px-1.5 text-xs font-extrabold' : ''
           }`,
           buttonContent: h.span(

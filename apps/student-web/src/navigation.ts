@@ -158,7 +158,15 @@ const mobileItem = <Message>(
     return h.button(
       [
         h.Type('button'),
-        h.Class(`${itemClass} border-0 bg-transparent cursor-pointer [font:inherit]`),
+        /**
+         * No `font: inherit` here. Tailwind's preflight already gives buttons
+         * the inherited font from the base layer, and repeating it as a
+         * utility puts the shorthand alongside `leading-none` — which it
+         * silently resets, because `font` carries line-height. That gave this
+         * one destination a taller label than its peers and floated its icon
+         * above the row.
+         */
+        h.Class(`${itemClass} border-0 bg-transparent cursor-pointer`),
         h.OnClick(onAppearance),
         h.AriaLabel(translate(locale, 'appearance.open')),
       ],
@@ -267,7 +275,7 @@ export const desktopNavigation = <Message>(
                 [
                   h.Type('button'),
                   h.Class(
-                    `flex min-h-11 w-full items-center gap-3 border-0 rounded-m3-medium bg-transparent text-on-surface cursor-pointer [font:inherit] font-semibold focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
+                    `flex min-h-11 w-full items-center gap-3 border-0 rounded-m3-medium bg-transparent text-on-surface cursor-pointer font-semibold focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
                       collapsed ? 'justify-center px-2' : 'px-3'
                     }`,
                   ),
