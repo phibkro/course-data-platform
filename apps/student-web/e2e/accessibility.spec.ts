@@ -489,3 +489,16 @@ test('the match switch appears with its outcomes once a second label is included
   await expect(mode.getByRole('radio', { name: /Any/ })).toContainText('2');
   await expect(mode.getByRole('radio', { name: /All/ })).toContainText('0');
 });
+
+test('an empty List offers Explore once, not twice', async ({ page }) => {
+  await page.goto('/list');
+  await expect(page.getByText('You have not saved a course yet')).toBeVisible();
+
+  /**
+   * The header used to carry a permanent link to Explore as well. Explore is
+   * a destination in both navigations, so the header repeated something
+   * already on screen — and repeated the empty state's own call to action
+   * exactly when the student had nothing saved.
+   */
+  await expect(page.getByRole('link', { name: 'Browse more courses' })).toHaveCount(1);
+});

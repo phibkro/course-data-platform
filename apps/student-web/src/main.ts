@@ -4535,7 +4535,7 @@ const selectedCourseView = (model: Model): Html => {
   );
 };
 
-const listHeader = (locale: Locale, exploreHref: string): Html => {
+const listHeader = (locale: Locale): Html => {
   const h = html<Message>();
   return h.header(
     [h.Class('pt-[clamp(1.5rem,4vw,3rem)] pb-2 grid gap-4')],
@@ -4557,10 +4557,6 @@ const listHeader = (locale: Locale, exploreHref: string): Html => {
             [translate(locale, 'list.intro')],
           ),
         ],
-      ),
-      h.a(
-        [h.Href(exploreHref), h.Class(`${backButtonClass} inline-flex items-center no-underline`)],
-        [translate(locale, 'list.backToExplore')],
       ),
     ],
   );
@@ -6012,7 +6008,7 @@ const listView = (model: Model): Html => {
   const h = html<Message>();
   return h.div(
     [h.Class('grid gap-6')],
-    [lazyListHeader(listHeader, [model.locale, exploreUrl(model)]), savedCoursesResultView(model)],
+    [lazyListHeader(listHeader, [model.locale]), savedCoursesResultView(model)],
   );
 };
 
