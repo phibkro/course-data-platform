@@ -25,8 +25,10 @@ const expectNoAxeViolations = async (page: Page): Promise<void> => {
 const waitForEnrichedCatalogue = async (page: Page): Promise<void> => {
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Course results' })).toBeVisible();
-  await expect(page.getByText('Assessment & work', { exact: true })).toBeVisible();
-  await expect(page.getByText('Historical outcomes', { exact: true })).toBeVisible();
+  // The catalogue lists every fixture course, so these headings repeat per
+  // card. Waiting on the first is what "enrichment has arrived" means.
+  await expect(page.getByText('Assessment & work', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Historical outcomes', { exact: true }).first()).toBeVisible();
 };
 
 test('loaded Explore catalogue has no detectable WCAG A/AA violations', async ({ page }) => {
@@ -198,11 +200,13 @@ test('an unreadable saved list pauses Save on Explore with a path to recover it,
     'Saving is paused until the stored list is recovered or reset.',
   );
 
-  const recoveryLink = page.getByRole('link', { name: 'Open List to recover saved courses' });
-  await expect(recoveryLink).toBeVisible();
+  // Every card offers the way out, not just the one the student happened to
+  // reach for; the recovery path belongs to the broken list, not to a course.
+  const recoveryLinks = page.getByRole('link', { name: 'Open List to recover saved courses' });
+  await expect(recoveryLinks.first()).toBeVisible();
   await expectNoAxeViolations(page);
 
-  await recoveryLink.click();
+  await recoveryLinks.first().click();
   await expect(page).toHaveURL(/\/list(?:\?|$)/);
   await expect(page.getByRole('alert')).toContainText('Saved courses could not be loaded');
 
@@ -356,4 +360,28 @@ test('every bottom-navigation destination shares one icon baseline', async ({ pa
   const measured = tops.filter((top): top is number => top !== null);
   expect(measured.length).toBeGreaterThan(1);
   expect(Math.max(...measured) - Math.min(...measured)).toBe(0);
+});
+
+test('a course reporting both grading scales offers a choice of view', async ({ page }) => {
+  await waitForEnrichedCatalogue(page);
+
+  /**
+   * TMA4115 changed scheme inside the observed period, so it reports letter
+   * and pass/fail buckets together. That is the only case where showing both
+   * readings at once would be redundant, and the only case where this control
+   * exists — until the fixture carried such a course, nothing could reach it.
+   */
+  const card = page.locator('article').filter({ hasText: 'TMA4115' }).first();
+  await expect(card).toBeVisible();
+
+  const scale = card.getByRole('group', { name: 'Choose historical outcome scale' });
+  await expect(scale).toBeVisible();
+
+  const passFail = scale.getByRole('button', { name: 'Pass/fail' });
+  await passFail.click();
+  await expect(passFail).toHaveAttribute('aria-pressed', 'true');
+
+  const letters = scale.getByRole('button', { name: 'Letter grades' });
+  await letters.click();
+  await expect(letters).toHaveAttribute('aria-pressed', 'true');
 });

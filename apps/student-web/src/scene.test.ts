@@ -2,6 +2,7 @@
 import { Scene } from 'foldkit';
 import { describe, test } from 'vitest';
 
+import { fixtureCourses } from './catalogue.fixture';
 import {
   fixtureDecisionSignalsResponse,
   fixtureGradeSummariesResponse,
@@ -125,7 +126,7 @@ describe('browse-first catalogue scene', () => {
           name: 'Open TDT4136: Introduction to Artificial Intelligence',
         }),
       ).toExist(),
-      Scene.expect(Scene.text('Showing 1 of 1 courses')).toExist(),
+      Scene.expect(Scene.text(`Showing 1 of ${fixtureCourses.length} courses`)).toExist(),
       Scene.expect(Scene.text('Credits', { exact: true })).toExist(),
       Scene.expect(Scene.text('7.5 credits', { exact: true })).toExist(),
       Scene.expect(Scene.text('Level', { exact: true })).toBeAbsent(),

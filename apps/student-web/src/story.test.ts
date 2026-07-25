@@ -2,6 +2,9 @@ import { Dialog } from '@foldkit/ui';
 import { Story } from 'foldkit';
 import { expect, test } from 'vitest';
 
+import { fixtureCourses } from './catalogue.fixture';
+
+const fixtureCourseCodes = fixtureCourses.map((course) => course.code);
 import {
   fixtureDecisionSignalsResponse,
   fixtureGradeSummariesResponse,
@@ -187,22 +190,22 @@ test('a catalogue response makes official courses available without opening deta
       expect(next.gradeSignals._tag).toBe('GradeSignalsLoading');
       expect(next.decisionSignals._tag).toBe('DecisionSignalsLoading');
       expect(next.selectedCode).toBeNull();
-      expect(next.visibleCount).toBe(1);
+      expect(next.visibleCount).toBe(fixtureCourses.length);
     }),
     Story.Command.resolve(
       FetchGradeSignals,
       SucceededGradeSignals({
         requestKey: model.activeRequestKey,
-        courseCodes: ['TDT4136'],
-        response: fixtureGradeSummariesResponse(['TDT4136']),
+        courseCodes: fixtureCourseCodes,
+        response: fixtureGradeSummariesResponse(fixtureCourseCodes),
       }),
     ),
     Story.Command.resolve(
       FetchDecisionSignals,
       SucceededDecisionSignals({
         requestKey: model.activeRequestKey,
-        courseCodes: ['TDT4136'],
-        response: fixtureDecisionSignalsResponse(['TDT4136']),
+        courseCodes: fixtureCourseCodes,
+        response: fixtureDecisionSignalsResponse(fixtureCourseCodes),
       }),
     ),
   );
@@ -223,13 +226,13 @@ test('grade responses enrich cards independently of the catalogue response', () 
     loaded,
     SucceededGradeSignals({
       requestKey: model.activeRequestKey,
-      courseCodes: ['TDT4136'],
-      response: fixtureGradeSummariesResponse(['TDT4136']),
+      courseCodes: fixtureCourseCodes,
+      response: fixtureGradeSummariesResponse(fixtureCourseCodes),
     }),
   );
 
   expect(enriched.gradeSignals).toEqual(
-    GradeSignalsSuccess({ response: fixtureGradeSummariesResponse(['TDT4136']) }),
+    GradeSignalsSuccess({ response: fixtureGradeSummariesResponse(fixtureCourseCodes) }),
   );
 });
 
@@ -240,8 +243,8 @@ test('stale decision enrichment is ignored after filters change', () => {
     filtered,
     SucceededDecisionSignals({
       requestKey: initial.activeRequestKey,
-      courseCodes: ['TDT4136'],
-      response: fixtureDecisionSignalsResponse(['TDT4136']),
+      courseCodes: fixtureCourseCodes,
+      response: fixtureDecisionSignalsResponse(fixtureCourseCodes),
     }),
   );
 
@@ -277,16 +280,16 @@ test('submitting a title or course-code query starts a fresh URL-backed search',
       FetchGradeSignals,
       SucceededGradeSignals({
         requestKey: 'algoritmer|2026-autumn|relevance|all|all|true|false|false',
-        courseCodes: ['TDT4136'],
-        response: fixtureGradeSummariesResponse(['TDT4136']),
+        courseCodes: fixtureCourseCodes,
+        response: fixtureGradeSummariesResponse(fixtureCourseCodes),
       }),
     ),
     Story.Command.resolve(
       FetchDecisionSignals,
       SucceededDecisionSignals({
         requestKey: 'algoritmer|2026-autumn|relevance|all|all|true|false|false',
-        courseCodes: ['TDT4136'],
-        response: fixtureDecisionSignalsResponse(['TDT4136']),
+        courseCodes: fixtureCourseCodes,
+        response: fixtureDecisionSignalsResponse(fixtureCourseCodes),
       }),
     ),
   );
@@ -334,16 +337,16 @@ test('a later-page failure preserves already loaded catalogue rows', () => {
       FetchGradeSignals,
       SucceededGradeSignals({
         requestKey: model.activeRequestKey,
-        courseCodes: ['TDT4136'],
-        response: fixtureGradeSummariesResponse(['TDT4136']),
+        courseCodes: fixtureCourseCodes,
+        response: fixtureGradeSummariesResponse(fixtureCourseCodes),
       }),
     ),
     Story.Command.resolve(
       FetchDecisionSignals,
       SucceededDecisionSignals({
         requestKey: model.activeRequestKey,
-        courseCodes: ['TDT4136'],
-        response: fixtureDecisionSignalsResponse(['TDT4136']),
+        courseCodes: fixtureCourseCodes,
+        response: fixtureDecisionSignalsResponse(fixtureCourseCodes),
       }),
     ),
     Story.message(RequestedMoreCourses()),
