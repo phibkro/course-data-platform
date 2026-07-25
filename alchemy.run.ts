@@ -20,10 +20,17 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* () {
     const stage = yield* Alchemy.Stage;
+    const preview = /^pr-([1-9]\d*)$/.exec(stage);
+    const webDomain =
+      stage === 'prod'
+        ? 'planner.phibkro.org'
+        : preview === null
+          ? undefined
+          : `p${preview[1]}.planner.phibkro.org`;
     const api = yield* CourseApi;
     const web = yield* Cloudflare.Website.Vite('StudentWeb', {
       rootDir: './apps/student-web',
-      ...(stage === 'prod' ? { domain: 'planner.phibkro.org' } : {}),
+      ...(webDomain === undefined ? {} : { domain: webDomain }),
       env: {
         VITE_API_URL: api.url.as<string>(),
         VITE_SOURCE_URL:
