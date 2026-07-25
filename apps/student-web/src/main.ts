@@ -3139,7 +3139,7 @@ const activeRefinementCount = (model: Model): number =>
   ].filter(Boolean).length;
 
 const catalogueRefineActionClass =
-  'pointer-events-auto flex justify-center [@media(min-width:48rem)_and_(min-height:34rem)]:sticky [@media(min-width:48rem)_and_(min-height:34rem)]:z-5 [@media(min-width:48rem)_and_(min-height:34rem)]:top-4 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:min-h-17 [@media(min-width:48rem)_and_(min-height:34rem)]:items-center [@media(min-width:48rem)_and_(min-height:34rem)]:justify-between [@media(min-width:48rem)_and_(min-height:34rem)]:gap-4 [@media(min-width:48rem)_and_(min-height:34rem)]:py-[0.65rem] [@media(min-width:48rem)_and_(min-height:34rem)]:pr-3 [@media(min-width:48rem)_and_(min-height:34rem)]:pl-4 [@media(min-width:48rem)_and_(min-height:34rem)]:border [@media(min-width:48rem)_and_(min-height:34rem)]:border-outline-variant [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-[1.5rem] [@media(min-width:48rem)_and_(min-height:34rem)]:bg-[color-mix(in_srgb,var(--md-sys-color-surface-container)_92%,transparent)] [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-m3-1 [@media(min-width:48rem)_and_(min-height:34rem)]:backdrop-blur-[1rem]';
+  'pointer-events-auto flex justify-end [@media(min-width:48rem)_and_(min-height:34rem)]:sticky [@media(min-width:48rem)_and_(min-height:34rem)]:z-5 [@media(min-width:48rem)_and_(min-height:34rem)]:top-4 [@media(min-width:48rem)_and_(min-height:34rem)]:right-auto [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-auto [@media(min-width:48rem)_and_(min-height:34rem)]:flex [@media(min-width:48rem)_and_(min-height:34rem)]:min-h-17 [@media(min-width:48rem)_and_(min-height:34rem)]:items-center [@media(min-width:48rem)_and_(min-height:34rem)]:justify-between [@media(min-width:48rem)_and_(min-height:34rem)]:gap-4 [@media(min-width:48rem)_and_(min-height:34rem)]:py-[0.65rem] [@media(min-width:48rem)_and_(min-height:34rem)]:pr-3 [@media(min-width:48rem)_and_(min-height:34rem)]:pl-4 [@media(min-width:48rem)_and_(min-height:34rem)]:border [@media(min-width:48rem)_and_(min-height:34rem)]:border-outline-variant [@media(min-width:48rem)_and_(min-height:34rem)]:rounded-[1.5rem] [@media(min-width:48rem)_and_(min-height:34rem)]:bg-[color-mix(in_srgb,var(--md-sys-color-surface-container)_92%,transparent)] [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-m3-1 [@media(min-width:48rem)_and_(min-height:34rem)]:backdrop-blur-[1rem]';
 
 const catalogueRefineActionSummaryClass =
   'hidden [@media(min-width:48rem)_and_(min-height:34rem)]:grid [@media(min-width:48rem)_and_(min-height:34rem)]:min-w-0 [@media(min-width:48rem)_and_(min-height:34rem)]:gap-[0.15rem]';
@@ -4033,7 +4033,7 @@ const courseIdentityFacts = (
   const h = html<Message>();
   const { offering, place, term, credits } = courseOfferingFacts(course, decisionSignal, locale);
   return h.dl(
-    [h.Class('grid gap-x-4 gap-y-3 @min-[22rem]:grid-cols-2')],
+    [h.Class('grid gap-x-4 gap-y-3 @min-[24rem]:grid-cols-2')],
     [
       h.div(
         [h.Class('min-w-0')],
@@ -4098,7 +4098,7 @@ const courseCard = (
             ],
             [
               h.div(
-                [h.Class('grid items-start gap-3 @min-[26rem]:grid-cols-[minmax(0,1fr)_auto]')],
+                [h.Class('grid items-start gap-3 @min-[28rem]:grid-cols-[minmax(0,1fr)_auto]')],
                 [
                   h.div(
                     [h.Class('min-w-0')],
@@ -4933,10 +4933,10 @@ const savedRowClass = (isSelected: boolean): string =>
  * keeps a long title from having to share a line it cannot fit on.
  */
 const savedRowHeaderClass =
-  'grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 @min-[30rem]:grid-cols-[auto_minmax(0,1fr)_auto]';
+  'grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 @min-[32rem]:grid-cols-[auto_minmax(0,1fr)_auto]';
 
 const savedRowActionsClass =
-  'col-span-2 flex flex-wrap items-center gap-2 @min-[30rem]:col-span-1 @min-[30rem]:col-start-3 @min-[30rem]:row-start-1 @min-[30rem]:justify-end';
+  'col-span-2 flex flex-wrap items-center gap-2 @min-[32rem]:col-span-1 @min-[32rem]:col-start-3 @min-[32rem]:row-start-1 @min-[32rem]:justify-end';
 
 const rowCheckboxClass =
   'grid size-6 flex-none place-items-center rounded-[0.4rem] border-2 border-outline text-sm leading-none cursor-pointer has-[[data-checked]]:border-primary';
@@ -5608,7 +5608,23 @@ const labelDialogAction = (courseCodes: ReadonlyArray<string>, locale: Locale): 
 };
 
 const selectionTrayClass =
-  '@container pointer-events-auto grid gap-3 p-3 border border-outline rounded-[1.5rem] bg-surface-container-high shadow-m3-2 @min-[26rem]:flex @min-[26rem]:flex-wrap @min-[26rem]:items-center @min-[26rem]:justify-between';
+  '@container pointer-events-auto grid gap-3 p-3 border border-outline rounded-[1.5rem] bg-surface-container-high shadow-m3-2 @min-[28rem]:flex @min-[28rem]:flex-wrap @min-[28rem]:items-center @min-[28rem]:justify-between';
+
+/**
+ * Layout answers to a container's own width at three named widths, and only
+ * those three. They are a scale, not measurements: six hand-picked thresholds
+ * had accumulated, which is the same drift as hand-picked font sizes — numbers
+ * near enough to look deliberate and far enough apart to disagree.
+ *
+ *   24rem  two short facts can sit side by side
+ *   28rem  a group of controls becomes a row
+ *   32rem  a header gives its controls the far side
+ *
+ * Tailwind reads class names out of source text, so these cannot be composed
+ * from a variable — `${threshold}:grid-cols-2` is never generated. The scale
+ * therefore lives as literal strings held in named constants, and
+ * `tests/architecture.test.ts` keeps a fourth from appearing.
+ */
 
 /**
  * A group of controls: one full-width column first, a row once the container
@@ -5621,7 +5637,7 @@ const selectionTrayClass =
  * pinned above the bottom bar and in a panel inside the reading column.
  */
 const controlGroupClass =
-  'grid gap-2 [&>*]:w-full [&>*]:justify-center @min-[26rem]:flex @min-[26rem]:flex-wrap @min-[26rem]:items-center @min-[26rem]:[&>*]:w-auto';
+  'grid gap-2 [&>*]:w-full [&>*]:justify-center @min-[28rem]:flex @min-[28rem]:flex-wrap @min-[28rem]:items-center @min-[28rem]:[&>*]:w-auto';
 
 /**
  * Everything that hovers over the page bottom shares one stack, so the pieces
@@ -6693,7 +6709,7 @@ const compareView = (model: Model, courses: ReadonlyArray<SavedCourse>): Html =>
       h.div(
         [
           h.Class(
-            'grid gap-3 @min-[34rem]:flex @min-[34rem]:items-start @min-[34rem]:justify-between',
+            'grid gap-3 @min-[32rem]:flex @min-[32rem]:items-start @min-[32rem]:justify-between',
           ),
         ],
         [

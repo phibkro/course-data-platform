@@ -204,6 +204,25 @@ describe('styling belongs to Tailwind', () => {
     expect(offenders).toEqual([]);
   });
 
+  /**
+   * Container-query widths are a scale for the same reason type sizes are: a
+   * threshold picked per call site is a number only that site knows, and six
+   * of them had accumulated within ten rem of each other. Adding a fourth is
+   * a deliberate act, not a default.
+   */
+  test('layout promotes at the named widths and no others', () => {
+    const named = new Set(['24rem', '28rem', '32rem']);
+    const used = new Set(
+      styledComponents.flatMap((path) =>
+        [...withoutComments(readFileSync(path, 'utf8')).matchAll(/@min-\[([0-9.]+rem)\]/g)].map(
+          ([, width]) => width ?? '',
+        ),
+      ),
+    );
+
+    expect([...used].filter((width) => !named.has(width))).toEqual([]);
+  });
+
   test('every inline style declares why Tailwind cannot express it', () => {
     const offenders = styledComponents.flatMap((path) => {
       const lines = readFileSync(path, 'utf8').split('\n');
