@@ -28,7 +28,7 @@ export const savedListStorageKey = 'course-lens:list';
  * distinguishable. Version 2 retires `blue`; a stored version 1 is migrated at
  * the boundary and version 2 can no longer express the retired colour.
  */
-export const savedListSchemaVersion = 2;
+export const savedListSchemaVersion = 3;
 
 export const noteMaxLength = 2000;
 
@@ -67,11 +67,36 @@ export const LabelMembershipSchema = S.Struct({
   labelId: S.String,
 });
 
+export const labelFilterModes = ['any', 'all'] as const;
+
+export const StoredLabelFilterSchema = S.Struct({
+  includeLabelIds: S.Array(S.String),
+  includeUnlabeled: S.Boolean,
+  includeMode: S.Literals(labelFilterModes),
+  excludeLabelIds: S.Array(S.String),
+  excludeUnlabeled: S.Boolean,
+});
+
+/**
+ * A named question over the saved list. It stores the recipe, not the courses
+ * the recipe currently selects, so its membership follows the labels rather
+ * than freezing a copy of them — which is what keeps it from becoming a second
+ * place a course can live.
+ */
+export const CollectionSchema = S.Struct({
+  id: S.String,
+  name: S.String,
+  filter: StoredLabelFilterSchema,
+});
+
+export type Collection = typeof CollectionSchema.Type;
+
 export const SavedListStateSchema = S.Struct({
   version: S.Literal(savedListSchemaVersion),
   savedCourses: S.Array(SavedCourseSchema),
   labels: S.Array(LabelSchema),
   memberships: S.Array(LabelMembershipSchema),
+  collections: S.Array(CollectionSchema),
 });
 
 export type SavedCourse = typeof SavedCourseSchema.Type;
@@ -81,6 +106,7 @@ export type SavedListState = typeof SavedListStateSchema.Type;
 
 export const emptySavedList: SavedListState = {
   version: savedListSchemaVersion,
+  collections: [],
   savedCourses: [],
   labels: [],
   memberships: [],
@@ -442,8 +468,6 @@ export const detachLabel = (
   return memberships.length === state.memberships.length ? state : { ...state, memberships };
 };
 
-export const labelFilterModes = ['any', 'all'] as const;
-
 export type LabelFilterMode = (typeof labelFilterModes)[number];
 
 /**
@@ -728,8 +752,18 @@ const migrateSchemaVersion1 = (value: unknown): unknown => {
  * migrate away from. A version with no entry is reported as unsupported rather
  * than reinterpreted as the current one.
  */
+/**
+ * A list saved before collections existed has none. Nothing else about it
+ * changes, so the migration adds the empty set rather than inventing recipes.
+ */
+const migrateSchemaVersion2 = (value: unknown): unknown =>
+  typeof value === 'object' && value !== null
+    ? { ...(value as Record<string, unknown>), version: 3, collections: [] }
+    : value;
+
 const migrations: Readonly<Record<number, (value: unknown) => unknown>> = {
   1: migrateSchemaVersion1,
+  2: migrateSchemaVersion2,
 };
 
 interface RepairedList {
@@ -795,11 +829,32 @@ const repairSavedList = (state: SavedListState): RepairedList => {
     memberships.push(membership);
   }
 
+  /**
+   * A collection's recipe may name a label that no longer exists; the filter
+   * normaliser already drops unknown ids and reports them, so the collection
+   * survives its labels rather than being repaired away. What cannot survive is
+   * a duplicate id or an unusable name.
+   */
+  const collections: Array<Collection> = [];
+  const seenCollectionIds = new Set<string>();
+  for (const collection of state.collections) {
+    if (
+      collection.id.trim().length === 0 ||
+      normalizeCollectionName(collection.name) === null ||
+      seenCollectionIds.has(collection.id)
+    ) {
+      repairedEntries += 1;
+      continue;
+    }
+    seenCollectionIds.add(collection.id);
+    collections.push(collection);
+  }
+
   return {
     state:
       repairedEntries === 0
         ? state
-        : { version: savedListSchemaVersion, savedCourses, labels, memberships },
+        : { version: savedListSchemaVersion, savedCourses, labels, memberships, collections },
     repairedEntries,
   };
 };
@@ -901,3 +956,106 @@ export const compareCourses = (
     const course = findSavedCourse(state, identity);
     return course === null ? [] : [course];
   });
+
+export const collectionNameMaxLength = 60;
+export const collectionsMaxCount = 24;
+
+/** Same rule as a label name: what a student typed, minus the whitespace. */
+export const normalizeCollectionName = (name: string): string | null => {
+  const collapsed = name.trim().replace(/\s+/g, ' ');
+  if (collapsed.length === 0 || collapsed.length > collectionNameMaxLength) return null;
+  return collapsed;
+};
+
+const collectionNameKey = (name: string): string => name.trim().replace(/\s+/g, ' ').toLowerCase();
+
+export const findCollection = (state: SavedListState, id: string): Collection | null =>
+  state.collections.find((collection) => collection.id === id) ?? null;
+
+export const collectionsByName = (state: SavedListState): ReadonlyArray<Collection> =>
+  [...state.collections].sort((left, right) => left.name.localeCompare(right.name));
+
+export const collectionRejections = [
+  'empty-name',
+  'duplicate-name',
+  'inactive-filter',
+  'limit-reached',
+] as const;
+
+export type CollectionRejection = (typeof collectionRejections)[number];
+
+export type CollectionResult =
+  | { readonly _tag: 'CollectionSaved'; readonly state: SavedListState; readonly id: string }
+  | { readonly _tag: 'CollectionRejected'; readonly reason: CollectionRejection };
+
+/**
+ * Saving the filter that is active, under a name.
+ *
+ * An inactive filter is refused rather than stored: a collection selecting
+ * every saved course is the saved list, and naming it would put the same set
+ * on screen under two names. A duplicate name is refused for the same reason a
+ * duplicate label name is — two identical entries in a picker are a choice the
+ * student cannot make.
+ */
+export const saveCollection = (
+  state: SavedListState,
+  name: string,
+  filter: LabelFilter,
+  id: string,
+): CollectionResult => {
+  const normalized = normalizeCollectionName(name);
+  if (normalized === null) return { _tag: 'CollectionRejected', reason: 'empty-name' };
+  if (!isLabelFilterActive(filter))
+    return { _tag: 'CollectionRejected', reason: 'inactive-filter' };
+  if (state.collections.length >= collectionsMaxCount)
+    return { _tag: 'CollectionRejected', reason: 'limit-reached' };
+  if (
+    state.collections.some(
+      (collection) => collectionNameKey(collection.name) === collectionNameKey(normalized),
+    )
+  ) {
+    return { _tag: 'CollectionRejected', reason: 'duplicate-name' };
+  }
+
+  return {
+    _tag: 'CollectionSaved',
+    id,
+    state: {
+      ...state,
+      collections: [
+        ...state.collections,
+        {
+          id,
+          name: normalized,
+          filter: {
+            includeLabelIds: [...filter.includeLabelIds],
+            includeUnlabeled: filter.includeUnlabeled,
+            includeMode: filter.includeMode,
+            excludeLabelIds: [...filter.excludeLabelIds],
+            excludeUnlabeled: filter.excludeUnlabeled,
+          },
+        },
+      ],
+    },
+  };
+};
+
+export const deleteCollection = (state: SavedListState, id: string): SavedListState =>
+  state.collections.some((collection) => collection.id === id)
+    ? { ...state, collections: state.collections.filter((collection) => collection.id !== id) }
+    : state;
+
+/** The collection whose recipe the active filter currently is, if any. */
+export const matchingCollection = (state: SavedListState, filter: LabelFilter): Collection | null =>
+  state.collections.find((collection) => sameStoredFilter(collection.filter, filter)) ?? null;
+
+const sameIds = (left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean =>
+  left.length === right.length &&
+  [...left].sort().every((id, index) => id === [...right].sort()[index]);
+
+const sameStoredFilter = (left: Collection['filter'], right: LabelFilter): boolean =>
+  left.includeMode === right.includeMode &&
+  left.includeUnlabeled === right.includeUnlabeled &&
+  left.excludeUnlabeled === right.excludeUnlabeled &&
+  sameIds(left.includeLabelIds, right.includeLabelIds) &&
+  sameIds(left.excludeLabelIds, right.excludeLabelIds);

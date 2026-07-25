@@ -509,6 +509,7 @@ test('a save carries an explicit confirmation that Undo removes, persisting the 
 test('undoing a removal restores the exact saved course, its note, and its label memberships', () => {
   const savedWithLabel: SavedListState = {
     version: savedListSchemaVersion,
+    collections: [],
     savedCourses: [
       {
         id: 'ntnu:TDT4136',

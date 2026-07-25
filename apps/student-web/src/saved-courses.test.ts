@@ -47,6 +47,10 @@ import {
   type SavedListState,
   compareCourses,
   compareSelection,
+  collectionsByName,
+  deleteCollection,
+  matchingCollection,
+  saveCollection,
 } from './saved-courses';
 
 const tdt4136 = courseIdentity('TDT4136')!;
@@ -95,6 +99,7 @@ test('saving is idempotent and does not duplicate the identity', () => {
 test('removing a saved course clears its label memberships in the same transition', () => {
   const withLabel: SavedListState = {
     version: savedListSchemaVersion,
+    collections: [],
     savedCourses: [
       {
         id: 'ntnu:TDT4136',
@@ -149,6 +154,7 @@ test('note truncation cuts on a Unicode code point and never splits a surrogate 
 test('a course restored after removal keeps its exact identity, note, and label memberships', () => {
   const withLabel: SavedListState = {
     version: savedListSchemaVersion,
+    collections: [],
     savedCourses: [
       {
         id: 'ntnu:TDT4136',
@@ -970,4 +976,77 @@ test('a comparison keeps the order the student chose', () => {
     'IT2805',
     'TDT4136',
   ]);
+});
+
+const autumnFilter = {
+  ...emptyLabelFilter,
+  includeLabelIds: ['label-autumn'],
+};
+
+test('a collection stores the recipe, so its membership follows the labels', () => {
+  const result = saveCollection(emptySavedList, 'Autumn shortlist', autumnFilter, 'collection-1');
+  expect(result._tag).toBe('CollectionSaved');
+  if (result._tag !== 'CollectionSaved') return;
+
+  const stored = result.state.collections[0]!;
+  expect(stored.name).toBe('Autumn shortlist');
+  expect(stored.filter.includeLabelIds).toEqual(['label-autumn']);
+  // No course identities: the collection is a question, not a copy of an answer.
+  expect(Object.keys(stored.filter)).not.toContain('savedCourses');
+});
+
+test('a collection must name something the saved list does not already show', () => {
+  // Every saved course is the saved list; naming it would put one set on
+  // screen under two names.
+  expect(saveCollection(emptySavedList, 'Everything', emptyLabelFilter, 'c1')).toMatchObject({
+    _tag: 'CollectionRejected',
+    reason: 'inactive-filter',
+  });
+  expect(saveCollection(emptySavedList, '   ', autumnFilter, 'c1')).toMatchObject({
+    reason: 'empty-name',
+  });
+
+  const first = saveCollection(emptySavedList, 'Autumn', autumnFilter, 'c1');
+  if (first._tag !== 'CollectionSaved') throw new Error('expected a saved collection');
+  expect(saveCollection(first.state, '  autumn  ', autumnFilter, 'c2')).toMatchObject({
+    reason: 'duplicate-name',
+  });
+});
+
+test('the active filter recognises the collection it came from', () => {
+  const saved = saveCollection(emptySavedList, 'Autumn', autumnFilter, 'c1');
+  if (saved._tag !== 'CollectionSaved') throw new Error('expected a saved collection');
+
+  expect(matchingCollection(saved.state, autumnFilter)?.name).toBe('Autumn');
+  expect(matchingCollection(saved.state, emptyLabelFilter)).toBeNull();
+
+  const removed = deleteCollection(saved.state, 'c1');
+  expect(collectionsByName(removed)).toEqual([]);
+  // Deleting a collection deletes a question, never the courses it selected.
+  expect(removed.savedCourses).toEqual(saved.state.savedCourses);
+});
+
+test('a list saved before collections existed migrates to having none', () => {
+  const legacy = JSON.stringify({
+    version: 2,
+    savedCourses: [
+      {
+        id: 'ntnu:TDT4136',
+        institutionId: 'ntnu',
+        courseCode: 'TDT4136',
+        savedAt,
+        note: null,
+        observedDataRevision: null,
+      },
+    ],
+    labels: [],
+    memberships: [],
+  });
+
+  const load = parseSavedList(legacy);
+  expect(load._tag).toBe('SavedListLoaded');
+  if (load._tag !== 'SavedListLoaded') return;
+  expect(load.state.version).toBe(savedListSchemaVersion);
+  expect(load.state.collections).toEqual([]);
+  expect(load.state.savedCourses.map((course) => course.courseCode)).toEqual(['TDT4136']);
 });
