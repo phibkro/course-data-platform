@@ -126,7 +126,6 @@ const lazyCatalogueControls = createLazy();
 const lazyCatalogueRefineDialog = createLazy();
 const lazyAppearancePage = createLazy();
 const lazyProductFooter = createLazy();
-const lazyMobileLanguageBar = createLazy();
 const lazyListHeader = createLazy();
 
 export const parseExternalHttpsUrl = (candidate: string | undefined): string | null => {
@@ -2451,13 +2450,13 @@ const appView = (model: Model): Html => {
           h.div(
             [h.Class(mainColumnClass)],
             [
-              lazyMobileLanguageBar(mobileLanguageBar, [model.locale, model.selectFields]),
               savedCoursesPersistenceAlert(model),
               savedListActionStatus(model),
               model.route === 'appearance'
                 ? lazyAppearancePage(appearancePageFromValues, [
                     model.locale,
                     model.themePreference,
+                    model.selectFields,
                   ])
                 : model.route === 'list'
                   ? listView(model)
@@ -3045,8 +3044,11 @@ const catalogueRefineDialog = (
   });
 };
 
-const appearancePageFromValues = (locale: Locale, themePreference: ThemePreference): Html =>
-  appearancePageView(locale, themePreference);
+const appearancePageFromValues = (
+  locale: Locale,
+  themePreference: ThemePreference,
+  selectFields: Model['selectFields'],
+): Html => appearancePageView(locale, themePreference, selectFields);
 
 const themePresetName = (locale: Locale, presetId: ThemePresetId): string => {
   switch (presetId) {
@@ -3165,7 +3167,11 @@ const themePreview = (locale: Locale): Html => {
   );
 };
 
-const appearancePageView = (locale: Locale, preference: ThemePreference): Html => {
+const appearancePageView = (
+  locale: Locale,
+  preference: ThemePreference,
+  selectFields: Model['selectFields'],
+): Html => {
   const h = html<Message>();
   const selectedPreset = selectedPresetId(preference);
   return h.section(
@@ -3290,6 +3296,34 @@ const appearancePageView = (locale: Locale, preference: ThemePreference): Html =
               h.button(
                 [h.Type('button'), h.Class(buttonSecondary), h.OnClick(ResetThemePreference())],
                 [translate(locale, 'appearance.reset')],
+              ),
+            ],
+          ),
+        ],
+      ),
+      /**
+       * The narrow layout has no sidebar, so this page is where its app-level
+       * preferences live. Language sat at the end of every page before, which
+       * made finding it depend on how far the student had scrolled; it is one
+       * tap from the bottom bar here instead, and never competes with the
+       * heading of the page being read.
+       */
+      h.section(
+        [h.Class('grid gap-3 [@media(min-width:48rem)_and_(min-height:34rem)]:hidden')],
+        [
+          h.h2([h.Class(eyebrowClass)], [translate(locale, 'locale.label')]),
+          h.div(
+            [h.Class('w-[min(100%,20rem)]')],
+            [
+              selectControl(
+                selectFields,
+                'language-mobile',
+                translate(locale, 'locale.label'),
+                locale,
+                [
+                  ['en', translate(locale, 'locale.en')],
+                  ['nb', translate(locale, 'locale.nb')],
+                ],
               ),
             ],
           ),
@@ -6037,41 +6071,6 @@ const productFooter = (locale: Locale): Html => {
               ],
             ),
           ]),
-    ],
-  );
-};
-
-/**
- * Language is chrome, not page content. It used to sit at the end of every
- * page, which meant finding it depended on how far the student had scrolled —
- * and on a long catalogue that is a long way down. It stays in reach here,
- * and only on the narrow layout, where the sidebar that already carries it is
- * hidden.
- */
-const mobileLanguageBar = (locale: Locale, selectFields: Model['selectFields']): Html => {
-  const h = html<Message>();
-  return h.div(
-    [
-      h.Class(
-        'sticky top-0 z-[4] -mx-4 mb-2 flex justify-end bg-surface px-4 py-2 [@media(min-width:48rem)_and_(min-height:34rem)]:hidden',
-      ),
-    ],
-    [
-      h.div(
-        [h.Class('w-[min(100%,11rem)]')],
-        [
-          selectControl(
-            selectFields,
-            'language-mobile',
-            translate(locale, 'locale.label'),
-            locale,
-            [
-              ['en', translate(locale, 'locale.en')],
-              ['nb', translate(locale, 'locale.nb')],
-            ],
-          ),
-        ],
-      ),
     ],
   );
 };

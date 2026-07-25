@@ -427,18 +427,23 @@ test('the sidebar offers exactly one way to reach Style', async ({ page }, testI
   await expect(sidebar.getByRole('navigation').getByRole('link', { name: 'Style' })).toHaveCount(0);
 });
 
-test('Language stays in reach on mobile however far the page has scrolled', async ({
+test('Language is one tap from anywhere on mobile, not buried in a page', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium');
   await waitForEnrichedCatalogue(page);
 
-  const language = page.locator('main').getByLabel('Language');
-  await expect(language).toBeInViewport();
+  // It used to sit at the end of every page, so reaching it depended on how
+  // far down a long catalogue the student had already read.
+  await expect(page.locator('main').getByLabel('Language')).toHaveCount(0);
 
-  // It used to sit at the end of the page, so finding it depended on how far
-  // down a long catalogue the student had already read.
-  await page.mouse.wheel(0, 4000);
+  await page
+    .getByRole('navigation', { name: 'Primary navigation' })
+    .getByRole('link', { name: 'Style' })
+    .click();
+  await expect(page).toHaveURL(/\/appearance(?:\?|$)/);
+  const language = page.locator('main').getByLabel('Language');
+  await language.scrollIntoViewIfNeeded();
   await expect(language).toBeInViewport();
 });
 
