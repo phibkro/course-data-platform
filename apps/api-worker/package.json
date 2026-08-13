@@ -23,7 +23,7 @@
     "@course-data/source-ntnu": "0.1.0",
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/openapi": "1.4.15",
-    "effect": "4.0.0-beta.97",
+    "effect": "4.0.0-rc.108",
     "elysia": "1.4.29"
   },
   "devDependencies": {
