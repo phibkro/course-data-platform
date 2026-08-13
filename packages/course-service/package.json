@@ -17,7 +17,7 @@
     "@course-data/course-model": "0.1.0",
     "@course-data/source-grades": "0.1.0",
     "@course-data/source-ntnu-course": "0.1.0",
-    "effect": "4.0.0-beta.97"
+    "effect": "4.0.0-rc.108"
   },
   "devDependencies": {}
 }
