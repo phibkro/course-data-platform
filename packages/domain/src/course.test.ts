@@ -22,6 +22,6 @@ describe('CourseSummary', () => {
           retrievedAt: '2026-07-20T00:00:00.000Z',
         },
       }),
-    ).toThrow(/100/);
+    ).toThrow(/between 0 and 60/);
   });
 });
