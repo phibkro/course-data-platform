@@ -26,6 +26,10 @@ Implemented now:
 - URL-backed catalogue state and a decision-oriented course detail;
 - explicit evidence and per-source status for every factual result;
 - independent partial success when detail or grade providers fail;
+- assessment and collaboration signals on browse cards, enriched only for
+  visible or shortlisted courses;
+- a local saved list with labelled collections and comparison of two to four
+  courses;
 - ordinary-term, bounded grade aggregation with pass/fail outcomes kept
   separate from ordinal letter grades;
 - Foldkit loading, success, partial, empty, and error scenes;
