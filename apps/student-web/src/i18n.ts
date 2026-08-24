@@ -238,6 +238,9 @@ const en = {
   'list.filterSummaryNone': 'Showing every saved course.',
   'list.filterContradiction':
     '{labels} stays excluded, so it was removed from the included labels.',
+  'feedback.prompt': 'Did this help your decision? ',
+  'feedback.action': 'Tell us',
+  'feedback.optional': ' — completely optional.',
   'list.filterUnknownDropped':
     'The filter referred to labels that no longer exist. They were removed: {count}.',
   'list.filterUnlabeled': 'Unlabeled',
@@ -782,6 +785,9 @@ const nb = {
   'footer.licenseName': 'AGPL-3.0-only',
   'footer.source': 'Vis kildekoden',
   'footer.tip': 'Støtt prosjektet',
+  'feedback.prompt': 'Var dette til hjelp i avgjørelsen? ',
+  'feedback.action': 'Fortell oss',
+  'feedback.optional': ' — helt valgfritt.',
 } satisfies MessageCatalogue;
 
 const catalogues: Readonly<Record<Locale, MessageCatalogue>> = { en, nb };

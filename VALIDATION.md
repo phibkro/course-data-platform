@@ -87,6 +87,21 @@ presented as captured source facts. Expanding the live golden corpus beyond
 TDT4136 and preserving provider-approved response captures remains a
 pre-public-launch task rather than a hidden claim of this slice.
 
+## Feedback channel
+
+The decision screens carry one contextual feedback affordance: a link labelled
+"Tell us" beside the question "Did this help your decision?". It appears on the
+course insight screen and on the comparison screen only when the operator sets
+`VITE_FEEDBACK_URL` to a valid HTTPS URL; with no value set, no affordance is
+rendered. The variable works exactly like `VITE_TIP_URL` — see
+`.env.example`.
+
+The operator sets this variable to a channel they actually read. Feedback that
+arrives there is review evidence for this validation ledger: repeat submissions
+and continued decision journeys recorded in the channel are assessed beside
+this file when judging whether the decision-support slice has earned further
+expansion.
+
 ## Current product boundary
 
 This release candidate supports broad scanning and narrowing by the factual

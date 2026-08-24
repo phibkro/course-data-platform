@@ -144,6 +144,7 @@ export const parseExternalHttpsUrl = (candidate: string | undefined): string | n
 
 const sourceUrl = parseExternalHttpsUrl(import.meta.env.VITE_SOURCE_URL as string | undefined);
 const tipUrl = parseExternalHttpsUrl(import.meta.env.VITE_TIP_URL as string | undefined);
+const feedbackUrl = parseExternalHttpsUrl(import.meta.env.VITE_FEEDBACK_URL as string | undefined);
 
 type Campus = 'all' | 'trondheim' | 'gjovik' | 'alesund';
 type Level = 'all' | 'bachelor' | 'master' | 'phd';
@@ -4800,6 +4801,9 @@ const selectedCourseView = (model: Model): Html => {
               ),
         ],
       ),
+      model.detail._tag === 'DetailSuccess' || model.detail._tag === 'DetailPartial'
+        ? feedbackRow(model.locale)
+        : h.empty,
       detailResultView(model.detail, model.locale),
     ],
   );
@@ -6447,6 +6451,32 @@ const listView = (model: Model): Html => {
   );
 };
 
+/**
+ * The one contextual feedback affordance for the decision screens. It follows
+ * the VITE_TIP_URL pattern exactly: a static HTTPS link that exists only when
+ * the operator configured a valid HTTPS URL, and opens in a new tab.
+ */
+const feedbackRow = (locale: Locale): Html => {
+  const h = html<Message>();
+  if (feedbackUrl === null) return h.empty;
+  return h.p(
+    [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]')],
+    [
+      translate(locale, 'feedback.prompt'),
+      h.a(
+        [
+          h.Href(feedbackUrl),
+          h.Target('_blank'),
+          h.Rel('noopener noreferrer'),
+          h.Class('relative font-semibold'),
+        ],
+        [translate(locale, 'feedback.action')],
+      ),
+      translate(locale, 'feedback.optional'),
+    ],
+  );
+};
+
 const productFooter = (locale: Locale): Html => {
   const h = html<Message>();
   const externalLink = (url: string, label: string): Html =>
@@ -6832,6 +6862,7 @@ const compareView = (model: Model, courses: ReadonlyArray<SavedCourse>): Html =>
               ),
             ],
           ),
+      feedbackRow(locale),
     ],
   );
 };
