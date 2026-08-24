@@ -172,3 +172,4 @@ corresponding source from the student interface.
 An optional student support link can be enabled with `VITE_TIP_URL`. It is
 shown only when the value is a valid HTTPS URL; no payment provider or account
 is assumed by the application.
+- G2.1 bounded candidate journey (2026-08-24): documentation-only marker recorded by the live external-journey acceptance run against frozen base 920854e50d920e33cc1a1d74d4daf89535c68a57.
