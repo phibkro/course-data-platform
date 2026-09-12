@@ -178,14 +178,19 @@ const extractElementInnerHtmlById = (html: string, id: string): string | null =>
   return null;
 };
 
-const extractBoundedSection = (
-  html: string,
-  id: string,
-  label: RegExp,
-  maxLength = 1200,
-): string | null => {
+const extractBoundedSection = (html: string, id: string, maxLength = 1200): string | null => {
   const inner = extractElementInnerHtmlById(html, id);
-  return inner === null ? null : extractSection(stripTags(inner), label, maxLength);
+  if (inner === null) return null;
+  const heading = /^\s*<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/i.exec(inner);
+  const headingText = stripTags(heading?.[1] ?? '');
+  let value = stripTags(heading === null ? inner : inner.slice(heading[0].length));
+  if (headingText.length > 0 && value.startsWith(`${headingText} `)) {
+    value = value.slice(headingText.length).trimStart();
+  }
+  if (value.length === 0) return null;
+  return value.length > maxLength
+    ? `${value.slice(0, maxLength).trim()} … [Truncated; continue at source]`
+    : value;
 };
 
 const extractListItems = (html: string, containerId: string): ReadonlyArray<string> => {
@@ -229,7 +234,7 @@ const GROUP_RE =
   /(gruppearbeid|gruppeprosjekt|gruppeoppgave|gruppeinnlevering|i grupper?|kollaborativ\w*|group\s?(work|project)|in groups|collaborative)/i;
 const INDIVIDUAL_RE = /(individuell\w*|individual\w*|selvstendig\w*)/i;
 const REQUIRED_ATTENDANCE_RE =
-  /obligatorisk (oppmøte|deltakelse|frammøte|tilstedeværelse)|(?:kreves?|krav om)\s+\d+\s*%\s*(?:oppmøte|deltakelse|frammøte|tilstedeværelse)|mandatory attendance|attendance (is )?required/i;
+  /obligatorisk (oppmøte|deltakelse|frammøte|tilstedeværelse)|(?:kreves?|krever)(?:\s+minimum)?\s+\d+\s*%\s*(?:tilfredsstillende\s+)?(?:oppmøte|deltakelse|frammøte|tilstedeværelse)|mandatory attendance|attendance (is )?required/i;
 const NOT_REQUIRED_ATTENDANCE_RE =
   /ikke obligatorisk (oppmøte|deltakelse)|attendance is not (required|mandatory)/i;
 const REMOTE_RE =
@@ -241,6 +246,7 @@ const ASSESSMENT_FORM_PATTERNS: ReadonlyArray<readonly [RegExp, AssessmentFormGu
   [/muntlig(?:\s+\w+){0,2}\s+eksamen|oral exam/i, 'oral-exam'],
   [/hjemme-?eksamen|home exam|take-home exam/i, 'home-exam'],
   [/mappe(?:vurdering)?|portfolio/i, 'portfolio'],
+  [/individuell oppgave|individual assignment/i, 'assignment'],
   [/\boppgave\b|prosjekt(oppgave|arbeid|rapport)?|project (work|report)/i, 'project'],
   [/praktisk (prøve|eksamen)|practical (exam|test)/i, 'practical'],
   [/øving\w*|innleveringer?|assignment/i, 'assignment'],
@@ -320,27 +326,40 @@ const parseOrdinaryAssessmentParts = (html: string): ReadonlyArray<ValidatedNtnu
     });
   }
 
-  return parts.reduce<ReadonlyArray<ValidatedNtnuAssessmentPart>>((unique, part) => {
-    const duplicateIndex = unique.findIndex(
-      (candidate) =>
-        candidate.form === part.form &&
-        candidate.description.trim().toLocaleLowerCase('nb') ===
-          part.description.trim().toLocaleLowerCase('nb') &&
-        candidate.weightPercent === part.weightPercent,
-    );
-    if (duplicateIndex === -1) return [...unique, part];
+  const rawWeightTotal = parts.every((part) => part.weightPercent !== null)
+    ? parts.reduce((sum, part) => sum + (part.weightPercent ?? 0), 0)
+    : null;
+  if (rawWeightTotal === null || rawWeightTotal <= 100) return parts;
 
-    const duplicate = unique[duplicateIndex]!;
-    const preferredDuration =
-      duplicate.duration === null
-        ? part.duration
-        : part.duration === null || duplicate.duration.length <= part.duration.length
-          ? duplicate.duration
-          : part.duration;
-    return unique.map((candidate, index) =>
-      index === duplicateIndex ? { ...duplicate, duration: preferredDuration } : candidate,
-    );
-  }, []);
+  for (let period = 1; period <= parts.length / 2; period += 1) {
+    if (parts.length % period !== 0) continue;
+    const candidate = parts.slice(0, period);
+    const candidateWeightTotal = candidate.every((part) => part.weightPercent !== null)
+      ? candidate.reduce((sum, part) => sum + (part.weightPercent ?? 0), 0)
+      : null;
+    if (candidateWeightTotal !== 100) continue;
+    if (
+      parts.every((part, index) => {
+        const expected = candidate[index % period]!;
+        return (
+          part.form === expected.form &&
+          part.description.trim().toLocaleLowerCase('nb') ===
+            expected.description.trim().toLocaleLowerCase('nb') &&
+          part.weightPercent === expected.weightPercent
+        );
+      })
+    ) {
+      return candidate.map((part, candidateIndex) => {
+        const duration =
+          parts
+            .filter((_, partIndex) => partIndex % period === candidateIndex)
+            .flatMap((copy) => (copy.duration === null ? [] : [copy.duration]))
+            .sort((left, right) => left.length - right.length)[0] ?? null;
+        return { ...part, duration };
+      });
+    }
+  }
+  return parts;
 };
 
 const WORK_FORM_PATTERNS: ReadonlyArray<
@@ -436,37 +455,29 @@ export const parseNtnuCourseDetail = (
 
   const creditsMatch = text.match(/Studiepoeng\s*(\d+(?:[.,]\d+)?)/);
   const credits = creditsMatch ? Number(creditsMatch[1]?.replace(',', '.')) : null;
-
   const language = teachingLanguage(text);
-
   const content =
-    extractBoundedSection(decoded.value, 'course-content-toggler', /Faglig innhold/) ??
+    extractBoundedSection(decoded.value, 'course-content-toggler') ??
     extractSection(text, /Faglig innhold/);
   const learningOutcomes =
-    extractBoundedSection(decoded.value, 'learning-goal-toggler', /Læringsutbytte/) ??
+    extractBoundedSection(decoded.value, 'learning-goal-toggler') ??
     extractSection(text, /Læringsutbytte/);
   const teachingMethods =
-    extractBoundedSection(
-      decoded.value,
-      'learning-method-toggler',
-      /Læringsformer og aktiviteter/,
-    ) ?? extractSection(text, /Læringsformer og aktiviteter/);
+    extractBoundedSection(decoded.value, 'learning-method-toggler') ??
+    extractSection(text, /Læringsformer og aktiviteter/);
   const assessmentSummary = extractSection(text, /Vurderingsordning/);
   const assessmentDetails =
-    extractBoundedSection(decoded.value, 'further-evaluation-toggler', /Mer om vurdering/) ??
+    extractBoundedSection(decoded.value, 'further-evaluation-toggler') ??
     extractSection(text, /Mer om vurdering/);
   const assessmentText =
     [assessmentSummary, assessmentDetails]
       .filter((value): value is string => value !== null)
       .join(' ') || null;
   const obligatoryRaw =
-    extractBoundedSection(
-      decoded.value,
-      'mandatory-activities-toggler',
-      /Obligatoriske aktiviteter/,
-    ) ?? extractSection(text, /Obligatoriske aktiviteter/);
+    extractBoundedSection(decoded.value, 'mandatory-activities-toggler') ??
+    extractSection(text, /Obligatoriske aktiviteter/);
   const prerequisitesRaw =
-    extractBoundedSection(decoded.value, 'required-knowledge-toggler', /Forkunnskapskrav/) ??
+    extractBoundedSection(decoded.value, 'required-knowledge-toggler') ??
     extractSection(text, /Forkunnskapskrav/);
   const accessRaw = extractSection(text, /Krever opptak til studieprogram/);
 
@@ -495,18 +506,31 @@ export const parseNtnuCourseDetail = (
     'mandatory-activities-toggler',
   );
   const attendanceRequirement =
-    /(\d+\s*%\s*(?:oppmøte|deltakelse|frammøte|tilstedeværelse)\s+(?:på|i)\s+[^,.;]+)/i.exec(
+    /(\d+\s*%\s*(?:tilfredsstillende\s+)?(?:oppmøte|deltakelse|frammøte|tilstedeværelse)(?:\s+(?:på|i)\s+[^,.;]+)?)/i.exec(
       teachingMethods ?? '',
     )?.[1] ?? null;
   const submissionRequirement =
     /(godkjenning av [^.;]*(?:innlevering|oppgave)[^.;]*)/i.exec(teachingMethods ?? '')?.[1] ??
     null;
+  const approvalRequirement =
+    /(Obligatoriske [^.;]*\d+\s*%\s+må være godkjent for eksamen[^.;]*)/i.exec(
+      teachingMethods ?? '',
+    )?.[1] ?? null;
   const passedRequirements =
     /(?:med\s+)?obligatorisk\s+bestått\s+på\s+([^.;]+)/i.exec(assessmentText ?? '')?.[1] ?? null;
+  const gatedAssessmentActivities = [
+    /(Individuell oppgave:[\s\S]*?endelig karakter i emnet\.)/i,
+    /(Kursprosjekt:[^.]*\.)/i,
+  ].flatMap((pattern) => {
+    const match = pattern.exec(assessmentDetails ?? '');
+    return match?.[1] === undefined ? [] : [match[1]];
+  });
   const contextualObligatoryActivities = [
     ...(attendanceRequirement === null ? [] : [attendanceRequirement]),
     ...(submissionRequirement === null ? [] : [submissionRequirement]),
+    ...(approvalRequirement === null ? [] : [approvalRequirement]),
     ...(passedRequirements === null ? [] : passedRequirements.split(/\s+og\s+|,\s*/i)),
+    ...gatedAssessmentActivities,
   ];
   const rawObligatoryActivities =
     listedObligatoryActivities.length > 0

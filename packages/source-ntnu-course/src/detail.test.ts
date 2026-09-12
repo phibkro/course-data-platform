@@ -243,4 +243,228 @@ describe('parseNtnuCourseDetail', () => {
     expect(result.accepted?.collaborationSignal).toBe('mixed');
     expect(result.accepted?.attendanceSignal).toBe('required');
   });
+  it('keeps repeated ordinary components and excludes headingless deferred components', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <h2>Vurderingsordning</h2><p>Samlet karakter</p>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Ordinær eksamen - Høst 2026</h4>
+            <h5 class="exam-form">Skriftlig skoleeksamen</h5>
+            <span class="exam-fact-label">Vekting</span><span>60/100</span>
+          </div>
+          <div class="exam-element">
+            <h5 class="exam-form">Oppgave</h5>
+            <span class="exam-fact-label">Vekting</span><span>20/100</span>
+          </div>
+          <div class="exam-element">
+            <h5 class="exam-form">Oppgave</h5>
+            <span class="exam-fact-label">Vekting</span><span>20/100</span>
+          </div>
+          <div class="exam-element">
+            <h4 class="course-exam-heading2">Utsatt eksamen - Sommer 2027</h4>
+            <h5 class="exam-form">Muntlig eksamen</h5>
+            <span class="exam-fact-label">Vekting</span><span>60/100</span>
+          </div>
+          <div class="exam-element">
+            <h5 class="exam-form">Oppgave</h5>
+            <span class="exam-fact-label">Vekting</span><span>20/100</span>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.assessmentParts).toEqual({
+      state: 'known',
+      items: [
+        {
+          form: 'written-exam',
+          description: 'Skriftlig skoleeksamen',
+          weightPercent: 60,
+          duration: null,
+        },
+        { form: 'project', description: 'Oppgave', weightPercent: 20, duration: null },
+        { form: 'project', description: 'Oppgave', weightPercent: 20, duration: null },
+      ],
+    });
+  });
+
+  it('uses bounded NTNU containers and preserves every teaching language', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <span>Undervisningsspråk</span><span>Engelsk og norsk</span>
+          <div id="course-content-toggler">
+            <h3>Faglig innhold</h3>
+            <p><b>Faglig innhold</b></p><p>Bounded course content.</p>
+          </div>
+          <div id="required-knowledge-toggler">
+            <h3>Forkunnskapskrav</h3>
+            <p>Required subject knowledge.</p>
+          </div>
+          <nav>Unrelated navigation text.</nav>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.teachingLanguage).toBe('English, Norwegian');
+    expect(result.accepted?.content).toEqual({
+      state: 'known',
+      value: 'Bounded course content.',
+    });
+    expect(result.accepted?.prerequisites).toEqual({
+      state: 'known',
+      value: 'Required subject knowledge.',
+    });
+  });
+
+  it('extracts attendance and submission requirements instead of a placeholder activity', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <div id="learning-method-toggler">
+            <h3>Læringsformer og aktiviteter</h3>
+            <p>Arbeid i mindre grupper. For å kunne gå opp til eksamen kreves 80% deltakelse på seminar, samt godkjenning av inntil to innleveringer, hvorav minst en er en gruppeinnlevering.</p>
+          </div>
+          <div id="mandatory-activities-toggler">
+            <h3>Obligatoriske aktiviteter</h3>
+            <ul><li>Obligatoriske aktiviteter</li></ul>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.attendanceSignal).toBe('required');
+    expect(result.accepted?.collaborationSignal).toBe('group');
+    expect(result.accepted?.obligatoryActivities).toEqual({
+      state: 'known',
+      items: [
+        {
+          description: '80% deltakelse på seminar',
+          formGuess: null,
+        },
+        {
+          description:
+            'godkjenning av inntil to innleveringer, hvorav minst en er en gruppeinnlevering',
+          formGuess: 'assignment',
+        },
+      ],
+    });
+  });
+
+  it('adds mandatory passed work named outside the obligatory-activity list', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <div id="mandatory-activities-toggler">
+            <h3>Obligatoriske aktiviteter</h3>
+            <ul><li>Øvinger</li></ul>
+          </div>
+          <div id="further-evaluation-toggler">
+            <h3>Mer om vurdering</h3>
+            <p>Skriftlig eksamen med obligatorisk bestått på øvinger og teamprosjektet.</p>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.obligatoryActivities).toEqual({
+      state: 'known',
+      items: [
+        { description: 'Øvinger', formGuess: 'assignment' },
+        { description: 'teamprosjektet', formGuess: 'project' },
+      ],
+    });
+  });
+  it('recognizes minimum satisfactory participation as required attendance', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <div id="learning-method-toggler">
+            <h3>Læringsformer og aktiviteter</h3>
+            <p>Undervisningen er obligatorisk og krever minimum 80 % tilfredsstillende deltakelse.</p>
+          </div>
+          <div id="mandatory-activities-toggler">
+            <h3>Obligatoriske aktiviteter</h3>
+            <ul><li>Tilfredsstillende deltakelse i obligatorisk undervisning</li></ul>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.attendanceSignal).toBe('required');
+  });
+
+  it('preserves percentage approval gates from the teaching-method section', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <div id="learning-method-toggler">
+            <h3>Læringsformer og aktiviteter</h3>
+            <p>Forelesninger, gruppearbeid og laboratorieøvelser. Obligatoriske innleveringer og labrapporter (80 % må være godkjent for eksamen).</p>
+          </div>
+          <div id="mandatory-activities-toggler">
+            <h3>Obligatoriske aktiviteter</h3>
+            <ul><li>Obligatorisk arbeidskrav</li></ul>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.obligatoryActivities).toEqual({
+      state: 'known',
+      items: [
+        { description: 'Obligatorisk arbeidskrav', formGuess: null },
+        {
+          description:
+            'Obligatoriske innleveringer og labrapporter (80 % må være godkjent for eksamen)',
+          formGuess: 'assignment',
+        },
+      ],
+    });
+  });
+
+  it('preserves prerequisite assessment gates when NTNU omits an activity list', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <div id="further-evaluation-toggler">
+            <h3>Mer om vurdering</h3>
+            <p>Individuell oppgave: hver student må levere en individuell oppgave. Studenter som ikke består oppgaven, vil få karakter 'F' (stryk) som endelig karakter i emnet.</p>
+            <p>Kursprosjekt: Studentene som består den individuelle oppgaven er kvalifisert til å gå videre til prosjektet.</p>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.obligatoryActivities).toEqual({
+      state: 'known',
+      items: [
+        {
+          description:
+            "Individuell oppgave: hver student må levere en individuell oppgave. Studenter som ikke består oppgaven, vil få karakter 'F' (stryk) som endelig karakter i emnet.",
+          formGuess: 'assignment',
+        },
+        {
+          description:
+            'Kursprosjekt: Studentene som består den individuelle oppgaven er kvalifisert til å gå videre til prosjektet.',
+          formGuess: 'project',
+        },
+      ],
+    });
+  });
 });
