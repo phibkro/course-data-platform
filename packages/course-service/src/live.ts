@@ -45,11 +45,12 @@ export interface LiveCourseDecisionDependencies {
   readonly sha256Hex: (input: string) => Promise<string>;
 }
 
-export interface LiveCourseDecisionDefaults {
+export interface LiveCourseDecisionConfig {
   readonly academicYear: number;
   readonly season: 'spring' | 'autumn';
   readonly gradeFromYear: number;
   readonly gradeToYear: number;
+  readonly sourceRequestTimeoutMs: number;
 }
 
 interface ResolvedTerm {
@@ -57,14 +58,11 @@ interface ResolvedTerm {
   readonly season: 'spring' | 'autumn';
 }
 
-const resolveTerm = (
-  term: string | undefined,
-  defaults: LiveCourseDecisionDefaults,
-): ResolvedTerm => {
+const resolveTerm = (term: string | undefined, config: LiveCourseDecisionConfig): ResolvedTerm => {
   if (term === undefined) {
     return {
-      academicYear: defaults.academicYear,
-      season: defaults.season,
+      academicYear: config.academicYear,
+      season: config.season,
     };
   }
 
@@ -89,6 +87,42 @@ const resolveTerm = (
 
 const errorMessage = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
+
+const runWithSourceDeadline = async <Output>(
+  deps: LiveCourseDecisionDependencies,
+  timeoutMs: number,
+  task: (sourceDeps: LiveCourseDecisionDependencies) => Promise<Output>,
+) => {
+  const controller = new AbortController();
+  let sourceHost = 'external source';
+  const sourceDeps: LiveCourseDecisionDependencies = {
+    ...deps,
+    fetch: (url, init) => {
+      sourceHost = new URL(url).hostname;
+      const upstreamSignal = init?.signal;
+      const signal =
+        upstreamSignal === undefined || upstreamSignal === null
+          ? controller.signal
+          : AbortSignal.any([upstreamSignal, controller.signal]);
+      return deps.fetch(url, { ...init, signal });
+    },
+  };
+  let cancelTimeout!: () => void;
+  const timeout = new Promise<never>((_, reject) => {
+    const timeoutId = setTimeout(() => {
+      const error = new Error(`Source request to ${sourceHost} timed out after ${timeoutMs} ms.`);
+      controller.abort(error);
+      reject(error);
+    }, timeoutMs);
+    cancelTimeout = () => clearTimeout(timeoutId);
+  });
+
+  try {
+    return await Promise.race([task(sourceDeps), timeout]);
+  } finally {
+    cancelTimeout();
+  }
+};
 
 const defaultCampuses: ReadonlyArray<CourseSearchCampus> = ['trondheim', 'gjovik', 'alesund'];
 const defaultLevels: ReadonlyArray<CourseSearchLevel> = ['bachelor', 'master', 'phd', 'other'];
@@ -217,25 +251,34 @@ const assembleInsight = (
 
 export const makeLiveCourseDecisionService = (
   deps: LiveCourseDecisionDependencies,
-  defaults: LiveCourseDecisionDefaults,
+  config: LiveCourseDecisionConfig,
 ): CourseDecisionService => {
+  if (!Number.isSafeInteger(config.sourceRequestTimeoutMs) || config.sourceRequestTimeoutMs <= 0) {
+    throw new RangeError('sourceRequestTimeoutMs must be a positive integer.');
+  }
+  const runSource = <Output>(
+    task: (sourceDeps: LiveCourseDecisionDependencies) => Promise<Output>,
+  ) => runWithSourceDeadline(deps, config.sourceRequestTimeoutMs, task);
+
   const search = (input: CourseSearchInput) =>
     Effect.tryPromise({
       try: async () => {
-        const term = resolveTerm(input.term, defaults);
+        const term = resolveTerm(input.term, config);
         const queryString = input.query?.trim() ?? '';
-        const result = await fetchNtnuCourseSearch(deps, {
-          queryString,
-          academicYear: term.academicYear,
-          season: term.season,
-          page: input.page ?? 1,
-          sort: input.sort ?? (queryString.length === 0 ? 'title-asc' : 'relevance'),
-          campuses: input.campuses ?? defaultCampuses,
-          levels: input.levels ?? defaultLevels,
-          continuingEducation: input.continuingEducation ?? true,
-          open: input.open ?? false,
-          english: input.english ?? false,
-        });
+        const result = await runSource((sourceDeps) =>
+          fetchNtnuCourseSearch(sourceDeps, {
+            queryString,
+            academicYear: term.academicYear,
+            season: term.season,
+            page: input.page ?? 1,
+            sort: input.sort ?? (queryString.length === 0 ? 'title-asc' : 'relevance'),
+            campuses: input.campuses ?? defaultCampuses,
+            levels: input.levels ?? defaultLevels,
+            continuingEducation: input.continuingEducation ?? true,
+            open: input.open ?? false,
+            english: input.english ?? false,
+          }),
+        );
         if (result.rejected.length > 0 && result.accepted.length === 0) {
           throw new Error(result.rejected[0]?.message ?? 'NTNU course search was rejected.');
         }
@@ -265,20 +308,22 @@ export const makeLiveCourseDecisionService = (
   const getInsight = (input: CourseInsightInput) =>
     Effect.tryPromise({
       try: async () => {
-        const term = resolveTerm(input.term, defaults);
+        const term = resolveTerm(input.term, config);
         const courseCode = input.courseCode.trim().toUpperCase();
-        const searchResult = await fetchNtnuCourseSearch(deps, {
-          queryString: courseCode,
-          academicYear: term.academicYear,
-          season: term.season,
-          page: 1,
-          sort: 'relevance',
-          campuses: defaultCampuses,
-          levels: defaultLevels,
-          continuingEducation: true,
-          open: false,
-          english: false,
-        });
+        const searchResult = await runSource((sourceDeps) =>
+          fetchNtnuCourseSearch(sourceDeps, {
+            queryString: courseCode,
+            academicYear: term.academicYear,
+            season: term.season,
+            page: 1,
+            sort: 'relevance',
+            campuses: defaultCampuses,
+            levels: defaultLevels,
+            continuingEducation: true,
+            open: false,
+            english: false,
+          }),
+        );
         if (searchResult.rejected.length > 0 && searchResult.accepted.length === 0) {
           throw new Error(searchResult.rejected[0]?.message ?? 'NTNU course search was rejected.');
         }
@@ -290,17 +335,14 @@ export const makeLiveCourseDecisionService = (
           throw new CourseNotFoundError({ courseCode });
         }
 
-        const detailRequest = fetchNtnuCourseDetail(
-          deps,
-          hit.courseCode,
-          String(term.academicYear),
+        const detailRequest = runSource((sourceDeps) =>
+          fetchNtnuCourseDetail(sourceDeps, hit.courseCode, String(term.academicYear)),
         );
-        const gradesNoRequest = fetchGradesNoGrades(deps, hit.courseCode);
-        const dbhRequest = fetchDbhGrades(
-          deps,
-          hit.courseCode,
-          defaults.gradeFromYear,
-          defaults.gradeToYear,
+        const gradesNoRequest = runSource((sourceDeps) =>
+          fetchGradesNoGrades(sourceDeps, hit.courseCode),
+        );
+        const dbhRequest = runSource((sourceDeps) =>
+          fetchDbhGrades(sourceDeps, hit.courseCode, config.gradeFromYear, config.gradeToYear),
         );
         const [detailSettled, gradesNoSettled, dbhSettled] = await Promise.allSettled([
           detailRequest,
@@ -321,7 +363,7 @@ export const makeLiveCourseDecisionService = (
           gradesNoResult !== null && gradesNoResult.rejected.length === 0
             ? gradesNoResult.accepted.filter(
                 (period) =>
-                  period.year >= defaults.gradeFromYear && period.year <= defaults.gradeToYear,
+                  period.year >= config.gradeFromYear && period.year <= config.gradeToYear,
               )
             : null;
 
@@ -329,8 +371,8 @@ export const makeLiveCourseDecisionService = (
         const dbh = dbhResult?.accepted ?? null;
 
         const item = assembleInsight(hit, detail, detailWarning, gradesNo, dbh, {
-          fromYear: defaults.gradeFromYear,
-          toYear: defaults.gradeToYear,
+          fromYear: config.gradeFromYear,
+          toYear: config.gradeToYear,
           semesters: ['AUTUMN', 'SPRING'],
           minimumCohortSize: 4,
         });
@@ -356,11 +398,8 @@ export const makeLiveCourseDecisionService = (
         const courseCodes = [
           ...new Set(input.courseCodes.map((courseCode) => courseCode.trim().toUpperCase())),
         ];
-        const result = await fetchDbhGradeSummaries(
-          deps,
-          courseCodes,
-          defaults.gradeFromYear,
-          defaults.gradeToYear,
+        const result = await runSource((sourceDeps) =>
+          fetchDbhGradeSummaries(sourceDeps, courseCodes, config.gradeFromYear, config.gradeToYear),
         );
         if (result.rejected.length > 0 && result.accepted.length === 0) {
           throw new Error(
@@ -387,8 +426,8 @@ export const makeLiveCourseDecisionService = (
                   : `${result.rejected.length} malformed DBH grade row(s) were excluded.`,
             },
           ],
-          fromYear: defaults.gradeFromYear,
-          toYear: defaults.gradeToYear,
+          fromYear: config.gradeFromYear,
+          toYear: config.gradeToYear,
         };
       },
       catch: (cause) =>
@@ -404,13 +443,15 @@ export const makeLiveCourseDecisionService = (
   }) =>
     Effect.tryPromise({
       try: async () => {
-        const term = resolveTerm(input.term, defaults);
+        const term = resolveTerm(input.term, config);
         const courseCodes = [
           ...new Set(input.courseCodes.map((courseCode) => courseCode.trim().toUpperCase())),
         ];
         const items = await mapConcurrent(courseCodes, 4, async (courseCode) => {
           try {
-            const result = await fetchNtnuCourseDetail(deps, courseCode, String(term.academicYear));
+            const result = await runSource((sourceDeps) =>
+              fetchNtnuCourseDetail(sourceDeps, courseCode, String(term.academicYear)),
+            );
             return mapNtnuDetailToCourseDecisionSignals(
               courseCode,
               term.academicYear,
