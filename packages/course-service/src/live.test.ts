@@ -89,6 +89,7 @@ const defaults = {
   season: 'autumn' as const,
   gradeFromYear: 2023,
   gradeToYear: 2024,
+  sourceRequestTimeoutMs: 1_000,
 };
 
 const makeFetch =
@@ -393,6 +394,79 @@ describe('live course decision service', () => {
     expect(result.partial).toBe(true);
     expect(result.item.title.state).toBe('known');
     expect(result.item.content.state).toBe('unavailable');
+  });
+
+  it('fails a catalogue request with an actionable error after its configured deadline', async () => {
+    const request = { signal: null as AbortSignal | null };
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (_url, init) => {
+          request.signal = init?.signal ?? null;
+          return await new Promise<Response>(() => {});
+        },
+        now: () => new Date('2026-07-23T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      { ...defaults, sourceRequestTimeoutMs: 20 },
+    );
+
+    const result = await Effect.runPromise(Effect.result(service.search({ query: 'TDT4136' })));
+
+    expect(result).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        _tag: 'CourseSourcesUnavailableError',
+        operation: 'search',
+        message: 'Source request to www.ntnu.no timed out after 20 ms.',
+      },
+    });
+    expect(request.signal?.aborted).toBe(true);
+  });
+
+  it('returns useful partial insight when one source exceeds its deadline', async () => {
+    const detail = { signal: null as AbortSignal | null };
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url, init) => {
+          if (url.includes('/studier/emner/')) {
+            detail.signal = init?.signal ?? null;
+            return new Response(
+              new ReadableStream<Uint8Array>({
+                pull: async () => await new Promise<void>(() => {}),
+              }),
+              { headers: { 'content-type': 'text/html' } },
+            );
+          }
+          return makeFetch()(url, init);
+        },
+        now: () => new Date('2026-07-23T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      { ...defaults, sourceRequestTimeoutMs: 20 },
+    );
+
+    const result = await Effect.runPromise(service.getInsight({ courseCode: 'TDT4136' }));
+
+    expect(result.partial).toBe(true);
+    expect(result.item.title).toMatchObject({
+      state: 'known',
+      value: 'Introduction to Artificial Intelligence',
+    });
+    expect(result.item.content.state).toBe('unavailable');
+    expect(result.item.gradeOutcomes.sampleSize).toMatchObject({
+      state: 'known',
+      value: 408,
+    });
+    expect(result.item.sourceStatuses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: 'ntnu-course-page',
+          status: 'failed',
+          warning: 'Source request to www.ntnu.no timed out after 20 ms.',
+        }),
+      ]),
+    );
+    expect(detail.signal?.aborted).toBe(true);
   });
 
   it('rejects ambiguous term strings explicitly', async () => {

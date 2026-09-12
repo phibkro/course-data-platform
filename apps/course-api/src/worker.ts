@@ -21,6 +21,7 @@ const service = makeLiveCourseDecisionService(
     season: 'autumn',
     gradeFromYear: 2022,
     gradeToYear: 2025,
+    sourceRequestTimeoutMs: 2_500,
   },
 );
 
