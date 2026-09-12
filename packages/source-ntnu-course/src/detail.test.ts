@@ -467,4 +467,20 @@ describe('parseNtnuCourseDetail', () => {
       ],
     });
   });
+  it('recognizes explicit small-group teaching as collaboration evidence', () => {
+    const result = parseNtnuCourseDetail(
+      `
+        <html><body>
+          <h1>TDT4136</h1>
+          <div id="learning-method-toggler">
+            <h3>Læringsformer og aktiviteter</h3>
+            <p>Det er to prosjekter som gjøres i små grupper.</p>
+          </div>
+        </body></html>
+      `,
+      capture,
+    );
+
+    expect(result.accepted?.collaborationSignal).toBe('group');
+  });
 });

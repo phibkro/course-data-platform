@@ -231,7 +231,7 @@ const known = (value: string): FieldState => ({ state: 'known', value });
 const unavailableField = (reason: string): FieldState => ({ state: 'unavailable', reason });
 
 const GROUP_RE =
-  /(gruppearbeid|gruppeprosjekt|gruppeoppgave|gruppeinnlevering|i grupper?|kollaborativ\w*|group\s?(work|project)|in groups|collaborative)/i;
+  /(gruppearbeid|gruppeprosjekt|gruppeoppgave|gruppeinnlevering|i grupper?|(?:i\s+)?(?:små|mindre)\s+grupper?|kollaborativ\w*|group\s?(work|project)|in groups|collaborative)/i;
 const INDIVIDUAL_RE = /(individuell\w*|individual\w*|selvstendig\w*)/i;
 const REQUIRED_ATTENDANCE_RE =
   /obligatorisk (oppmøte|deltakelse|frammøte|tilstedeværelse)|(?:kreves?|krever)(?:\s+minimum)?\s+\d+\s*%\s*(?:tilfredsstillende\s+)?(?:oppmøte|deltakelse|frammøte|tilstedeværelse)|mandatory attendance|attendance (is )?required/i;
