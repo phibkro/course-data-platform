@@ -90,6 +90,8 @@ const defaults = {
   gradeFromYear: 2023,
   gradeToYear: 2024,
   sourceRequestTimeoutMs: 1_000,
+  sourceCacheTtlMs: 1_000,
+  sourceCacheMaxEntriesPerProvider: 16,
 };
 
 const makeFetch =
@@ -228,13 +230,14 @@ describe('live course decision service', () => {
 
   it('loads grade signals for several visible courses through one DBH request', async () => {
     let dbhRequestCount = 0;
+    let currentTime = Date.parse('2026-07-23T12:00:00.000Z');
     const service = makeLiveCourseDecisionService(
       {
         fetch: async (url, init) => {
           if (url.includes('dbh-data')) dbhRequestCount += 1;
           return makeFetch()(url, init);
         },
-        now: () => new Date('2026-07-23T12:00:00.000Z'),
+        now: () => new Date(currentTime),
         sha256Hex: async () => '0'.repeat(64),
       },
       defaults,
@@ -243,8 +246,13 @@ describe('live course decision service', () => {
     const result = await Effect.runPromise(
       service.getGradeSummaries({ courseCodes: ['tdt4136', 'NORESULT', 'TDT4136'] }),
     );
+    currentTime += 50;
+    const cached = await Effect.runPromise(
+      service.getGradeSummaries({ courseCodes: ['tdt4136', 'NORESULT', 'TDT4136'] }),
+    );
 
     expect(dbhRequestCount).toBe(1);
+    expect(cached.sourceStatuses[0]?.observedAt).toEqual(new Date('2026-07-23T12:00:00.000Z'));
     expect(result.items).toHaveLength(2);
     expect(result.items[0]).toMatchObject({
       courseCode: 'TDT4136',
@@ -394,6 +402,118 @@ describe('live course decision service', () => {
     expect(result.partial).toBe(true);
     expect(result.item.title.state).toBe('known');
     expect(result.item.content.state).toBe('unavailable');
+  });
+
+  it('shares equivalent concurrent catalogue work and reuses its warm result', async () => {
+    let catalogueRequests = 0;
+    const requestStarted = new TransformStream<void, void>();
+    const requestRelease = new TransformStream<void, void>();
+    const requestStartedReader = requestStarted.readable.getReader();
+    const requestStartedWriter = requestStarted.writable.getWriter();
+    const requestReleaseReader = requestRelease.readable.getReader();
+    const requestReleaseWriter = requestRelease.writable.getWriter();
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url, init) => {
+          if (url.includes('fetch-courselist-as-json')) {
+            catalogueRequests += 1;
+            await requestStartedWriter.write();
+            await requestReleaseReader.read();
+          }
+          return makeFetch()(url, init);
+        },
+        now: () => new Date('2026-07-23T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const firstRequest = Effect.runPromise(
+      service.search({
+        query: 'TDT4136',
+        campuses: ['trondheim', 'gjovik', 'trondheim'],
+        levels: ['master', 'bachelor', 'master'],
+      }),
+    );
+    await requestStartedReader.read();
+    const secondRequest = Effect.runPromise(
+      service.search({
+        query: 'TDT4136',
+        campuses: ['gjovik', 'trondheim'],
+        levels: ['bachelor', 'master'],
+      }),
+    );
+    await Promise.resolve();
+    await requestReleaseWriter.write();
+    const [first, second] = await Promise.all([firstRequest, secondRequest]);
+    const third = await Effect.runPromise(
+      service.search({
+        query: 'TDT4136',
+        campuses: ['trondheim', 'gjovik'],
+        levels: ['master', 'bachelor'],
+      }),
+    );
+
+    expect(first.exactMatchCode).toBe('TDT4136');
+    expect(second.exactMatchCode).toBe('TDT4136');
+    expect(third.exactMatchCode).toBe('TDT4136');
+    expect(catalogueRequests).toBe(1);
+  });
+
+  it('expires cached source results and bounds entries per provider', async () => {
+    let currentTime = Date.parse('2026-07-23T12:00:00.000Z');
+    let catalogueRequests = 0;
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url, init) => {
+          if (url.includes('fetch-courselist-as-json')) catalogueRequests += 1;
+          return makeFetch()(url, init);
+        },
+        now: () => new Date(currentTime),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      {
+        ...defaults,
+        sourceCacheTtlMs: 100,
+        sourceCacheMaxEntriesPerProvider: 2,
+      },
+    );
+
+    await Effect.runPromise(service.search({ query: 'FIRST' }));
+    await Effect.runPromise(service.search({ query: 'SECOND' }));
+    await Effect.runPromise(service.search({ query: 'FIRST' }));
+    await Effect.runPromise(service.search({ query: 'THIRD' }));
+    await Effect.runPromise(service.search({ query: 'SECOND' }));
+    expect(catalogueRequests).toBe(4);
+
+    currentTime += 101;
+    await Effect.runPromise(service.search({ query: 'THIRD' }));
+    expect(catalogueRequests).toBe(5);
+  });
+
+  it('does not cache source failures that can recover', async () => {
+    let catalogueRequests = 0;
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url, init) => {
+          if (url.includes('fetch-courselist-as-json')) {
+            catalogueRequests += 1;
+            if (catalogueRequests === 1) return Response.json({ unexpected: [] });
+          }
+          return makeFetch()(url, init);
+        },
+        now: () => new Date('2026-07-23T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const first = await Effect.runPromise(Effect.result(service.search({ query: 'TDT4136' })));
+    const second = await Effect.runPromise(service.search({ query: 'TDT4136' }));
+
+    expect(first._tag).toBe('Failure');
+    expect(second.exactMatchCode).toBe('TDT4136');
+    expect(catalogueRequests).toBe(2);
   });
 
   it('fails a catalogue request with an actionable error after its configured deadline', async () => {

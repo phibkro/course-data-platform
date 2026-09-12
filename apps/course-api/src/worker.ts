@@ -22,6 +22,8 @@ const service = makeLiveCourseDecisionService(
     gradeFromYear: 2022,
     gradeToYear: 2025,
     sourceRequestTimeoutMs: 2_500,
+    sourceCacheTtlMs: 60_000,
+    sourceCacheMaxEntriesPerProvider: 64,
   },
 );
 
