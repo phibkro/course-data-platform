@@ -14,6 +14,9 @@ import {
   fetchGradesNoGrades,
   mapDbhToGradeSummary,
   mapGradesToOutcomes,
+  type DbhGradeSummariesParseResult,
+  type DbhGradesParseResult,
+  type GradesNoParseResult,
   type GradeWindow,
   type ValidatedDbhGrades,
   type ValidatedGradesNoPeriod,
@@ -23,6 +26,8 @@ import {
   fetchNtnuCourseSearch,
   mapNtnuDetailToCourseDecisionSignals,
   mapNtnuToCourseInsightFields,
+  type NtnuDetailParseResult,
+  type NtnuSearchParseResult,
   type ValidatedNtnuCourseDetail,
   type ValidatedNtnuSearchHit,
 } from '@course-data/source-ntnu-course';
@@ -51,6 +56,8 @@ export interface LiveCourseDecisionConfig {
   readonly gradeFromYear: number;
   readonly gradeToYear: number;
   readonly sourceRequestTimeoutMs: number;
+  readonly sourceCacheTtlMs: number;
+  readonly sourceCacheMaxEntriesPerProvider: number;
 }
 
 interface ResolvedTerm {
@@ -124,8 +131,63 @@ const runWithSourceDeadline = async <Output>(
   }
 };
 
-const defaultCampuses: ReadonlyArray<CourseSearchCampus> = ['trondheim', 'gjovik', 'alesund'];
-const defaultLevels: ReadonlyArray<CourseSearchLevel> = ['bachelor', 'master', 'phd', 'other'];
+interface CachedSourceResult<Output> {
+  readonly expiresAt: number;
+  readonly observedAt: Date;
+  readonly value: Output;
+}
+
+const makeSourceRequestCache = <Output>(
+  ttlMs: number,
+  maxEntries: number,
+  now: () => Date,
+  isCacheable: (value: Output) => boolean,
+) => {
+  const completed = new Map<string, CachedSourceResult<Output>>();
+  const inFlight = new Map<string, Promise<CachedSourceResult<Output>>>();
+
+  return async (key: string, load: () => Promise<Output>): Promise<CachedSourceResult<Output>> => {
+    const cached = completed.get(key);
+    if (cached !== undefined) {
+      if (cached.expiresAt > now().getTime()) {
+        completed.delete(key);
+        completed.set(key, cached);
+        return cached;
+      }
+      completed.delete(key);
+    }
+
+    const pending = inFlight.get(key);
+    if (pending !== undefined) return pending;
+
+    const request = Promise.resolve()
+      .then(load)
+      .then((value) => {
+        const observedAt = now();
+        const result = {
+          expiresAt: observedAt.getTime() + ttlMs,
+          observedAt,
+          value,
+        };
+        if (isCacheable(value)) {
+          completed.set(key, result);
+          if (completed.size > maxEntries) {
+            const oldestKey = completed.keys().next().value;
+            if (oldestKey !== undefined) completed.delete(oldestKey);
+          }
+        }
+        return result;
+      })
+      .finally(() => {
+        inFlight.delete(key);
+      });
+    inFlight.set(key, request);
+    return request;
+  };
+};
+
+const defaultCampuses: ReadonlyArray<CourseSearchCampus> = ['alesund', 'gjovik', 'trondheim'];
+const defaultLevels: ReadonlyArray<CourseSearchLevel> = ['bachelor', 'master', 'other', 'phd'];
 
 const sourceStatusForSearch = (
   hit: ValidatedNtnuSearchHit | undefined,
@@ -256,34 +318,74 @@ export const makeLiveCourseDecisionService = (
   if (!Number.isSafeInteger(config.sourceRequestTimeoutMs) || config.sourceRequestTimeoutMs <= 0) {
     throw new RangeError('sourceRequestTimeoutMs must be a positive integer.');
   }
+  if (!Number.isSafeInteger(config.sourceCacheTtlMs) || config.sourceCacheTtlMs <= 0) {
+    throw new RangeError('sourceCacheTtlMs must be a positive integer.');
+  }
+  if (
+    !Number.isSafeInteger(config.sourceCacheMaxEntriesPerProvider) ||
+    config.sourceCacheMaxEntriesPerProvider <= 0
+  ) {
+    throw new RangeError('sourceCacheMaxEntriesPerProvider must be a positive integer.');
+  }
   const runSource = <Output>(
     task: (sourceDeps: LiveCourseDecisionDependencies) => Promise<Output>,
   ) => runWithSourceDeadline(deps, config.sourceRequestTimeoutMs, task);
+  const ntnuSearchRequests = makeSourceRequestCache<NtnuSearchParseResult>(
+    config.sourceCacheTtlMs,
+    config.sourceCacheMaxEntriesPerProvider,
+    deps.now,
+    (result) => result.rejected.length === 0,
+  );
+  const ntnuDetailRequests = makeSourceRequestCache<NtnuDetailParseResult>(
+    config.sourceCacheTtlMs,
+    config.sourceCacheMaxEntriesPerProvider,
+    deps.now,
+    (result) => result.rejected === null,
+  );
+  const gradesNoRequests = makeSourceRequestCache<GradesNoParseResult>(
+    config.sourceCacheTtlMs,
+    config.sourceCacheMaxEntriesPerProvider,
+    deps.now,
+    (result) => result.rejected.length === 0,
+  );
+  const dbhGradeRequests = makeSourceRequestCache<DbhGradesParseResult>(
+    config.sourceCacheTtlMs,
+    config.sourceCacheMaxEntriesPerProvider,
+    deps.now,
+    (result) => result.rejected === null,
+  );
+  const dbhGradeSummaryRequests = makeSourceRequestCache<DbhGradeSummariesParseResult>(
+    config.sourceCacheTtlMs,
+    config.sourceCacheMaxEntriesPerProvider,
+    deps.now,
+    (result) => result.rejected.length === 0,
+  );
 
   const search = (input: CourseSearchInput) =>
     Effect.tryPromise({
       try: async () => {
         const term = resolveTerm(input.term, config);
         const queryString = input.query?.trim() ?? '';
-        const result = await runSource((sourceDeps) =>
-          fetchNtnuCourseSearch(sourceDeps, {
-            queryString,
-            academicYear: term.academicYear,
-            season: term.season,
-            page: input.page ?? 1,
-            sort: input.sort ?? (queryString.length === 0 ? 'title-asc' : 'relevance'),
-            campuses: input.campuses ?? defaultCampuses,
-            levels: input.levels ?? defaultLevels,
-            continuingEducation: input.continuingEducation ?? true,
-            open: input.open ?? false,
-            english: input.english ?? false,
-          }),
+        const searchQuery = {
+          queryString,
+          academicYear: term.academicYear,
+          season: term.season,
+          page: input.page ?? 1,
+          sort: input.sort ?? (queryString.length === 0 ? ('title-asc' as const) : 'relevance'),
+          campuses: [...new Set(input.campuses ?? defaultCampuses)].sort(),
+          levels: [...new Set(input.levels ?? defaultLevels)].sort(),
+          continuingEducation: input.continuingEducation ?? true,
+          open: input.open ?? false,
+          english: input.english ?? false,
+        };
+        const { value: result, observedAt } = await ntnuSearchRequests(
+          JSON.stringify(searchQuery),
+          () => runSource((sourceDeps) => fetchNtnuCourseSearch(sourceDeps, searchQuery)),
         );
         if (result.rejected.length > 0 && result.accepted.length === 0) {
           throw new Error(result.rejected[0]?.message ?? 'NTNU course search was rejected.');
         }
 
-        const observedAt = deps.now();
         return {
           items: result.accepted.map(toSearchItem),
           sourceStatuses: [
@@ -310,19 +412,20 @@ export const makeLiveCourseDecisionService = (
       try: async () => {
         const term = resolveTerm(input.term, config);
         const courseCode = input.courseCode.trim().toUpperCase();
-        const searchResult = await runSource((sourceDeps) =>
-          fetchNtnuCourseSearch(sourceDeps, {
-            queryString: courseCode,
-            academicYear: term.academicYear,
-            season: term.season,
-            page: 1,
-            sort: 'relevance',
-            campuses: defaultCampuses,
-            levels: defaultLevels,
-            continuingEducation: true,
-            open: false,
-            english: false,
-          }),
+        const searchQuery = {
+          queryString: courseCode,
+          academicYear: term.academicYear,
+          season: term.season,
+          page: 1,
+          sort: 'relevance' as const,
+          campuses: defaultCampuses,
+          levels: defaultLevels,
+          continuingEducation: true,
+          open: false,
+          english: false,
+        };
+        const { value: searchResult } = await ntnuSearchRequests(JSON.stringify(searchQuery), () =>
+          runSource((sourceDeps) => fetchNtnuCourseSearch(sourceDeps, searchQuery)),
         );
         if (searchResult.rejected.length > 0 && searchResult.accepted.length === 0) {
           throw new Error(searchResult.rejected[0]?.message ?? 'NTNU course search was rejected.');
@@ -335,14 +438,22 @@ export const makeLiveCourseDecisionService = (
           throw new CourseNotFoundError({ courseCode });
         }
 
-        const detailRequest = runSource((sourceDeps) =>
-          fetchNtnuCourseDetail(sourceDeps, hit.courseCode, String(term.academicYear)),
+        const detailRequest = ntnuDetailRequests(
+          JSON.stringify([hit.courseCode, term.academicYear]),
+          () =>
+            runSource((sourceDeps) =>
+              fetchNtnuCourseDetail(sourceDeps, hit.courseCode, String(term.academicYear)),
+            ),
         );
-        const gradesNoRequest = runSource((sourceDeps) =>
-          fetchGradesNoGrades(sourceDeps, hit.courseCode),
+        const gradesNoRequest = gradesNoRequests(hit.courseCode, () =>
+          runSource((sourceDeps) => fetchGradesNoGrades(sourceDeps, hit.courseCode)),
         );
-        const dbhRequest = runSource((sourceDeps) =>
-          fetchDbhGrades(sourceDeps, hit.courseCode, config.gradeFromYear, config.gradeToYear),
+        const dbhRequest = dbhGradeRequests(
+          JSON.stringify([hit.courseCode, config.gradeFromYear, config.gradeToYear]),
+          () =>
+            runSource((sourceDeps) =>
+              fetchDbhGrades(sourceDeps, hit.courseCode, config.gradeFromYear, config.gradeToYear),
+            ),
         );
         const [detailSettled, gradesNoSettled, dbhSettled] = await Promise.allSettled([
           detailRequest,
@@ -350,7 +461,8 @@ export const makeLiveCourseDecisionService = (
           dbhRequest,
         ]);
 
-        const detailResult = detailSettled.status === 'fulfilled' ? detailSettled.value : null;
+        const detailResult =
+          detailSettled.status === 'fulfilled' ? detailSettled.value.value : null;
         const detail = detailResult?.accepted ?? null;
         const detailWarning =
           detailSettled.status === 'rejected'
@@ -358,7 +470,7 @@ export const makeLiveCourseDecisionService = (
             : (detailResult?.rejected?.message ?? null);
 
         const gradesNoResult =
-          gradesNoSettled.status === 'fulfilled' ? gradesNoSettled.value : null;
+          gradesNoSettled.status === 'fulfilled' ? gradesNoSettled.value.value : null;
         const gradesNo =
           gradesNoResult !== null && gradesNoResult.rejected.length === 0
             ? gradesNoResult.accepted.filter(
@@ -367,7 +479,7 @@ export const makeLiveCourseDecisionService = (
               )
             : null;
 
-        const dbhResult = dbhSettled.status === 'fulfilled' ? dbhSettled.value : null;
+        const dbhResult = dbhSettled.status === 'fulfilled' ? dbhSettled.value.value : null;
         const dbh = dbhResult?.accepted ?? null;
 
         const item = assembleInsight(hit, detail, detailWarning, gradesNo, dbh, {
@@ -398,8 +510,17 @@ export const makeLiveCourseDecisionService = (
         const courseCodes = [
           ...new Set(input.courseCodes.map((courseCode) => courseCode.trim().toUpperCase())),
         ];
-        const result = await runSource((sourceDeps) =>
-          fetchDbhGradeSummaries(sourceDeps, courseCodes, config.gradeFromYear, config.gradeToYear),
+        const { value: result, observedAt } = await dbhGradeSummaryRequests(
+          JSON.stringify([[...courseCodes].sort(), config.gradeFromYear, config.gradeToYear]),
+          () =>
+            runSource((sourceDeps) =>
+              fetchDbhGradeSummaries(
+                sourceDeps,
+                courseCodes,
+                config.gradeFromYear,
+                config.gradeToYear,
+              ),
+            ),
         );
         if (result.rejected.length > 0 && result.accepted.length === 0) {
           throw new Error(
@@ -419,7 +540,7 @@ export const makeLiveCourseDecisionService = (
               provider: 'dbh',
               status:
                 result.accepted.length === 0 ? ('unavailable' as const) : ('available' as const),
-              observedAt: deps.now(),
+              observedAt,
               warning:
                 result.rejected.length === 0
                   ? null
@@ -449,8 +570,12 @@ export const makeLiveCourseDecisionService = (
         ];
         const items = await mapConcurrent(courseCodes, 4, async (courseCode) => {
           try {
-            const result = await runSource((sourceDeps) =>
-              fetchNtnuCourseDetail(sourceDeps, courseCode, String(term.academicYear)),
+            const { value: result } = await ntnuDetailRequests(
+              JSON.stringify([courseCode, term.academicYear]),
+              () =>
+                runSource((sourceDeps) =>
+                  fetchNtnuCourseDetail(sourceDeps, courseCode, String(term.academicYear)),
+                ),
             );
             return mapNtnuDetailToCourseDecisionSignals(
               courseCode,
