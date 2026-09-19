@@ -3,6 +3,6 @@
   "compilerOptions": {
     "types": ["node", "@playwright/test"]
   },
-  "include": ["e2e/**/*.ts", "playwright.config.ts"],
+  "include": ["e2e/**/*.ts", "playwright*.config.ts"],
   "exclude": ["dist", "node_modules"]
 }

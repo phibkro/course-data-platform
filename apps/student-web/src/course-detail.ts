@@ -978,6 +978,20 @@ const assessmentList = (
               ` — ${part.description}${part.weightPercent.state === 'known' ? ` · ${formatWeight(part.weightPercent.value)}%` : ''}${part.duration.state === 'known' ? ` · ${part.duration.value}` : ''}`,
             ],
           ),
+          part.weightPercent.state === 'known'
+            ? h.empty
+            : h.div(
+                [h.Class('text-sm text-on-surface-variant')],
+                [
+                  h.p(
+                    [],
+                    [
+                      `${translate(locale, 'detail.assessmentWeight')}: ${translateToken(locale, part.weightPercent.state)}. ${part.weightPercent.reason}`,
+                    ],
+                  ),
+                  evidenceLinks(part.weightPercent.evidenceIds, locale),
+                ],
+              ),
         ],
       ),
     ),

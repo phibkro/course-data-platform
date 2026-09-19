@@ -11,6 +11,7 @@
     "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "i18n:check": "bun scripts/validate-i18n.ts",
     "test:a11y": "playwright test --config playwright.config.ts",
+    "test:assessment": "playwright test --config playwright.assessment.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
