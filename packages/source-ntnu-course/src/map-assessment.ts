@@ -48,6 +48,7 @@ export const mapNtnuAssessment = (
     return unavailable(detail.assessmentText.reason);
   }
 
+  const weightReason = detail.assessmentParts.reason;
   return known(
     (detail.assessmentFormGuesses.length > 0
       ? detail.assessmentFormGuesses
@@ -56,9 +57,7 @@ export const mapNtnuAssessment = (
       form,
       description: detail.assessmentText.state === 'known' ? detail.assessmentText.value : '',
       requirement: requirementUnknown(),
-      weightPercent: unknown(
-        'No structured ordinary assessment component was available for this inferred form.',
-      ),
+      weightPercent: unknown(weightReason, [factEvidenceId]),
       duration: unknown(
         'No structured ordinary assessment component was available for this inferred form.',
       ),

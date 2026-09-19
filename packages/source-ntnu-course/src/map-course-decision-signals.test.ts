@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { parseNtnuCourseDetail } from './detail';
@@ -12,6 +13,34 @@ const capture = {
 };
 
 describe('mapNtnuDetailToCourseDecisionSignals', () => {
+  it('retains prose forms and the source reason for rejected structured weights', () => {
+    const parsed = parseNtnuCourseDetail(
+      readFileSync(new URL('../fixtures/invalid-assessment-weights.html', import.meta.url), 'utf8'),
+      { ...capture, courseCode: 'TDT4136' },
+    );
+    const signals = mapNtnuDetailToCourseDecisionSignals(
+      'TDT4136',
+      2026,
+      'autumn',
+      parsed.accepted,
+      null,
+    );
+    expect(signals.assessment.state).toBe('known');
+    if (signals.assessment.state !== 'known') throw new Error('Expected supported prose forms');
+    expect(signals.assessment.value.map((part) => part.form)).toEqual(['project', 'oral-exam']);
+    for (const part of signals.assessment.value) {
+      expect(part.weightPercent).toMatchObject({
+        state: 'unknown',
+        reason: 'Structured ordinary assessment weights total 120%, not 100%.',
+      });
+      expect(part.weightPercent.evidenceIds).toEqual([
+        signals.evidence.find((evidence) => evidence.kind === 'fixture')!.id,
+      ]);
+    }
+    expect(signals.assessment.evidenceIds).toEqual([
+      signals.evidence.find((evidence) => evidence.kind === 'inference')!.id,
+    ]);
+  });
   it('attributes assessment, obligatory-work, and collaboration inferences', () => {
     const parsed = parseNtnuCourseDetail(
       `

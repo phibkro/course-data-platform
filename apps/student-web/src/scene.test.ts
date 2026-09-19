@@ -354,6 +354,42 @@ describe('browse-first catalogue scene', () => {
     );
   });
 
+  test('Inspect exposes unknown weight reasons without hiding supported assessment forms', () => {
+    const assessment = partialCourseInsightFixture.item.assessment;
+    if (assessment.state !== 'known') throw new Error('Expected known fixture assessment');
+    const response = {
+      ...partialCourseInsightFixture,
+      item: {
+        ...partialCourseInsightFixture.item,
+        assessment: {
+          ...assessment,
+          value: assessment.value.map((part) => ({
+            ...part,
+            weightPercent: {
+              state: 'unknown' as const,
+              reason: 'Structured ordinary assessment weights total 120%, not 100%.',
+              evidenceIds: assessment.evidenceIds,
+            },
+          })),
+        },
+      },
+    };
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...baseModel(),
+        selectedCode: 'TDT4136',
+        detail: DetailPartial({ response }),
+      }),
+      Scene.expect(Scene.text('Written Exam', { exact: true })).toExist(),
+      Scene.expect(
+        Scene.text(
+          'Grade weight: Unknown. Structured ordinary assessment weights total 120%, not 100%.',
+        ),
+      ).toExist(),
+    );
+  });
+
   test('closed detail remains a valid explicit state', () => {
     Scene.scene(
       { update, view },
