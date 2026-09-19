@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "bun ../../scripts/test.ts apps/web/"
   },
   "dependencies": {
     "@base-ui/react": "1.6.0",

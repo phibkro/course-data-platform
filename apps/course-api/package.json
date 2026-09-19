@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "WRANGLER_SEND_METRICS=false CI=1 wrangler deploy --dry-run --outdir dist",
-    "test": "vitest run"
+    "test": "bun ../../scripts/test.ts apps/course-api/"
   },
   "dependencies": {
     "@course-data/contracts": "0.1.0",

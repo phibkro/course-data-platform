@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "bun ../../scripts/test.ts packages/source-ntnu/"
   },
   "dependencies": {
     "effect": "4.0.0-beta.97"

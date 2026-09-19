@@ -13,7 +13,7 @@
     "test:a11y": "playwright test --config playwright.config.ts",
     "test:assessment": "playwright test --config playwright.assessment.config.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "bun ../../scripts/test.ts apps/student-web/"
   },
   "dependencies": {
     "@course-data/contracts": "0.1.0",
