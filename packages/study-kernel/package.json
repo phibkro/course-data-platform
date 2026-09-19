@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "bun ../../scripts/test.ts packages/study-kernel/"
   },
   "dependencies": {
     "@course-data/domain": "0.1.0",

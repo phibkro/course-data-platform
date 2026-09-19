@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "bun ../../scripts/test.ts packages/course-service/"
   },
   "dependencies": {
     "@course-data/course-model": "0.1.0",
