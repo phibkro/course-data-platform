@@ -7,7 +7,7 @@ export default defineConfig({
   testMatch: 'assessment-weight.browser.ts',
   workers: 1,
   use: { ...base.use, baseURL: 'http://127.0.0.1:4175' },
-  projects: base.projects?.map((project) => ({
+  projects: base.projects!.map((project) => ({
     ...project,
     use: {
       ...project.use,
