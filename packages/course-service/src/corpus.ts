@@ -23,6 +23,7 @@ import {
   known,
   unavailable,
   unknown,
+  type CourseGradeSummary,
   type CourseInsight,
   type CourseSearchItem,
   type Fact,
@@ -735,24 +736,25 @@ const insightsByCode = new Map(corpusCoursesInsights.map((insight) => [insight.c
 
 export const corpusCourseSearchItems: ReadonlyArray<CourseSearchItem> =
   corpusCourses.map(buildSearchItem);
-const gradeSummaries = new Map(
-  corpusCourses
-    .filter((course) => course.gradeOutcomes.kind === 'dbh')
-    .map((course) => {
-      const gradesEvidenceId = `fixture:dbh-308:${course.code}:${course.gradeOutcomes.fromYear}-${course.gradeOutcomes.toYear}`;
-      const gradesEvidence = {
-        id: gradesEvidenceId,
-        provider: 'dbh',
-        kind: 'fixture' as const,
-        recordId: `table-308:${course.code}`,
-        sourceUrl: 'https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData',
-        sourcePeriod: `${course.gradeOutcomes.fromYear}–${course.gradeOutcomes.toYear}`,
-        observedAt,
-        excerpt: `Retrieved ${CORPUS_RETRIEVED_AT} from public DBH table 308 (institusjonskode 1150), grouped by Emnekode/Karakter/Årstall/Semester over course versions ${course.code}-%.`,
-        inferenceRule: null,
-      };
-      const summary = course.gradeOutcomes;
-      return [
+const gradeSummaries: Readonly<Record<string, CourseGradeSummary>> = Object.fromEntries(
+  corpusCourses.flatMap((course) => {
+    const summary = course.gradeOutcomes;
+    if (summary.kind !== 'dbh') return [];
+
+    const gradesEvidenceId = `fixture:dbh-308:${course.code}:${summary.fromYear}-${summary.toYear}`;
+    const gradesEvidence = {
+      id: gradesEvidenceId,
+      provider: 'dbh',
+      kind: 'fixture' as const,
+      recordId: `table-308:${course.code}`,
+      sourceUrl: 'https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData',
+      sourcePeriod: `${summary.fromYear}–${summary.toYear}`,
+      observedAt,
+      excerpt: `Retrieved ${CORPUS_RETRIEVED_AT} from public DBH table 308 (institusjonskode 1150), grouped by Emnekode/Karakter/Årstall/Semester over course versions ${course.code}-%.`,
+      inferenceRule: null,
+    };
+    return [
+      [
         course.code,
         decodeCourseGradeSummary({
           courseCode: course.code,
@@ -765,12 +767,13 @@ const gradeSummaries = new Map(
           gradingScale: known('letter', [gradesEvidenceId]),
           evidence: [gradesEvidence],
         }),
-      ] as const;
-    }),
+      ] as const,
+    ];
+  }),
 );
 
 export const corpusGradeSummaryFor = (courseCode: string) =>
-  gradeSummaries.get(courseCode.trim().toUpperCase()) ?? null;
+  gradeSummaries[courseCode.trim().toUpperCase()] ?? null;
 
 export const corpusDecisionSignalsFor = (courseCode: string) => {
   const course = corpusCourses.find((item) => item.code === courseCode.trim().toUpperCase());

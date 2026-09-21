@@ -62,11 +62,12 @@ describe('assessment golden corpus', () => {
   });
 
   it('covers high and low observed failure rates: TDT4250 exceeds TDT4109', () => {
-    const tdt4250 = corpusGradeSummaryFor('tdt4250');
-    const tdt4109 = corpusGradeSummaryFor('tdt4109');
-    expect(tdt4250?.failureRatePercent).toMatchObject({ state: 'known' });
-    expect(tdt4109?.failureRatePercent).toMatchObject({ state: 'known' });
-    expect(tdt4250!.failureRatePercent.value).toBeGreaterThan(tdt4109!.failureRatePercent.value);
+    const high = corpusGradeSummaryFor('tdt4250')?.failureRatePercent;
+    const low = corpusGradeSummaryFor('tdt4109')?.failureRatePercent;
+    if (high?.state !== 'known' || low?.state !== 'known') {
+      throw new Error('Expected known failure rates for both corpus courses.');
+    }
+    expect(high.value).toBeGreaterThan(low.value);
   });
 
   it('leaves grade statistics explicitly unavailable where no observation was fetched', () => {
@@ -81,10 +82,11 @@ describe('assessment golden corpus', () => {
 
   it('answers case-insensitive summary lookups with positive sample sizes for DBH-backed codes only', () => {
     for (const code of ['tdt4109', 'IT1901', 'Tdt4290']) {
-      const summary = corpusGradeSummaryFor(code);
-      expect(summary).not.toBeNull();
-      expect(summary!.sampleSize).toMatchObject({ state: 'known' });
-      expect(summary!.sampleSize.value).toBeGreaterThan(0);
+      const sampleSize = corpusGradeSummaryFor(code)?.sampleSize;
+      if (sampleSize?.state !== 'known') {
+        throw new Error(`Expected a known sample size for ${code}.`);
+      }
+      expect(sampleSize.value).toBeGreaterThan(0);
     }
     expect(corpusGradeSummaryFor('NOSUCH01')).toBeNull();
   });
