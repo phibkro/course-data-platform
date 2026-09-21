@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => ({
   plugins: [foldkit({ devToolsMcpPort: 9988 }), tailwindcss()],
+  server: { strictPort: true },
   ...(mode === 'a11y'
     ? { define: { 'import.meta.env.VITE_USE_FIXTURE': JSON.stringify('true') } }
     : {}),

@@ -1,5 +1,20 @@
 # Course Data Platform — agent context
 
+## Cross-provider delegation
+
+- Launch Claude Code directly inside `pagu-box`; `agent-dispatch` is deprecated
+  for this repository.
+- Use `pagu-box --profile=strict --claude -- claude
+  --dangerously-skip-permissions ...` for bounded editing workers.
+- Add `--pwd-ro` for advisors and reviews that must not edit the checkout.
+- Keep delegation to at most two concurrent Claude workers and depth two
+  (lead → worker → reviewer).
+- Give each worker explicit file or subsystem ownership. Use worktrees or Herdr
+  panes when concurrent edits would otherwise overlap or become hard to
+  observe.
+- The outer pagu sandbox is the permission boundary. A delegated worker may
+  narrow access but must not widen it.
+
 ## Product
 
 Uni Planner helps NTNU students discover, understand, save, and compare courses
