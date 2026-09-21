@@ -639,6 +639,8 @@ test('comparing shows what differs, survives reload, and stays a mode within Lis
   await expect(compare.getByRole('rowheader', { name: 'Campus' })).toHaveCount(0);
   await page.getByRole('checkbox', { name: 'Differences' }).click();
   await expect(compare.getByRole('rowheader', { name: 'Campus' })).toBeVisible();
+  await expect(compare.getByRole('cell', { name: '1 activity' })).toHaveCount(2);
+  await expect(compare.getByRole('cell', { name: '1 activities' })).toHaveCount(0);
 
   // The list it was drawn from is still there: Compare is a mode, not a page.
   await expect(page.getByRole('heading', { name: 'Your saved courses' })).toBeVisible();

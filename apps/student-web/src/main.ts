@@ -6668,7 +6668,9 @@ const compareRows = (
         factCell(signal?.obligatoryActivities, locale, (activities) =>
           activities.length === 0
             ? translate(locale, 'compare.none')
-            : translate(locale, 'compare.activityCount', { count: activities.length }),
+            : activities.length === 1
+              ? translate(locale, 'signals.oneActivity')
+              : translate(locale, 'compare.activityCount', { count: activities.length }),
         ),
       ),
     ),
