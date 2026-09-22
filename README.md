@@ -32,6 +32,9 @@ Implemented now:
   courses;
 - ordinary-term, bounded grade aggregation with pass/fail outcomes kept
   separate from ordinal letter grades;
+- a browser-local Progress view imports NTNU or UiO result-history PDFs and shows the original document before parsing;
+- students review imported rows, add results, filter history, select calculation rules, and inspect grade and semester trends;
+- the view keeps session undo history and offers versioned JSON backup and restore without an account;
 - Foldkit loading, success, partial, empty, and error scenes;
 - responsive Material You styling with desktop sidebar and mobile bottom bar;
 - TypeBox boundary contracts, public OpenAPI, and browser-facing response
@@ -89,8 +92,8 @@ bun run openapi
 
 ## Infrastructure
 
-Alchemy v2 runs from the isolated `infra` workspace because the current
-Foldkit application and Alchemy require different Effect 4 release candidates.
+Alchemy v2 runs from the isolated `infra` workspace. This keeps deployment
+dependencies outside the browser and API workspaces.
 The stack uses the new ID `CourseDecisionProduct` and new resource IDs, so it
 does not adopt, mutate, or destroy the earlier v1-managed resources.
 The production student web is bound declaratively to

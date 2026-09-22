@@ -28,12 +28,12 @@ they are not onboarding requirements.
 - **List** owns saved courses, notes, and the two-to-four-course Compare mode.
 - **Schedule** will test saved or planned courses against offering and timetable
   constraints.
-- **Degree** will show programme progress, requirements, and future paths.
+- **Progress** owns local result-history import and credit-weighted average controls.
 - **More** owns preferences, language, provenance, data status, licensing, and
   optional project support.
 
-Schedule and Degree may appear as reserved destinations, but they do not become
-interactive product surfaces until their data-readiness gates are met.
+Schedule and Degree remain reserved surfaces. They stay inactive until their
+data-readiness gates are met.
 
 ## Shared concepts
 
@@ -167,10 +167,9 @@ unexplained global popularity score.
 | List / Compare | Versioned local saved-course schema | Bookmark, note, coloured labels, bounded collection composition, and compare using the shared summary grammar |
 | More | No new source dependency | Language, preferences, provenance/data status, license/support |
 | Schedule | Validated timetable/offering-event contract | Acceptance journeys and fixtures only |
-| Degree | Published, versioned programme dataset with typed relations | Acceptance journeys and fixtures only |
+| Progress | Browser-local PDF boundary and bounded transcript parser | Local import review, inclusion controls, and credit-weighted average |
 | Programme-aware Explore | One reliable programme projection | Required/obligatory filtering before popularity ranking |
 
-Assessment scanning and the Explore summary/refinement work are delivered.
-The active implementation lane is the local List foundation followed by labels,
-bounded collection composition, and Compare. Schedule and Degree remain
-specification lanes until their gates are satisfied.
+Assessment scanning, Explore refinement, List, Compare, and Progress are
+delivered. Schedule and Degree remain specification lanes until their gates are
+satisfied.
