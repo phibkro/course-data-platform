@@ -37,8 +37,6 @@ import { icon, type AppIcon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 import {
   LabelPredicateSchema,
-  LabelMembershipSchema,
-  SavedCourseSchema,
   SavedListLoadSchema,
   SavedListStateSchema,
   attachLabel,
@@ -65,10 +63,8 @@ import {
   emptySavedList,
   findSavedCourse,
   isSaved,
-  membershipsForSavedCourse,
   parseSavedList,
   removeSavedCourse,
-  restoreSavedCourse,
   saveCourse,
   savedListStorageKey,
   serializeSavedList,
@@ -322,44 +318,6 @@ export const savedToggleAvailability = (
     SavedCoursesLoading: () => 'loading' as const,
     SavedCoursesRecovery: () => 'paused' as const,
   });
-/**
- * Ephemeral snapshots of recent Save and Remove actions. They are never
- * persisted. `isUndone` makes each snapshot a reversible two-state action:
- * Undo applies the prior state; Redo reapplies the original action.
- */
-const SavedListNoticeSchema = defineTaggedUnion({
-  SavedActionSaved: {
-    courses: S.Array(SavedCourseSchema),
-    memberships: S.Array(LabelMembershipSchema),
-    isUndone: S.Boolean,
-  },
-  SavedActionRemoved: {
-    courses: S.Array(SavedCourseSchema),
-    memberships: S.Array(LabelMembershipSchema),
-    isUndone: S.Boolean,
-  },
-});
-export type SavedListNotice = typeof SavedListNoticeSchema.Type;
-
-const savedListNoticeLimit = 3;
-
-export const savedListNoticeKey = (notice: SavedListNotice): string =>
-  (notice._tag === 'SavedActionSaved' ? 'saved:' : 'removed:') +
-  notice.courses.map((course) => course.courseCode).join(',');
-
-const withNotice = (
-  notices: ReadonlyArray<SavedListNotice>,
-  notice: SavedListNotice,
-): ReadonlyArray<SavedListNotice> =>
-  [
-    notice,
-    ...notices.filter((existing) => savedListNoticeKey(existing) !== savedListNoticeKey(notice)),
-  ].slice(0, savedListNoticeLimit);
-
-const withoutNotice = (
-  notices: ReadonlyArray<SavedListNotice>,
-  key: string,
-): ReadonlyArray<SavedListNotice> => notices.filter((notice) => savedListNoticeKey(notice) !== key);
 
 const NoteDraftSchema = S.Struct({ courseCode: S.String, value: S.String });
 
@@ -410,7 +368,6 @@ export const Model = S.Struct({
   progress: ProgressModel,
   schedule: ScheduleModel,
   savedCourses: SavedCoursesResultSchema,
-  savedListActions: S.Array(SavedListNoticeSchema),
   noteDrafts: S.Array(NoteDraftSchema),
   savedCoursesPersistFailed: S.Boolean,
   labelFilter: LabelFilterSchema,
@@ -532,8 +489,6 @@ export const Message = defineMessageUnion({
   FailedCourseInsight: { courseCode: S.String, error: S.String },
   CompletedNavigation: {},
   FailedNavigation: { error: S.String },
-  CompletedSavedListFocus: {},
-  FailedSavedListFocus: {},
   CompletedCatalogueSearchFocus: {},
   FailedCatalogueSearchFocus: {},
   PersistedLocale: {},
@@ -567,9 +522,6 @@ export const Message = defineMessageUnion({
   RequestedSavedCoursesReset: {},
   PersistedSavedCourses: {},
   FailedSavedCoursesPersistence: {},
-  RequestedToggleSavedListAction: { key: S.String },
-  DismissedSavedListAction: { key: S.String },
-  DismissedAllSavedListActions: {},
   ChangedLabelInclusion: {
     predicate: LabelPredicateSchema,
     isIncluded: S.Boolean,
@@ -662,9 +614,6 @@ export const SubmittedSavedNote = Message.SubmittedSavedNote;
 export const RequestedSavedCoursesReset = Message.RequestedSavedCoursesReset;
 export const PersistedSavedCourses = Message.PersistedSavedCourses;
 export const FailedSavedCoursesPersistence = Message.FailedSavedCoursesPersistence;
-export const RequestedToggleSavedListAction = Message.RequestedToggleSavedListAction;
-export const DismissedSavedListAction = Message.DismissedSavedListAction;
-export const DismissedAllSavedListActions = Message.DismissedAllSavedListActions;
 export const ChangedLabelInclusion = Message.ChangedLabelInclusion;
 export const ChangedLabelExclusion = Message.ChangedLabelExclusion;
 export const ChangedLabelFilterMode = Message.ChangedLabelFilterMode;
@@ -822,18 +771,6 @@ export const Navigate = Command.define('Navigate', {
         ? Navigation.replaceUrl(href)
         : Navigation.pushUrl(href)
     ).pipe(Effect.as(Message.CompletedNavigation())),
-});
-
-const RestoreSavedListFocus = Command.define('RestoreSavedListFocus', {
-  args: { courseCode: S.String, actionKey: S.String },
-  messages: [Message.CompletedSavedListFocus, Message.FailedSavedListFocus],
-  execute: ({ courseCode, actionKey }) =>
-    Dom.focus(`#saved-toggle-${courseCode}`).pipe(
-      Effect.catch(() => Dom.focus(`[data-saved-action-key="${actionKey}"]`)),
-      Effect.catch(() => Dom.focus('main h1', { preventScroll: true, makeFocusable: true })),
-      Effect.as(Message.CompletedSavedListFocus()),
-      Effect.catch(() => Effect.succeed(Message.FailedSavedListFocus())),
-    ),
 });
 
 const FocusCatalogueSearch = Command.define('FocusCatalogueSearch', {
@@ -2334,8 +2271,6 @@ export const update = (model: Model, message: Message) =>
         : { model },
     CompletedNavigation: () => ({ model }),
     FailedNavigation: () => ({ model }),
-    CompletedSavedListFocus: () => ({ model }),
-    FailedSavedListFocus: () => ({ model }),
     CompletedCatalogueSearchFocus: () => ({ model }),
     FailedCatalogueSearchFocus: () => ({ model }),
     PersistedLocale: () => ({ model }),
@@ -2527,37 +2462,12 @@ export const update = (model: Model, message: Message) =>
         ? { model }
         : { model, commands: [StampSavedCourse({ courseCode: identity.courseCode })] };
     },
-    StampedSavedCourse: ({ courseCode, savedAt }) => {
-      const savedListChange = applySavedListChange(
+    StampedSavedCourse: ({ courseCode, savedAt }) =>
+      applySavedListChange(
         model,
         (state, identity) => saveCourse(state, identity, savedAt),
         courseCode,
-      );
-      if (savedListChange.model === model) {
-        return savedListChange;
-      }
-      const nextState = savedListState(savedListChange.model.savedCourses);
-      const identity = courseIdentity(courseCode);
-      const course =
-        nextState === null || identity === null ? null : findSavedCourse(nextState, identity);
-      if (nextState === null || identity === null || course === null) {
-        return savedListChange;
-      }
-      const nextModel = modifyFields(savedListChange.model, {
-        savedListActions: () =>
-          withNotice(
-            model.savedListActions,
-            SavedListNoticeSchema.SavedActionSaved({
-              courses: [course],
-              memberships: membershipsForSavedCourse(nextState, identity),
-              isUndone: false,
-            }),
-          ),
-      });
-      return savedListChange.commands === undefined
-        ? { model: nextModel }
-        : { model: nextModel, commands: savedListChange.commands };
-    },
+      ),
     RequestedRemoveSavedCourse: ({ courseCode }) => {
       const state = savedListState(model.savedCourses);
       const identity = courseIdentity(courseCode);
@@ -2568,7 +2478,6 @@ export const update = (model: Model, message: Message) =>
       if (course === null) {
         return { model };
       }
-      const memberships = membershipsForSavedCourse(state, identity);
       const next = removeSavedCourse(state, identity);
       return {
         model: modifyFields(model, {
@@ -2578,15 +2487,6 @@ export const update = (model: Model, message: Message) =>
           selectedCourseCodes: () =>
             withoutSelected(model.selectedCourseCodes, identity.courseCode),
           labelDialogTarget: () => withoutSelected(model.labelDialogTarget, identity.courseCode),
-          savedListActions: () =>
-            withNotice(
-              model.savedListActions,
-              SavedListNoticeSchema.SavedActionRemoved({
-                courses: [course],
-                memberships,
-                isUndone: false,
-              }),
-            ),
         }),
         commands: [PersistSavedCourses({ state: next })],
       };
@@ -2618,7 +2518,6 @@ export const update = (model: Model, message: Message) =>
             repairedEntries: 0,
           }),
         noteDrafts: () => [],
-        savedListActions: () => [],
         selectedCourseCodes: () => [],
         labelDialogTarget: () => [],
         labelFilter: () => emptyLabelFilter,
@@ -2641,102 +2540,6 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, {
         savedCoursesPersistFailed: () => true,
       }),
-    }),
-    RequestedToggleSavedListAction: ({ key }) => {
-      const state = savedListState(model.savedCourses);
-      const notice = model.savedListActions.find(
-        (candidate) => savedListNoticeKey(candidate) === key,
-      );
-      if (state === null || notice === undefined || notice.courses.length === 0) {
-        return { model };
-      }
-
-      const identities = notice.courses
-        .map((course) => courseIdentity(course.courseCode))
-        .filter((identity) => identity !== null);
-      if (identities.length !== notice.courses.length) {
-        return { model };
-      }
-
-      const shouldRestore = notice._tag === 'SavedActionSaved' ? notice.isUndone : !notice.isUndone;
-      const currentCourses = shouldRestore
-        ? notice.courses
-        : identities
-            .map((identity) => findSavedCourse(state, identity))
-            .filter((course) => course !== null);
-      if (!shouldRestore && currentCourses.length !== identities.length) {
-        return { model };
-      }
-      const currentMemberships = shouldRestore
-        ? notice.memberships
-        : identities.flatMap((identity) => membershipsForSavedCourse(state, identity));
-      const next = shouldRestore
-        ? currentCourses.reduce(
-            (restored, course) =>
-              restoreSavedCourse(
-                restored,
-                course,
-                currentMemberships.filter((membership) => membership.savedCourseId === course.id),
-              ),
-            state,
-          )
-        : identities.reduce((remaining, identity) => removeSavedCourse(remaining, identity), state);
-      if (next === state) {
-        return { model };
-      }
-
-      const nextNotice =
-        notice._tag === 'SavedActionSaved'
-          ? SavedListNoticeSchema.SavedActionSaved({
-              courses: currentCourses,
-              memberships: currentMemberships,
-              isUndone: !notice.isUndone,
-            })
-          : SavedListNoticeSchema.SavedActionRemoved({
-              courses: currentCourses,
-              memberships: currentMemberships,
-              isUndone: !notice.isUndone,
-            });
-      const affectedCodes = currentCourses.map((course) => course.courseCode);
-      const withoutAffected = (values: ReadonlyArray<string>): ReadonlyArray<string> =>
-        shouldRestore
-          ? values
-          : affectedCodes.reduce(
-              (remaining, courseCode) => withoutSelected(remaining, courseCode),
-              values,
-            );
-      const nextDrafts = shouldRestore
-        ? model.noteDrafts
-        : affectedCodes.reduce(
-            (drafts, courseCode) => withoutNoteDraft(drafts, courseCode),
-            model.noteDrafts,
-          );
-      const focusCourseCode = currentCourses[0]?.courseCode;
-      return {
-        model: modifyFields(model, {
-          savedCourses: () =>
-            SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
-          savedListActions: () => withNotice(model.savedListActions, nextNotice),
-          noteDrafts: () => nextDrafts,
-          selectedCourseCodes: () => withoutAffected(model.selectedCourseCodes),
-          labelDialogTarget: () => withoutAffected(model.labelDialogTarget),
-        }),
-        commands:
-          focusCourseCode === undefined
-            ? [PersistSavedCourses({ state: next })]
-            : [
-                PersistSavedCourses({ state: next }),
-                RestoreSavedListFocus({ courseCode: focusCourseCode, actionKey: key }),
-              ],
-      };
-    },
-    DismissedSavedListAction: ({ key }) => ({
-      model: modifyFields(model, {
-        savedListActions: () => withoutNotice(model.savedListActions, key),
-      }),
-    }),
-    DismissedAllSavedListActions: () => ({
-      model: modifyFields(model, { savedListActions: () => [] }),
     }),
     ChangedLabelInclusion: ({ predicate, isIncluded }) =>
       applyLabelFilter(model, setPredicateIncluded(model.labelFilter, predicate, isIncluded)),
@@ -2820,9 +2623,6 @@ export const update = (model: Model, message: Message) =>
           }),
         };
       }
-      const memberships = identities.flatMap((identity) =>
-        membershipsForSavedCourse(state, identity),
-      );
       const next = identities.reduce(
         (remaining, identity) => removeSavedCourse(remaining, identity),
         state,
@@ -2839,15 +2639,6 @@ export const update = (model: Model, message: Message) =>
           selectedCourseCodes: () => [],
           labelDialogTarget: () => [],
           selectionRemovePending: () => false,
-          savedListActions: () =>
-            withNotice(
-              model.savedListActions,
-              SavedListNoticeSchema.SavedActionRemoved({
-                courses,
-                memberships,
-                isUndone: false,
-              }),
-            ),
         }),
         commands: [PersistSavedCourses({ state: next })],
       };
@@ -3113,7 +2904,6 @@ export const initForHref = (
       location.scheduleHiddenActivityKeys,
     ),
     savedCourses: SavedCoursesResultSchema.SavedCoursesLoading(),
-    savedListActions: [],
     noteDrafts: [],
     savedCoursesPersistFailed: false,
     compareCodes: location.compareCodes,

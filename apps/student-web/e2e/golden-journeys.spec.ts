@@ -31,6 +31,8 @@ const openEnrichedExplore = async (page: Page): Promise<void> => {
 const saveCourse = async (page: Page, courseCode: string): Promise<void> => {
   await page.getByRole('button', { name: `Save ${courseCode} to List` }).click();
   await expect(page.getByRole('button', { name: `Remove ${courseCode} from List` })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Undo/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Dismiss/ })).toHaveCount(0);
 };
 
 const savedCourseRow = (page: Page, courseCode: string) =>
@@ -172,33 +174,17 @@ test('GJ-04 Remember and safely return', { tag: '@fixture' }, async ({ page }) =
     'Ask the adviser about the project',
   );
 
+  await savedCourseRow(page, 'TDT4136').getByRole('link', { name: 'Weekly schedule' }).click();
+  await expect(page).toHaveURL(/\/schedule\?.*courses=TDT4136/);
+  await expect(page.getByRole('checkbox', { name: 'TDT4136' })).toBeChecked();
+
+  await page.getByRole('link', { name: 'Saved' }).first().click();
   await page.getByRole('button', { name: 'Remove TDT4136 from List' }).click();
   await expect(
     page.getByText('You have no saved courses or NTNU results yet', { exact: true }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Undo removing TDT4136' }).click();
-  await expect(
-    savedCourseRow(page, 'TDT4136').getByRole('button', {
-      name: 'Remove TDT4136 from List',
-    }),
-  ).toBeFocused();
-  await expect(savedCourseRow(page, 'TDT4136').getByLabel('Your note')).toHaveValue(
-    'Ask the adviser about the project',
-  );
-
-  await page.getByRole('button', { name: 'Redo removing TDT4136' }).click();
-  await expect(
-    page.getByText('You have no saved courses or NTNU results yet', { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Undo removing TDT4136' })).toBeFocused();
-  await page.getByRole('button', { name: 'Undo removing TDT4136' }).click();
-  await expect(savedCourseRow(page, 'TDT4136').getByLabel('Your note')).toHaveValue(
-    'Ask the adviser about the project',
-  );
-
-  await savedCourseRow(page, 'TDT4136').getByRole('link', { name: 'Weekly schedule' }).click();
-  await expect(page).toHaveURL(/\/schedule\?.*courses=TDT4136/);
-  await expect(page.getByRole('checkbox', { name: 'TDT4136' })).toBeChecked();
+  await expect(page.getByRole('button', { name: /^Undo/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Dismiss/ })).toHaveCount(0);
   await expectNoAxeViolations(page);
 });
 

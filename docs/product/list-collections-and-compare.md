@@ -159,12 +159,12 @@ has higher interaction priority than the whole-card Inspect target.
 Saving is one action:
 
 ```text
-Saved to List    Add labels    Undo
+Saved to List    Add labels    Remove
 ```
 
 The application never requires label selection before saving. Repeated saving
-is idempotent. Removing is undoable during the current interaction and never
-removes source facts.
+is idempotent. Removal takes effect immediately and never removes source facts.
+No transient action notice covers the course-decision workspace.
 
 Accessible names distinguish `Save TDT4100 to List` from `Remove TDT4100 from
 List`. State is exposed through text and semantics, not icon fill alone.
@@ -357,7 +357,7 @@ when the referenced courses remain saved.
 - Pointer, keyboard, and touch selection expose the same actions.
 - Label composition has visible controls and does not depend on modifier keys,
   drag gestures, or colour.
-- Focus returns predictably after dialogs and undo actions.
+- Focus returns predictably after dialogs and destructive confirmations.
 - English and Norwegian cover labels, comparison dimensions, recovery, offline,
   stale, empty, and error states.
 - Axe journeys cover populated List, label editing, combined filtering, and

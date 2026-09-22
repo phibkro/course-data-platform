@@ -12,8 +12,6 @@ import {
   CancelledLabelDelete,
   CancelledLabelEdit,
   CancelledRemoveSelected,
-  DismissedAllSavedListActions,
-  DismissedSavedListAction,
   ToggledCourseOrigin,
   ChangedLabelExclusion,
   ChangedLabelInclusion,
@@ -33,7 +31,6 @@ import {
   RequestedLabelDialog,
   RequestedRemoveSelected,
   RequestedSavedCoursesReset,
-  RequestedToggleSavedListAction,
   SubmittedLabelForm,
   SubmittedSavedNote,
   ToggledLabelOnTarget,
@@ -48,14 +45,12 @@ import {
   noteDraftFor,
   projectedStudentCourses,
   savedListState,
-  savedListNoticeKey,
   scheduleCourseUrl,
   type ListDensity,
   type SavedCoursesResult,
   type Message,
   type Model,
   type OutcomeView,
-  type SavedListNotice,
 } from '../../app';
 import {
   backButtonClass,
@@ -139,133 +134,6 @@ export const savedCoursesPersistenceAlert = (model: Model, h: HtmlBuilder<Messag
       h.Role('alert'),
     ],
     [translate(model.localization, 'list.persistFailed')],
-  );
-};
-
-/** Recent List actions remain reversible until dismissed. */
-const savedListActionStatus = (model: Model, h: HtmlBuilder<Message>): Html => {
-  const notices = model.savedListActions;
-  if (notices.length === 0) return h.empty;
-  const buttonClass = `${compactButtonBase} ${buttonSecondary}`;
-
-  const noticeCard = (notice: SavedListNotice, h: HtmlBuilder<Message>): Html => {
-    const key = savedListNoticeKey(notice);
-    const single = notice.courses.length === 1;
-    const firstCourse = notice.courses[0];
-    const message =
-      notice._tag === 'SavedActionSaved'
-        ? translate(
-            model.localization,
-            notice.isUndone ? 'list.undidSaveStatus' : 'list.savedStatus',
-            {
-              code: firstCourse?.courseCode ?? '',
-            },
-          )
-        : notice.isUndone
-          ? single && firstCourse !== undefined
-            ? translate(model.localization, 'list.restoredStatus', { code: firstCourse.courseCode })
-            : translate(model.localization, 'list.restoredManyStatus', {
-                count: notice.courses.length,
-              })
-          : single && firstCourse !== undefined
-            ? translate(model.localization, 'list.removedStatus', { code: firstCourse.courseCode })
-            : translate(model.localization, 'list.removedManyStatus', {
-                count: notice.courses.length,
-              });
-    const actionLabel = notice.isUndone
-      ? notice._tag === 'SavedActionSaved'
-        ? translate(model.localization, 'list.redoSave', { code: firstCourse?.courseCode ?? '' })
-        : single && firstCourse !== undefined
-          ? translate(model.localization, 'list.redoRemove', { code: firstCourse.courseCode })
-          : translate(model.localization, 'list.redoRemoveMany', { count: notice.courses.length })
-      : notice._tag === 'SavedActionSaved'
-        ? translate(model.localization, 'list.undoSave', { code: firstCourse?.courseCode ?? '' })
-        : single && firstCourse !== undefined
-          ? translate(model.localization, 'list.undoRemove', { code: firstCourse.courseCode })
-          : translate(model.localization, 'list.undoRemoveMany', { count: notice.courses.length });
-
-    return h.div(
-      [
-        h.Class(
-          'pointer-events-auto flex flex-wrap items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface-container py-[0.9rem] px-4 text-on-surface shadow-m3-2',
-        ),
-        h.Role('status'),
-        h.AriaLive('polite'),
-      ],
-      [
-        h.p([h.Class('m-0')], [message]),
-        h.div(
-          [h.Class('flex items-center gap-2')],
-          [
-            Button.view<Message>(
-              {
-                type: 'button',
-                onClick: RequestedToggleSavedListAction({ key }),
-                toView: (attributes) =>
-                  h.button(
-                    [
-                      ...attributes.button,
-                      h.Class(buttonClass),
-                      h.AriaLabel(actionLabel),
-                      h.DataAttribute('saved-action-key', key),
-                    ],
-                    [translate(model.localization, notice.isUndone ? 'list.redo' : 'list.undo')],
-                  ),
-              },
-              h,
-            ),
-            Button.view<Message>(
-              {
-                type: 'button',
-                onClick: DismissedSavedListAction({ key }),
-                toView: (attributes) =>
-                  h.button(
-                    [
-                      ...attributes.button,
-                      h.Class(buttonClass),
-                      h.AriaLabel(
-                        `${translate(model.localization, 'list.dismissStatus')}: ${message}`,
-                      ),
-                    ],
-                    [translate(model.localization, 'list.dismissStatus')],
-                  ),
-              },
-              h,
-            ),
-          ],
-        ),
-      ],
-    );
-  };
-
-  return h.div(
-    [h.Class('pointer-events-none grid gap-2')],
-    [
-      ...notices.map((notice) => noticeCard(notice, h)),
-      notices.length < 2
-        ? h.empty
-        : h.div(
-            [h.Class('pointer-events-auto flex justify-end')],
-            [
-              Button.view<Message>(
-                {
-                  type: 'button',
-                  onClick: DismissedAllSavedListActions(),
-                  toView: (attributes) =>
-                    h.button(
-                      [...attributes.button, h.Class(`${buttonClass} min-h-11`)],
-                      [
-                        translate(model.localization, 'list.dismissAllStatus', {
-                          count: notices.length,
-                        }),
-                      ],
-                    ),
-                },
-                h,
-              ),
-            ],
-          ),
-    ],
   );
 };
 
@@ -1300,11 +1168,10 @@ export const bottomStackView = (
   selected: ReadonlyArray<SavedCourse>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const status = savedListActionStatus(model, h);
   const tray = selectionTrayView(model, selected, h);
   const showsExploreRefine = model.route === 'explore' && model.selectedCode === null;
   const refine = showsExploreRefine ? catalogueRefineAction(model, h) : h.empty;
-  if (status === h.empty && tray === h.empty && refine === h.empty) return h.empty;
+  if (tray === h.empty && refine === h.empty) return h.empty;
   return h.div(
     [],
     [
@@ -1321,7 +1188,7 @@ export const bottomStackView = (
             [],
           )
         : h.empty,
-      h.div([h.Class(bottomStackClass)], [status, tray, refine]),
+      h.div([h.Class(bottomStackClass)], [tray, refine]),
     ],
   );
 };
