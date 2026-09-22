@@ -1,5 +1,5 @@
 import { Effect, Option, Schema as S } from 'effect';
-import { Button, Checkbox, FileDrop, Input } from '@foldkit/ui';
+import { Button, FileDrop, Input } from '@foldkit/ui';
 import { Command, Update } from 'foldkit';
 import type { Html, HtmlBuilder } from 'foldkit/html';
 import { defineMessageUnion } from 'foldkit/message';
@@ -12,7 +12,6 @@ import {
   buttonSecondary,
   compactButtonBase,
   controlGroupClass,
-  eyebrowClass,
   fieldLabelClass,
   loadingIndicatorClass,
   stateCardBase,
@@ -20,6 +19,7 @@ import {
   stateCardFailurePClass,
   stateCardH2Class,
 } from '../../app-styles';
+import { pageHeader as sharedPageHeader, selectionChip } from '../../components';
 import { localeTag, translate, type Locale, type Localization } from '../../i18n';
 import {
   CourseDraftFieldsSchema,
@@ -1252,10 +1252,6 @@ export const update = (model: Model, message: Message): UpdateReturn =>
 const panelClass =
   'grid gap-4 rounded-m3-extra-large border border-outline-variant bg-surface-container-low p-[clamp(1rem,3vw,1.5rem)] shadow-m3-1';
 const compactActionClass = `${compactButtonBase} inline-flex min-h-11 items-center justify-center rounded-[1.5rem] border border-outline bg-surface-container px-3 text-sm font-bold text-primary`;
-const selectionControlClass =
-  'inline-flex min-h-11 cursor-pointer items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm font-bold text-on-surface-variant focus-within:outline-3 focus-within:outline-tertiary focus-within:outline-offset-[3px] has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary-container has-[[data-checked]]:text-on-primary-container';
-const selectionBoxClass =
-  'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none';
 const resultCardClass =
   '@container grid gap-3 rounded-m3-large border border-outline-variant bg-surface-container p-4 [@media(min-width:42rem)]:grid-cols-[minmax(0,1fr)_auto] [@media(min-width:42rem)]:items-start';
 
@@ -1341,45 +1337,25 @@ const checkboxControl = (
   locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html =>
-  Checkbox.view<Message>(
+  selectionChip(
     {
       id,
-      isChecked,
+      label: translate(locale, 'progress.resultInclude'),
+      isSelected: isChecked,
       onToggle,
-      toView: (attributes) =>
-        h.label(
-          [...attributes.label, h.Class(selectionControlClass)],
-          [
-            h.span(
-              [
-                ...attributes.checkbox,
-                h.AriaLabelledBy(`${id}-text`),
-                h.AriaDescribedBy(describedBy),
-                h.Class(selectionBoxClass),
-              ],
-              [h.span([h.AriaHidden(true)], [isChecked ? '✓' : ''])],
-            ),
-            h.span([h.Id(`${id}-text`)], [translate(locale, 'progress.resultInclude')]),
-          ],
-        ),
+      describedBy,
     },
     h,
   );
 
 const pageHeader = (locale: Localization, h: HtmlBuilder<Message>): Html =>
-  h.header(
-    [],
-    [
-      h.p([h.Class(eyebrowClass)], [translate(locale, 'progress.label')]),
-      h.h1(
-        [h.Class('text-[clamp(1.6rem,6vw,2.25rem)] tracking-[-0.035em]')],
-        [translate(locale, 'progress.heading')],
-      ),
-      h.p(
-        [h.Class('mt-[0.4rem] max-w-168 text-on-surface-variant leading-[1.5]')],
-        [translate(locale, 'progress.description')],
-      ),
-    ],
+  sharedPageHeader(
+    {
+      eyebrow: translate(locale, 'progress.label'),
+      title: translate(locale, 'progress.heading'),
+      description: translate(locale, 'progress.description'),
+    },
+    h,
   );
 
 const summaryFact = (label: string, value: string, h: HtmlBuilder<Message>): Html =>
@@ -1592,26 +1568,12 @@ const calculatorView = (model: Model, locale: Localization, h: HtmlBuilder<Messa
           ),
         ],
       ),
-      Checkbox.view<Message>(
+      selectionChip(
         {
           id: 'progress-include-f',
-          isChecked: state.policy.includeF,
+          label: translate(locale, 'progress.includeF'),
+          isSelected: state.policy.includeF,
           onToggle: (includeF) => Message.ChangedIncludeF({ includeF }),
-          toView: (attributes) =>
-            h.label(
-              [...attributes.label, h.Class(selectionControlClass)],
-              [
-                h.span(
-                  [
-                    ...attributes.checkbox,
-                    h.AriaLabelledBy('progress-include-f-text'),
-                    h.Class(selectionBoxClass),
-                  ],
-                  [h.span([h.AriaHidden(true)], [state.policy.includeF ? '✓' : ''])],
-                ),
-                h.span([h.Id('progress-include-f-text')], [translate(locale, 'progress.includeF')]),
-              ],
-            ),
         },
         h,
       ),
@@ -3083,7 +3045,7 @@ export const view = defineView<Model, Message, ViewInputs>((model, { locale, cou
         : recoveryView(model.loadState, locale, h);
 
   return h.section(
-    [h.Class('grid gap-5 pt-[clamp(1.5rem,4vw,3rem)]')],
+    [h.Class('grid gap-6 pt-[clamp(1.5rem,4vw,3rem)]')],
     [pageHeader(locale, h), page],
   );
 });

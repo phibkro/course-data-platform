@@ -2,8 +2,8 @@ import type { CourseIdentity } from './course-identity';
 import type { NtnuResultCourse } from './features/progress/domain';
 import { savedCoursesNewestFirst, type SavedCourse, type SavedListState } from './saved-courses';
 
-export const courseOriginFilters = ['all', 'saved', 'results'] as const;
-export type CourseOriginFilter = (typeof courseOriginFilters)[number];
+export const courseOrigins = ['saved', 'results'] as const;
+export type CourseOrigin = (typeof courseOrigins)[number];
 
 /** One course row derived from independent student-owned sources. */
 export interface StudentCourse {
@@ -51,12 +51,14 @@ export const studentCourses = (
   return courses;
 };
 
-export const filterStudentCoursesByOrigin = (
+export const filterStudentCoursesByOrigins = (
   courses: ReadonlyArray<StudentCourse>,
-  filter: CourseOriginFilter,
-): ReadonlyArray<StudentCourse> =>
-  filter === 'saved'
-    ? courses.filter((course) => course.savedCourse !== null)
-    : filter === 'results'
-      ? courses.filter((course) => course.resultCourse !== null)
-      : courses;
+  origins: ReadonlyArray<CourseOrigin>,
+): ReadonlyArray<StudentCourse> => {
+  const saved = origins.includes('saved');
+  const results = origins.includes('results');
+  if (saved && results) return courses;
+  if (saved) return courses.filter((course) => course.savedCourse !== null);
+  if (results) return courses.filter((course) => course.resultCourse !== null);
+  return [];
+};

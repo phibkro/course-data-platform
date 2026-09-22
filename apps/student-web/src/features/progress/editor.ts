@@ -1,5 +1,5 @@
 import { Schema as S } from 'effect';
-import { Button, Checkbox, Input } from '@foldkit/ui';
+import { Button, Input } from '@foldkit/ui';
 import type { Update } from 'foldkit';
 import type { Html, HtmlBuilder } from 'foldkit/html';
 import { defineMessageUnion } from 'foldkit/message';
@@ -13,6 +13,7 @@ import {
   controlGroupClass,
   fieldLabelClass,
 } from '../../app-styles';
+import { selectionChip } from '../../components';
 import type { Localization } from '../../i18n';
 import {
   CourseDraftFieldsSchema,
@@ -257,10 +258,6 @@ const editorPanelClass =
 const inputClass =
   'w-full min-h-12 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base transition-[border-color,box-shadow] duration-150 ease-in-out focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:cursor-not-allowed disabled:opacity-70 data-[invalid]:border-error';
 const inputErrorClass = 'm-0 mt-1 text-sm leading-[1.45] text-error';
-const checkboxLabelClass =
-  'inline-flex min-h-11 cursor-pointer items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm font-bold text-on-surface-variant focus-within:outline-3 focus-within:outline-tertiary focus-within:outline-offset-[3px] has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary-container has-[[data-checked]]:text-on-primary-container data-[disabled]:cursor-not-allowed data-[disabled]:opacity-70';
-const checkboxBoxClass =
-  'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none';
 const removeButtonClass = `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-sm font-bold text-on-error-container`;
 
 const hasErrors = (errors: FieldErrors): boolean =>
@@ -308,34 +305,23 @@ const includedControl = (
   h: HtmlBuilder<Message>,
 ): Html => {
   const error = model.errors.included;
-  return Checkbox.view<Message>(
-    {
-      id: 'progress-course-editor-included',
-      isChecked: model.fields.included,
-      isDisabled,
-      hasDescription: error !== undefined,
-      onToggle: (included) => Message.ToggledIncluded({ included }),
-      toView: (attributes) =>
-        h.div(
-          [h.Class('grid gap-1')],
-          [
-            h.label(
-              [...attributes.label, h.Class(checkboxLabelClass)],
-              [
-                h.span(
-                  [...attributes.checkbox, h.Class(checkboxBoxClass)],
-                  [model.fields.included ? '✓' : ''],
-                ),
-                h.span([], [label]),
-              ],
-            ),
-            error === undefined
-              ? h.empty
-              : h.p([...attributes.description, h.Class(inputErrorClass)], [error]),
-          ],
-        ),
-    },
-    h,
+  const errorId = 'progress-course-editor-included-error';
+  return h.div(
+    [h.Class('grid gap-1')],
+    [
+      selectionChip(
+        {
+          id: 'progress-course-editor-included',
+          label,
+          isSelected: model.fields.included,
+          isDisabled,
+          ...(error === undefined ? {} : { describedBy: errorId }),
+          onToggle: (included) => Message.ToggledIncluded({ included }),
+        },
+        h,
+      ),
+      error === undefined ? h.empty : h.p([h.Id(errorId), h.Class(inputErrorClass)], [error]),
+    ],
   );
 };
 

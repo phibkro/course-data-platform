@@ -18,6 +18,7 @@ import {
   type ThemePresetId,
 } from '../../theme';
 import { buttonSecondary, eyebrowClass } from '../../app-styles';
+import { pageHeader } from '../../components';
 import { icon } from '../../icons';
 import { translate, type Localization } from '../../i18n';
 
@@ -223,31 +224,29 @@ export const view = defineView<Model, Message, ViewInputs>(
     const preference = model.preference;
     const selectedPreset = selectedPresetId(preference);
     return h.section(
-      [h.Class('grid gap-5 pt-[clamp(1.5rem,4vw,3rem)]')],
+      [h.Class('grid gap-6 pt-[clamp(1.5rem,4vw,3rem)]')],
       [
-        h.header(
-          [],
-          [
-            h.p([h.Class(eyebrowClass)], [translate(locale, 'appearance.label')]),
-            h.h1(
-              [h.Class('text-[clamp(1.6rem,6vw,2.25rem)] tracking-[-0.035em]')],
-              [translate(locale, 'appearance.heading')],
-            ),
-            h.p(
-              [h.Class('mt-[0.4rem] max-w-168 text-on-surface-variant leading-[1.5]')],
-              [translate(locale, 'appearance.description')],
-            ),
-          ],
+        pageHeader(
+          {
+            eyebrow: translate(locale, 'appearance.label'),
+            title: translate(locale, 'appearance.heading'),
+            description: translate(locale, 'appearance.description'),
+          },
+          h,
         ),
         h.div(
           [
             h.Class(
-              'grid gap-5 [@media(min-width:48rem)]:grid-cols-[minmax(0,1.45fr)_minmax(16rem,0.8fr)]',
+              'grid gap-5 [@media(min-width:64rem)]:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.8fr)]',
             ),
           ],
           [
             h.div(
-              [h.Class('grid gap-3')],
+              [
+                h.Class(
+                  'grid gap-4 rounded-m3-large border border-outline-variant bg-surface-container-low p-[clamp(1rem,3vw,1.5rem)] shadow-m3-1',
+                ),
+              ],
               [
                 h.h3(
                   [h.Class('text-sm font-extrabold')],
@@ -255,7 +254,9 @@ export const view = defineView<Model, Message, ViewInputs>(
                 ),
                 h.div(
                   [
-                    h.Class('grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3'),
+                    h.Class(
+                      'grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3 [@media(min-width:80rem)]:grid-cols-3',
+                    ),
                     h.Role('group'),
                     h.AriaLabel(translate(locale, 'appearance.palettes')),
                   ],

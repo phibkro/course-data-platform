@@ -8,9 +8,7 @@ import {
   ChangedLabelInclusion,
   GotScheduleMessage,
   LoadedSavedCourses,
-  RequestedRemoveSavedCourse,
   RequestedSaveCourse,
-  RequestedUndoSavedListAction,
   SavedCoursesReady,
   StampedSavedCourse,
   SubmittedSavedNote,
@@ -22,14 +20,12 @@ import {
   type Model,
 } from './app';
 import {
-  attachLabel,
   createLabel,
   emptyLabelFilter,
   emptySavedList,
   filterLabel,
   findSavedCourse,
   saveCourse,
-  setSavedCourseNote,
   type LabelFilter,
   type SavedListState,
 } from './saved-courses';
@@ -175,30 +171,6 @@ test('saved-list persistence follows explicit save and note commits, never draft
   expect(findSavedCourse(savedState(committedResult.model), identity('TDT4136'))?.note).toBe(
     'Ask an adviser',
   );
-});
-
-test('the Foldkit undo transition restores the exact removed course and memberships', () => {
-  const saved = setSavedCourseNote(
-    saveCourse(emptySavedList, identity('TDT4136'), savedAt),
-    identity('TDT4136'),
-    'Keep this course',
-  );
-  const labelled = createLabel(saved, { id: 'label-plan', name: 'Plan', color: 'sky' });
-  if (labelled._tag !== 'LabelApplied') throw new Error('Expected a label');
-  const original = attachLabel(labelled.state, 'label-plan', [identity('TDT4136')]);
-
-  const removedResult = update(
-    readyModel(original),
-    RequestedRemoveSavedCourse({ courseCode: 'TDT4136' }),
-  );
-  expect(commandNames(removedResult.commands ?? [])).toEqual(['PersistSavedCourses']);
-
-  const restoredResult = update(
-    removedResult.model,
-    RequestedUndoSavedListAction({ key: 'removed:TDT4136' }),
-  );
-  expect(commandNames(restoredResult.commands ?? [])).toEqual(['PersistSavedCourses']);
-  expect(savedState(restoredResult.model)).toEqual(original);
 });
 
 test('label-filter changes are URL-backed List transitions without catalogue refetches', () => {

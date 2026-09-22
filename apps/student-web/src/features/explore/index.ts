@@ -56,6 +56,7 @@ import {
   stateCardPClass,
   statusLabelErrorClass,
 } from '../../app-styles';
+import { pageHeader } from '../../components';
 import type { CourseSearchResponse, CourseSearchSort } from '../../course-client';
 import { courseInsightView } from '../../course-detail';
 import {
@@ -78,7 +79,7 @@ const lazyCatalogueControls = createLazy();
 
 export const catalogueView = (model: Model, h: HtmlBuilder<Message>): Html => {
   return h.div(
-    [h.Class('grid gap-6')],
+    [h.Class('grid gap-5 pt-[clamp(1.25rem,4vw,3rem)]')],
     [
       lazyCatalogueHeader(catalogueHeader, [model.localization, h]),
       lazyCatalogueControls(catalogueControlsFromValues, [
@@ -99,26 +100,16 @@ export const catalogueView = (model: Model, h: HtmlBuilder<Message>): Html => {
   );
 };
 
-const catalogueHeader = (locale: Localization, h: HtmlBuilder<Message>): Html => {
-  return h.header(
-    [h.Class('pt-[clamp(2rem,5vw,3.5rem)] pb-2')],
-    [
-      h.p([h.Class(eyebrowClass)], [translate(locale, 'catalogue.eyebrow')]),
-      h.h1(
-        [
-          h.Class(
-            'max-w-[22ch] text-[clamp(2.1rem,6vw,4rem)] font-bold tracking-[-0.05em] leading-none',
-          ),
-        ],
-        [translate(locale, 'catalogue.heading')],
-      ),
-      h.p(
-        [h.Class('max-w-192 mt-4 text-on-surface-variant text-base leading-[1.6]')],
-        [translate(locale, 'catalogue.intro')],
-      ),
-    ],
+const catalogueHeader = (locale: Localization, h: HtmlBuilder<Message>): Html =>
+  pageHeader(
+    {
+      eyebrow: translate(locale, 'catalogue.eyebrow'),
+      title: translate(locale, 'catalogue.heading'),
+      description: translate(locale, 'catalogue.intro'),
+      showMobileBrand: true,
+    },
+    h,
   );
-};
 
 interface CatalogueControlsState {
   readonly localization: Localization;
@@ -674,7 +665,11 @@ const catalogueList = (
           ),
           h.p(
             [h.Class('text-on-surface-variant text-sm')],
-            [translate(model.localization, 'catalogue.official')],
+            [
+              translate(model.localization, 'catalogue.official'),
+              ' · ',
+              translate(model.localization, 'outcomes.source'),
+            ],
           ),
         ],
       ),
@@ -1379,13 +1374,7 @@ const gradeSummaryView = (
     return h.div(
       [h.Class(`${outcomeStateClass} bg-surface-container text-on-surface-variant`)],
       [
-        h.div(
-          [h.Class('flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1')],
-          [
-            h.p([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
-            h.p([h.Class('m-0 text-xs font-bold')], [translate(locale, 'outcomes.source')]),
-          ],
-        ),
+        h.p([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
         h.p(
           [h.Class('m-0 text-sm leading-[1.4]')],
           [
@@ -1594,10 +1583,6 @@ const gradeSummaryView = (
               h.p([h.Class(factDtClass)], [translate(locale, 'outcomes.heading')]),
               h.p([h.Class('m-0 text-xs font-bold')], [scale]),
             ],
-          ),
-          h.span(
-            [h.Class('text-xs font-extrabold tracking-[0.04em] uppercase')],
-            [translate(locale, 'outcomes.source')],
           ),
         ],
       ),

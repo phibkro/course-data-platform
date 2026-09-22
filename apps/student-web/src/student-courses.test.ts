@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { courseIdentity } from './course-identity';
 import { ntnuResultCourses, type CourseResult } from './features/progress/domain';
 import { emptySavedList, saveCourse } from './saved-courses';
-import { filterStudentCoursesByOrigin, studentCourses } from './student-courses';
+import { filterStudentCoursesByOrigins, studentCourses } from './student-courses';
 
 const identity = (courseCode: string) => {
   const parsed = courseIdentity(courseCode);
@@ -47,11 +47,17 @@ describe('student course projection', () => {
       resultCourse: { title: 'Object-oriented programming' },
     });
     expect(
-      filterStudentCoursesByOrigin(projected, 'saved').map((course) => course.courseCode),
+      filterStudentCoursesByOrigins(projected, ['saved']).map((course) => course.courseCode),
     ).toEqual(['TMA4100', 'TDT4100']);
     expect(
-      filterStudentCoursesByOrigin(projected, 'results').map((course) => course.courseCode),
+      filterStudentCoursesByOrigins(projected, ['results']).map((course) => course.courseCode),
     ).toEqual(['TDT4100', 'IT1901']);
+    expect(
+      filterStudentCoursesByOrigins(projected, ['saved', 'results']).map(
+        (course) => course.courseCode,
+      ),
+    ).toEqual(['TMA4100', 'TDT4100', 'IT1901']);
+    expect(filterStudentCoursesByOrigins(projected, [])).toEqual([]);
     expect(saved.savedCourses).toHaveLength(2);
   });
 });

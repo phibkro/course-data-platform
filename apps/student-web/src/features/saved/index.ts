@@ -12,7 +12,7 @@ import {
   CancelledLabelDelete,
   CancelledLabelEdit,
   CancelledRemoveSelected,
-  ChangedCourseOriginFilter,
+  ToggledCourseOrigin,
   ChangedLabelExclusion,
   ChangedLabelInclusion,
   ClearedCourseFilters,
@@ -20,8 +20,6 @@ import {
   ClearedSavedCourseSelection,
   ConfirmedDeleteLabel,
   ConfirmedRemoveSelected,
-  DismissedAllSavedListActions,
-  DismissedSavedListAction,
   GotLabelDialogMessage,
   GotCompareMessage,
   GotLabelDraftColorRadioGroupMessage,
@@ -33,7 +31,6 @@ import {
   RequestedLabelDialog,
   RequestedRemoveSelected,
   RequestedSavedCoursesReset,
-  RequestedUndoSavedListAction,
   SubmittedLabelForm,
   SubmittedSavedNote,
   ToggledLabelOnTarget,
@@ -47,14 +44,12 @@ import {
   normalizedUrl,
   noteDraftFor,
   projectedStudentCourses,
-  savedListNoticeKey,
   savedListState,
   type ListDensity,
   type SavedCoursesResult,
   type Message,
   type Model,
   type OutcomeView,
-  type SavedListNotice,
 } from '../../app';
 import {
   backButtonClass,
@@ -71,6 +66,7 @@ import {
 } from '../../app-styles';
 import { localeTag, translate, type Localization } from '../../i18n';
 import { courseOfferingFacts } from '../../course-facts';
+import { pageHeader, selectionChip } from '../../components';
 import { icon } from '../../icons';
 import {
   filterLabel,
@@ -101,9 +97,9 @@ import {
   type SavedListState,
 } from '../../saved-courses';
 import {
-  courseOriginFilters,
-  filterStudentCoursesByOrigin,
-  type CourseOriginFilter,
+  courseOrigins,
+  filterStudentCoursesByOrigins,
+  type CourseOrigin,
   type StudentCourse,
 } from '../../student-courses';
 import {
@@ -140,141 +136,16 @@ export const savedCoursesPersistenceAlert = (model: Model, h: HtmlBuilder<Messag
   );
 };
 
-/**
- * Save and Remove are each one action with an explicit confirmation rather
- * than a silent state flip. The banner names what just happened, offers
- * Undo while the ephemeral snapshot is still available, and Dismiss so the
- * student is never forced to wait it out.
- */
-const savedListActionStatus = (model: Model, h: HtmlBuilder<Message>): Html => {
-  const notices = model.savedListActions;
-  if (notices.length === 0) return h.empty;
-  const buttonClass = `${compactButtonBase} ${buttonSecondary}`;
-
-  const noticeCard = (notice: SavedListNotice, h: HtmlBuilder<Message>): Html => {
-    const key = savedListNoticeKey(notice);
-    const single = notice._tag === 'SavedActionRemoved' && notice.courses.length === 1;
-    const removed = notice._tag === 'SavedActionRemoved' ? notice.courses : [];
-    const message =
-      notice._tag === 'SavedActionSaved'
-        ? translate(model.localization, 'list.savedStatus', { code: notice.courseCode })
-        : single && removed[0] !== undefined
-          ? translate(model.localization, 'list.removedStatus', { code: removed[0].courseCode })
-          : translate(model.localization, 'list.removedManyStatus', { count: removed.length });
-    const undoLabel =
-      notice._tag === 'SavedActionSaved'
-        ? translate(model.localization, 'list.undoSave', { code: notice.courseCode })
-        : single && removed[0] !== undefined
-          ? translate(model.localization, 'list.undoRemove', { code: removed[0].courseCode })
-          : translate(model.localization, 'list.undoRemoveMany', { count: removed.length });
-
-    return h.div(
-      [
-        h.Class(
-          'pointer-events-auto flex flex-wrap items-center justify-between gap-3 rounded-m3-medium border border-outline bg-surface-container py-[0.9rem] px-4 text-on-surface shadow-m3-2',
-        ),
-        h.Role('status'),
-        h.AriaLive('polite'),
-      ],
-      [
-        h.p([h.Class('m-0')], [message]),
-        h.div(
-          [h.Class('flex items-center gap-2')],
-          [
-            Button.view<Message>(
-              {
-                type: 'button',
-                onClick: RequestedUndoSavedListAction({ key }),
-                toView: (attributes) =>
-                  h.button(
-                    [...attributes.button, h.Class(buttonClass), h.AriaLabel(undoLabel)],
-                    [translate(model.localization, 'list.undo')],
-                  ),
-              },
-              h,
-            ),
-            Button.view<Message>(
-              {
-                type: 'button',
-                onClick: DismissedSavedListAction({ key }),
-                // Its own name: sharing Undo's would give two buttons one
-                // accessible name for opposite outcomes.
-                toView: (attributes) =>
-                  h.button(
-                    [...attributes.button, h.Class(buttonClass)],
-                    [translate(model.localization, 'list.dismissStatus')],
-                  ),
-              },
-              h,
-            ),
-          ],
-        ),
-      ],
-    );
-  };
-
-  /**
-   * Each notice keeps its own Undo, so a second action does not cost the
-   * student the first one. Clearing them one at a time is the tax that
-   * stacking introduces, so the group offers a single way out once there is
-   * more than one to clear.
-   */
-  return h.div(
-    [h.Class('pointer-events-none grid gap-2')],
-    [
-      ...notices.map((notice) => noticeCard(notice, h)),
-      notices.length < 2
-        ? h.empty
-        : h.div(
-            [h.Class('pointer-events-auto flex justify-end')],
-            [
-              Button.view<Message>(
-                {
-                  type: 'button',
-                  onClick: DismissedAllSavedListActions(),
-                  toView: (attributes) =>
-                    h.button(
-                      [...attributes.button, h.Class(`${buttonClass} min-h-11`)],
-                      [
-                        translate(model.localization, 'list.dismissAllStatus', {
-                          count: notices.length,
-                        }),
-                      ],
-                    ),
-                },
-                h,
-              ),
-            ],
-          ),
-    ],
+const listHeader = (locale: Localization, h: HtmlBuilder<Message>): Html =>
+  pageHeader(
+    {
+      eyebrow: translate(locale, 'list.eyebrow'),
+      title: translate(locale, 'list.heading'),
+      description: translate(locale, 'list.intro'),
+      showMobileBrand: true,
+    },
+    h,
   );
-};
-
-const listHeader = (locale: Localization, h: HtmlBuilder<Message>): Html => {
-  return h.header(
-    [h.Class('pt-[clamp(1.5rem,4vw,3rem)] pb-2 grid gap-4')],
-    [
-      h.div(
-        [],
-        [
-          h.p([h.Class(eyebrowClass)], [translate(locale, 'list.eyebrow')]),
-          h.h1(
-            [
-              h.Class(
-                'max-w-[22ch] text-[clamp(2rem,5vw,3.25rem)] font-bold tracking-[-0.05em] leading-none',
-              ),
-            ],
-            [translate(locale, 'list.heading')],
-          ),
-          h.p(
-            [h.Class('max-w-192 mt-4 text-on-surface-variant text-base leading-[1.6]')],
-            [translate(locale, 'list.intro')],
-          ),
-        ],
-      ),
-    ],
-  );
-};
 
 /**
  * Label colours come from repository-owned semantic label tokens that are
@@ -349,17 +220,15 @@ const labelCountBadge = (count: number, locale: Localization, h: HtmlBuilder<Mes
 };
 
 /**
- * A saved row is selectable, and looks it. Selection used to be reported only
- * by a small box at the row's edge, which left the row reading as a static
- * item that happened to have a control on it. The whole row carries the state
- * now — border and surface — so what is selected is legible from a glance down
- * the column rather than from the checkboxes alone.
+ * A saved row is selectable, and looks it. The whole card carries that state,
+ * so the selected set is legible from a scan down the list instead of from a
+ * separate control alone.
  */
 const savedRowClass = (isSelected: boolean): string =>
-  `@container grid gap-4 p-[1.1rem] rounded-m3-large border transition-[background-color,border-color] duration-150 ease-in-out ${
+  `@container grid gap-3 rounded-[1rem] border p-4 shadow-m3-1 transition-[background-color,border-color,box-shadow] duration-150 ease-out ${
     isSelected
-      ? 'border-primary bg-primary-container/40'
-      : 'border-outline-variant bg-surface-container-low'
+      ? 'border-primary bg-primary-container text-on-primary-container shadow-m3-2'
+      : 'border-outline-variant bg-surface-container-low text-on-surface hover:border-outline hover:bg-surface-container'
   }`;
 
 /**
@@ -374,19 +243,16 @@ const savedRowClass = (isSelected: boolean): string =>
  * keeps a long title from having to share a line it cannot fit on.
  */
 const savedRowHeaderClass =
-  'grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 @min-[32rem]:grid-cols-[auto_minmax(0,1fr)_auto]';
+  'grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 @min-[34rem]:grid-cols-[auto_minmax(0,1fr)_auto]';
 
 const savedRowActionsClass =
-  'col-span-2 flex flex-wrap items-center gap-2 @min-[32rem]:col-span-1 @min-[32rem]:col-start-3 @min-[32rem]:row-start-1 @min-[32rem]:justify-end';
-
-const rowCheckboxClass =
-  'grid size-6 flex-none place-items-center rounded-[0.4rem] border-2 border-outline text-sm leading-none cursor-pointer has-[[data-checked]]:border-primary';
+  'col-span-2 flex flex-wrap items-center gap-2 @min-[34rem]:col-span-1 @min-[34rem]:col-start-3 @min-[34rem]:row-start-1 @min-[34rem]:justify-end';
 
 const noteFieldClass =
-  'w-full min-h-20 p-3 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base leading-[1.45] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]';
+  'w-full min-h-20 rounded-m3-medium border border-outline-variant bg-surface-container-low p-3 text-on-surface text-sm leading-[1.5] outline-0 transition-colors placeholder:text-on-surface-variant/70 focus-visible:border-primary focus-visible:bg-surface focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]';
 
 const systemBadgeClass =
-  'inline-flex min-h-7 items-center rounded-full border border-primary/40 bg-primary-container px-2.5 text-xs font-extrabold text-on-primary-container';
+  'inline-flex min-h-7 items-center rounded-full border border-primary/30 bg-primary-container px-2.5 text-xs font-extrabold text-on-primary-container';
 
 const resultGradeLabel = (grade: string, locale: Localization): string => {
   switch (grade) {
@@ -424,7 +290,7 @@ const resultEvidence = (
   return h.section(
     [
       h.Class(
-        'grid gap-1 rounded-m3-medium bg-secondary-container p-3 text-on-secondary-container',
+        'grid gap-1 rounded-m3-medium border border-secondary/20 bg-secondary-container p-3 text-on-secondary-container',
       ),
       h.AriaLabel(translate(locale, 'list.resultEvidence')),
     ],
@@ -468,32 +334,16 @@ const savedCourseRow = (
   const selectionCheckbox =
     savedCourse === null
       ? h.span([h.Class('size-11 flex-none'), h.AriaHidden(true)], [])
-      : Checkbox.view<Message>(
+      : selectionChip(
           {
             id: `select-${course.courseCode}`,
-            isChecked: isSelected,
-            onToggle: (checked) =>
-              ToggledSavedCourseSelection({ courseCode: course.courseCode, isSelected: checked }),
-            toView: (attributes) =>
-              h.label(
-                [
-                  ...attributes.label,
-                  // The visual box stays compact; the label keeps a 44px touch target.
-                  h.Class(
-                    'flex min-h-11 min-w-11 flex-none items-center justify-center cursor-pointer',
-                  ),
-                ],
-                [
-                  h.span(
-                    [...attributes.checkbox, h.Class(rowCheckboxClass)],
-                    [isSelected ? '✓' : ''],
-                  ),
-                  h.span(
-                    [h.Class('sr-only')],
-                    [translate(locale, 'list.selectCourse', { code: course.courseCode })],
-                  ),
-                ],
-              ),
+            label: translate(locale, 'list.selectCourse', { code: course.courseCode }),
+            isSelected,
+            onToggle: (nextSelected) =>
+              ToggledSavedCourseSelection({
+                courseCode: course.courseCode,
+                isSelected: nextSelected,
+              }),
           },
           h,
         );
@@ -627,7 +477,10 @@ const savedCourseRow = (
       [],
       [
         h.article(
-          [h.Class(`${savedRowClass(isSelected)} gap-2 p-[0.8rem]`)],
+          [
+            h.Class(`${savedRowClass(isSelected)} gap-2 p-3`),
+            h.DataAttribute('selected', isSelected ? 'true' : 'false'),
+          ],
           [
             h.div([h.Class(savedRowHeaderClass)], [selectionCheckbox, identityBlock, rowActions]),
             h.p(
@@ -645,7 +498,10 @@ const savedCourseRow = (
     [],
     [
       h.article(
-        [h.Class(savedRowClass(isSelected))],
+        [
+          h.Class(savedRowClass(isSelected)),
+          h.DataAttribute('selected', isSelected ? 'true' : 'false'),
+        ],
         [
           h.div([h.Class(savedRowHeaderClass)], [selectionCheckbox, identityBlock, rowActions]),
           originsBlock,
@@ -686,7 +542,7 @@ const savedCourseRow = (
             ? h.empty
             : h.form(
                 [
-                  h.Class('grid gap-2'),
+                  h.Class('grid gap-2 border-t border-outline-variant pt-3'),
                   h.OnSubmit(SubmittedSavedNote({ courseCode: course.courseCode })),
                 ],
                 [
@@ -744,20 +600,8 @@ const courseCountLabel = (count: number, locale: Localization): string =>
     ? translate(locale, 'list.courseCountOne')
     : translate(locale, 'list.courseCountMany', { count });
 
-const originFilterLabel = (
-  filter: CourseOriginFilter,
-  count: number,
-  locale: Localization,
-): string =>
-  translate(
-    locale,
-    filter === 'all'
-      ? 'list.originAll'
-      : filter === 'saved'
-        ? 'list.originSaved'
-        : 'list.originResults',
-    { count },
-  );
+const originFilterLabel = (origin: CourseOrigin, count: number, locale: Localization): string =>
+  translate(locale, origin === 'saved' ? 'list.originSaved' : 'list.originResults', { count });
 
 const originFilterView = (
   model: Model,
@@ -766,40 +610,38 @@ const originFilterView = (
 ): Html =>
   h.div(
     [
-      h.Class('flex flex-wrap items-center gap-2'),
+      h.Class(
+        'flex flex-wrap items-center gap-2 rounded-[1rem] border border-outline-variant bg-surface-container-low p-2 shadow-m3-1',
+      ),
       h.Role('group'),
       h.AriaLabel(translate(model.localization, 'list.originFilter')),
     ],
-    courseOriginFilters.map((filter) => {
-      const selected = model.courseOriginFilter === filter;
-      const label = originFilterLabel(
-        filter,
-        filterStudentCoursesByOrigin(courses, filter).length,
-        model.localization,
-      );
-      return Button.view<Message>(
-        {
-          type: 'button',
-          onClick: ChangedCourseOriginFilter({ value: filter }),
-          toView: (attributes) =>
-            h.button(
-              [
-                ...attributes.button,
-                h.Class(
-                  `${compactButtonBase} min-h-11 rounded-full border px-4 ${
-                    selected
-                      ? 'border-primary bg-primary text-on-primary'
-                      : 'border-outline bg-surface-container text-on-surface'
-                  }`,
-                ),
-                h.AriaPressed(String(selected)),
-              ],
-              [label],
+    [
+      h.p(
+        [
+          h.Class(
+            'px-2 text-xs font-extrabold uppercase tracking-[0.08em] text-on-surface-variant',
+          ),
+        ],
+        [translate(model.localization, 'list.originFilter')],
+      ),
+      ...courseOrigins.map((origin) => {
+        const selected = model.selectedCourseOrigins.includes(origin);
+        return selectionChip(
+          {
+            id: `course-origin-${origin}`,
+            label: originFilterLabel(
+              origin,
+              filterStudentCoursesByOrigins(courses, [origin]).length,
+              model.localization,
             ),
-        },
-        h,
-      );
-    }),
+            isSelected: selected,
+            onToggle: (isIncluded) => ToggledCourseOrigin({ origin, isIncluded }),
+          },
+          h,
+        );
+      }),
+    ],
   );
 
 const nameList = (
@@ -864,10 +706,10 @@ const labelFilterSummary = (
 };
 
 const labelFilterChipClass = (included: boolean): string =>
-  `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border px-3 text-sm font-bold ${
+  `${compactButtonBase} inline-flex min-h-10 items-center gap-2 rounded-full border px-3 text-sm font-bold ${
     included
       ? 'border-primary bg-primary-container text-on-primary-container'
-      : 'border-outline bg-surface-container text-on-surface'
+      : 'border-outline-variant bg-surface text-on-surface hover:border-primary'
   }`;
 
 /**
@@ -893,18 +735,31 @@ const excludeCheckbox = (
           [
             ...attributes.label,
             h.Class(
-              'inline-flex min-h-11 items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm text-on-surface-variant cursor-pointer has-[[data-checked]]:border-error has-[[data-checked]]:bg-error-container has-[[data-checked]]:text-on-error-container',
+              `inline-flex min-h-10 items-center gap-2 rounded-full border px-3 text-sm font-bold transition-colors ${
+                isExcluded
+                  ? 'border-error bg-error-container text-on-error-container'
+                  : 'border-outline-variant bg-surface text-on-surface hover:border-error'
+              }`,
             ),
+            h.DataAttribute('selected', isExcluded ? 'true' : 'false'),
           ],
           [
             h.span(
               [
                 ...attributes.checkbox,
                 h.Class(
-                  'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
+                  `grid size-6 flex-none place-items-center rounded-full text-xs ${
+                    isExcluded
+                      ? 'bg-error text-on-error'
+                      : 'border border-outline-variant text-on-surface-variant'
+                  }`,
                 ),
               ],
-              [isExcluded ? '✓' : ''],
+              [
+                isExcluded
+                  ? icon('check', 'block size-3.5 [&_svg]:block [&_svg]:size-full', h)
+                  : h.empty,
+              ],
             ),
             dot,
             h.span([], [translate(locale, 'list.filterExclude', { name })]),
@@ -1246,7 +1101,7 @@ const labelDialogAction = (
 };
 
 const selectionTrayClass =
-  '@container pointer-events-auto grid gap-3 p-3 border border-outline rounded-[1.5rem] bg-surface-container-high shadow-m3-2 @min-[28rem]:flex @min-[28rem]:flex-wrap @min-[28rem]:items-center @min-[28rem]:justify-between';
+  '@container pointer-events-auto grid gap-3 rounded-[1rem] border border-primary/25 bg-surface-container-high p-3 shadow-m3-2 @min-[28rem]:flex @min-[28rem]:flex-wrap @min-[28rem]:items-center @min-[28rem]:justify-between';
 
 /**
  * Layout answers to a container's own width at three named widths, and only
@@ -1278,15 +1133,12 @@ const controlGroupClass =
   'grid gap-2 [&>*]:w-full [&>*]:justify-center @min-[28rem]:flex @min-[28rem]:flex-wrap @min-[28rem]:items-center @min-[28rem]:[&>*]:w-auto';
 
 /**
- * Everything that hovers over the page bottom shares one stack, so the pieces
- * space themselves instead of each guessing the other's height — a guess that
- * breaks the moment a message wraps to a second line. The container ignores
- * pointer events; the cards inside take them back, so the page underneath
- * stays clickable through the gaps.
+ * Floating actions share one stack so they do not overlap each other or the
+ * mobile navigation. The container ignores pointer events; controls inside
+ * take them back, so the page underneath stays clickable through the gaps.
  *
  * It clears the bottom bar on the narrow layout and settles into the corner on
- * a wide one, where a full-width bar would be a banner across the reading
- * column rather than a notice beside it.
+ * a wide one, where a full-width bar would cover the reading column.
  */
 const bottomStackClass =
   'pointer-events-none fixed inset-x-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-11 grid justify-items-stretch gap-2 [@media(min-width:48rem)_and_(min-height:34rem)]:inset-x-auto [@media(min-width:48rem)_and_(min-height:34rem)]:right-4 [@media(min-width:48rem)_and_(min-height:34rem)]:bottom-4 [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-2rem),28rem)]';
@@ -1305,21 +1157,30 @@ export const bottomStackView = (
   selected: ReadonlyArray<SavedCourse>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const status = savedListActionStatus(model, h);
   const tray = selectionTrayView(model, selected, h);
-  /**
-   * Refine floats over the same region, so it belongs to the same stack.
-   * Centred in its own fixed box it landed on top of a notice; here the stack
-   * spaces them, and the rule stays "one owner of the page bottom".
-   */
-  const refine =
-    model.route === 'explore' && model.selectedCode === null
-      ? catalogueRefineAction(model, h)
-      : h.empty;
-  if (status === h.empty && tray === h.empty && refine === h.empty) return h.empty;
-  return h.div([h.Class(bottomStackClass)], [status, tray, refine]);
+  const showsExploreRefine = model.route === 'explore' && model.selectedCode === null;
+  const refine = showsExploreRefine ? catalogueRefineAction(model, h) : h.empty;
+  if (tray === h.empty && refine === h.empty) return h.empty;
+  return h.div(
+    [],
+    [
+      // The floating compact control remains reachable on a phone, while this
+      // in-flow reserve lets the final catalogue card clear the fixed region.
+      showsExploreRefine
+        ? h.div(
+            [
+              h.Class(
+                'h-[calc(5rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:hidden',
+              ),
+              h.AriaHidden(true),
+            ],
+            [],
+          )
+        : h.empty,
+      h.div([h.Class(bottomStackClass)], [tray, refine]),
+    ],
+  );
 };
-
 /**
  * Selection is distinct from saving and stays ephemeral: it lives only in the
  * session, and the tray disappears with it.
@@ -1328,8 +1189,7 @@ export const bottomStackView = (
  * asks first, because it discards notes and label attachments across several
  * courses at once — the confirmation swaps the tray's actions in place rather
  * than opening a dialog, matching how deleting a label already asks. A single
- * course still removes without a prompt: undo restores it, and prompting for
- * a reversible act only teaches the student to dismiss prompts.
+ * course removes directly because the action is explicit and affects one row.
  */
 const selectionTrayView = (
   model: Model,
@@ -1346,7 +1206,7 @@ const selectionTrayView = (
     ],
     [
       h.p(
-        [h.Class('m-0 font-bold'), h.AriaLive('polite')],
+        [h.Class('m-0 text-sm font-extrabold text-on-surface'), h.AriaLive('polite')],
         [
           selected.length === 1
             ? translate(locale, 'list.selectionCountOne')
@@ -1408,9 +1268,25 @@ const selectionTrayView = (
                         h.button(
                           [
                             ...attributes.button,
-                            h.Class(`${compactButtonBase} ${buttonPrimary} min-h-11`),
+                            h.Class(
+                              `${compactButtonBase} ${buttonPrimary} min-h-12 w-full justify-between @min-[28rem]:min-h-11 @min-[28rem]:w-auto`,
+                            ),
                           ],
-                          [translate(locale, 'compare.open')],
+                          [
+                            h.span([], [translate(locale, 'compare.open')]),
+                            h.span(
+                              [
+                                h.Class('ml-auto border-l border-on-primary/40 pl-3 tabular-nums'),
+                                h.AriaHidden(true),
+                              ],
+                              [String(selected.length)],
+                            ),
+                            icon(
+                              'caret-down',
+                              'block size-4 flex-none -rotate-90 [&_svg]:block [&_svg]:size-full',
+                              h,
+                            ),
+                          ],
                         ),
                     },
                     h,
@@ -1565,7 +1441,7 @@ const listDensityChoice = (
           [
             ...group,
             h.Class(
-              'inline-flex w-fit flex-none overflow-hidden rounded-full border border-outline',
+              'inline-flex w-fit flex-none overflow-hidden rounded-full border border-outline-variant bg-surface-container-low p-0.5',
             ),
           ],
           options.map((option) =>
@@ -1574,10 +1450,10 @@ const listDensityChoice = (
                 ...option.option,
                 h.Type('button'),
                 h.Class(
-                  `min-h-11 cursor-pointer border-0 px-3 text-sm font-bold ${
+                  `min-h-10 cursor-pointer rounded-full border-0 px-3 text-sm font-bold transition-colors ${
                     option.isSelected
                       ? 'bg-primary text-on-primary'
-                      : 'bg-surface-container text-on-surface'
+                      : 'bg-surface-container text-on-surface hover:bg-surface'
                   }`,
                 ),
               ],
@@ -1610,9 +1486,10 @@ const savedCourseListView = (
         (course) => course.savedCourse !== null && matchingSavedIds.has(course.savedCourse.id),
       )
     : total;
-  const courses = filterStudentCoursesByOrigin(afterLabels, model.courseOriginFilter);
+  const courses = filterStudentCoursesByOrigins(afterLabels, model.selectedCourseOrigins);
   const selectedCodes = new Set(model.selectedCourseCodes);
-  const filterActive = labelFilterActive || model.courseOriginFilter !== 'all';
+  const filterActive =
+    labelFilterActive || model.selectedCourseOrigins.length !== courseOrigins.length;
   if (total.length === 0) {
     return h.section(
       [h.Class(stateCardBase), h.Role('status')],
@@ -1665,12 +1542,15 @@ const savedCourseListView = (
         });
       })(),
       originFilterView(model, total, h),
-      state.savedCourses.length === 0 ? h.empty : labelFilterView(model, state, h),
       h.header(
-        [h.Class('flex items-end justify-between gap-4 py-2 px-1 border-b border-outline-variant')],
+        [
+          h.Class(
+            'flex flex-wrap items-center justify-between gap-3 rounded-[1rem] border border-outline-variant bg-surface-container-low p-3 shadow-m3-1',
+          ),
+        ],
         [
           h.p(
-            [h.AriaLive('polite'), h.Class('m-0 text-on-surface-variant text-sm')],
+            [h.AriaLive('polite'), h.Class('m-0 text-sm font-bold text-on-surface')],
             [
               filterActive
                 ? translate(model.localization, 'list.filteredCount', {
@@ -1680,9 +1560,20 @@ const savedCourseListView = (
                 : courseCountLabel(total.length, model.localization),
             ],
           ),
-          listDensityChoice(model.listDensity, model.localization, model.listDensityRadioGroup, h),
+          h.div(
+            [h.Class('flex items-center gap-2')],
+            [
+              listDensityChoice(
+                model.listDensity,
+                model.localization,
+                model.listDensityRadioGroup,
+                h,
+              ),
+            ],
+          ),
         ],
       ),
+      state.savedCourses.length === 0 ? h.empty : labelFilterView(model, state, h),
       // A collection that matches nothing is a filter outcome, never a failure
       // and never an empty course list.
       courses.length === 0
@@ -1904,11 +1795,29 @@ export const labelDialogView = (model: Model, h: HtmlBuilder<Message>): Html => 
                   [
                     ...attributes.label,
                     h.Class('flex min-w-0 flex-1 items-center gap-[0.6rem] cursor-pointer'),
+                    h.DataAttribute('selected', attachment.all ? 'true' : 'false'),
                   ],
                   [
                     h.span(
-                      [...attributes.checkbox, h.Class(rowCheckboxClass)],
-                      [attachment.all ? '✓' : attachment.some ? '–' : ''],
+                      [
+                        ...attributes.checkbox,
+                        h.Class(
+                          `grid size-7 flex-none place-items-center rounded-full text-xs font-extrabold ${
+                            attachment.all
+                              ? 'bg-primary text-on-primary'
+                              : attachment.some
+                                ? 'bg-secondary-container text-on-secondary-container'
+                                : 'border border-outline-variant text-on-surface-variant'
+                          }`,
+                        ),
+                      ],
+                      [
+                        attachment.all
+                          ? icon('check', 'block size-3.5 [&_svg]:block [&_svg]:size-full', h)
+                          : attachment.some
+                            ? '–'
+                            : '',
+                      ],
                     ),
                     labelChip(label, labelNameId, h),
                     h.span(

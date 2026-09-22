@@ -71,13 +71,13 @@ export const courseInsightView = <Message>(
   ): Html => factView(label, fact, renderKnown, locale, inferenceEvidenceIds, h);
 
   return h.article(
-    [h.Class('grid gap-4'), h.AriaLabel(translate(locale, 'detail.aria', { code: course.code }))],
+    [h.Class('grid gap-5'), h.AriaLabel(translate(locale, 'detail.aria', { code: course.code }))],
     [
       partial
         ? h.div(
             [
               h.Class(
-                'py-4 px-5 rounded-m3-medium bg-warning-container text-on-warning-container [&_p]:m-0 [&_p]:leading-[1.5]',
+                'rounded-m3-medium border border-warning bg-warning-container px-5 py-4 text-on-warning-container [&_p]:m-0 [&_p]:leading-[1.5]',
               ),
               h.Role('status'),
               h.AriaLive('polite'),
@@ -90,26 +90,18 @@ export const courseInsightView = <Message>(
               h.p([], [translate(locale, 'detail.partialHelp')]),
             ],
           )
-        : h.div(
-            [
-              h.Class(
-                'py-4 px-5 rounded-m3-medium bg-primary-container text-on-primary-container font-semibold leading-[1.5]',
-              ),
-              h.Role('status'),
-            ],
-            [translate(locale, 'detail.complete')],
-          ),
+        : h.empty,
       h.header(
         [
           h.Class(
-            'grid gap-6 p-[clamp(1.5rem,5vw,3rem)] rounded-m3-extra-large bg-primary text-on-primary [@media(min-width:64rem)]:grid-cols-[minmax(0,1fr)_auto]',
+            'grid gap-6 rounded-m3-extra-large bg-primary p-[clamp(1.5rem,4vw,2.5rem)] text-on-primary shadow-m3-1 [@media(min-width:64rem)]:grid-cols-[minmax(0,1fr)_auto]',
           ),
         ],
         [
           h.div(
             [
               h.Class(
-                '[&_h2]:max-w-[22ch] [&_h2]:m-0 [&_h2]:text-[clamp(2rem,5vw,3.75rem)] [&_h2]:tracking-[-0.045em] [&_h2]:leading-[1.05]',
+                '[&_h2]:m-0 [&_h2]:max-w-[22ch] [&_h2]:text-[clamp(2rem,5vw,3rem)] [&_h2]:font-extrabold [&_h2]:tracking-[-0.045em] [&_h2]:leading-[1.04]',
               ),
             ],
             [
@@ -145,12 +137,6 @@ export const courseInsightView = <Message>(
                 h,
               ),
             ],
-          ),
-          evidenceLinks(
-            course.title.evidenceIds,
-            locale,
-            'text-on-primary [&_a]:text-on-primary [@media(min-width:64rem)]:col-span-full',
-            h,
           ),
         ],
       ),
@@ -312,7 +298,6 @@ const factView = <A, Message>(
           ],
         ),
         renderKnown(fact.value),
-        evidenceLinks(fact.evidenceIds, locale, '', h),
       ],
     );
   }
@@ -335,14 +320,8 @@ const factView = <A, Message>(
               'mt-[0.35rem] mr-0 mb-0 ml-0 pl-[1.2rem] [&_li]:my-[0.35rem] [&_li]:leading-[1.5]',
             ),
           ],
-          fact.candidates.map((candidate) =>
-            h.li(
-              [],
-              [renderKnown(candidate.value), evidenceLinks(candidate.evidenceIds, locale, '', h)],
-            ),
-          ),
+          fact.candidates.map((candidate) => h.li([], [renderKnown(candidate.value)])),
         ),
-        evidenceLinks(fact.evidenceIds, locale, '', h),
       ],
     );
   }
@@ -358,7 +337,6 @@ const factView = <A, Message>(
         ],
       ),
       h.p([], [fact.reason]),
-      evidenceLinks(fact.evidenceIds, locale, '', h),
     ],
   );
 };
@@ -586,8 +564,16 @@ const sourceSection = <Message>(
   locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
+  const notices = course.sourceStatuses.filter(
+    (source) => source.status === 'failed' || source.warning !== null,
+  );
+
   return h.section(
-    [h.Class(decisionSectionClass)],
+    [
+      h.Class(
+        'rounded-m3-large border border-outline-variant bg-surface-container-low p-[clamp(1.25rem,4vw,2.25rem)]',
+      ),
+    ],
     [
       h.header(
         [h.Class(sectionHeadingClass)],
@@ -596,120 +582,81 @@ const sourceSection = <Message>(
           h.p([], [translate(locale, 'detail.sourcesHelp')]),
         ],
       ),
-      h.div(
-        [h.Class('grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))]')],
-        course.sourceStatuses.map((source) =>
-          h.div(
-            [
-              h.Class(
-                source.status === 'failed'
-                  ? 'p-4 border-l-[0.3rem] border-l-error rounded-m3-medium bg-surface [&_h3]:m-0 [&_h3]:text-base [&_p]:mt-[0.45rem] [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-on-surface-variant [&_p]:text-sm [&_p]:leading-[1.45]'
-                  : 'p-4 border-l-[0.3rem] border-l-primary rounded-m3-medium bg-surface [&_h3]:m-0 [&_h3]:text-base [&_p]:mt-[0.45rem] [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-on-surface-variant [&_p]:text-sm [&_p]:leading-[1.45]',
-              ),
-            ],
-            [
-              h.div(
-                [h.Class('flex items-start justify-between gap-3')],
+      notices.length === 0
+        ? h.empty
+        : h.ul(
+            [h.Class('mb-5 grid gap-2 p-0 list-none')],
+            notices.map((source) =>
+              h.li(
                 [
-                  h.h3([], [source.provider]),
-                  h.span([h.Class(factStateClass)], [translateToken(locale, source.status)]),
+                  h.Class(
+                    source.status === 'failed'
+                      ? 'rounded-m3-medium border border-error bg-error-container px-4 py-3 text-on-error-container'
+                      : 'rounded-m3-medium border border-warning bg-warning-container px-4 py-3 text-on-warning-container',
+                  ),
+                  ...(source.status === 'failed' ? [h.Role('alert')] : [h.Role('status')]),
+                ],
+                [
+                  h.strong([], [source.provider]),
+                  h.span([], [` · ${source.warning ?? translateToken(locale, source.status)}`]),
                 ],
               ),
-              source.observedAt === null
-                ? h.p([], [translate(locale, 'detail.noObservation')])
-                : h.p(
+            ),
+          ),
+      course.evidence.length === 0
+        ? h.p(
+            [h.Class('m-0 text-on-surface-variant italic')],
+            [translate(locale, 'detail.noEvidence')],
+          )
+        : h.ol(
+            [h.Class('m-0 grid gap-3 p-0 list-none [@media(min-width:64rem)]:grid-cols-2')],
+            course.evidence.map((evidence) =>
+              h.keyed('li')(
+                evidence.id,
+                [
+                  h.Id(`evidence-${evidence.id}`),
+                  h.Class(
+                    'scroll-mt-4 rounded-m3-medium border border-outline-variant bg-surface p-4 [&_p]:my-[0.45rem] [&_p]:text-on-surface-variant [&_p]:text-sm [&_p]:leading-[1.5]',
+                  ),
+                ],
+                [
+                  h.div(
+                    [h.Class('flex items-start justify-between gap-3')],
+                    [
+                      h.strong([], [evidence.provider]),
+                      h.span([h.Class(factStateClass)], [translateToken(locale, evidence.kind)]),
+                    ],
+                  ),
+                  h.p(
                     [],
                     [
-                      translate(locale, 'detail.observed', {
-                        date: formatTimestamp(source.observedAt, locale),
+                      translate(locale, 'detail.observedInline', {
+                        period: evidence.sourcePeriod ?? translate(locale, 'detail.noSourcePeriod'),
+                        date: formatTimestamp(evidence.observedAt, locale),
                       }),
                     ],
                   ),
-              source.warning === null ? h.empty : h.p([], [source.warning]),
-            ],
-          ),
-        ),
-      ),
-      h.ol(
-        [h.Class('grid gap-3 mt-5 mr-0 mb-0 ml-0 p-0 list-none')],
-        course.evidence.map((evidence) =>
-          h.keyed('li')(
-            evidence.id,
-            [
-              h.Id(`evidence-${evidence.id}`),
-              h.Class(
-                'scroll-mt-4 p-4 rounded-m3-medium bg-surface-container [&_p]:my-[0.45rem] [&_p]:mx-0 [&_p]:text-on-surface-variant [&_p]:text-sm [&_p]:leading-[1.5]',
-              ),
-            ],
-            [
-              h.div(
-                [h.Class('flex items-start justify-between gap-3')],
-                [
-                  h.strong([], [evidence.provider]),
-                  h.span([h.Class(factStateClass)], [translateToken(locale, evidence.kind)]),
+                  evidence.excerpt === null ? h.empty : h.p([], [evidence.excerpt]),
+                  evidence.sourceUrl === null
+                    ? h.span(
+                        [h.Class('text-on-surface-variant text-sm italic')],
+                        [translate(locale, 'detail.noExternalLink')],
+                      )
+                    : h.a(
+                        [
+                          h.Href(evidence.sourceUrl),
+                          h.Target('_blank'),
+                          h.Rel('noreferrer'),
+                          h.Class(
+                            'inline-flex min-h-11 items-center rounded-full px-3 text-sm font-bold underline-offset-4 hover:underline',
+                          ),
+                        ],
+                        [translate(locale, 'detail.openSource')],
+                      ),
                 ],
               ),
-              h.p(
-                [],
-                [
-                  translate(locale, 'detail.observedInline', {
-                    period: evidence.sourcePeriod ?? translate(locale, 'detail.noSourcePeriod'),
-                    date: formatTimestamp(evidence.observedAt, locale),
-                  }),
-                ],
-              ),
-              evidence.excerpt === null ? h.empty : h.p([], [evidence.excerpt]),
-              evidence.sourceUrl === null
-                ? h.span(
-                    [h.Class('text-on-surface-variant text-sm italic')],
-                    [translate(locale, 'detail.noExternalLink')],
-                  )
-                : h.a(
-                    [
-                      h.Href(evidence.sourceUrl),
-                      h.Target('_blank'),
-                      h.Rel('noreferrer'),
-                      h.Class('text-sm'),
-                    ],
-                    [translate(locale, 'detail.openSource')],
-                  ),
-            ],
+            ),
           ),
-        ),
-      ),
-    ],
-  );
-};
-
-const evidenceLinks = <Message>(
-  evidenceIds: ReadonlyArray<string>,
-  locale: Localization,
-  contextClass: string,
-  h: HtmlBuilder<Message>,
-): Html => {
-  if (evidenceIds.length === 0) {
-    return h.span(
-      [h.Class(`text-on-surface-variant text-xs italic ${contextClass}`)],
-      [translate(locale, 'detail.noEvidence')],
-    );
-  }
-  return h.div(
-    [
-      h.Class(
-        `flex flex-wrap gap-[0.4rem] mt-[0.8rem] text-xs [&_a]:underline-offset-[0.2rem] ${contextClass}`,
-      ),
-      h.AriaLabel(translate(locale, 'detail.supportingEvidence')),
-    ],
-    [
-      ...evidenceIds.map((id) =>
-        h.a(
-          [
-            h.Href(`#evidence-${id}`),
-            h.AriaLabel(translate(locale, 'detail.viewEvidenceLabel', { id })),
-          ],
-          [translate(locale, 'detail.viewEvidence')],
-        ),
-      ),
     ],
   );
 };
@@ -780,7 +727,6 @@ const assessmentList = <Message>(
                       `${translate(locale, 'detail.assessmentWeight')}: ${translateToken(locale, part.weightPercent.state)}. ${part.weightPercent.reason}`,
                     ],
                   ),
-                  evidenceLinks(part.weightPercent.evidenceIds, locale, '', h),
                 ],
               ),
         ],

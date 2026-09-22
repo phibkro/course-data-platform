@@ -487,9 +487,9 @@ a:focus-visible {
 
 .theme-preset-card--fjord {
   --preset-surface: oklch(98.23% 0.0083 271.33);
-  --preset-accent-container: oklch(91.53% 0.0408 260.95);
-  --preset-accent: oklch(48.08% 0.1379 251.38);
-  --preset-chart: oklch(55.84% 0.111 229.77);
+  --preset-accent-container: oklch(90.28% 0.1173 165.93);
+  --preset-accent: oklch(47.13% 0.0971 166.57);
+  --preset-chart: oklch(48.58% 0.0894 266.7);
 }
 
 .theme-preset-card--aurora {

@@ -15,19 +15,17 @@ export const fieldLabelClass =
  * splitting it. The offset stays, and the cap moves inside.
  */
 export const mainContentClass = (sidebarCollapsed: boolean): string =>
-  `w-full pt-4 px-4 pb-[calc(12rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-40 [@media(min-width:64rem)]:px-10 ${
+  `min-h-screen w-full bg-surface px-4 pt-4 pb-[calc(12rem+env(safe-area-inset-bottom))] transition-[width,margin] duration-200 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pt-5 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-24 [@media(min-width:64rem)]:px-10 ${
     sidebarCollapsed
       ? '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[calc(100%-5rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-20'
       : '[@media(min-width:48rem)_and_(min-height:34rem)]:w-[calc(100%-16.5rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66'
   }`;
 
 /**
- * One reading column, centred in whatever space the sidebar leaves. 76rem is
- * about 100 characters at the body size — wide enough for the three-column
- * course card, short enough that a heading does not run away from the text
- * under it.
+ * The wide cap supports information-dense comparison and schedule views while
+ * keeping prose constrained inside their own sections.
  */
-export const mainColumnClass = 'mx-auto w-full max-w-[76rem]';
+export const mainColumnClass = 'mx-auto w-full max-w-[88rem]';
 
 export const buttonBase =
   'cursor-pointer transition-[box-shadow,transform] duration-150 ease-in-out focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] [@media(max-width:37rem)]:w-full';

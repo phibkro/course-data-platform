@@ -112,6 +112,14 @@ export const primaryNavigation = (
   },
 ];
 
+const brandMark = <Message>(h: HtmlBuilder<Message>): Html =>
+  h.img([
+    h.Src('/course-lens-icon.svg'),
+    h.Alt(''),
+    h.AriaHidden(true),
+    h.Class('block size-9 flex-none'),
+  ]);
+
 const desktopItemBase =
   'flex items-center gap-3 min-h-14 py-3 px-4 rounded-[1.75rem] font-semibold no-underline';
 
@@ -230,14 +238,27 @@ export const desktopNavigation = <Message>(
         [
           h.Class(
             collapsed
-              ? 'flex min-h-10 items-center justify-center pt-2 pb-8'
-              : 'flex min-h-10 items-center gap-3 pt-2 px-3 pb-8 text-lg font-bold tracking-[-0.02em]',
+              ? 'grid justify-items-center gap-2 pb-7'
+              : 'flex min-h-11 items-center gap-3 px-2 pb-7',
           ),
         ],
         [
-          h.span(
-            [h.Class(collapsed ? 'sr-only' : 'min-w-0 flex-1')],
-            [translate(locale, 'app.name')],
+          h.a(
+            [
+              h.Href(exploreHref),
+              h.Class(
+                collapsed
+                  ? 'grid size-11 place-items-center rounded-m3-medium focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2'
+                  : 'flex min-w-0 flex-1 items-center gap-3 rounded-m3-medium font-extrabold tracking-[-0.03em] text-on-surface no-underline focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2',
+              ),
+            ],
+            [
+              brandMark(h),
+              h.span(
+                [h.Class(collapsed ? 'sr-only' : 'truncate text-lg')],
+                [translate(locale, 'app.name')],
+              ),
+            ],
           ),
           onToggle === undefined
             ? h.empty

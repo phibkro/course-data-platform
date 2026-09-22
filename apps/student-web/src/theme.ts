@@ -26,7 +26,7 @@ export interface ThemePreset {
 }
 
 export const themePresets: ReadonlyArray<ThemePreset> = [
-  { id: 'fjord', baseColor: 'mist', themeColor: 'blue', chartColor: 'sky' },
+  { id: 'fjord', baseColor: 'mist', themeColor: 'emerald', chartColor: 'indigo' },
   { id: 'aurora', baseColor: 'zinc', themeColor: 'violet', chartColor: 'violet' },
   { id: 'birch', baseColor: 'stone', themeColor: 'amber', chartColor: 'emerald' },
   { id: 'heather', baseColor: 'mauve', themeColor: 'rose', chartColor: 'rose' },

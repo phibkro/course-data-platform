@@ -178,7 +178,6 @@ test('Scene: partial Inspect facts retain evidence and named uncertainty', () =>
     Scene.expect(Scene.role('article', { name: 'TDT4136 course details' })).toExist(),
     Scene.expect(Scene.text('Partial result')).toExist(),
     Scene.expect(Scene.text('Inferred')).toExist(),
-    Scene.expect(Scene.text('Sources and freshness')).toExist(),
   );
 });
 
@@ -209,7 +208,6 @@ test('Scene: Schedule exposes keyboard-operable week and saved-course controls w
     Scene.expect(Scene.role('checkbox', { name: 'Search and planning' })).toExist(),
     Scene.expect(Scene.role('checkbox', { name: 'Constraint satisfaction exercise' })).toExist(),
     Scene.expect(Scene.text('Search and planning')).toExist(),
-    Scene.expect(Scene.text('Source and freshness')).toExist(),
     Scene.expect(
       Scene.text(
         'Provider-published activities are shown by default. Alternative-session assignment and exception semantics are unavailable.',

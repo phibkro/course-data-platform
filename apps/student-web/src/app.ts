@@ -6,7 +6,7 @@ import { defineMessageUnion } from 'foldkit/message';
 import { defineTaggedUnion } from 'foldkit/schema';
 import { modifyFields } from 'foldkit/struct';
 
-import { Checkbox, Dialog, Listbox, RadioGroup } from '@foldkit/ui';
+import { Dialog, Listbox, RadioGroup } from '@foldkit/ui';
 import {
   CourseDecisionSignalsResponseSchema,
   CourseGradeSummariesResponseSchema,
@@ -18,6 +18,7 @@ import {
   type CourseSearchResponse,
   type CourseSearchSort,
 } from './course-client';
+import { selectionChip } from './components';
 import { courseClient } from './course-client-runtime';
 import { courseIdentity, type CourseIdentity } from './course-identity';
 import {
@@ -33,9 +34,7 @@ import {
 import type { AppIcon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 import {
-  LabelMembershipSchema,
   LabelPredicateSchema,
-  SavedCourseSchema,
   SavedListLoadSchema,
   SavedListStateSchema,
   attachLabel,
@@ -62,10 +61,8 @@ import {
   emptySavedList,
   findSavedCourse,
   isSaved,
-  membershipsForSavedCourse,
   parseSavedList,
   removeSavedCourse,
-  restoreSavedCourse,
   saveCourse,
   savedListStorageKey,
   serializeSavedList,
@@ -73,12 +70,7 @@ import {
   type SavedCourse,
   type SavedListState,
 } from './saved-courses';
-import {
-  courseOriginFilters,
-  studentCourses,
-  type CourseOriginFilter,
-  type StudentCourse,
-} from './student-courses';
+import { courseOrigins, studentCourses, type StudentCourse } from './student-courses';
 import {
   initSelectField,
   selectField,
@@ -325,52 +317,6 @@ export const savedToggleAvailability = (
     SavedCoursesRecovery: () => 'paused' as const,
   });
 
-/**
- * A single ephemeral snapshot of the most recent Save or Remove, kept only to
- * drive the ` · Undo` confirmation. It is never persisted: Dismiss and a
- * later action simply replace it.
- */
-const SavedListNoticeSchema = defineTaggedUnion({
-  SavedActionSaved: { courseCode: S.String },
-  SavedActionRemoved: {
-    courses: S.Array(SavedCourseSchema),
-    memberships: S.Array(LabelMembershipSchema),
-  },
-});
-export const SavedActionSaved = SavedListNoticeSchema.SavedActionSaved;
-export const SavedActionRemoved = SavedListNoticeSchema.SavedActionRemoved;
-export type SavedListNotice = typeof SavedListNoticeSchema.Type;
-
-/**
- * How many undoable actions stay offered at once. Each carries the snapshot
- * needed to reverse it, so the queue is bounded rather than a history: past
- * the third, the oldest snapshot is dropped instead of being kept forever.
- */
-const savedListNoticeLimit = 3;
-
-/**
- * A notice is keyed by what happened, so repeating an action refreshes its
- * notice rather than stacking a second copy of the same sentence.
- */
-export const savedListNoticeKey = (notice: SavedListNotice): string =>
-  notice._tag === 'SavedActionSaved'
-    ? `saved:${notice.courseCode}`
-    : `removed:${notice.courses.map((course) => course.courseCode).join(',')}`;
-
-const withNotice = (
-  notices: ReadonlyArray<SavedListNotice>,
-  notice: SavedListNotice,
-): ReadonlyArray<SavedListNotice> =>
-  [
-    notice,
-    ...notices.filter((existing) => savedListNoticeKey(existing) !== savedListNoticeKey(notice)),
-  ].slice(0, savedListNoticeLimit);
-
-const withoutNotice = (
-  notices: ReadonlyArray<SavedListNotice>,
-  key: string,
-): ReadonlyArray<SavedListNotice> => notices.filter((notice) => savedListNoticeKey(notice) !== key);
-
 const NoteDraftSchema = S.Struct({ courseCode: S.String, value: S.String });
 
 const LabelColorSchema = S.Literals(labelColors);
@@ -412,8 +358,7 @@ type Route = typeof RouteSchema.Type;
 export const listDensities = ['card', 'compact'] as const;
 const ListDensitySchema = S.Literals(listDensities);
 export type ListDensity = typeof ListDensitySchema.Type;
-const CourseOriginFilterSchema = S.Literals(courseOriginFilters);
-
+const CourseOriginSchema = S.Literals(courseOrigins);
 export const Model = S.Struct({
   localization: Localization,
   norwegianMessages: NorwegianMessagesState,
@@ -421,11 +366,10 @@ export const Model = S.Struct({
   progress: ProgressModel,
   schedule: ScheduleModel,
   savedCourses: SavedCoursesResultSchema,
-  savedListActions: S.Array(SavedListNoticeSchema),
   noteDrafts: S.Array(NoteDraftSchema),
   savedCoursesPersistFailed: S.Boolean,
   labelFilter: LabelFilterSchema,
-  courseOriginFilter: CourseOriginFilterSchema,
+  selectedCourseOrigins: S.Array(CourseOriginSchema),
   labelFilterModeRadioGroup: RadioGroup.Model,
   compareCodes: S.Array(S.String),
   labelFilterNotice: S.NullOr(LabelFilterNoticeSchema),
@@ -439,9 +383,8 @@ export const Model = S.Struct({
   labelPendingDelete: S.NullOr(S.String),
   /**
    * Removing several saved courses discards notes and labels that cannot be
-   * retyped from the catalogue, so it asks first. One course does not: undo
-   * already restores it, and a prompt for a reversible act just trains the
-   * student to dismiss prompts.
+   * retyped from the catalogue, so it asks first. A row-level removal is
+   * already an explicit action against one course.
    */
   selectionRemovePending: S.Boolean,
   /**
@@ -571,9 +514,6 @@ export const Message = defineMessageUnion({
   RequestedSavedCoursesReset: {},
   PersistedSavedCourses: {},
   FailedSavedCoursesPersistence: {},
-  RequestedUndoSavedListAction: { key: S.String },
-  DismissedSavedListAction: { key: S.String },
-  DismissedAllSavedListActions: {},
   ChangedLabelInclusion: {
     predicate: LabelPredicateSchema,
     isIncluded: S.Boolean,
@@ -586,7 +526,7 @@ export const Message = defineMessageUnion({
   ClearedLabelFilter: {},
   ClearedCourseFilters: {},
   ChangedListDensity: { value: ListDensitySchema },
-  ChangedCourseOriginFilter: { value: CourseOriginFilterSchema },
+  ToggledCourseOrigin: { origin: CourseOriginSchema, isIncluded: S.Boolean },
   PersistedListDensity: {},
   FailedListDensityPersistence: {},
   ToggledSavedCourseSelection: {
@@ -663,16 +603,13 @@ export const SubmittedSavedNote = Message.SubmittedSavedNote;
 export const RequestedSavedCoursesReset = Message.RequestedSavedCoursesReset;
 export const PersistedSavedCourses = Message.PersistedSavedCourses;
 export const FailedSavedCoursesPersistence = Message.FailedSavedCoursesPersistence;
-export const RequestedUndoSavedListAction = Message.RequestedUndoSavedListAction;
-export const DismissedSavedListAction = Message.DismissedSavedListAction;
-export const DismissedAllSavedListActions = Message.DismissedAllSavedListActions;
 export const ChangedLabelInclusion = Message.ChangedLabelInclusion;
 export const ChangedLabelExclusion = Message.ChangedLabelExclusion;
 export const ChangedLabelFilterMode = Message.ChangedLabelFilterMode;
 export const ClearedLabelFilter = Message.ClearedLabelFilter;
 export const ChangedListDensity = Message.ChangedListDensity;
 export const ClearedCourseFilters = Message.ClearedCourseFilters;
-export const ChangedCourseOriginFilter = Message.ChangedCourseOriginFilter;
+export const ToggledCourseOrigin = Message.ToggledCourseOrigin;
 export const PersistedListDensity = Message.PersistedListDensity;
 export const FailedListDensityPersistence = Message.FailedListDensityPersistence;
 export const ToggledSavedCourseSelection = Message.ToggledSavedCourseSelection;
@@ -1650,7 +1587,7 @@ const forRoute = (model: Model, route: Route): Model =>
     : {
         ...model,
         route,
-        courseOriginFilter: 'all',
+        selectedCourseOrigins: [...courseOrigins],
         selectedCourseCodes: [],
         selectionRemovePending: false,
         labelDialogTarget: [],
@@ -2462,37 +2399,21 @@ export const update = (model: Model, message: Message) =>
         ? { model }
         : { model, commands: [StampSavedCourse({ courseCode: identity.courseCode })] };
     },
-    StampedSavedCourse: ({ courseCode, savedAt }) => {
-      const savedListChange = applySavedListChange(
+    StampedSavedCourse: ({ courseCode, savedAt }) =>
+      applySavedListChange(
         model,
         (state, identity) => saveCourse(state, identity, savedAt),
         courseCode,
-      );
-      if (savedListChange.model === model) {
-        return savedListChange;
-      }
-      const nextModel = modifyFields(savedListChange.model, {
-        savedListActions: () =>
-          withNotice(
-            model.savedListActions,
-            SavedListNoticeSchema.SavedActionSaved({ courseCode }),
-          ),
-      });
-      return savedListChange.commands === undefined
-        ? { model: nextModel }
-        : { model: nextModel, commands: savedListChange.commands };
-    },
+      ),
     RequestedRemoveSavedCourse: ({ courseCode }) => {
       const state = savedListState(model.savedCourses);
       const identity = courseIdentity(courseCode);
       if (state === null || identity === null) {
         return { model };
       }
-      const course = findSavedCourse(state, identity);
-      if (course === null) {
+      if (findSavedCourse(state, identity) === null) {
         return { model };
       }
-      const memberships = membershipsForSavedCourse(state, identity);
       const next = removeSavedCourse(state, identity);
       return {
         model: modifyFields(model, {
@@ -2504,11 +2425,6 @@ export const update = (model: Model, message: Message) =>
           selectedCourseCodes: () =>
             withoutSelected(model.selectedCourseCodes, identity.courseCode),
           labelDialogTarget: () => withoutSelected(model.labelDialogTarget, identity.courseCode),
-          savedListActions: () =>
-            withNotice(
-              model.savedListActions,
-              SavedListNoticeSchema.SavedActionRemoved({ courses: [course], memberships }),
-            ),
         }),
         commands: [PersistSavedCourses({ state: next })],
       };
@@ -2540,7 +2456,6 @@ export const update = (model: Model, message: Message) =>
             repairedEntries: 0,
           }),
         noteDrafts: () => [],
-        savedListActions: () => [],
         selectedCourseCodes: () => [],
         labelDialogTarget: () => [],
         labelFilter: () => emptyLabelFilter,
@@ -2564,80 +2479,6 @@ export const update = (model: Model, message: Message) =>
         savedCoursesPersistFailed: () => true,
       }),
     }),
-    /**
-     * Undo reverses the ephemeral snapshot, never the live saved state
-     * directly: a save is undone by removing that identity, and a removal
-     * is undone by restoring the exact course and memberships it carried.
-     * Both branches are idempotent, so a stale or repeated Undo is inert
-     * once the snapshot has already been consumed.
-     */
-    RequestedUndoSavedListAction: ({ key }) => {
-      const state = savedListState(model.savedCourses);
-      const notice = model.savedListActions.find(
-        (candidate) => savedListNoticeKey(candidate) === key,
-      );
-      if (state === null || notice === undefined) {
-        return { model };
-      }
-      const remaining = withoutNotice(model.savedListActions, key);
-      return SavedListNoticeSchema.match<UpdateReturn>(notice, {
-        SavedActionSaved: ({ courseCode }) => {
-          const identity = courseIdentity(courseCode);
-          const next = identity === null ? state : removeSavedCourse(state, identity);
-          if (next === state) {
-            return {
-              model: modifyFields(model, {
-                savedListActions: () => remaining,
-              }),
-            };
-          }
-          return {
-            model: modifyFields(model, {
-              savedCourses: () =>
-                SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
-              savedListActions: () => [],
-              selectedCourseCodes: () => withoutSelected(model.selectedCourseCodes, courseCode),
-              labelDialogTarget: () => withoutSelected(model.labelDialogTarget, courseCode),
-            }),
-            commands: [PersistSavedCourses({ state: next })],
-          };
-        },
-        SavedActionRemoved: ({ courses, memberships }) => {
-          const next = courses.reduce(
-            (restored, course) =>
-              restoreSavedCourse(
-                restored,
-                course,
-                memberships.filter((membership) => membership.savedCourseId === course.id),
-              ),
-            state,
-          );
-          if (next === state) {
-            return {
-              model: modifyFields(model, {
-                savedListActions: () => remaining,
-              }),
-            };
-          }
-          return {
-            model: modifyFields(model, {
-              savedCourses: () =>
-                SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
-              savedListActions: () => [],
-            }),
-            commands: [PersistSavedCourses({ state: next })],
-          };
-        },
-      });
-    },
-    DismissedSavedListAction: ({ key }) => ({
-      model: modifyFields(model, {
-        savedListActions: () => withoutNotice(model.savedListActions, key),
-      }),
-    }),
-    DismissedAllSavedListActions: () => ({
-      model: modifyFields(model, { savedListActions: () => [] }),
-    }),
     ChangedLabelInclusion: ({ predicate, isIncluded }) =>
       applyLabelFilter(model, setPredicateIncluded(model.labelFilter, predicate, isIncluded)),
     ChangedLabelExclusion: ({ predicate, isExcluded }) =>
@@ -2648,7 +2489,7 @@ export const update = (model: Model, message: Message) =>
     ClearedCourseFilters: () =>
       applyLabelFilter(
         modifyFields(model, {
-          courseOriginFilter: () => 'all',
+          selectedCourseOrigins: () => [...courseOrigins],
           selectedCourseCodes: () => [],
           selectionRemovePending: () => false,
         }),
@@ -2720,11 +2561,6 @@ export const update = (model: Model, message: Message) =>
           }),
         };
       }
-      // Every membership travels with the removal so undo restores what the
-      // student had, not just the courses.
-      const memberships = identities.flatMap((identity) =>
-        membershipsForSavedCourse(state, identity),
-      );
       const next = identities.reduce(
         (remaining, identity) => removeSavedCourse(remaining, identity),
         state,
@@ -2741,11 +2577,6 @@ export const update = (model: Model, message: Message) =>
           selectedCourseCodes: () => [],
           labelDialogTarget: () => [],
           selectionRemovePending: () => false,
-          savedListActions: () =>
-            withNotice(
-              model.savedListActions,
-              SavedListNoticeSchema.SavedActionRemoved({ courses, memberships }),
-            ),
         }),
         commands: [PersistSavedCourses({ state: next })],
       };
@@ -2759,12 +2590,18 @@ export const update = (model: Model, message: Message) =>
             model: modifyFields(model, { listDensity: () => value }),
             commands: [PersistListDensity({ density: value })],
           },
-    ChangedCourseOriginFilter: ({ value }) =>
-      model.courseOriginFilter === value
+    ToggledCourseOrigin: ({ origin, isIncluded }) =>
+      model.selectedCourseOrigins.includes(origin) === isIncluded
         ? { model }
         : {
             model: modifyFields(model, {
-              courseOriginFilter: () => value satisfies CourseOriginFilter,
+              selectedCourseOrigins: () =>
+                isIncluded
+                  ? courseOrigins.filter(
+                      (candidate) =>
+                        candidate === origin || model.selectedCourseOrigins.includes(candidate),
+                    )
+                  : model.selectedCourseOrigins.filter((candidate) => candidate !== origin),
               selectedCourseCodes: () => [],
               selectionRemovePending: () => false,
             }),
@@ -3005,13 +2842,12 @@ export const initForHref = (
       location.scheduleHiddenActivityKeys,
     ),
     savedCourses: SavedCoursesResultSchema.SavedCoursesLoading(),
-    savedListActions: [],
     noteDrafts: [],
     savedCoursesPersistFailed: false,
     compareCodes: location.compareCodes,
     compareDifferencesOnly: true,
     labelFilter: location.labelFilter,
-    courseOriginFilter: 'all',
+    selectedCourseOrigins: [...courseOrigins],
     labelFilterModeRadioGroup: RadioGroup.init({ id: 'saved-label-filter-mode' }),
     labelFilterNotice: null,
     selectedCourseCodes: [],
@@ -3322,36 +3158,15 @@ export const checkboxControl = (
   onToggle: (isChecked: boolean) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
-  Checkbox.view(
+  selectionChip(
     {
       id,
-      isChecked,
+      label,
+      isSelected: isChecked,
       onToggle,
-      toView: (attributes) =>
-        h.label(
-          [
-            ...attributes.label,
-            h.Class(
-              'inline-flex items-center gap-[0.55rem] min-h-11 py-[0.45rem] px-[0.85rem] border border-outline rounded-[1.5rem] text-on-surface-variant cursor-pointer has-[[data-checked]]:border-secondary-container has-[[data-checked]]:bg-secondary-container has-[[data-checked]]:text-on-secondary-container',
-            ),
-          ],
-          [
-            h.span(
-              [
-                ...attributes.checkbox,
-                h.Class(
-                  'grid w-[1.2rem] h-[1.2rem] place-items-center border-2 border-current rounded-[0.3rem] text-xs leading-none',
-                ),
-              ],
-              [isChecked ? '✓' : ''],
-            ),
-            h.span([], [label]),
-          ],
-        ),
     },
     h,
   );
-
 /**
  * The one contextual feedback affordance for the decision screens. It follows
  * the VITE_TIP_URL pattern exactly: a static HTTPS link that exists only when

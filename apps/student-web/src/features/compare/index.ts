@@ -4,7 +4,7 @@ import type { Html } from 'foldkit/html';
 import { defineMessageUnion } from 'foldkit/message';
 import { defineView } from 'foldkit/submodel';
 import { modifyFields } from 'foldkit/struct';
-import { Button, Checkbox } from '@foldkit/ui';
+import { Button } from '@foldkit/ui';
 import type {
   CourseDecisionSignalsDtoType,
   CourseGradeSummaryDtoType,
@@ -12,6 +12,7 @@ import type {
 } from '@course-data/course-contracts';
 
 import { buttonSecondary, compactButtonBase } from '../../app-styles';
+import { selectionChip } from '../../components';
 import { localeTag, translate, type Localization } from '../../i18n';
 import type { SavedCourse } from '../../saved-courses';
 import {
@@ -72,8 +73,7 @@ export interface ViewInputs {
   readonly feedback: Html;
 }
 
-const controlGroupClass =
-  'grid gap-2 [&>*]:w-full [&>*]:justify-center @min-[28rem]:flex @min-[28rem]:flex-wrap @min-[28rem]:items-center @min-[28rem]:[&>*]:w-auto';
+const controlGroupClass = 'flex flex-wrap items-center gap-2';
 
 interface CompareCell {
   readonly text: string;
@@ -211,34 +211,88 @@ const compareRowDiffers = (row: CompareRow): boolean => {
   return known.some((cell) => cell.text !== known[0]?.text);
 };
 
+const comparisonCourseTitle = (
+  fact: CompareCourseFacts | undefined,
+  locale: Localization,
+): string => {
+  const item = fact?.item;
+  return item !== null && item !== undefined && item.title.state === 'known'
+    ? item.title.value
+    : translate(locale, 'course.titleUnavailable');
+};
+
 export const view = defineView<Model, Message, ViewInputs>(
   (model, { courses, facts, feedback, locale }, h) => {
     const rows = compareRows(locale, facts);
     const visible = model.differencesOnly ? rows.filter(compareRowDiffers) : rows;
-    const headerCellClass =
-      'px-3 py-2 text-left align-bottom text-sm font-extrabold text-on-surface';
+    const titleFor = (index: number): string => comparisonCourseTitle(facts[index], locale);
+    const mobileCourseSummary = (course: SavedCourse, index: number): Html =>
+      h.div(
+        [h.Class('grid min-w-0 gap-2 p-4')],
+        [
+          h.span(
+            [
+              h.Class(
+                'inline-flex w-fit rounded-full bg-primary-container px-2.5 py-1 text-xs font-extrabold tracking-[0.08em] text-on-primary-container',
+              ),
+            ],
+            [course.courseCode],
+          ),
+          h.p(
+            [h.Class('m-0 text-sm font-extrabold leading-[1.35] [overflow-wrap:anywhere]')],
+            [titleFor(index)],
+          ),
+        ],
+      );
+    const mobileValue = (index: number, cell: CompareCell): Html =>
+      h.div(
+        [h.Class('grid gap-1 py-3 first:pt-0 last:pb-0')],
+        [
+          h.span(
+            [
+              h.Class(
+                'inline-flex w-fit rounded-full bg-tertiary-container px-2 py-1 text-xs font-extrabold text-on-tertiary-container',
+              ),
+            ],
+            [courses[index]?.courseCode ?? ''],
+          ),
+          h.p(
+            [
+              h.Class(
+                `m-0 text-sm leading-[1.45] ${
+                  cell.known ? 'text-on-surface' : 'text-on-surface-variant italic'
+                }`,
+              ),
+            ],
+            [cell.text],
+          ),
+        ],
+      );
 
     return h.section(
       [
         h.Class(
-          'grid gap-3 rounded-m3-large border border-outline-variant bg-surface-container-low p-4',
+          'grid gap-5 rounded-[1rem] border border-outline-variant bg-surface-container-low p-[clamp(1rem,2.5vw,1.5rem)] shadow-m3-1',
         ),
         h.AriaLabel(translate(locale, 'compare.heading')),
       ],
       [
-        h.div(
+        h.header(
           [
             h.Class(
-              'grid gap-3 @min-[32rem]:flex @min-[32rem]:items-start @min-[32rem]:justify-between',
+              'grid gap-4 border-b border-outline-variant pb-4 [@media(min-width:48rem)]:grid-cols-[minmax(0,1fr)_auto]',
             ),
           ],
           [
             h.div(
-              [],
+              [h.Class('grid gap-2')],
               [
-                h.h2([h.Class('m-0 text-lg font-bold')], [translate(locale, 'compare.heading')]),
+                h.h2(
+                  [h.Class('m-0 text-[clamp(1.5rem,3vw,2rem)] font-extrabold tracking-[-0.035em]')],
+                  [translate(locale, 'compare.heading')],
+                ),
                 h.p(
-                  [h.Class('m-0 mt-1 text-on-surface-variant text-sm leading-[1.45]')],
+                  [h.Class('m-0 max-w-[42rem] text-sm leading-[1.5] text-on-surface-variant')],
                   [translate(locale, 'compare.intro')],
                 ),
               ],
@@ -246,33 +300,13 @@ export const view = defineView<Model, Message, ViewInputs>(
             h.div(
               [h.Class(controlGroupClass)],
               [
-                Checkbox.view<Message>(
+                selectionChip(
                   {
                     id: 'compare-differences-only',
-                    isChecked: model.differencesOnly,
+                    label: translate(locale, 'compare.differencesOnly'),
+                    isSelected: model.differencesOnly,
                     onToggle: (differencesOnly) =>
                       Message.ToggledCompareDifferencesOnly({ differencesOnly }),
-                    toView: (attributes) =>
-                      h.label(
-                        [
-                          ...attributes.label,
-                          h.Class(
-                            'inline-flex min-h-11 cursor-pointer items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm font-bold text-on-surface-variant has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary-container has-[[data-checked]]:text-on-primary-container',
-                          ),
-                        ],
-                        [
-                          h.span(
-                            [
-                              ...attributes.checkbox,
-                              h.Class(
-                                'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
-                              ),
-                            ],
-                            [model.differencesOnly ? '✓' : ''],
-                          ),
-                          h.span([], [translate(locale, 'compare.differencesOnly')]),
-                        ],
-                      ),
                   },
                   h,
                 ),
@@ -295,69 +329,143 @@ export const view = defineView<Model, Message, ViewInputs>(
             ),
           ],
         ),
+        h.div(
+          [
+            h.Class(
+              'grid grid-cols-2 overflow-hidden rounded-m3-large border border-outline-variant bg-surface [@media(min-width:48rem)]:hidden',
+            ),
+          ],
+          courses.map((course, index) => mobileCourseSummary(course, index)),
+        ),
         visible.length === 0
           ? h.p(
-              [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]'), h.Role('status')],
+              [h.Class('m-0 text-sm leading-[1.5] text-on-surface-variant'), h.Role('status')],
               [translate(locale, 'compare.identical')],
             )
           : h.div(
-              [h.Class('overflow-x-auto')],
+              [h.Class('grid gap-3')],
               [
-                h.table(
-                  [h.Class('w-full border-collapse text-sm')],
+                h.div(
+                  [h.Class('hidden overflow-x-auto [@media(min-width:48rem)]:block')],
                   [
-                    h.thead(
-                      [],
+                    h.table(
                       [
-                        h.tr(
-                          [],
+                        h.Class(
+                          'min-w-[64rem] w-full table-fixed border-separate border-spacing-0 text-sm',
+                        ),
+                      ],
+                      [
+                        h.thead(
+                          [h.Class('border-b border-outline-variant')],
                           [
-                            h.th(
+                            h.tr(
+                              [],
                               [
-                                h.Scope('col'),
-                                h.Class(
-                                  `${headerCellClass} sticky left-0 bg-surface-container-low`,
+                                h.th(
+                                  [
+                                    h.Scope('col'),
+                                    h.Class(
+                                      'sticky left-0 z-10 w-[17rem] bg-surface-container-low px-4 py-3 text-left align-bottom text-xs font-extrabold uppercase tracking-[0.08em] text-on-surface-variant',
+                                    ),
+                                  ],
+                                  [translate(locale, 'compare.dimension')],
+                                ),
+                                ...courses.map((course, index) =>
+                                  h.th(
+                                    [
+                                      h.Scope('col'),
+                                      h.Class('min-w-[17rem] px-4 py-3 text-left align-bottom'),
+                                    ],
+                                    [
+                                      h.div(
+                                        [h.Class('grid gap-2')],
+                                        [
+                                          h.span(
+                                            [
+                                              h.Class(
+                                                'inline-flex w-fit rounded-full bg-primary-container px-2.5 py-1 text-xs font-extrabold tracking-[0.08em] text-on-primary-container',
+                                              ),
+                                            ],
+                                            [course.courseCode],
+                                          ),
+                                          h.p(
+                                            [
+                                              h.Class(
+                                                'm-0 text-base font-extrabold leading-[1.3] [overflow-wrap:anywhere]',
+                                              ),
+                                            ],
+                                            [titleFor(index)],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
-                              [translate(locale, 'compare.dimension')],
-                            ),
-                            ...courses.map((course) =>
-                              h.th([h.Scope('col'), h.Class(headerCellClass)], [course.courseCode]),
                             ),
                           ],
+                        ),
+                        h.tbody(
+                          [],
+                          visible.map((row, rowIndex) => {
+                            const surface =
+                              rowIndex % 2 === 0 ? 'bg-surface' : 'bg-surface-container';
+                            return h.tr(
+                              [
+                                h.Class(
+                                  `border-b border-outline-variant last:border-b-0 ${surface}`,
+                                ),
+                              ],
+                              [
+                                h.th(
+                                  [
+                                    h.Scope('row'),
+                                    h.Class(
+                                      `sticky left-0 z-10 w-[17rem] px-4 py-4 text-left align-top font-extrabold text-on-surface-variant ${surface}`,
+                                    ),
+                                  ],
+                                  [row.label],
+                                ),
+                                ...row.cells.map((cell) =>
+                                  h.td(
+                                    [
+                                      h.Class(
+                                        `px-4 py-4 align-top leading-[1.45] ${
+                                          cell.known
+                                            ? 'text-on-surface'
+                                            : 'text-on-surface-variant italic'
+                                        }`,
+                                      ),
+                                    ],
+                                    [cell.text],
+                                  ),
+                                ),
+                              ],
+                            );
+                          }),
                         ),
                       ],
                     ),
-                    h.tbody(
-                      [],
-                      visible.map((row) =>
-                        h.tr(
-                          [h.Class('border-t border-outline-variant')],
-                          [
-                            h.th(
-                              [
-                                h.Scope('row'),
-                                h.Class(
-                                  'sticky left-0 bg-surface-container-low px-3 py-2 text-left align-top font-bold text-on-surface-variant',
-                                ),
-                              ],
-                              [row.label],
-                            ),
-                            ...row.cells.map((cell) =>
-                              h.td(
-                                [
-                                  h.Class(
-                                    `px-3 py-2 align-top ${cell.known ? 'text-on-surface' : 'text-on-surface-variant italic'}`,
-                                  ),
-                                ],
-                                [cell.text],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ],
+                ),
+                h.div(
+                  [h.Class('grid gap-3 [@media(min-width:48rem)]:hidden')],
+                  visible.map((row) =>
+                    h.article(
+                      [
+                        h.Class(
+                          'grid gap-3 rounded-[1rem] border border-outline-variant bg-surface p-4 shadow-m3-1',
+                        ),
+                      ],
+                      [
+                        h.h3([h.Class('m-0 text-sm font-extrabold text-on-surface')], [row.label]),
+                        h.div(
+                          [h.Class('grid divide-y divide-outline-variant')],
+                          row.cells.map((cell, index) => mobileValue(index, cell)),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),

@@ -2,7 +2,6 @@ import type {
   CourseScheduleOccurrenceDtoType,
   CourseScheduleResponseDtoType,
 } from '@course-data/course-contracts';
-import { Checkbox } from '@foldkit/ui';
 import { Effect, Schema as S } from 'effect';
 import { Command } from 'foldkit';
 import type { Update } from 'foldkit';
@@ -12,19 +11,10 @@ import { defineTaggedUnion } from 'foldkit/schema';
 import { defineView } from 'foldkit/submodel';
 import { modifyFields } from 'foldkit/struct';
 
-import {
-  buttonSecondary,
-  compactButtonBase,
-  eyebrowClass,
-  fieldLabelClass,
-  loadingIndicatorClass,
-  stateCardBase,
-  stateCardFailure,
-  stateCardH2Class,
-  stateCardPClass,
-} from '../../app-styles';
 import { CourseScheduleResponseSchema } from '../../course-client';
 import { courseClient } from '../../course-client-runtime';
+import { pageHeader, selectionChip } from '../../components';
+import { icon } from '../../icons';
 import { localeTag, translate, type Localization } from '../../i18n';
 import type { SavedCourse } from '../../saved-courses';
 
@@ -476,6 +466,20 @@ export const isKnownEmptyWeek = (response: CourseScheduleResponseDtoType): boole
     (item) => item.sourceStatus.status === 'available' && item.occurrences.length === 0,
   );
 
+const osloDateKeyFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Oslo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+const osloTimePartsFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Oslo',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
 const formatDate = (value: string | Date, locale: Localization): string =>
   new Intl.DateTimeFormat(localeTag(locale.locale), {
     weekday: 'long',
@@ -484,16 +488,31 @@ const formatDate = (value: string | Date, locale: Localization): string =>
     timeZone: 'Europe/Oslo',
   }).format(value instanceof Date ? value : new Date(value));
 
-const dateKey = (value: string): string => {
-  const parts = new Intl.DateTimeFormat('en-GB', {
+const formatDayLabel = (value: string | Date, locale: Localization): string =>
+  new Intl.DateTimeFormat(localeTag(locale.locale), {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
     timeZone: 'Europe/Oslo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date(value));
-  const part = (type: string): string =>
-    parts.find((candidate) => candidate.type === type)?.value ?? '';
-  return `${part('year')}-${part('month')}-${part('day')}`;
+  }).format(value instanceof Date ? value : new Date(value));
+
+const formatWeekRange = (term: string, week: number, locale: Localization): string => {
+  const formatter = new Intl.DateTimeFormat(localeTag(locale.locale), {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'Europe/Oslo',
+  });
+  const start = isoWeekStart(termYear(term), week);
+  const end = new Date(start.getTime() + 6 * utcDay);
+  return [formatter.format(start), formatter.format(end)].join('–');
+};
+
+const datePart = (parts: ReadonlyArray<Intl.DateTimeFormatPart>, type: string): string =>
+  parts.find((candidate) => candidate.type === type)?.value ?? '';
+
+const dateKey = (value: string): string => {
+  const parts = osloDateKeyFormatter.formatToParts(new Date(value));
+  return [datePart(parts, 'year'), datePart(parts, 'month'), datePart(parts, 'day')].join('-');
 };
 
 const formatTime = (value: string, locale: Localization): string =>
@@ -503,6 +522,13 @@ const formatTime = (value: string, locale: Localization): string =>
     hourCycle: 'h23',
     timeZone: 'Europe/Oslo',
   }).format(new Date(value));
+
+const minutesAtOslo = (value: string): number => {
+  const parts = osloTimePartsFormatter.formatToParts(new Date(value));
+  const hour = Number.parseInt(datePart(parts, 'hour'), 10);
+  const minute = Number.parseInt(datePart(parts, 'minute'), 10);
+  return hour * 60 + minute;
+};
 
 const roomLabel = (occurrence: CourseScheduleOccurrenceDtoType): string | null => {
   const rooms = occurrence.rooms
@@ -514,6 +540,7 @@ const roomLabel = (occurrence: CourseScheduleOccurrenceDtoType): string | null =
 interface DayGroup {
   readonly key: string;
   readonly label: string;
+  readonly compactLabel: string;
   readonly occurrences: ReadonlyArray<CourseScheduleOccurrenceDtoType>;
 }
 
@@ -528,7 +555,12 @@ const agendaDays = (
   for (let offset = 0; offset < 7; offset += 1) {
     const day = new Date(weekStart.getTime() + offset * utcDay);
     const key = day.toISOString().slice(0, 10);
-    groups.set(key, { key, label: formatDate(day, locale), occurrences: [] });
+    groups.set(key, {
+      key,
+      label: formatDate(day, locale),
+      compactLabel: formatDayLabel(day, locale),
+      occurrences: [],
+    });
   }
   for (const occurrence of occurrences) {
     const key = dateKey(occurrence.startsAt);
@@ -536,185 +568,54 @@ const agendaDays = (
     groups.set(
       key,
       existing === undefined
-        ? { key, label: formatDate(occurrence.startsAt, locale), occurrences: [occurrence] }
+        ? {
+            key,
+            label: formatDate(occurrence.startsAt, locale),
+            compactLabel: formatDayLabel(occurrence.startsAt, locale),
+            occurrences: [occurrence],
+          }
         : { ...existing, occurrences: [...existing.occurrences, occurrence] },
     );
   }
   return [...groups.values()];
 };
 
-const sourceFreshness = (
-  occurrence: CourseScheduleOccurrenceDtoType,
-  locale: Localization,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.details(
-    [h.Class('mt-3 rounded-m3-medium bg-surface-container-low px-3 py-2 text-sm')],
-    [
-      h.summary(
-        [h.Class('cursor-pointer font-bold text-primary')],
-        [translate(locale, 'schedule.sources')],
-      ),
-      h.dl(
-        [h.Class('grid gap-1 mt-2 mb-0 text-on-surface-variant')],
-        [
-          h.div(
-            [h.Class('grid gap-0.5')],
-            [
-              h.dt([h.Class('font-semibold')], [translate(locale, 'schedule.sourceProvider')]),
-              h.dd([h.Class('m-0')], [occurrence.evidence.provider]),
-            ],
-          ),
-          h.div(
-            [h.Class('grid gap-0.5')],
-            [
-              h.dt([h.Class('font-semibold')], [translate(locale, 'schedule.sourceObserved')]),
-              h.dd(
-                [h.Class('m-0')],
-                [
-                  new Intl.DateTimeFormat(localeTag(locale.locale), {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                    timeZone: 'Europe/Oslo',
-                  }).format(new Date(occurrence.evidence.observedAt)),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    ],
-  );
+const scheduleTones = [
+  {
+    rail: 'bg-primary',
+    event: 'border-primary bg-primary-container text-on-primary-container',
+  },
+  {
+    rail: 'bg-secondary',
+    event: 'border-secondary bg-secondary-container text-on-secondary-container',
+  },
+  {
+    rail: 'bg-tertiary',
+    event: 'border-tertiary bg-tertiary-container text-on-tertiary-container',
+  },
+] as const;
 
-const eventCard = (
-  occurrence: CourseScheduleOccurrenceDtoType,
-  locale: Localization,
-  h: HtmlBuilder<Message>,
-): Html => {
-  const room = roomLabel(occurrence);
-  const title =
-    occurrence.title ??
-    translate(locale, 'schedule.activityFallback', { code: occurrence.activityCode });
-  return h.article(
-    [
-      h.Class(
-        'grid gap-2 rounded-m3-large border border-outline-variant bg-surface-container p-3 shadow-m3-1',
-      ),
-    ],
-    [
-      h.div(
-        [h.Class('flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1')],
-        [
-          h.p([h.Class('m-0 text-sm font-extrabold text-primary')], [occurrence.courseCode]),
-          h.p(
-            [h.Class('m-0 text-sm font-semibold text-on-surface-variant')],
-            [
-              translate(locale, 'schedule.timeRange', {
-                start: formatTime(occurrence.startsAt, locale),
-                end: formatTime(occurrence.endsAt, locale),
-              }),
-            ],
-          ),
-        ],
-      ),
-      h.h3([h.Class('m-0 text-base font-extrabold')], [title]),
-      occurrence.summary === null
-        ? h.empty
-        : h.p(
-            [h.Class('m-0 text-sm leading-[1.45] text-on-surface-variant')],
-            [occurrence.summary],
-          ),
-      h.dl(
-        [h.Class('grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 m-0 text-sm')],
-        [
-          h.dt(
-            [h.Class('font-semibold text-on-surface-variant')],
-            [translate(locale, 'schedule.status')],
-          ),
-          h.dd([h.Class('m-0 font-semibold')], [occurrence.status]),
-          ...(room === null
-            ? []
-            : [
-                h.dt(
-                  [h.Class('font-semibold text-on-surface-variant')],
-                  [translate(locale, 'schedule.room')],
-                ),
-                h.dd([h.Class('m-0')], [room]),
-              ]),
-        ],
-      ),
-      sourceFreshness(occurrence, locale, h),
-    ],
-  );
+type ScheduleTone = (typeof scheduleTones)[number];
+
+const courseTone = (courseCode: string): ScheduleTone => {
+  let total = 0;
+  for (let index = 0; index < courseCode.length; index += 1) {
+    total = (total + courseCode.charCodeAt(index)) % scheduleTones.length;
+  }
+  return scheduleTones[total]!;
 };
 
-const sourceStatusCard = (
-  item: CourseScheduleResponseDtoType['items'][number],
-  locale: Localization,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.article(
-    [
-      h.Class(
-        item.sourceStatus.status === 'failed'
-          ? 'grid gap-1 rounded-m3-large border border-error bg-error-container p-4 text-on-error-container'
-          : 'grid gap-1 rounded-m3-large border border-warning bg-warning-container p-4 text-on-warning-container',
-      ),
-      ...(item.sourceStatus.status === 'failed' ? [h.Role('alert')] : [h.Role('status')]),
-    ],
-    [
-      h.h2(
-        [h.Class('m-0 text-base font-extrabold')],
-        [
-          translate(
-            locale,
-            item.sourceStatus.status === 'failed'
-              ? 'schedule.sourceFailed'
-              : 'schedule.sourceUnavailable',
-            { code: item.courseCode },
-          ),
-        ],
-      ),
-      item.sourceStatus.warning === null
-        ? h.empty
-        : h.p([h.Class('m-0 text-sm leading-[1.45]')], [item.sourceStatus.warning]),
-    ],
-  );
-
-const courseChoice = (course: SavedCourse, isSelected: boolean, h: HtmlBuilder<Message>): Html => {
-  const id = `schedule-course-${course.courseCode.toLowerCase()}`;
-  return Checkbox.view<Message>(
+const courseChoice = (course: SavedCourse, isSelected: boolean, h: HtmlBuilder<Message>): Html =>
+  selectionChip(
     {
-      id,
-      isChecked: isSelected,
+      id: ['schedule-course', course.courseCode.toLowerCase()].join('-'),
+      label: course.courseCode,
+      isSelected,
       onToggle: (checked) =>
         Message.ToggledCourse({ courseCode: course.courseCode, isSelected: checked }),
-      toView: (attributes) =>
-        h.label(
-          [
-            ...attributes.label,
-            h.Class(
-              'inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-[1.5rem] border border-outline px-3 text-sm font-bold text-on-surface-variant has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary-container has-[[data-checked]]:text-on-primary-container',
-            ),
-          ],
-          [
-            h.span(
-              [
-                ...attributes.checkbox,
-                h.AriaLabelledBy(`${id}-label`),
-                h.Class(
-                  'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
-                ),
-              ],
-              [h.span([h.AriaHidden(true)], [isSelected ? '✓' : ''])],
-            ),
-            h.span([], [course.courseCode]),
-          ],
-        ),
     },
     h,
   );
-};
 
 const courseSelection = (
   model: Model,
@@ -725,7 +626,7 @@ const courseSelection = (
   h.fieldset(
     [
       h.Class(
-        'grid gap-3 rounded-m3-large border border-outline-variant bg-surface-container-low p-4',
+        'grid content-start gap-3 rounded-m3-extra-large border border-outline-variant bg-surface-container-low p-[clamp(1rem,2.5vw,1.5rem)] shadow-m3-1',
       ),
       h.AriaDescribedBy('schedule-courses-help'),
     ],
@@ -777,44 +678,25 @@ const activityChoice = (
   isVisible: boolean,
   locale: Localization,
   h: HtmlBuilder<Message>,
-): Html => {
-  const id = `schedule-activity-${courseCode.toLowerCase()}-${encodeURIComponent(stream.activityCode)}`;
-  return Checkbox.view<Message>(
+): Html =>
+  selectionChip(
     {
-      id,
-      isChecked: isVisible,
+      id: [
+        'schedule-activity',
+        courseCode.toLowerCase(),
+        encodeURIComponent(stream.activityCode),
+      ].join('-'),
+      label: activityStreamLabel(stream, locale),
+      isSelected: isVisible,
       onToggle: (visible) =>
         Message.ToggledActivityVisibility({
           courseCode,
           activityCode: stream.activityCode,
           isVisible: visible,
         }),
-      toView: (attributes) =>
-        h.label(
-          [
-            ...attributes.label,
-            h.Class(
-              'inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-[1.5rem] border border-outline px-3 text-sm font-bold text-on-surface-variant has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary-container has-[[data-checked]]:text-on-primary-container',
-            ),
-          ],
-          [
-            h.span(
-              [
-                ...attributes.checkbox,
-                h.AriaLabelledBy(`${id}-label`),
-                h.Class(
-                  'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
-                ),
-              ],
-              [h.span([h.AriaHidden(true)], [isVisible ? '✓' : ''])],
-            ),
-            h.span([], [activityStreamLabel(stream, locale)]),
-          ],
-        ),
     },
     h,
   );
-};
 
 const activitySelection = (
   response: CourseScheduleResponseDtoType,
@@ -826,15 +708,16 @@ const activitySelection = (
   if (items.length === 0) return h.empty;
   const hidden = new Set(hiddenActivityKeys);
   return h.div(
-    [h.Class('grid gap-3')],
+    [h.Class('grid content-start gap-4')],
     items.map((item) => {
-      const id = `schedule-activities-${item.courseCode.toLowerCase()}`;
+      const id = ['schedule-activities', item.courseCode.toLowerCase()].join('-');
       return h.fieldset(
         [
+          h.Key(item.courseCode),
           h.Class(
-            'grid gap-3 rounded-m3-large border border-outline-variant bg-surface-container-low p-4',
+            'grid content-start gap-3 rounded-m3-extra-large border border-outline-variant bg-surface-container-low p-[clamp(1rem,2.5vw,1.5rem)] shadow-m3-1',
           ),
-          h.AriaDescribedBy(`${id}-help`),
+          h.AriaDescribedBy([id, 'help'].join('-')),
         ],
         [
           h.legend(
@@ -842,7 +725,10 @@ const activitySelection = (
             [translate(locale, 'schedule.activities', { code: item.courseCode })],
           ),
           h.p(
-            [h.Id(`${id}-help`), h.Class('m-0 text-sm leading-[1.45] text-on-surface-variant')],
+            [
+              h.Id([id, 'help'].join('-')),
+              h.Class('m-0 text-sm leading-[1.45] text-on-surface-variant'),
+            ],
             [translate(locale, 'schedule.activitiesHelp')],
           ),
           h.div(
@@ -864,6 +750,30 @@ const activitySelection = (
   );
 };
 
+const filterPanels = (
+  model: Model,
+  savedCourses: ReadonlyArray<SavedCourse> | null,
+  response: CourseScheduleResponseDtoType | null,
+  locale: Localization,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const hasActivityFilters =
+    response !== null && response.items.some((item) => item.activityStreams.length > 0);
+  return h.div(
+    [
+      h.Class(
+        hasActivityFilters ? 'grid gap-4 [@media(min-width:64rem)]:grid-cols-2' : 'grid gap-4',
+      ),
+    ],
+    [
+      courseSelection(model, savedCourses, locale, h),
+      hasActivityFilters && response !== null
+        ? activitySelection(response, model.hiddenActivityKeys, locale, h)
+        : h.empty,
+    ],
+  );
+};
+
 const weekControl = (
   model: Model,
   term: string,
@@ -874,26 +784,37 @@ const weekControl = (
   return h.section(
     [
       h.Class(
-        'grid gap-3 rounded-m3-large border border-outline-variant bg-surface-container-low p-4',
+        'flex flex-wrap items-center gap-2 rounded-m3-extra-large border border-outline-variant bg-surface-container-low p-3 shadow-m3-1',
       ),
     ],
     [
-      h.div(
-        [h.Class('grid gap-1')],
+      h.button(
         [
-          h.label(
-            [h.For('schedule-week'), h.Class(fieldLabelClass)],
-            [translate(locale, 'schedule.week')],
-          ),
-          h.p(
-            [h.Id('schedule-week-help'), h.Class('m-0 text-sm text-on-surface-variant')],
-            [translate(locale, 'schedule.weekHelp', { maximum })],
+          h.Type('button'),
+          h.OnClick(Message.RequestedPreviousWeek()),
+          h.Disabled(model.week <= 1),
+          h.AriaLabel(translate(locale, 'schedule.previousWeek')),
+          h.Class(
+            'grid size-11 shrink-0 place-items-center rounded-m3-medium border border-outline-variant bg-surface-container text-lg font-bold text-primary transition-[box-shadow,background-color] hover:bg-surface-container-high focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-3 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-60',
           ),
         ],
+        [h.span([h.AriaHidden(true)], ['←'])],
       ),
       h.div(
-        [h.Class('flex flex-wrap items-end gap-2')],
         [
+          h.Class(
+            'flex min-h-11 items-center rounded-m3-medium border border-outline-variant bg-surface-container px-3',
+          ),
+        ],
+        [
+          h.label(
+            [h.For('schedule-week'), h.Class('sr-only')],
+            [translate(locale, 'schedule.week')],
+          ),
+          h.span(
+            [h.Class('mr-2 text-sm font-semibold text-on-surface-variant')],
+            [translate(locale, 'schedule.week')],
+          ),
           h.input([
             h.Id('schedule-week'),
             h.Name('week'),
@@ -904,34 +825,466 @@ const weekControl = (
             h.OnInput((value) => Message.ChangedWeek({ value })),
             h.AriaDescribedBy('schedule-week-help'),
             h.Class(
-              'min-h-12 w-24 rounded-m3-medium border border-outline bg-surface-container px-3 text-base font-bold',
+              'w-12 border-0 bg-transparent p-0 text-center text-base font-extrabold tabular-nums outline-none',
             ),
           ]),
-          h.button(
-            [
-              h.Type('button'),
-              h.OnClick(Message.RequestedPreviousWeek()),
-              h.Disabled(model.week <= 1),
-              h.AriaLabel(translate(locale, 'schedule.previousWeek')),
-              h.Class(`${compactButtonBase} ${buttonSecondary} min-h-12`),
-            ],
-            [translate(locale, 'schedule.previousWeek')],
+        ],
+      ),
+      h.button(
+        [
+          h.Type('button'),
+          h.OnClick(Message.RequestedNextWeek()),
+          h.Disabled(model.week >= maximum),
+          h.AriaLabel(translate(locale, 'schedule.nextWeek')),
+          h.Class(
+            'grid size-11 shrink-0 place-items-center rounded-m3-medium border border-outline-variant bg-surface-container text-lg font-bold text-primary transition-[box-shadow,background-color] hover:bg-surface-container-high focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-3 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-60',
           ),
-          h.button(
+        ],
+        [h.span([h.AriaHidden(true)], ['→'])],
+      ),
+      h.p(
+        [
+          h.Class(
+            'm-0 min-h-11 content-center text-sm font-bold text-on-surface [@media(min-width:32rem)]:ml-auto',
+          ),
+        ],
+        [formatWeekRange(term, model.week, locale)],
+      ),
+      h.p(
+        [h.Id('schedule-week-help'), h.Class('sr-only')],
+        [translate(locale, 'schedule.weekHelp', { maximum })],
+      ),
+    ],
+  );
+};
+
+const availabilityStatus = (
+  response: CourseScheduleResponseDtoType,
+  locale: Localization,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const failed = response.items.filter((item) => item.sourceStatus.status === 'failed');
+  const unavailable = response.items.filter((item) => item.sourceStatus.status === 'unavailable');
+  if (failed.length === 0 && unavailable.length === 0) return h.empty;
+
+  const failedCodes = failed.map((item) => item.courseCode).join(', ');
+  const unavailableCodes = unavailable.map((item) => item.courseCode).join(', ');
+  const warnings = response.items.flatMap((item) =>
+    item.sourceStatus.status === 'available' || item.sourceStatus.warning === null
+      ? []
+      : [[item.courseCode, item.sourceStatus.warning].join(': ')],
+  );
+  const uniqueWarnings = [...new Set(warnings)];
+  const primaryMessage =
+    failed.length > 0
+      ? translate(locale, 'schedule.sourceFailed', { code: failedCodes })
+      : translate(locale, 'schedule.sourceUnavailable', { code: unavailableCodes });
+
+  return h.section(
+    [
+      h.Class(
+        failed.length > 0
+          ? 'grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-m3-large border border-error bg-error-container p-4 text-on-error-container'
+          : 'grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-m3-large border border-warning bg-warning-container p-4 text-on-warning-container',
+      ),
+      ...(failed.length > 0 ? [h.Role('alert')] : [h.Role('status')]),
+    ],
+    [
+      h.span(
+        [
+          h.AriaHidden(true),
+          h.Class(
+            failed.length > 0
+              ? 'grid size-10 place-items-center rounded-m3-medium bg-error text-on-error'
+              : 'grid size-10 place-items-center rounded-m3-medium bg-warning text-on-warning',
+          ),
+        ],
+        [icon<Message>('schedule', 'size-5 [&_svg]:block [&_svg]:size-full', h)],
+      ),
+      h.div(
+        [h.Class('grid gap-1')],
+        [
+          h.h2([h.Class('m-0 text-base font-extrabold')], [primaryMessage]),
+          unavailable.length > 0 && failed.length > 0
+            ? h.p(
+                [h.Class('m-0 text-sm leading-[1.45]')],
+                [translate(locale, 'schedule.sourceUnavailable', { code: unavailableCodes })],
+              )
+            : h.empty,
+          uniqueWarnings.length === 0
+            ? h.empty
+            : h.p([h.Class('m-0 text-sm leading-[1.45]')], [uniqueWarnings.join(' ')]),
+        ],
+      ),
+    ],
+  );
+};
+
+const eventTitle = (occurrence: CourseScheduleOccurrenceDtoType, locale: Localization): string =>
+  occurrence.title ??
+  translate(locale, 'schedule.activityFallback', { code: occurrence.activityCode });
+
+const mobileEventCard = (
+  occurrence: CourseScheduleOccurrenceDtoType,
+  locale: Localization,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const room = roomLabel(occurrence);
+  const tone = courseTone(occurrence.courseCode);
+  const title = eventTitle(occurrence, locale);
+  return h.article(
+    [
+      h.Class(
+        'grid grid-cols-[0.5rem_minmax(0,1fr)] overflow-hidden rounded-m3-large border border-outline-variant bg-surface-container-low shadow-m3-1',
+      ),
+    ],
+    [
+      h.div([h.AriaHidden(true), h.Class(tone.rail)], []),
+      h.div(
+        [h.Class('grid gap-3 p-4')],
+        [
+          h.div(
+            [h.Class('grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3')],
             [
-              h.Type('button'),
-              h.OnClick(Message.RequestedNextWeek()),
-              h.Disabled(model.week >= maximum),
-              h.AriaLabel(translate(locale, 'schedule.nextWeek')),
-              h.Class(`${compactButtonBase} ${buttonSecondary} min-h-12`),
+              h.p(
+                [
+                  h.Class(
+                    'm-0 border-r border-outline-variant pr-3 text-sm font-extrabold leading-[1.35] tabular-nums text-primary',
+                  ),
+                ],
+                [
+                  translate(locale, 'schedule.timeRange', {
+                    start: formatTime(occurrence.startsAt, locale),
+                    end: formatTime(occurrence.endsAt, locale),
+                  }),
+                ],
+              ),
+              h.div(
+                [h.Class('grid gap-1')],
+                [
+                  h.div(
+                    [h.Class('flex flex-wrap items-center justify-between gap-x-2 gap-y-1')],
+                    [
+                      h.p(
+                        [h.Class('m-0 text-xs font-extrabold tracking-[0.06em] text-primary')],
+                        [occurrence.courseCode],
+                      ),
+                      h.p(
+                        [h.Class('m-0 text-xs font-semibold text-on-surface-variant')],
+                        [[translate(locale, 'schedule.status'), occurrence.status].join(': ')],
+                      ),
+                    ],
+                  ),
+                  h.h3([h.Class('m-0 text-base font-extrabold leading-[1.2]')], [title]),
+                  h.p(
+                    [h.Class('m-0 text-sm font-semibold text-on-surface-variant')],
+                    [
+                      translate(locale, 'schedule.activityFallback', {
+                        code: occurrence.activityCode,
+                      }),
+                    ],
+                  ),
+                  occurrence.summary === null
+                    ? h.empty
+                    : h.p(
+                        [h.Class('m-0 text-sm leading-[1.45] text-on-surface-variant')],
+                        [occurrence.summary],
+                      ),
+                  room === null
+                    ? h.empty
+                    : h.p(
+                        [h.Class('m-0 text-sm font-medium text-on-surface-variant')],
+                        [[translate(locale, 'schedule.room'), room].join(': ')],
+                      ),
+                ],
+              ),
             ],
-            [translate(locale, 'schedule.nextWeek')],
           ),
         ],
       ),
     ],
   );
 };
+
+const timetableStartHour = 8;
+const timetableEndHour = 18;
+const timetableStartMinute = timetableStartHour * 60;
+const timetableEndMinute = timetableEndHour * 60;
+const timetableDurationMinutes = timetableEndMinute - timetableStartMinute;
+const timetableHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
+
+interface TimetableInterval {
+  readonly occurrence: CourseScheduleOccurrenceDtoType;
+  readonly startsAt: number;
+  readonly endsAt: number;
+}
+
+interface TimetablePlacement {
+  readonly occurrence: CourseScheduleOccurrenceDtoType;
+  readonly topPercent: number;
+  readonly heightPercent: number;
+  readonly lane: number;
+  readonly laneCount: number;
+}
+
+const timetablePosition = (minute: number): number =>
+  ((minute - timetableStartMinute) / timetableDurationMinutes) * 100;
+
+const timetablePlacements = (
+  occurrences: ReadonlyArray<CourseScheduleOccurrenceDtoType>,
+): ReadonlyArray<TimetablePlacement> => {
+  const intervals: ReadonlyArray<TimetableInterval> = occurrences.map((occurrence) => {
+    const startsAt = minutesAtOslo(occurrence.startsAt);
+    return {
+      occurrence,
+      startsAt,
+      endsAt: Math.max(startsAt + 1, minutesAtOslo(occurrence.endsAt)),
+    };
+  });
+  const placements: TimetablePlacement[] = [];
+  let cursor = 0;
+
+  while (cursor < intervals.length) {
+    const cluster: TimetableInterval[] = [];
+    let clusterEnd = intervals[cursor]!.endsAt;
+    do {
+      const interval = intervals[cursor]!;
+      cluster.push(interval);
+      clusterEnd = Math.max(clusterEnd, interval.endsAt);
+      cursor += 1;
+    } while (cursor < intervals.length && intervals[cursor]!.startsAt < clusterEnd);
+
+    const laneEnds: number[] = [];
+    const clustered = cluster.map((interval) => {
+      const availableLane = laneEnds.findIndex((end) => end <= interval.startsAt);
+      const lane = availableLane === -1 ? laneEnds.length : availableLane;
+      laneEnds[lane] = interval.endsAt;
+      return { interval, lane };
+    });
+
+    placements.push(
+      ...clustered.map(({ interval, lane }) => {
+        const clippedStart = Math.min(
+          Math.max(interval.startsAt, timetableStartMinute),
+          timetableEndMinute - 1,
+        );
+        const clippedEnd = Math.min(
+          timetableEndMinute,
+          Math.max(
+            Math.min(Math.max(interval.endsAt, timetableStartMinute), timetableEndMinute),
+            clippedStart + 1,
+          ),
+        );
+        return {
+          occurrence: interval.occurrence,
+          topPercent: timetablePosition(clippedStart),
+          heightPercent: Math.max(
+            timetablePosition(clippedEnd) - timetablePosition(clippedStart),
+            0.1,
+          ),
+          lane,
+          laneCount: laneEnds.length,
+        };
+      }),
+    );
+  }
+
+  return placements;
+};
+
+const desktopEventCard = (
+  placement: TimetablePlacement,
+  locale: Localization,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const { occurrence } = placement;
+  const room = roomLabel(occurrence);
+  const tone = courseTone(occurrence.courseCode);
+  const title = eventTitle(occurrence, locale);
+  const laneWidth = 100 / placement.laneCount;
+  const laneOffset = placement.lane * laneWidth;
+  return h.article(
+    [
+      h.Key(occurrence.id),
+      h.Title([occurrence.courseCode, title].join(' · ')),
+      h.Class(
+        [
+          'absolute min-h-12 overflow-hidden rounded-m3-medium border border-l-[0.4rem] p-2 shadow-m3-1',
+          tone.event,
+        ].join(' '),
+      ),
+      h.Style({
+        top: String(placement.topPercent) + '%',
+        left: 'calc(' + String(laneOffset) + '% + 0.25rem)',
+        width: 'calc(' + String(laneWidth) + '% - 0.5rem)',
+        height: String(placement.heightPercent) + '%',
+      }),
+    ],
+    [
+      h.p(
+        [h.Class('m-0 text-[0.6875rem] font-extrabold leading-none tabular-nums')],
+        [
+          translate(locale, 'schedule.timeRange', {
+            start: formatTime(occurrence.startsAt, locale),
+            end: formatTime(occurrence.endsAt, locale),
+          }),
+        ],
+      ),
+      h.p(
+        [h.Class('mt-1 mb-0 text-[0.6875rem] font-extrabold tracking-[0.05em]')],
+        [occurrence.courseCode],
+      ),
+      h.h4([h.Class('m-0 text-xs font-extrabold leading-[1.2]')], [title]),
+      h.p(
+        [h.Class('m-0 text-[0.6875rem] font-semibold leading-[1.25]')],
+        [translate(locale, 'schedule.activityFallback', { code: occurrence.activityCode })],
+      ),
+      room === null
+        ? h.empty
+        : h.p(
+            [h.Class('m-0 truncate text-[0.6875rem] leading-[1.25]')],
+            [[translate(locale, 'schedule.room'), room].join(': ')],
+          ),
+    ],
+  );
+};
+
+const timetableHourLabel = (hour: number): string => String(hour).padStart(2, '0') + ':00';
+
+const timetableHourLines = (h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
+  timetableHours.map((hour) =>
+    h.div(
+      [
+        h.Key(['timetable-line', String(hour)].join('-')),
+        h.AriaHidden(true),
+        h.Class('pointer-events-none absolute inset-x-0 border-t border-outline-variant'),
+        h.Style({ top: String(timetablePosition(hour * 60)) + '%' }),
+      ],
+      [],
+    ),
+  );
+
+const desktopTimetable = (
+  days: ReadonlyArray<DayGroup>,
+  locale: Localization,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.section(
+    [h.Class('hidden gap-3 [@media(min-width:72rem)]:grid')],
+    [
+      h.h2([h.Class('m-0 text-lg font-extrabold')], [translate(locale, 'schedule.agenda')]),
+      h.div(
+        [
+          h.Class(
+            'overflow-x-auto rounded-m3-extra-large border border-outline-variant bg-surface-container-low shadow-m3-1',
+          ),
+        ],
+        [
+          h.div(
+            [h.Class('min-w-[72rem]')],
+            [
+              h.div(
+                [
+                  h.Class(
+                    'grid grid-cols-[4.5rem_repeat(7,minmax(9.5rem,1fr))] border-b border-outline-variant',
+                  ),
+                ],
+                [
+                  h.div([h.AriaHidden(true), h.Class('border-r border-outline-variant')], []),
+                  ...days.map((day) =>
+                    h.div(
+                      [
+                        h.Key(['timetable-heading', day.key].join('-')),
+                        h.Class(
+                          'min-h-16 border-r border-outline-variant px-3 py-3 last:border-r-0',
+                        ),
+                      ],
+                      [
+                        h.h3(
+                          [h.Class('m-0 text-sm font-extrabold text-on-surface')],
+                          [day.compactLabel],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              h.div(
+                [h.Class('grid grid-cols-[4.5rem_repeat(7,minmax(9.5rem,1fr))] overflow-hidden')],
+                [
+                  h.div(
+                    [h.Class('relative h-[40rem] border-r border-outline-variant')],
+                    timetableHours.map((hour) =>
+                      h.p(
+                        [
+                          h.Key(['timetable-label', String(hour)].join('-')),
+                          h.Class(
+                            'absolute left-0 m-0 -translate-y-1/2 pr-2 text-right text-xs font-semibold tabular-nums text-on-surface-variant',
+                          ),
+                          h.Style({ top: String(timetablePosition(hour * 60)) + '%' }),
+                        ],
+                        [timetableHourLabel(hour)],
+                      ),
+                    ),
+                  ),
+                  ...days.map((day) =>
+                    h.div(
+                      [
+                        h.Key(['timetable-day', day.key].join('-')),
+                        h.Class(
+                          'relative h-[40rem] border-r border-outline-variant last:border-r-0',
+                        ),
+                      ],
+                      [
+                        ...timetableHourLines(h),
+                        ...timetablePlacements(day.occurrences).map((placement) =>
+                          desktopEventCard(placement, locale, h),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+
+const mobileAgenda = (
+  days: ReadonlyArray<DayGroup>,
+  locale: Localization,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.section(
+    [h.Class('grid gap-4 [@media(min-width:72rem)]:hidden')],
+    [
+      h.h2([h.Class('m-0 text-lg font-extrabold')], [translate(locale, 'schedule.agenda')]),
+      h.ol(
+        [h.Class('grid gap-5 m-0 list-none p-0')],
+        days
+          .filter((day) => day.occurrences.length > 0)
+          .map((day) =>
+            h.li(
+              [h.Key(day.key), h.Class('grid gap-2')],
+              [
+                h.h3(
+                  [h.Class('m-0 px-1 text-sm font-extrabold text-on-surface-variant')],
+                  [day.label],
+                ),
+                h.ol(
+                  [h.Class('grid gap-2 m-0 list-none p-0')],
+                  day.occurrences.map((occurrence) =>
+                    h.li([h.Key(occurrence.id)], [mobileEventCard(occurrence, locale, h)]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ),
+    ],
+  );
 
 const agenda = (
   response: CourseScheduleResponseDtoType,
@@ -941,7 +1294,6 @@ const agenda = (
   locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const unavailable = response.items.filter((item) => item.sourceStatus.status !== 'available');
   const occurrences = scheduleOccurrences(response);
   const hidden = new Set(hiddenActivityKeys);
   const visibleOccurrences = occurrences.filter((occurrence) => {
@@ -954,66 +1306,50 @@ const agenda = (
   return h.div(
     [h.Class('grid gap-4')],
     [
-      activitySelection(response, hiddenActivityKeys, locale, h),
-      ...unavailable.map((item) => sourceStatusCard(item, locale, h)),
+      availabilityStatus(response, locale, h),
       isKnownEmptyWeek(response)
         ? h.section(
-            [h.Class(stateCardBase), h.Role('status')],
             [
-              h.h2([h.Class(stateCardH2Class)], [translate(locale, 'schedule.empty')]),
-              h.p([h.Class(stateCardPClass)], [translate(locale, 'schedule.emptyHelp')]),
+              h.Class(
+                'grid min-h-56 place-items-center content-center rounded-m3-extra-large border border-outline-variant bg-surface-container-low p-[clamp(2rem,6vw,4rem)] text-center',
+              ),
+              h.Role('status'),
+            ],
+            [
+              h.h2(
+                [h.Class('m-0 text-[clamp(1.4rem,3vw,2rem)]')],
+                [translate(locale, 'schedule.empty')],
+              ),
+              h.p(
+                [h.Class('m-0 max-w-144 text-on-surface-variant leading-[1.6]')],
+                [translate(locale, 'schedule.emptyHelp')],
+              ),
             ],
           )
         : allPublishedActivitiesHidden
           ? h.section(
-              [h.Class(stateCardBase), h.Role('status')],
               [
-                h.h2([h.Class(stateCardH2Class)], [translate(locale, 'schedule.hiddenActivities')]),
+                h.Class(
+                  'grid min-h-56 place-items-center content-center rounded-m3-extra-large border border-outline-variant bg-surface-container-low p-[clamp(2rem,6vw,4rem)] text-center',
+                ),
+                h.Role('status'),
+              ],
+              [
+                h.h2(
+                  [h.Class('m-0 text-[clamp(1.4rem,3vw,2rem)]')],
+                  [translate(locale, 'schedule.hiddenActivities')],
+                ),
                 h.p(
-                  [h.Class(stateCardPClass)],
+                  [h.Class('m-0 max-w-144 text-on-surface-variant leading-[1.6]')],
                   [translate(locale, 'schedule.hiddenActivitiesHelp')],
                 ),
               ],
             )
           : visibleOccurrences.length === 0
             ? h.empty
-            : h.section(
-                [h.Class('grid gap-3')],
-                [
-                  h.h2(
-                    [h.Class('m-0 text-lg font-extrabold')],
-                    [translate(locale, 'schedule.agenda')],
-                  ),
-                  h.ol(
-                    [
-                      h.Class(
-                        'grid gap-3 m-0 p-0 list-none [@media(min-width:72rem)]:grid-cols-7 [@media(min-width:72rem)]:items-start',
-                      ),
-                    ],
-                    days.map((day) =>
-                      h.li(
-                        [
-                          h.Key(day.key),
-                          h.Class(
-                            `${day.occurrences.length === 0 ? 'hidden [@media(min-width:72rem)]:grid' : 'grid'} min-w-0 gap-2 rounded-m3-large bg-surface-container-low p-2 [@media(min-width:72rem)]:min-h-64`,
-                          ),
-                        ],
-                        [
-                          h.h3(
-                            [h.Class('m-0 px-1 text-sm font-extrabold text-on-surface-variant')],
-                            [day.label],
-                          ),
-                          h.ol(
-                            [h.Class('grid gap-2 m-0 p-0 list-none')],
-                            day.occurrences.map((occurrence) =>
-                              h.li([h.Key(occurrence.id)], [eventCard(occurrence, locale, h)]),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+            : h.div(
+                [h.Class('grid gap-4')],
+                [mobileAgenda(days, locale, h), desktopTimetable(days, locale, h)],
               ),
     ],
   );
@@ -1026,34 +1362,30 @@ export interface ViewInputs {
 }
 
 export const view = defineView<Model, Message, ViewInputs>(
-  (model, { locale, term, savedCourses }, h) =>
-    h.section(
+  (model, { locale, term, savedCourses }, h) => {
+    const response = model.result._tag === 'ScheduleSuccess' ? model.result.response : null;
+    return h.section(
       [h.Class('grid gap-5')],
       [
-        h.header(
-          [],
-          [
-            h.p([h.Class(eyebrowClass)], [translate(locale, 'schedule.eyebrow')]),
-            h.h1(
-              [h.Class('m-0 text-[clamp(1.6rem,6vw,2.25rem)] tracking-[-0.035em]')],
-              [translate(locale, 'schedule.heading')],
-            ),
-            h.p(
-              [h.Class('mt-2 mb-0 max-w-3xl leading-[1.55] text-on-surface-variant')],
-              [translate(locale, 'schedule.intro')],
-            ),
-          ],
+        pageHeader(
+          {
+            eyebrow: translate(locale, 'schedule.eyebrow'),
+            title: translate(locale, 'schedule.heading'),
+            description: translate(locale, 'schedule.intro'),
+            showMobileBrand: true,
+          },
+          h,
         ),
         h.p(
           [
             h.Class(
-              'm-0 rounded-m3-medium bg-secondary-container px-4 py-3 text-sm font-semibold text-on-secondary-container',
+              'm-0 rounded-m3-large border border-secondary bg-secondary-container px-4 py-3 text-sm font-semibold leading-[1.45] text-on-secondary-container',
             ),
           ],
           [translate(locale, 'schedule.limitations')],
         ),
         weekControl(model, term, locale, h),
-        courseSelection(model, savedCourses, locale, h),
+        filterPanels(model, savedCourses, response, locale, h),
         savedCourses !== null && savedCourses.length === 0
           ? h.p(
               [h.Class('m-0 text-sm leading-[1.45] text-on-surface-variant')],
@@ -1061,14 +1393,19 @@ export const view = defineView<Model, Message, ViewInputs>(
             )
           : model.selectedCodes.length === 0
             ? h.section(
-                [h.Class(stateCardBase), h.Role('status')],
+                [
+                  h.Class(
+                    'grid min-h-56 place-items-center content-center rounded-m3-extra-large border border-outline-variant bg-surface-container-low p-[clamp(2rem,6vw,4rem)] text-center',
+                  ),
+                  h.Role('status'),
+                ],
                 [
                   h.h2(
-                    [h.Class(stateCardH2Class)],
+                    [h.Class('m-0 text-[clamp(1.4rem,3vw,2rem)]')],
                     [translate(locale, 'schedule.selectionRequired')],
                   ),
                   h.p(
-                    [h.Class(stateCardPClass)],
+                    [h.Class('m-0 max-w-144 text-on-surface-variant leading-[1.6]')],
                     [translate(locale, 'schedule.selectionRequiredHelp')],
                   ),
                 ],
@@ -1077,24 +1414,53 @@ export const view = defineView<Model, Message, ViewInputs>(
                 ScheduleIdle: () => h.empty,
                 ScheduleLoading: () =>
                   h.section(
-                    [h.Class(stateCardBase), h.Role('status'), h.AriaLive('polite')],
                     [
-                      h.div([h.Class(loadingIndicatorClass), h.AriaHidden(true)], []),
-                      h.h2([h.Class(stateCardH2Class)], [translate(locale, 'schedule.loading')]),
-                      h.p([h.Class(stateCardPClass)], [translate(locale, 'schedule.loadingHelp')]),
+                      h.Class(
+                        'grid min-h-56 place-items-center content-center rounded-m3-extra-large border border-outline-variant bg-surface-container-low p-[clamp(2rem,6vw,4rem)] text-center',
+                      ),
+                      h.Role('status'),
+                      h.AriaLive('polite'),
+                    ],
+                    [
+                      h.div(
+                        [
+                          h.AriaHidden(true),
+                          h.Class(
+                            'size-12 animate-[spin_850ms_linear_infinite] rounded-full border-[0.3rem] border-primary-container border-t-primary motion-reduce:[animation-duration:1.8s]',
+                          ),
+                        ],
+                        [],
+                      ),
+                      h.h2(
+                        [h.Class('m-0 text-[clamp(1.4rem,3vw,2rem)]')],
+                        [translate(locale, 'schedule.loading')],
+                      ),
+                      h.p(
+                        [h.Class('m-0 max-w-144 text-on-surface-variant leading-[1.6]')],
+                        [translate(locale, 'schedule.loadingHelp')],
+                      ),
                     ],
                   ),
                 ScheduleFailure: ({ error }) =>
                   h.section(
-                    [h.Class(stateCardFailure), h.Role('alert')],
                     [
-                      h.h2([h.Class(stateCardH2Class)], [translate(locale, 'schedule.loadFailed')]),
-                      h.p([h.Class(stateCardPClass)], [error]),
+                      h.Class(
+                        'grid min-h-56 place-items-center content-center rounded-m3-extra-large border border-error bg-error-container p-[clamp(2rem,6vw,4rem)] text-center text-on-error-container',
+                      ),
+                      h.Role('alert'),
+                    ],
+                    [
+                      h.h2(
+                        [h.Class('m-0 text-[clamp(1.4rem,3vw,2rem)]')],
+                        [translate(locale, 'schedule.loadFailed')],
+                      ),
+                      h.p([h.Class('m-0 max-w-144 leading-[1.6]')], [error]),
                     ],
                   ),
-                ScheduleSuccess: ({ response }) =>
-                  agenda(response, model.hiddenActivityKeys, term, model.week, locale, h),
+                ScheduleSuccess: ({ response: scheduleResponse }) =>
+                  agenda(scheduleResponse, model.hiddenActivityKeys, term, model.week, locale, h),
               }),
       ],
-    ),
+    );
+  },
 );
