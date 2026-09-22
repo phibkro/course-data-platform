@@ -1,0 +1,80 @@
+[
+  {
+    "Årstall": "2022",
+    "Semester": "3",
+    "Semesternavn": "Høst",
+    "Emnekode": "TDT4136-1",
+    "Oppmeldt totalt": "552",
+    "Møtt til eksamen": "453",
+    "Bestått": "399",
+    "Beståtte gjentak": "0",
+    "Antall kandidater stryk": "54",
+    "Eksamensprod med gjentak": "49.875000",
+    "Eksamensprod uten gjentak": "49.875000"
+  },
+  {
+    "Årstall": "2023",
+    "Semester": "1",
+    "Semesternavn": "Vår",
+    "Emnekode": "TDT4136-1",
+    "Oppmeldt totalt": "3",
+    "Møtt til eksamen": "0",
+    "Bestått": "0",
+    "Beståtte gjentak": "0",
+    "Antall kandidater stryk": "0",
+    "Eksamensprod med gjentak": "0.000000",
+    "Eksamensprod uten gjentak": "0.000000"
+  },
+  {
+    "Årstall": "2023",
+    "Semester": "3",
+    "Semesternavn": "Høst",
+    "Emnekode": "TDT4136-1",
+    "Oppmeldt totalt": "607",
+    "Møtt til eksamen": "478",
+    "Bestått": "447",
+    "Beståtte gjentak": "21",
+    "Antall kandidater stryk": "31",
+    "Eksamensprod med gjentak": "55.813333",
+    "Eksamensprod uten gjentak": "53.188333"
+  },
+  {
+    "Årstall": "2024",
+    "Semester": "1",
+    "Semesternavn": "Vår",
+    "Emnekode": "TDT4136-1",
+    "Oppmeldt totalt": "3",
+    "Møtt til eksamen": "0",
+    "Bestått": "0",
+    "Beståtte gjentak": "0",
+    "Antall kandidater stryk": "0",
+    "Eksamensprod med gjentak": "0.000000",
+    "Eksamensprod uten gjentak": "0.000000"
+  },
+  {
+    "Årstall": "2024",
+    "Semester": "3",
+    "Semesternavn": "Høst",
+    "Emnekode": "TDT4136-1",
+    "Oppmeldt totalt": "589",
+    "Møtt til eksamen": "480",
+    "Bestått": "451",
+    "Beståtte gjentak": "11",
+    "Antall kandidater stryk": "29",
+    "Eksamensprod med gjentak": "56.375000",
+    "Eksamensprod uten gjentak": "55.000000"
+  },
+  {
+    "Årstall": "2025",
+    "Semester": "3",
+    "Semesternavn": "Høst",
+    "Emnekode": "TDT4136-1",
+    "Oppmeldt totalt": "494",
+    "Møtt til eksamen": "388",
+    "Bestått": "362",
+    "Beståtte gjentak": "9",
+    "Antall kandidater stryk": "26",
+    "Eksamensprod med gjentak": "45.250000",
+    "Eksamensprod uten gjentak": "44.125000"
+  }
+]

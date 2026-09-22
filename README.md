@@ -6,16 +6,16 @@ what work is obligatory, how it is assessed, whether collaboration or
 attendance is explicit, and what historical grade outcomes look like.
 
 The active product is a Foldkit web application backed by a small Elysia API.
-It fetches NTNU course data plus grades.no and DBH grade evidence, validates
-every source at the boundary, and preserves unavailable, conflicting, inferred,
-and fixture states instead of presenting guesses as facts.
+It fetches NTNU course data and official DBH/HK-dir outcome evidence. It
+validates every source at the boundary. It preserves unavailable, suppressed,
+inferred, conflicting, and fixture states instead of presenting guesses as facts.
 
 ## Active slice
 
 ```text
 Foldkit web -> TypeBox HTTP contract -> Elysia transport -> Effect service
                                                     -> NTNU search/detail
-                                                    -> grades.no + DBH outcomes
+                                                    -> DBH grades + exam activity
 ```
 
 Implemented now:
@@ -32,6 +32,8 @@ Implemented now:
   courses;
 - ordinary-term, bounded grade aggregation with pass/fail outcomes kept
   separate from ordinal letter grades;
+- official DBH exam registrations, attendance, pass, failure, and repeat-pass
+  totals with privacy-protected cells kept suppressed;
 - a browser-local Progress view imports NTNU or UiO result-history PDFs and shows the original document before parsing;
 - students review imported rows, add results, filter history, select calculation rules, and inspect grade and semester trends;
 - the view keeps session undo history and offers versioned JSON backup and restore without an account;

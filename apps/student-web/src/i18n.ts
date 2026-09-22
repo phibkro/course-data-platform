@@ -369,6 +369,15 @@ const en = {
   'detail.gradeOutcomes': 'Grade outcomes',
   'detail.gradeHelp':
     'Historical outcomes describe past cohorts; they do not predict an individual result.',
+  'detail.examParticipation': 'Exam activity',
+  'detail.examParticipationHelp':
+    'Official DBH totals show exam registrations and outcomes. They do not count unique students.',
+  'detail.examRegistrations': '{count} registrations',
+  'detail.registered': 'Registered',
+  'detail.attended': 'Attended',
+  'detail.passed': 'Passed',
+  'detail.failed': 'Failed',
+  'detail.passedAfterRepeat': 'Passed after a repeat attempt',
   'detail.coveredPeriod': 'Covered period',
   'detail.sampleSize': 'Sample size',
   'detail.results': '{count} results',
@@ -990,6 +999,15 @@ const nb = {
   'detail.gradeOutcomes': 'Karakterresultater',
   'detail.gradeHelp':
     'Historiske resultater beskriver tidligere kull og forutsier ikke et enkeltresultat.',
+  'detail.examParticipation': 'Eksamensaktivitet',
+  'detail.examParticipationHelp':
+    'Offisielle DBH-tall viser oppmeldinger og resultater. De teller ikke unike studenter.',
+  'detail.examRegistrations': '{count} oppmeldinger',
+  'detail.registered': 'Oppmeldt',
+  'detail.attended': 'Møtt',
+  'detail.passed': 'Bestått',
+  'detail.failed': 'Stryk',
+  'detail.passedAfterRepeat': 'Bestått ved gjentak',
   'detail.coveredPeriod': 'Tidsperiode',
   'detail.sampleSize': 'Utvalgsstørrelse',
   'detail.results': '{count} resultater',

@@ -8,17 +8,15 @@ import {
   type SourceStatus,
 } from './model/course-insight';
 import {
+  fetchDbhExamOutcomes,
   fetchDbhGradeSummaries,
-  fetchDbhGrades,
-  fetchGradesNoGrades,
+  mapDbhToExamParticipation,
   mapDbhToGradeSummary,
   mapGradesToOutcomes,
+  type DbhExamOutcomesParseResult,
   type DbhGradeSummariesParseResult,
-  type DbhGradesParseResult,
-  type GradesNoParseResult,
-  type GradeWindow,
-  type ValidatedDbhGrades,
-  type ValidatedGradesNoPeriod,
+  type ValidatedDbhCourseGrades,
+  type ValidatedDbhExamOutcomes,
 } from '../sources/grades';
 import {
   fetchNtnuCourseDetail,
@@ -280,13 +278,15 @@ const assembleInsight = (
   hit: ValidatedNtnuSearchHit,
   detail: ValidatedNtnuCourseDetail | null,
   detailWarning: string | null,
-  gradesNo: ReadonlyArray<ValidatedGradesNoPeriod> | null,
-  dbh: ValidatedDbhGrades | null,
-  gradeWindow: GradeWindow,
+  dbh: ValidatedDbhCourseGrades | null,
+  dbhObservation: { readonly observedAt: string; readonly rejectedRows: number } | undefined,
+  dbhExam: ValidatedDbhExamOutcomes | null,
+  dbhExamRejectedRows: number,
 ): CourseInsight => {
   const courseKey = `ntnu:${hit.courseCode}:${hit.academicYear}-${hit.season}`;
   const ntnu = mapNtnuToCourseInsightFields(courseKey, hit, detail, detailWarning);
-  const grades = mapGradesToOutcomes(hit.courseCode, gradesNo, dbh, gradeWindow);
+  const grades = mapGradesToOutcomes(hit.courseCode, dbh, dbhObservation);
+  const examParticipation = mapDbhToExamParticipation(dbhExam, dbhExamRejectedRows);
   const insight = decodeCourseInsight({
     ...ntnu,
     gradeOutcomes: {
@@ -297,8 +297,20 @@ const assembleInsight = (
       averageGrade: grades.averageGrade,
       medianGrade: grades.medianGrade,
     },
-    sourceStatuses: [...ntnu.sourceStatuses, ...grades.sourceStatuses],
-    evidence: [...ntnu.evidence, ...grades.evidence],
+    examParticipation: {
+      period: examParticipation.period,
+      registered: examParticipation.registered,
+      attended: examParticipation.attended,
+      passed: examParticipation.passed,
+      failed: examParticipation.failed,
+      passedAfterRepeat: examParticipation.passedAfterRepeat,
+    },
+    sourceStatuses: [
+      ...ntnu.sourceStatuses,
+      ...grades.sourceStatuses,
+      ...examParticipation.sourceStatuses,
+    ],
+    evidence: [...ntnu.evidence, ...grades.evidence, ...examParticipation.evidence],
   });
 
   return insight;
@@ -335,17 +347,11 @@ export const makeLiveCourseDecisionService = (
     deps.now,
     (result) => result.rejected === null,
   );
-  const gradesNoRequests = makeSourceRequestCache<GradesNoParseResult>(
+  const dbhExamOutcomeRequests = makeSourceRequestCache<DbhExamOutcomesParseResult>(
     config.sourceCacheTtlMs,
     config.sourceCacheMaxEntriesPerProvider,
     deps.now,
-    (result) => result.rejected.length === 0,
-  );
-  const dbhGradeRequests = makeSourceRequestCache<DbhGradesParseResult>(
-    config.sourceCacheTtlMs,
-    config.sourceCacheMaxEntriesPerProvider,
-    deps.now,
-    (result) => result.rejected === null,
+    (result) => result.accepted !== null && result.rejected.length === 0,
   );
   const dbhGradeSummaryRequests = makeSourceRequestCache<DbhGradeSummariesParseResult>(
     config.sourceCacheTtlMs,
@@ -438,20 +444,35 @@ export const makeLiveCourseDecisionService = (
               fetchNtnuCourseDetail(sourceDeps, hit.courseCode, String(term.academicYear)),
             ),
         );
-        const gradesNoRequest = gradesNoRequests(hit.courseCode, () =>
-          runSource((sourceDeps) => fetchGradesNoGrades(sourceDeps, hit.courseCode)),
-        );
-        const dbhRequest = dbhGradeRequests(
+        const dbhExamRequest = dbhExamOutcomeRequests(
           JSON.stringify([hit.courseCode, config.gradeFromYear, config.gradeToYear]),
           () =>
             runSource((sourceDeps) =>
-              fetchDbhGrades(sourceDeps, hit.courseCode, config.gradeFromYear, config.gradeToYear),
+              fetchDbhExamOutcomes(
+                sourceDeps,
+                hit.courseCode,
+                config.gradeFromYear,
+                config.gradeToYear,
+              ),
             ),
         );
-        const [detailSettled, gradesNoSettled, dbhSettled] = await Promise.allSettled([
+        const gradeCodes = [hit.courseCode];
+        const dbhRequest = dbhGradeSummaryRequests(
+          JSON.stringify([gradeCodes, config.gradeFromYear, config.gradeToYear]),
+          () =>
+            runSource((sourceDeps) =>
+              fetchDbhGradeSummaries(
+                sourceDeps,
+                gradeCodes,
+                config.gradeFromYear,
+                config.gradeToYear,
+              ),
+            ),
+        );
+        const [detailSettled, dbhSettled, dbhExamSettled] = await Promise.allSettled([
           detailRequest,
-          gradesNoRequest,
           dbhRequest,
+          dbhExamRequest,
         ]);
 
         const detailResult =
@@ -462,25 +483,30 @@ export const makeLiveCourseDecisionService = (
             ? errorMessage(detailSettled.reason)
             : (detailResult?.rejected?.message ?? null);
 
-        const gradesNoResult =
-          gradesNoSettled.status === 'fulfilled' ? gradesNoSettled.value.value : null;
-        const gradesNo =
-          gradesNoResult !== null && gradesNoResult.rejected.length === 0
-            ? gradesNoResult.accepted.filter(
-                (period) =>
-                  period.year >= config.gradeFromYear && period.year <= config.gradeToYear,
-              )
-            : null;
+        const dbhExamResult =
+          dbhExamSettled.status === 'fulfilled' ? dbhExamSettled.value.value : null;
+        const dbhExam = dbhExamResult?.accepted ?? null;
 
         const dbhResult = dbhSettled.status === 'fulfilled' ? dbhSettled.value.value : null;
-        const dbh = dbhResult?.accepted ?? null;
+        const dbh =
+          dbhResult?.accepted.find((course) => course.courseCode === hit.courseCode) ?? null;
+        const dbhObservation =
+          dbhSettled.status === 'fulfilled'
+            ? {
+                observedAt: dbhSettled.value.observedAt.toISOString(),
+                rejectedRows: dbhResult?.rejected.length ?? 0,
+              }
+            : undefined;
 
-        const item = assembleInsight(hit, detail, detailWarning, gradesNo, dbh, {
-          fromYear: config.gradeFromYear,
-          toYear: config.gradeToYear,
-          semesters: ['AUTUMN', 'SPRING'],
-          minimumCohortSize: 4,
-        });
+        const item = assembleInsight(
+          hit,
+          detail,
+          detailWarning,
+          dbh,
+          dbhObservation,
+          dbhExam,
+          dbhExamResult?.rejected.length ?? 0,
+        );
         return {
           item,
           partial: item.sourceStatuses.some((status) => status.status !== 'available'),

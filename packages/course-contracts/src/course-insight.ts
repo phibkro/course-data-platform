@@ -151,6 +151,20 @@ const GradeOutcomesDto = Type.Object({
   medianGrade: FactDto(Type.String({ minLength: 1 })),
 });
 
+const ExamParticipationDto = Type.Object({
+  period: FactDto(
+    Type.Object({
+      fromYear: Type.Integer({ minimum: 2000, maximum: 2200 }),
+      toYear: Type.Integer({ minimum: 2000, maximum: 2200 }),
+    }),
+  ),
+  registered: FactDto(Type.Integer({ minimum: 0 })),
+  attended: FactDto(Type.Integer({ minimum: 0 })),
+  passed: FactDto(Type.Integer({ minimum: 0 })),
+  failed: FactDto(Type.Integer({ minimum: 0 })),
+  passedAfterRepeat: FactDto(Type.Integer({ minimum: 0 })),
+});
+
 const SourceStatusDto = Type.Object({
   provider: Type.String({ minLength: 1 }),
   status: Type.Union([
@@ -337,6 +351,7 @@ export const CourseInsightDto = Type.Object({
   prerequisites: FactDto(Type.String({ minLength: 1 })),
   accessRestrictions: FactDto(Type.String({ minLength: 1 })),
   gradeOutcomes: GradeOutcomesDto,
+  examParticipation: ExamParticipationDto,
   sourceStatuses: Type.Array(SourceStatusDto),
   evidence: Type.Array(EvidenceDto),
 });

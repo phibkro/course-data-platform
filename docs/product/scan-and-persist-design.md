@@ -254,8 +254,8 @@ therefore suppression, not evidence of zero candidates.
 Current and previous reporting periods are checked more frequently. Older
 periods are reconciled weekly or monthly. An unchanged content hash is a no-op.
 
-Grades.no may remain an independent comparison source during migration, but
-normal product availability must not depend on it.
+DBH table 308 is the grade-distribution source. DBH table 905 independently
+supplies exam registrations, attendance, pass, failure, and repeat-pass totals.
 
 Outcome aggregation uses assessed results only: A–F and G–H contribute to the
 sample denominator; F and H contribute to failure. Withdrawn, absent, and other

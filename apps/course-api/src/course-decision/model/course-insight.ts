@@ -256,6 +256,18 @@ export const GradeOutcomesSchema = Schema.Struct({
 });
 export type GradeOutcomes = Schema.Schema.Type<typeof GradeOutcomesSchema>;
 
+export const ExamParticipationSchema = Schema.Struct({
+  period: makeFactSchema(GradePeriodSchema),
+  registered: makeFactSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
+  attended: makeFactSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
+  passed: makeFactSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
+  failed: makeFactSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
+  passedAfterRepeat: makeFactSchema(
+    Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
+  ),
+});
+export type ExamParticipation = Schema.Schema.Type<typeof ExamParticipationSchema>;
+
 export const CourseGradeSummarySchema = Schema.Struct({
   courseCode: NonEmptyString,
   period: makeFactSchema(GradePeriodSchema),
@@ -298,6 +310,7 @@ export const CourseInsightSchema = Schema.Struct({
   prerequisites: StringFactSchema,
   accessRestrictions: StringFactSchema,
   gradeOutcomes: GradeOutcomesSchema,
+  examParticipation: ExamParticipationSchema,
   sourceStatuses: Schema.Array(SourceStatusSchema),
   evidence: Schema.Array(EvidenceSchema),
 });

@@ -672,6 +672,26 @@ const buildInsight = (course: CorpusCourse): CourseInsight => {
             averageGrade: unavailable<string>(course.gradeOutcomes.reason),
             medianGrade: unavailable<string>(course.gradeOutcomes.reason),
           },
+    examParticipation: {
+      period: unavailable<{ fromYear: number; toYear: number }>(
+        'The corpus fixture does not include DBH table-905 exam participation.',
+      ),
+      registered: unavailable<number>(
+        'The corpus fixture does not include DBH table-905 exam participation.',
+      ),
+      attended: unavailable<number>(
+        'The corpus fixture does not include DBH table-905 exam participation.',
+      ),
+      passed: unavailable<number>(
+        'The corpus fixture does not include DBH table-905 exam participation.',
+      ),
+      failed: unavailable<number>(
+        'The corpus fixture does not include DBH table-905 exam participation.',
+      ),
+      passedAfterRepeat: unavailable<number>(
+        'The corpus fixture does not include DBH table-905 exam participation.',
+      ),
+    },
     sourceStatuses: [
       {
         provider: 'ntnu-course-page',

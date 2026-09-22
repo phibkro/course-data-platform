@@ -176,6 +176,18 @@ export const fullCourseInsightFixture = {
         evidenceIds: ['grades-fixture'],
       },
     },
+    examParticipation: {
+      period: {
+        state: 'known',
+        value: { fromYear: 2021, toYear: 2025 },
+        evidenceIds: ['exam-fixture'],
+      },
+      registered: { state: 'known', value: 720, evidenceIds: ['exam-fixture'] },
+      attended: { state: 'known', value: 665, evidenceIds: ['exam-fixture'] },
+      passed: { state: 'known', value: 587, evidenceIds: ['exam-fixture'] },
+      failed: { state: 'known', value: 78, evidenceIds: ['exam-fixture'] },
+      passedAfterRepeat: { state: 'known', value: 21, evidenceIds: ['exam-fixture'] },
+    },
     sourceStatuses: [
       {
         provider: 'NTNU course catalogue fixture',
@@ -184,10 +196,16 @@ export const fullCourseInsightFixture = {
         warning: 'Prototype fixture; replace with the live validated NTNU adapter.',
       },
       {
-        provider: 'Grade outcomes fixture',
+        provider: 'DBH/HK-dir table 308 fixture',
         status: 'available',
         observedAt,
         warning: 'Illustrative statistics; do not treat as current official results.',
+      },
+      {
+        provider: 'DBH/HK-dir table 905 fixture',
+        status: 'available',
+        observedAt,
+        warning: 'Illustrative exam totals; do not treat as current official results.',
       },
     ],
     evidence: [
@@ -248,13 +266,24 @@ export const fullCourseInsightFixture = {
       },
       {
         id: 'grades-fixture',
-        provider: 'Grade outcomes fixture',
+        provider: 'DBH/HK-dir table 308 fixture',
         kind: 'fixture',
-        recordId: 'TDT4136-2021-2025',
-        sourceUrl: null,
+        recordId: 'dbh:308:TDT4136:2021-2025',
+        sourceUrl: 'https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData',
         sourcePeriod: '2021–2025',
         observedAt,
         excerpt: 'Illustrative aggregate grade distribution.',
+        inferenceRule: null,
+      },
+      {
+        id: 'exam-fixture',
+        provider: 'DBH/HK-dir table 905 fixture',
+        kind: 'fixture',
+        recordId: 'dbh:905:TDT4136:2021-2025',
+        sourceUrl: 'https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData',
+        sourcePeriod: '2021–2025',
+        observedAt,
+        excerpt: 'Illustrative exam participation totals.',
         inferenceRule: null,
       },
     ],
@@ -300,6 +329,7 @@ export const partialCourseInsightFixture = {
     },
     sourceStatuses: [
       fullCourseInsightFixture.item.sourceStatuses[0]!,
+      fullCourseInsightFixture.item.sourceStatuses[2]!,
       {
         provider: 'Grade outcomes fixture',
         status: 'failed',

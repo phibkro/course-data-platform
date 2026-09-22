@@ -235,6 +235,7 @@ export const courseInsightView = <Message>(
         h,
       ),
       gradeSection(course, locale, h),
+      examParticipationSection(course, locale, h),
       sourceSection(course, locale, h),
     ],
   );
@@ -492,6 +493,87 @@ const gradeDistribution = <Message>(
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    ],
+  );
+};
+
+const examParticipationSection = <Message>(
+  course: CourseInsight,
+  locale: Locale,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const participation = course.examParticipation;
+  const count = (value: number) =>
+    paragraph(
+      translate(locale, 'detail.examRegistrations', {
+        count: value.toLocaleString(localeTag(locale)),
+      }),
+      h,
+    );
+
+  return h.section(
+    [h.Class(decisionSectionClass)],
+    [
+      h.header(
+        [h.Class(sectionHeadingClass)],
+        [
+          h.h2([], [translate(locale, 'detail.examParticipation')]),
+          h.p([], [translate(locale, 'detail.examParticipationHelp')]),
+        ],
+      ),
+      h.div(
+        [h.Class(factGridClass)],
+        [
+          factView(
+            translate(locale, 'detail.coveredPeriod'),
+            participation.period,
+            (period) => paragraph(`${period.fromYear}–${period.toYear}`, h),
+            locale,
+            noInferenceEvidenceIds,
+            h,
+          ),
+          factView(
+            translate(locale, 'detail.registered'),
+            participation.registered,
+            count,
+            locale,
+            noInferenceEvidenceIds,
+            h,
+          ),
+          factView(
+            translate(locale, 'detail.attended'),
+            participation.attended,
+            count,
+            locale,
+            noInferenceEvidenceIds,
+            h,
+          ),
+          factView(
+            translate(locale, 'detail.passed'),
+            participation.passed,
+            count,
+            locale,
+            noInferenceEvidenceIds,
+            h,
+          ),
+          factView(
+            translate(locale, 'detail.failed'),
+            participation.failed,
+            count,
+            locale,
+            noInferenceEvidenceIds,
+            h,
+          ),
+          factView(
+            translate(locale, 'detail.passedAfterRepeat'),
+            participation.passedAfterRepeat,
+            count,
+            locale,
+            noInferenceEvidenceIds,
+            h,
           ),
         ],
       ),

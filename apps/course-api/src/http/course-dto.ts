@@ -170,6 +170,14 @@ export const toCourseInsightDto = (insight: CourseInsight): CourseInsightDtoType
     averageGrade: mapFact(insight.gradeOutcomes.averageGrade, String),
     medianGrade: mapFact(insight.gradeOutcomes.medianGrade, String),
   },
+  examParticipation: {
+    period: mapFact(insight.examParticipation.period, (period) => period),
+    registered: mapFact(insight.examParticipation.registered, Number),
+    attended: mapFact(insight.examParticipation.attended, Number),
+    passed: mapFact(insight.examParticipation.passed, Number),
+    failed: mapFact(insight.examParticipation.failed, Number),
+    passedAfterRepeat: mapFact(insight.examParticipation.passedAfterRepeat, Number),
+  },
   sourceStatuses: insight.sourceStatuses.map(mapSourceStatus),
   evidence: insight.evidence.map(mapEvidence),
 });

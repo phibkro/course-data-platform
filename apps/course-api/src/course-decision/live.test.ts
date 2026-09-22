@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { makeLiveCourseDecisionService } from './live';
 
-type SourceName = 'detail' | 'grades-no' | 'dbh';
+type SourceName = 'detail' | 'dbh' | 'dbh-exam';
 
 const searchPayload = {
   courses: [
@@ -37,21 +37,6 @@ const detailHtml = `
     <h2>Krever opptak til studieprogram</h2><p>Ingen.</p>
   </body></html>
 `;
-const gradesNoPayload = [
-  {
-    year: 2024,
-    semester: 'AUTUMN',
-    attendee_count: 210,
-    a: 25,
-    b: 55,
-    c: 70,
-    d: 35,
-    e: 15,
-    f: 10,
-    passed: null,
-    average_grade: 3.6,
-  },
-];
 const dbhPayload = [
   { Karakter: 'A', 'Antall kandidater totalt': '44' },
   { Karakter: 'B', 'Antall kandidater totalt': '101' },
@@ -59,13 +44,24 @@ const dbhPayload = [
   { Karakter: 'D', 'Antall kandidater totalt': '68' },
   { Karakter: 'E', 'Antall kandidater totalt': '32' },
   { Karakter: 'F', 'Antall kandidater totalt': '22' },
-];
-const dbhBatchPayload = dbhPayload.map((row) => ({
+].map((row) => ({
   Emnekode: 'TDT4136-1',
   Årstall: '2024',
   Semester: '3',
   ...row,
 }));
+const dbhExamPayload = [
+  {
+    Årstall: '2024',
+    Semester: '3',
+    Emnekode: 'TDT4136-1',
+    'Oppmeldt totalt': '240',
+    'Møtt til eksamen': '210',
+    Bestått: '188',
+    'Beståtte gjentak': '12',
+    'Antall kandidater stryk': '22',
+  },
+];
 const defaults = {
   academicYear: 2026,
   season: 'autumn' as const,
@@ -85,14 +81,16 @@ const makeFetch =
         ? new Response('unavailable', { status: 503 })
         : new Response(detailHtml, { headers: { 'content-type': 'text/html' } });
     }
-    if (url.includes('api.grades.no')) {
-      return failedSources.has('grades-no')
-        ? new Response('unavailable', { status: 503 })
-        : Response.json(gradesNoPayload);
-    }
     if (url.includes('dbh-data')) {
-      if (failedSources.has('dbh')) return new Response('unavailable', { status: 503 });
-      return Response.json(String(init?.body).includes('Emnekode') ? dbhBatchPayload : dbhPayload);
+      const request = JSON.parse(String(init?.body)) as { readonly tabell_id?: number };
+      if (request.tabell_id === 905) {
+        return failedSources.has('dbh-exam')
+          ? new Response('unavailable', { status: 503 })
+          : Response.json(dbhExamPayload);
+      }
+      return failedSources.has('dbh')
+        ? new Response('unavailable', { status: 503 })
+        : Response.json(dbhPayload);
     }
     return new Response('not found', { status: 404 });
   };
@@ -117,18 +115,32 @@ describe('live course decision service', () => {
         item: {
           title: { state: 'known' },
           content: { state: 'unavailable' },
-          gradeOutcomes: { sampleSize: { state: 'conflicting' } },
+          gradeOutcomes: { sampleSize: { state: 'known' } },
+          examParticipation: { registered: { state: 'known' } },
         },
       },
     },
     {
-      name: 'independently failed grade providers',
-      failedSources: ['grades-no', 'dbh'] as const,
+      name: 'a failed grade source',
+      failedSources: ['dbh'] as const,
       expected: {
         partial: true,
         item: {
           title: { state: 'known' },
           gradeOutcomes: { sampleSize: { state: 'unavailable' } },
+          examParticipation: { registered: { state: 'known' } },
+        },
+      },
+    },
+    {
+      name: 'a failed exam-participation source',
+      failedSources: ['dbh-exam'] as const,
+      expected: {
+        partial: true,
+        item: {
+          title: { state: 'known' },
+          gradeOutcomes: { sampleSize: { state: 'known' } },
+          examParticipation: { registered: { state: 'unavailable' } },
         },
       },
     },

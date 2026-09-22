@@ -1,45 +1,47 @@
 import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 
-const DBH_TABLE_ID = 308;
-const MAX_COURSE_CODES = 40;
+const DBH_TABLE_ID = 905;
 
-export interface DbhGradeSummariesCaptureMetadata {
+export interface DbhExamOutcomesCaptureMetadata {
   readonly retrievedAt: string;
   readonly contentHash: string;
-  readonly courseCodes: ReadonlyArray<string>;
+  readonly requestUrl: string;
+  readonly courseCode: string;
   readonly fromYear: number;
   readonly toYear: number;
   readonly evidenceKind: 'source-fact' | 'fixture';
 }
-export interface DbhGradesAttribution {
+
+export interface DbhExamOutcomesAttribution {
   readonly provider: 'dbh';
-  readonly tableId: 308;
+  readonly tableId: 905;
   readonly sourceRecordId: string;
   readonly retrievedAt: string;
   readonly contentHash: string;
-  readonly period: {
-    readonly fromYear: number;
-    readonly toYear: number;
-  };
+  readonly requestUrl: string;
+  readonly requestedPeriod: { readonly fromYear: number; readonly toYear: number };
   readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
-export interface ValidatedDbhGradeSummaryRow {
-  readonly grade: string;
-  readonly candidateCount: number;
+export interface ValidatedDbhExamOutcomeRow {
   readonly year: number;
   readonly semester: 1 | 3;
+  readonly registeredCount: number;
+  readonly attendedCount: number;
+  readonly passedCount: number;
+  readonly passedRepeatCount: number;
+  readonly failedCount: number;
 }
 
-export interface ValidatedDbhCourseGrades {
+export interface ValidatedDbhExamOutcomes {
   readonly courseCode: string;
   readonly sourceRecordId: string;
-  readonly attribution: DbhGradesAttribution;
-  readonly rows: ReadonlyArray<ValidatedDbhGradeSummaryRow>;
+  readonly attribution: DbhExamOutcomesAttribution;
+  readonly rows: ReadonlyArray<ValidatedDbhExamOutcomeRow>;
 }
 
-export type DbhGradeSummariesRejectionCode =
+export type DbhExamOutcomesRejectionCode =
   | 'invalid-response-bytes'
   | 'invalid-response-json'
   | 'invalid-response-shape'
@@ -48,45 +50,46 @@ export type DbhGradeSummariesRejectionCode =
   | 'row-period-unrequested'
   | 'row-course-unrequested';
 
-export interface DbhGradeSummariesRejection {
-  readonly code: DbhGradeSummariesRejectionCode;
+export interface DbhExamOutcomesRejection {
+  readonly code: DbhExamOutcomesRejectionCode;
   readonly message: string;
   readonly raw: unknown;
 }
 
-export interface DbhGradeSummariesParseResult {
-  readonly accepted: ReadonlyArray<ValidatedDbhCourseGrades>;
-  readonly rejected: ReadonlyArray<DbhGradeSummariesRejection>;
+export interface DbhExamOutcomesParseResult {
+  readonly accepted: ValidatedDbhExamOutcomes | null;
+  readonly rejected: ReadonlyArray<DbhExamOutcomesRejection>;
 }
 
 const IsoTimestampSchema = Schema.String.pipe(
   Schema.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/)),
 );
 const Sha256Schema = Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-f0-9]{64}$/)));
-const CourseCodesSchema = Schema.Array(Schema.NonEmptyString).pipe(
-  Schema.check(Schema.isMinLength(1)),
-  Schema.check(Schema.isMaxLength(MAX_COURSE_CODES)),
-);
 const CaptureSchema = Schema.Struct({
   retrievedAt: IsoTimestampSchema,
   contentHash: Sha256Schema,
-  courseCodes: CourseCodesSchema,
+  requestUrl: Schema.NonEmptyString,
+  courseCode: Schema.NonEmptyString,
   fromYear: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
   toYear: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 2000, maximum: 2200 }))),
   evidenceKind: Schema.Literals(['source-fact', 'fixture']),
 });
+const CountSchema = Schema.String.pipe(Schema.check(Schema.isPattern(/^\d+$/)));
 const ResponseSchema = Schema.Array(Schema.Unknown);
 const RowSchema = Schema.Struct({
   Emnekode: Schema.NonEmptyString,
-  Karakter: Schema.NonEmptyString,
   Årstall: Schema.String.pipe(Schema.check(Schema.isPattern(/^\d{4}$/))),
   Semester: Schema.Literals(['1', '3']),
-  'Antall kandidater totalt': Schema.String.pipe(Schema.check(Schema.isPattern(/^\d+$/))),
+  'Oppmeldt totalt': CountSchema,
+  'Møtt til eksamen': CountSchema,
+  Bestått: CountSchema,
+  'Beståtte gjentak': CountSchema,
+  'Antall kandidater stryk': CountSchema,
 });
 
 const decodeInput = (
   input: unknown | Uint8Array,
-): { readonly value?: unknown; readonly code?: DbhGradeSummariesRejectionCode } => {
+): { readonly value?: unknown; readonly code?: DbhExamOutcomesRejectionCode } => {
   if (input instanceof Uint8Array) {
     try {
       input = new TextDecoder('utf-8', { fatal: true }).decode(input);
@@ -105,54 +108,57 @@ const decodeInput = (
 };
 
 const rejectAll = (
-  code: DbhGradeSummariesRejectionCode,
+  code: DbhExamOutcomesRejectionCode,
   message: string,
   raw: unknown,
-): DbhGradeSummariesParseResult => ({
-  accepted: [],
+): DbhExamOutcomesParseResult => ({
+  accepted: null,
   rejected: [{ code, message, raw }],
 });
 
-export const parseDbhGradeSummaries = (
+/**
+ * Boundary parser for DBH/HK-dir table 905 ("Eksamensdata"), grouped by
+ * year, semester, and versioned course code. Valid rows survive malformed or
+ * out-of-scope neighbours; no provider value reaches the domain unvalidated.
+ */
+export const parseDbhExamOutcomes = (
   input: unknown | Uint8Array,
-  capture: DbhGradeSummariesCaptureMetadata,
-): DbhGradeSummariesParseResult => {
+  capture: DbhExamOutcomesCaptureMetadata,
+): DbhExamOutcomesParseResult => {
   const captureResult = Schema.decodeUnknownResult(CaptureSchema)(capture);
   if (Result.isFailure(captureResult)) {
     return rejectAll(
       'invalid-capture-metadata',
-      'DBH grade-summary capture metadata failed validation.',
+      'DBH exam-outcome capture metadata failed validation.',
       capture,
     );
   }
 
   const decoded = decodeInput(input);
   if (decoded.code !== undefined) {
-    return rejectAll(decoded.code, 'DBH grade-summary response could not be decoded.', input);
+    return rejectAll(decoded.code, 'DBH exam-outcome response could not be decoded.', input);
   }
 
   const responseResult = Schema.decodeUnknownResult(ResponseSchema)(decoded.value);
   if (Result.isFailure(responseResult)) {
     return rejectAll(
       'invalid-response-shape',
-      'DBH grade-summary response must be an array.',
+      'DBH exam-outcome response must be an array.',
       decoded.value,
     );
   }
 
   const captured = captureResult.success;
-  const requestedCodes = [
-    ...new Set(captured.courseCodes.map((code) => code.trim().toUpperCase())),
-  ];
-  const rowsByCourse = new Map<string, ValidatedDbhGradeSummaryRow[]>();
-  const rejected: DbhGradeSummariesRejection[] = [];
+  const courseCode = captured.courseCode.trim().toUpperCase();
+  const rows: ValidatedDbhExamOutcomeRow[] = [];
+  const rejected: DbhExamOutcomesRejection[] = [];
 
   for (const candidate of responseResult.success) {
     const rowResult = Schema.decodeUnknownResult(RowSchema)(candidate);
     if (Result.isFailure(rowResult)) {
       rejected.push({
         code: 'row-schema-invalid',
-        message: 'A DBH grade-summary row failed boundary validation.',
+        message: 'A DBH exam-outcome row failed boundary validation.',
         raw: candidate,
       });
       continue;
@@ -163,54 +169,48 @@ export const parseDbhGradeSummaries = (
     if (year < captured.fromYear || year > captured.toYear) {
       rejected.push({
         code: 'row-period-unrequested',
-        message: 'A DBH grade-summary row was outside the requested year window.',
+        message: 'A DBH exam-outcome row was outside the requested year window.',
         raw: candidate,
       });
       continue;
     }
-    const providerCourseCode = row.Emnekode.trim().toUpperCase();
-    const courseCode = requestedCodes.find((code) => providerCourseCode.startsWith(`${code}-`));
-    if (courseCode === undefined) {
+    if (!row.Emnekode.trim().toUpperCase().startsWith(`${courseCode}-`)) {
       rejected.push({
         code: 'row-course-unrequested',
-        message: 'A DBH grade-summary row did not match a requested course code.',
+        message: 'A DBH exam-outcome row did not match the requested course code.',
         raw: candidate,
       });
       continue;
     }
 
-    const rows = rowsByCourse.get(courseCode) ?? [];
     rows.push({
-      grade: row.Karakter.trim().toUpperCase(),
-      candidateCount: Number(row['Antall kandidater totalt']),
       year,
       semester: Number(row.Semester) as 1 | 3,
+      registeredCount: Number(row['Oppmeldt totalt']),
+      attendedCount: Number(row['Møtt til eksamen']),
+      passedCount: Number(row.Bestått),
+      passedRepeatCount: Number(row['Beståtte gjentak']),
+      failedCount: Number(row['Antall kandidater stryk']),
     });
-    rowsByCourse.set(courseCode, rows);
   }
 
+  const sourceRecordId = `dbh:${DBH_TABLE_ID}:${courseCode}:${captured.fromYear}-${captured.toYear}`;
   return {
-    accepted: requestedCodes.flatMap((courseCode) => {
-      const rows = rowsByCourse.get(courseCode);
-      if (rows === undefined) return [];
-      const sourceRecordId = `dbh:${DBH_TABLE_ID}:${courseCode}:${captured.fromYear}-${captured.toYear}`;
-      return [
-        {
-          courseCode,
-          sourceRecordId,
-          attribution: {
-            provider: 'dbh',
-            tableId: DBH_TABLE_ID,
-            sourceRecordId,
-            retrievedAt: captured.retrievedAt,
-            contentHash: captured.contentHash,
-            period: { fromYear: captured.fromYear, toYear: captured.toYear },
-            evidenceKind: captured.evidenceKind,
-          },
-          rows,
-        },
-      ];
-    }),
+    accepted: {
+      courseCode,
+      sourceRecordId,
+      attribution: {
+        provider: 'dbh',
+        tableId: DBH_TABLE_ID,
+        sourceRecordId,
+        retrievedAt: captured.retrievedAt,
+        contentHash: captured.contentHash,
+        requestUrl: captured.requestUrl,
+        requestedPeriod: { fromYear: captured.fromYear, toYear: captured.toYear },
+        evidenceKind: captured.evidenceKind,
+      },
+      rows,
+    },
     rejected,
   };
 };

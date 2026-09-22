@@ -4,13 +4,13 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import dbhFixture from './grades/fixtures/tdt4136-dbh-308.json';
-import gradesNoFixture from './grades/fixtures/tdt4136-grades-no.json';
+import dbhExamFixture from './grades/fixtures/tdt4136-dbh-905.json';
 import searchFixture from './ntnu/fixtures/tdt4136-search.json';
-import { parseDbhGrades } from './grades/dbh-grades';
+import { parseDbhExamOutcomes } from './grades/dbh-exam-outcomes';
 import { parseDbhGradeSummaries } from './grades/dbh-grade-summaries';
+import { mapDbhToExamParticipation } from './grades/exam-participation';
 import { mapGradesToOutcomes } from './grades/grade-outcomes';
 import { mapDbhToGradeSummary } from './grades/grade-summary';
-import { parseGradesNoResponse } from './grades/grades-no';
 import { parseNtnuCourseDetail } from './ntnu/detail';
 import { mapNtnuDetailToCourseDecisionSignals } from './ntnu/map-course-decision-signals';
 import { parseNtnuCourseSearch } from './ntnu/search';
@@ -32,19 +32,13 @@ const detailCapture = {
   courseCode: 'TDT4136',
   evidenceKind: 'fixture' as const,
 };
-const gradesNoCapture = {
-  retrievedAt: '2026-07-24T12:00:00.000Z',
+const dbhExamCapture = {
+  retrievedAt: '2026-09-22T07:27:47.000Z',
   contentHash,
-  requestUrl: 'https://api.grades.no/api/v2/courses/TDT4136/grades/',
+  requestUrl: 'https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData',
   courseCode: 'TDT4136',
-  evidenceKind: 'fixture' as const,
-};
-const dbhCapture = {
-  retrievedAt: '2026-07-24T12:00:00.000Z',
-  contentHash,
-  courseCode: 'TDT4136',
-  fromYear: 2024,
-  toYear: 2024,
+  fromYear: 2022,
+  toYear: 2025,
   evidenceKind: 'fixture' as const,
 };
 const batchCapture = {
@@ -54,12 +48,6 @@ const batchCapture = {
   fromYear: 2022,
   toYear: 2025,
   evidenceKind: 'fixture' as const,
-};
-const gradeWindow = {
-  fromYear: 2024,
-  toYear: 2024,
-  semesters: ['AUTUMN', 'SPRING'] as const,
-  minimumCohortSize: 1,
 };
 const detailFixture = readFileSync(
   new URL('./ntnu/fixtures/tdt4136-detail.html', import.meta.url),
@@ -292,27 +280,27 @@ describe('NTNU provider boundaries', () => {
 });
 
 describe('grade provider boundaries', () => {
-  it('keeps grades.no summer observations while recognizing passed=0 as letter grading', () => {
-    const result = parseGradesNoResponse(gradesNoFixture, gradesNoCapture);
-    const firstRecord = gradesNoFixture[0];
-    if (firstRecord === undefined) throw new Error('Expected grades.no fixture data.');
-    const zeroMarker = parseGradesNoResponse([{ ...firstRecord, passed: 0 }], gradesNoCapture);
+  it('preserves the captured DBH table-308 G and H buckets', () => {
+    const result = parseDbhGradeSummaries(dbhFixture, {
+      ...batchCapture,
+      courseCodes: ['TDT4136'],
+    });
 
     expect(result.rejected).toEqual([]);
-    expect(result.accepted.some((period) => period.semester === 'SUMMER')).toBe(true);
-    expect(zeroMarker.accepted[0]?.passedCount).toBeNull();
-  });
-
-  it('preserves DBH table 308 plain-row G and H buckets', () => {
-    const result = parseDbhGrades(dbhFixture, dbhCapture);
-
-    expect(result.rejected).toBeNull();
-    expect(result.accepted?.rows).toEqual(
+    expect(result.accepted[0]?.rows).toEqual(
       expect.arrayContaining([
-        { grade: 'G', candidateCount: 9 },
-        { grade: 'H', candidateCount: 2 },
+        { year: 2022, semester: 3, grade: 'G', candidateCount: 23 },
+        { year: 2022, semester: 3, grade: 'H', candidateCount: 6 },
       ]),
     );
+    const course = result.accepted[0];
+    if (course === undefined) throw new Error('Expected the captured DBH course.');
+    const outcomes = mapGradesToOutcomes('TDT4136', course);
+    expect(outcomes.period).toMatchObject({
+      state: 'known',
+      value: { fromYear: 2022, toYear: 2025 },
+    });
+    expect(outcomes.sampleSize).toMatchObject({ state: 'known', value: 1799 });
   });
 
   it.each([
@@ -464,44 +452,6 @@ describe('grade provider boundaries', () => {
     ]);
   });
 
-  it('accepts constrained grades.no records and rejects the corresponding controlled corruption', () => {
-    const generatedGradesNoRecord = fc.record({
-      year: fc.integer({ min: 2000, max: 2200 }),
-      semester: fc.constantFrom('AUTUMN' as const, 'SPRING' as const, 'SUMMER' as const),
-      attendee_count: fc.integer({ min: 0, max: 10_000 }),
-      a: fc.integer({ min: 0, max: 10_000 }),
-      b: fc.integer({ min: 0, max: 10_000 }),
-      c: fc.integer({ min: 0, max: 10_000 }),
-      d: fc.integer({ min: 0, max: 10_000 }),
-      e: fc.integer({ min: 0, max: 10_000 }),
-      f: fc.integer({ min: 0, max: 10_000 }),
-      passed: fc.option(fc.integer({ min: 0, max: 10_000 }), { nil: null }),
-      average_grade: fc.option(
-        fc.integer({ min: 0, max: 50 }).map((value) => value / 10),
-        {
-          nil: null,
-        },
-      ),
-    });
-
-    fc.assert(
-      fc.property(generatedGradesNoRecord, (record) => {
-        const valid = parseGradesNoResponse([record], gradesNoCapture);
-        const period = valid.accepted[0];
-        if (period === undefined) throw new Error('Expected valid grades.no record.');
-        const corrupt = parseGradesNoResponse([{ ...record, semester: 'WINTER' }], gradesNoCapture);
-
-        expect(period.attendeeCount).toBe(record.attendee_count);
-        expect(period.passedCount).toBe(
-          record.passed !== null && record.passed > 0 ? record.passed : null,
-        );
-        expect(corrupt.accepted).toEqual([]);
-        expect(corrupt.rejected[0]?.code).toBe('invalid-response-shape');
-      }),
-      { numRuns: 50, seed: 0x47524144 },
-    );
-  });
-
   it('retains constrained DBH batch rows when a controlled neighbour is corrupt', () => {
     const generatedDbhBatchRow = fc.integer({ min: 100, max: 9_999 }).map((number) => ({
       courseCode: `TST${number}`,
@@ -529,110 +479,68 @@ describe('grade provider boundaries', () => {
     );
   });
 
-  it('keeps reconciliation independent of source-record order and useful after one provider fails', () => {
-    const generatedGradesNoRecord = fc.record({
-      year: fc.constant(2024),
-      semester: fc.constantFrom('AUTUMN' as const, 'SPRING' as const),
-      attendee_count: fc.integer({ min: 1, max: 1_000 }),
-      a: fc.integer({ min: 0, max: 100 }),
-      b: fc.integer({ min: 0, max: 100 }),
-      c: fc.integer({ min: 0, max: 100 }),
-      d: fc.integer({ min: 0, max: 100 }),
-      e: fc.integer({ min: 0, max: 100 }),
-      f: fc.integer({ min: 0, max: 100 }),
-      passed: fc.option(fc.integer({ min: 0, max: 100 }), { nil: null }),
-      average_grade: fc.option(
-        fc.integer({ min: 0, max: 50 }).map((value) => value / 10),
-        {
-          nil: null,
-        },
-      ),
-    });
-    const generatedDbhRow = fc.record({
-      Karakter: fc.constantFrom('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'),
-      'Antall kandidater totalt': fc.integer({ min: 1, max: 100 }).map(String),
-    });
+  it('keeps DBH grade outcomes stable when source rows arrive in another order', () => {
+    const capture = { ...batchCapture, courseCodes: ['TDT4136'] };
+    const parsed = parseDbhGradeSummaries(dbhFixture, capture);
+    const reordered = parseDbhGradeSummaries([...dbhFixture].reverse(), capture);
+    const course = parsed.accepted[0];
+    const reorderedCourse = reordered.accepted[0];
+    if (course === undefined || reorderedCourse === undefined) {
+      throw new Error('Expected valid DBH fixtures.');
+    }
 
-    fc.assert(
-      fc.property(
-        fc.array(generatedGradesNoRecord, { minLength: 1, maxLength: 4 }),
-        fc.array(generatedDbhRow, { minLength: 1, maxLength: 4 }),
-        (gradesNoRecords, dbhRows) => {
-          const gradesNo = parseGradesNoResponse(gradesNoRecords, gradesNoCapture).accepted;
-          const parsedDbh = parseDbhGrades(dbhRows, dbhCapture);
-          if (parsedDbh.accepted === null) throw new Error('Expected valid DBH rows.');
+    const outcomes = mapGradesToOutcomes('TDT4136', course);
+    const reorderedOutcomes = mapGradesToOutcomes('TDT4136', reorderedCourse);
 
-          const gradesNoOnly = mapGradesToOutcomes('TDT4136', gradesNo, null, gradeWindow);
-          const reorderedGradesNo = mapGradesToOutcomes(
-            'TDT4136',
-            [...gradesNo].reverse(),
-            null,
-            gradeWindow,
-          );
-          const dbhOnly = mapGradesToOutcomes('TDT4136', null, parsedDbh.accepted, gradeWindow);
-
-          expect(gradesNoOnly.sampleSize.state).toBe('known');
-          expect(dbhOnly.sampleSize.state).toBe('known');
-          expect(
-            gradesNoOnly.sourceStatuses.map((status) => [status.provider, status.status]),
-          ).toEqual([
-            ['grades-no', 'available'],
-            ['dbh', 'failed'],
-          ]);
-          expect(dbhOnly.sourceStatuses.map((status) => [status.provider, status.status])).toEqual([
-            ['grades-no', 'failed'],
-            ['dbh', 'available'],
-          ]);
-          expect(reorderedGradesNo.sampleSize).toEqual(gradesNoOnly.sampleSize);
-          expect(reorderedGradesNo.distribution).toEqual(gradesNoOnly.distribution);
-          expect(reorderedGradesNo.failureRatePercent).toEqual(gradesNoOnly.failureRatePercent);
-        },
-      ),
-      { numRuns: 50, seed: 0x5245434f },
-    );
+    expect(reorderedOutcomes.sampleSize).toEqual(outcomes.sampleSize);
+    expect(reorderedOutcomes.distribution).toEqual(outcomes.distribution);
+    expect(reorderedOutcomes.failureRatePercent).toEqual(outcomes.failureRatePercent);
   });
 
-  it.each([
-    { name: 'grades.no alone', gradesNo: true, dbh: false, expected: 'known' },
-    { name: 'DBH alone', gradesNo: false, dbh: true, expected: 'known' },
-    { name: 'neither provider', gradesNo: false, dbh: false, expected: 'unavailable' },
-  ])('reports $name without replacing missing data with zeroes', ({ gradesNo, dbh, expected }) => {
-    const parsedGradesNo = parseGradesNoResponse(
+  it('keeps missing and privacy-protected DBH grade data distinct from zero', () => {
+    const unavailable = mapGradesToOutcomes('TDT4136', null);
+    const protectedResult = parseDbhGradeSummaries(
       [
         {
-          year: 2024,
-          semester: 'AUTUMN',
-          attendee_count: 10,
-          a: 3,
-          b: 3,
-          c: 2,
-          d: 1,
-          e: 0,
-          f: 1,
-          passed: null,
-          average_grade: 3,
+          Emnekode: 'TDT4136-1',
+          Karakter: 'A',
+          Årstall: '2024',
+          Semester: '3',
+          'Antall kandidater totalt': '8',
+        },
+        {
+          Emnekode: 'TDT4136-1',
+          Karakter: 'F',
+          Årstall: '2024',
+          Semester: '3',
+          'Antall kandidater totalt': '0',
         },
       ],
-      gradesNoCapture,
-    ).accepted;
-    const parsedDbh = parseDbhGrades(
-      [
-        { Karakter: 'A', 'Antall kandidater totalt': '8' },
-        { Karakter: 'F', 'Antall kandidater totalt': '2' },
-      ],
-      dbhCapture,
+      { ...batchCapture, courseCodes: ['TDT4136'] },
     );
-    if (parsedDbh.accepted === null) throw new Error('Expected static DBH fixture to parse.');
+    const protectedCourse = protectedResult.accepted[0];
+    if (protectedCourse === undefined) throw new Error('Expected valid DBH rows.');
+    const protectedOutcomes = mapGradesToOutcomes('TDT4136', protectedCourse);
 
-    const outcomes = mapGradesToOutcomes(
-      'TDT4136',
-      gradesNo ? parsedGradesNo : null,
-      dbh ? parsedDbh.accepted : null,
-      gradeWindow,
-    );
+    expect(unavailable.sampleSize.state).toBe('unavailable');
+    expect(protectedOutcomes.sampleSize.state).toBe('suppressed');
+    expect(protectedOutcomes.failureRatePercent.state).toBe('suppressed');
+  });
 
-    expect(outcomes.sampleSize.state).toBe(expected);
-    expect(outcomes.distribution.state).toBe(expected);
-    expect(outcomes.failureRatePercent.state).toBe(expected);
+  it('maps official DBH table-905 participation and preserves protected cells', () => {
+    const parsed = parseDbhExamOutcomes(dbhExamFixture, dbhExamCapture);
+    if (parsed.accepted === null) throw new Error('Expected valid DBH table-905 fixture.');
+
+    const participation = mapDbhToExamParticipation(parsed.accepted, parsed.rejected.length);
+
+    expect(participation.period).toMatchObject({
+      state: 'known',
+      value: { fromYear: 2022, toYear: 2025 },
+    });
+    expect(participation.registered).toMatchObject({ state: 'known', value: 2248 });
+    expect(participation.attended.state).toBe('suppressed');
+    expect(participation.passed.state).toBe('suppressed');
+    expect(participation.failed.state).toBe('suppressed');
+    expect(participation.passedAfterRepeat.state).toBe('suppressed');
   });
 });

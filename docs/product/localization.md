@@ -28,8 +28,8 @@ Use the following tone:
 - ordinary university terminology rather than literal word-for-word English;
 - preserve course codes, source names, and official institutional terms;
 - keep accessible names equivalent to the visible action;
-- do not translate or rewrite prose received from NTNU, HK-dir, grades.no, or
-  another source.
+- do not translate or rewrite prose received from NTNU, HK-dir, or another
+  source.
 
 Source prose remains in its observed language because silently translated text
 could be mistaken for an official source statement. A future translated source

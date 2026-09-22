@@ -12,7 +12,7 @@ research and reusable domain code, but it no longer determines delivery order.
 
 - Current and prospective NTNU students choosing courses.
 - Anonymous and local-first; no account is required.
-- NTNU course data plus grades.no and DBH/HK-dir grade evidence.
+- NTNU course data plus official DBH/HK-dir grade and exam evidence.
 - Current and recent course offerings rather than complete national history.
 - Programme context is optional and comes after course discovery proves useful.
 

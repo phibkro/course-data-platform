@@ -1,5 +1,5 @@
 import { parseDbhGradeSummaries, type DbhGradeSummariesParseResult } from './dbh-grade-summaries';
-import type { FetchLike } from './grades-no-client';
+import type { FetchLike } from './fetch';
 
 const DBH_ENDPOINT = 'https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData';
 

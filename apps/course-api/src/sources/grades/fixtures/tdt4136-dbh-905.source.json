@@ -1,0 +1,33 @@
+{
+  "sourceProvider": "dbh",
+  "tableId": 905,
+  "requestUrl": "https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData",
+  "requestMethod": "POST",
+  "requestBody": {
+    "tabell_id": 905,
+    "api_versjon": 1,
+    "statuslinje": "N",
+    "kodetekst": "J",
+    "groupBy": ["Årstall", "Semester", "Emnekode"],
+    "filter": [
+      {
+        "variabel": "Institusjonskode",
+        "selection": { "filter": "item", "values": ["1150"] }
+      },
+      {
+        "variabel": "Emnekode",
+        "selection": { "filter": "like", "values": ["TDT4136-%"] }
+      },
+      {
+        "variabel": "Årstall",
+        "selection": { "filter": "between", "values": ["2022", "2025"] }
+      }
+    ]
+  },
+  "courseCode": "TDT4136",
+  "fromYear": 2022,
+  "toYear": 2025,
+  "retrievedAt": "2026-09-22T07:27:47.000Z",
+  "contentSha256": "f3369d5746129ef154c0ce468d6876ddcd9f44a506d83476dd0dc0fe32fd9098",
+  "evidenceKind": "source-fact"
+}

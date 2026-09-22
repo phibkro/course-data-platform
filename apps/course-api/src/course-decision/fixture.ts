@@ -16,7 +16,8 @@ import { CourseInvalidTermError, CourseNotFoundError, type CourseDecisionService
 
 const observedAt = '2026-07-23T10:00:00.000Z';
 const coursePageEvidenceId = 'fixture:ntnu-course-page:TDT4136:2026-spring';
-const gradesEvidenceId = 'fixture:grades-no:TDT4136:all-time';
+const gradesEvidenceId = 'fixture:dbh:308:TDT4136:2022-2025';
+const examParticipationEvidenceId = 'fixture:dbh:905:TDT4136:2022-2025';
 
 const coursePageEvidence = {
   id: coursePageEvidenceId,
@@ -32,13 +33,24 @@ const coursePageEvidence = {
 
 const gradesEvidence = {
   id: gradesEvidenceId,
-  provider: 'grades-no',
+  provider: 'dbh',
   kind: 'fixture' as const,
-  recordId: 'TDT4136:all-time',
-  sourceUrl: 'https://grades.no/course/TDT4136',
-  sourcePeriod: 'all-time through 2025',
+  recordId: 'dbh:308:TDT4136:2022-2025',
+  sourceUrl: 'https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData',
+  sourcePeriod: '2022-2025',
   observedAt,
-  excerpt: 'Prototype observation: sample size 1951, failure rate 10.7%, average grade C.',
+  excerpt: 'Fixture grade distribution from DBH/HK-dir table 308.',
+  inferenceRule: null,
+};
+const examParticipationEvidence = {
+  id: examParticipationEvidenceId,
+  provider: 'dbh',
+  kind: 'fixture' as const,
+  recordId: 'dbh:905:TDT4136:2022-2025',
+  sourceUrl: 'https://dbh-data.dataporten-api.no/Tabeller/hentJSONTabellData',
+  sourcePeriod: '2022-2025',
+  observedAt,
+  excerpt: 'Fixture exam participation totals from DBH/HK-dir table 905.',
   inferenceRule: null,
 };
 
@@ -118,10 +130,7 @@ const encodedInsight = {
   prerequisites: missing<string>('The fixture does not contain prerequisite evidence.'),
   accessRestrictions: missing<string>('The fixture does not contain access restrictions.'),
   gradeOutcomes: {
-    period: unavailable<{ fromYear: number; toYear: number }>(
-      'The prototype aggregate did not expose a bounded from/to period.',
-      [gradesEvidenceId],
-    ),
+    period: known({ fromYear: 2022, toYear: 2025 }, [gradesEvidenceId]),
     sampleSize: known(1951, [gradesEvidenceId]),
     distribution: unavailable<
       ReadonlyArray<{
@@ -129,12 +138,18 @@ const encodedInsight = {
         count: number;
         percentage: number;
       }>
-    >('The captured prototype observation did not retain grade buckets.', [gradesEvidenceId]),
+    >('The fixture does not retain grade buckets.', [gradesEvidenceId]),
     failureRatePercent: known(10.7, [gradesEvidenceId]),
     averageGrade: known('C', [gradesEvidenceId]),
-    medianGrade: unavailable<string>('The provider observation did not expose a median.', [
-      gradesEvidenceId,
-    ]),
+    medianGrade: unavailable<string>('The fixture does not retain a median.', [gradesEvidenceId]),
+  },
+  examParticipation: {
+    period: known({ fromYear: 2022, toYear: 2025 }, [examParticipationEvidenceId]),
+    registered: known(2310, [examParticipationEvidenceId]),
+    attended: known(2114, [examParticipationEvidenceId]),
+    passed: known(1890, [examParticipationEvidenceId]),
+    failed: known(224, [examParticipationEvidenceId]),
+    passedAfterRepeat: known(63, [examParticipationEvidenceId]),
   },
   sourceStatuses: [
     {
@@ -144,13 +159,19 @@ const encodedInsight = {
       warning: 'Fixture evidence; live adapter not connected.',
     },
     {
-      provider: 'grades-no',
+      provider: 'dbh-table-308',
+      status: 'available' as const,
+      observedAt,
+      warning: 'Fixture evidence; live adapter not connected.',
+    },
+    {
+      provider: 'dbh-table-905',
       status: 'available' as const,
       observedAt,
       warning: 'Fixture evidence; live adapter not connected.',
     },
   ],
-  evidence: [coursePageEvidence, gradesEvidence],
+  evidence: [coursePageEvidence, gradesEvidence, examParticipationEvidence],
 };
 
 export const fixtureCourseInsight: CourseInsight = decodeCourseInsight(encodedInsight);
