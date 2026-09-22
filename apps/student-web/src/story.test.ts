@@ -1,25 +1,31 @@
+import { Schema as S } from 'effect';
 import fc from 'fast-check';
 import { expect, test } from 'vitest';
 
 import { fixtureScheduleResponse, fixtureSearchResponse } from './course-client.fixture';
+import { parseCourseSearch } from './course-client';
 import { courseIdentity } from './course-identity';
 import {
   ChangedCampus,
   ChangedLabelInclusion,
   GotScheduleMessage,
   LoadedSavedCourses,
+  RequestedRemoveSavedCourse,
   RequestedSaveCourse,
+  RequestedToggleSavedListAction,
   SavedCoursesReady,
   StampedSavedCourse,
+  savedListNoticeKey,
   SubmittedSavedNote,
   SucceededCourseSearch,
   UpdatedSavedNoteDraft,
   initForHref,
   normalizedUrl,
   update,
-  type Model,
+  Model,
 } from './app';
 import {
+  attachLabel,
   createLabel,
   emptyLabelFilter,
   emptySavedList,
@@ -70,6 +76,51 @@ test('stale catalogue responses cannot overwrite a newer Explore transition', ()
   expect(staleResponse.commands ?? []).toEqual([]);
 });
 
+test('appended response pages remain valid application state', () => {
+  const firstResponse = fixtureSearchResponse(1);
+  const secondResponse = parseCourseSearch({
+    ...firstResponse,
+    items: firstResponse.items.map((item) => ({
+      ...item,
+      courseKey: `${item.courseKey}:next`,
+      code: `N${item.code}`,
+    })),
+    meta: {
+      ...firstResponse.meta,
+      count: firstResponse.items.length,
+      total: firstResponse.items.length * 2,
+      page: 2,
+      pageSize: 20,
+      hasMore: false,
+    },
+  });
+  const initial = initForHref('http://course-lens.local/').model;
+  const first = update(
+    initial,
+    SucceededCourseSearch({
+      requestKey: initial.activeRequestKey,
+      append: false,
+      response: firstResponse,
+    }),
+  ).model;
+  const second = update(
+    first,
+    SucceededCourseSearch({
+      requestKey: initial.activeRequestKey,
+      append: true,
+      response: secondResponse,
+    }),
+  ).model;
+
+  const decoded = S.decodeUnknownSync(Model)(second);
+  if (
+    decoded.catalogue._tag !== 'CatalogueSuccess' &&
+    decoded.catalogue._tag !== 'CataloguePartial'
+  ) {
+    throw new Error(`Expected an accumulated catalogue, got ${decoded.catalogue._tag}`);
+  }
+  expect(decoded.catalogue.response.items).toHaveLength(firstResponse.items.length * 2);
+});
 test('Schedule URL state round-trips through saved-course canonicalization and ignores stale responses', () => {
   const saved = saveCourse(emptySavedList, identity('TDT4136'), savedAt);
   const initial = initForHref(
@@ -171,6 +222,72 @@ test('saved-list persistence follows explicit save and note commits, never draft
   expect(findSavedCourse(savedState(committedResult.model), identity('TDT4136'))?.note).toBe(
     'Ask an adviser',
   );
+});
+
+test('saved-list undo and redo round-trip notes and label memberships', () => {
+  const savedResult = update(readyModel(), StampedSavedCourse({ courseCode: 'TDT4136', savedAt }));
+  const savedNotice = savedResult.model.savedListActions[0];
+  if (savedNotice === undefined) throw new Error('Expected a reversible save action');
+  const savedActionKey = savedListNoticeKey(savedNotice);
+
+  const undoneSave = update(
+    savedResult.model,
+    RequestedToggleSavedListAction({ key: savedActionKey }),
+  );
+  expect(findSavedCourse(savedState(undoneSave.model), identity('TDT4136'))).toBeNull();
+  expect(undoneSave.model.savedListActions[0]).toMatchObject({ isUndone: true });
+  expect(commandNames(undoneSave.commands ?? [])).toEqual([
+    'PersistSavedCourses',
+    'RestoreSavedListFocus',
+  ]);
+
+  const redoneSave = update(
+    undoneSave.model,
+    RequestedToggleSavedListAction({ key: savedActionKey }),
+  );
+  expect(savedState(redoneSave.model)).toEqual(savedState(savedResult.model));
+  expect(redoneSave.model.savedListActions[0]).toMatchObject({ isUndone: false });
+
+  const labelled = createLabel(savedState(savedResult.model), {
+    id: 'label-plan',
+    name: 'Plan',
+    color: 'sky',
+  });
+  if (labelled._tag !== 'LabelApplied') throw new Error('Expected a label');
+  const attached = attachLabel(labelled.state, 'label-plan', [identity('TDT4136')]);
+  const withNote: SavedListState = {
+    ...attached,
+    savedCourses: attached.savedCourses.map((course) => ({
+      ...course,
+      note: course.courseCode === 'TDT4136' ? 'Ask an adviser' : course.note,
+    })),
+  };
+
+  const removed = update(
+    readyModel(withNote),
+    RequestedRemoveSavedCourse({ courseCode: 'TDT4136' }),
+  );
+  expect(findSavedCourse(savedState(removed.model), identity('TDT4136'))).toBeNull();
+  const removedNotice = removed.model.savedListActions[0];
+  if (removedNotice === undefined) throw new Error('Expected a reversible remove action');
+  const removedActionKey = savedListNoticeKey(removedNotice);
+
+  const restored = update(removed.model, RequestedToggleSavedListAction({ key: removedActionKey }));
+  expect(savedState(restored.model)).toEqual(withNote);
+  expect(restored.model.savedListActions[0]).toMatchObject({ isUndone: true });
+
+  const removedAgain = update(
+    restored.model,
+    RequestedToggleSavedListAction({ key: removedActionKey }),
+  );
+  expect(findSavedCourse(savedState(removedAgain.model), identity('TDT4136'))).toBeNull();
+  expect(removedAgain.model.savedListActions[0]).toMatchObject({ isUndone: false });
+
+  const restoredAgain = update(
+    removedAgain.model,
+    RequestedToggleSavedListAction({ key: removedActionKey }),
+  );
+  expect(savedState(restoredAgain.model)).toEqual(withNote);
 });
 
 test('label-filter changes are URL-backed List transitions without catalogue refetches', () => {

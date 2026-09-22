@@ -1,5 +1,6 @@
 import { Effect, Option, Schema as S, Stream } from 'effect';
 import { Command, Navigation, Runtime, Subscription, Update, Url } from 'foldkit';
+import * as Dom from 'foldkit/dom';
 import type { Document, Html, HtmlBuilder } from 'foldkit/html';
 import { createLazy } from 'foldkit/html';
 import { defineMessageUnion } from 'foldkit/message';
@@ -32,10 +33,12 @@ import {
   translate,
   type Locale,
 } from './i18n';
-import type { AppIcon } from './icons';
+import { icon, type AppIcon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 import {
   LabelPredicateSchema,
+  LabelMembershipSchema,
+  SavedCourseSchema,
   SavedListLoadSchema,
   SavedListStateSchema,
   attachLabel,
@@ -62,8 +65,10 @@ import {
   emptySavedList,
   findSavedCourse,
   isSaved,
+  membershipsForSavedCourse,
   parseSavedList,
   removeSavedCourse,
+  restoreSavedCourse,
   saveCourse,
   savedListStorageKey,
   serializeSavedList,
@@ -317,6 +322,44 @@ export const savedToggleAvailability = (
     SavedCoursesLoading: () => 'loading' as const,
     SavedCoursesRecovery: () => 'paused' as const,
   });
+/**
+ * Ephemeral snapshots of recent Save and Remove actions. They are never
+ * persisted. `isUndone` makes each snapshot a reversible two-state action:
+ * Undo applies the prior state; Redo reapplies the original action.
+ */
+const SavedListNoticeSchema = defineTaggedUnion({
+  SavedActionSaved: {
+    courses: S.Array(SavedCourseSchema),
+    memberships: S.Array(LabelMembershipSchema),
+    isUndone: S.Boolean,
+  },
+  SavedActionRemoved: {
+    courses: S.Array(SavedCourseSchema),
+    memberships: S.Array(LabelMembershipSchema),
+    isUndone: S.Boolean,
+  },
+});
+export type SavedListNotice = typeof SavedListNoticeSchema.Type;
+
+const savedListNoticeLimit = 3;
+
+export const savedListNoticeKey = (notice: SavedListNotice): string =>
+  (notice._tag === 'SavedActionSaved' ? 'saved:' : 'removed:') +
+  notice.courses.map((course) => course.courseCode).join(',');
+
+const withNotice = (
+  notices: ReadonlyArray<SavedListNotice>,
+  notice: SavedListNotice,
+): ReadonlyArray<SavedListNotice> =>
+  [
+    notice,
+    ...notices.filter((existing) => savedListNoticeKey(existing) !== savedListNoticeKey(notice)),
+  ].slice(0, savedListNoticeLimit);
+
+const withoutNotice = (
+  notices: ReadonlyArray<SavedListNotice>,
+  key: string,
+): ReadonlyArray<SavedListNotice> => notices.filter((notice) => savedListNoticeKey(notice) !== key);
 
 const NoteDraftSchema = S.Struct({ courseCode: S.String, value: S.String });
 
@@ -367,6 +410,7 @@ export const Model = S.Struct({
   progress: ProgressModel,
   schedule: ScheduleModel,
   savedCourses: SavedCoursesResultSchema,
+  savedListActions: S.Array(SavedListNoticeSchema),
   noteDrafts: S.Array(NoteDraftSchema),
   savedCoursesPersistFailed: S.Boolean,
   labelFilter: LabelFilterSchema,
@@ -376,6 +420,7 @@ export const Model = S.Struct({
   labelFilterNotice: S.NullOr(LabelFilterNoticeSchema),
   selectedCourseCodes: S.Array(S.String),
   labelDialog: Dialog.Model,
+  keyboardShortcutsDialog: Dialog.Model,
   labelDialogTarget: S.Array(S.String),
   labelDraftName: S.String,
   labelDraftColor: LabelColorSchema,
@@ -487,6 +532,10 @@ export const Message = defineMessageUnion({
   FailedCourseInsight: { courseCode: S.String, error: S.String },
   CompletedNavigation: {},
   FailedNavigation: { error: S.String },
+  CompletedSavedListFocus: {},
+  FailedSavedListFocus: {},
+  CompletedCatalogueSearchFocus: {},
+  FailedCatalogueSearchFocus: {},
   PersistedLocale: {},
   FailedLocalePersistence: {},
   ToggledSidebar: {},
@@ -494,6 +543,9 @@ export const Message = defineMessageUnion({
   FailedSidebarPreferencePersistence: {},
   RequestedOpenRefineDialog: {},
   GotRefineDialogMessage: { message: Dialog.Message },
+  RequestedFocusCatalogueSearch: {},
+  RequestedOpenKeyboardShortcuts: {},
+  GotKeyboardShortcutsDialogMessage: { message: Dialog.Message },
   GotAppearanceMessage: { message: AppearanceMessage },
   GotCompareMessage: { message: CompareMessage },
   GotProgressMessage: { message: ProgressMessage },
@@ -515,6 +567,9 @@ export const Message = defineMessageUnion({
   RequestedSavedCoursesReset: {},
   PersistedSavedCourses: {},
   FailedSavedCoursesPersistence: {},
+  RequestedToggleSavedListAction: { key: S.String },
+  DismissedSavedListAction: { key: S.String },
+  DismissedAllSavedListActions: {},
   ChangedLabelInclusion: {
     predicate: LabelPredicateSchema,
     isIncluded: S.Boolean,
@@ -587,6 +642,9 @@ export const PersistedSidebarPreference = Message.PersistedSidebarPreference;
 export const FailedSidebarPreferencePersistence = Message.FailedSidebarPreferencePersistence;
 export const RequestedOpenRefineDialog = Message.RequestedOpenRefineDialog;
 export const GotRefineDialogMessage = Message.GotRefineDialogMessage;
+export const RequestedFocusCatalogueSearch = Message.RequestedFocusCatalogueSearch;
+export const RequestedOpenKeyboardShortcuts = Message.RequestedOpenKeyboardShortcuts;
+export const GotKeyboardShortcutsDialogMessage = Message.GotKeyboardShortcutsDialogMessage;
 export const GotAppearanceMessage = Message.GotAppearanceMessage;
 export const GotCompareMessage = Message.GotCompareMessage;
 export const GotProgressMessage = Message.GotProgressMessage;
@@ -604,6 +662,9 @@ export const SubmittedSavedNote = Message.SubmittedSavedNote;
 export const RequestedSavedCoursesReset = Message.RequestedSavedCoursesReset;
 export const PersistedSavedCourses = Message.PersistedSavedCourses;
 export const FailedSavedCoursesPersistence = Message.FailedSavedCoursesPersistence;
+export const RequestedToggleSavedListAction = Message.RequestedToggleSavedListAction;
+export const DismissedSavedListAction = Message.DismissedSavedListAction;
+export const DismissedAllSavedListActions = Message.DismissedAllSavedListActions;
 export const ChangedLabelInclusion = Message.ChangedLabelInclusion;
 export const ChangedLabelExclusion = Message.ChangedLabelExclusion;
 export const ChangedLabelFilterMode = Message.ChangedLabelFilterMode;
@@ -761,6 +822,26 @@ export const Navigate = Command.define('Navigate', {
         ? Navigation.replaceUrl(href)
         : Navigation.pushUrl(href)
     ).pipe(Effect.as(Message.CompletedNavigation())),
+});
+
+const RestoreSavedListFocus = Command.define('RestoreSavedListFocus', {
+  args: { courseCode: S.String, actionKey: S.String },
+  messages: [Message.CompletedSavedListFocus, Message.FailedSavedListFocus],
+  execute: ({ courseCode, actionKey }) =>
+    Dom.focus(`#saved-toggle-${courseCode}`).pipe(
+      Effect.catch(() => Dom.focus(`[data-saved-action-key="${actionKey}"]`)),
+      Effect.catch(() => Dom.focus('main h1', { preventScroll: true, makeFocusable: true })),
+      Effect.as(Message.CompletedSavedListFocus()),
+      Effect.catch(() => Effect.succeed(Message.FailedSavedListFocus())),
+    ),
+});
+
+const FocusCatalogueSearch = Command.define('FocusCatalogueSearch', {
+  messages: [Message.CompletedCatalogueSearchFocus, Message.FailedCatalogueSearchFocus],
+  execute: Dom.focus('#course-query').pipe(
+    Effect.as(Message.CompletedCatalogueSearchFocus()),
+    Effect.catch(() => Effect.succeed(Message.FailedCatalogueSearchFocus())),
+  ),
 });
 
 export const PersistLocale = Command.define('PersistLocale', {
@@ -1175,6 +1256,13 @@ export const normalizedUrl = (
   }
   const query = params.toString();
   return query.length === 0 ? pathname : `${pathname}?${query}`;
+};
+
+export const scheduleCourseUrl = (model: Model, courseCode: string): string => {
+  const url = new URL(normalizedUrl(model, null, SCHEDULE_PATH), 'https://course-lens.local');
+  url.searchParams.set('courses', courseCode);
+  url.searchParams.delete('hideActivity');
+  return `${url.pathname}${url.search}`;
 };
 
 const parseLabelIds = (value: string | null): ReadonlyArray<string> =>
@@ -2246,6 +2334,10 @@ export const update = (model: Model, message: Message) =>
         : { model },
     CompletedNavigation: () => ({ model }),
     FailedNavigation: () => ({ model }),
+    CompletedSavedListFocus: () => ({ model }),
+    FailedSavedListFocus: () => ({ model }),
+    CompletedCatalogueSearchFocus: () => ({ model }),
+    FailedCatalogueSearchFocus: () => ({ model }),
     PersistedLocale: () => ({ model }),
     FailedLocalePersistence: () => ({ model }),
     PersistedSidebarPreference: () => ({ model }),
@@ -2269,6 +2361,41 @@ export const update = (model: Model, message: Message) =>
         }),
         commands: Command.mapMessages(refineDialogUpdate.commands, (message) =>
           Message.GotRefineDialogMessage({ message }),
+        ),
+      };
+    },
+    RequestedFocusCatalogueSearch: () => {
+      const alreadyOnCatalogue = model.route === 'explore' && model.selectedCode === null;
+      const nextModel = modifyFields(forRoute(model, 'explore'), {
+        route: () => 'explore',
+        selectedCode: () => null,
+        detail: () => DetailResult.DetailClosed(),
+      });
+      return {
+        model: nextModel,
+        commands: [
+          ...(alreadyOnCatalogue
+            ? []
+            : [Navigate({ href: normalizedUrl(nextModel, null, EXPLORE_PATH), mode: 'push' })]),
+          FocusCatalogueSearch(),
+        ],
+      };
+    },
+    RequestedOpenKeyboardShortcuts: () => {
+      const dialogOpen = Dialog.open(model.keyboardShortcutsDialog);
+      return {
+        model: modifyFields(model, { keyboardShortcutsDialog: () => dialogOpen.model }),
+        commands: Command.mapMessages(dialogOpen.commands, (message) =>
+          Message.GotKeyboardShortcutsDialogMessage({ message }),
+        ),
+      };
+    },
+    GotKeyboardShortcutsDialogMessage: ({ message: dialogMessage }) => {
+      const dialogUpdate = Dialog.update(model.keyboardShortcutsDialog, dialogMessage);
+      return {
+        model: modifyFields(model, { keyboardShortcutsDialog: () => dialogUpdate.model }),
+        commands: Command.mapMessages(dialogUpdate.commands, (message) =>
+          Message.GotKeyboardShortcutsDialogMessage({ message }),
         ),
       };
     },
@@ -2400,32 +2527,66 @@ export const update = (model: Model, message: Message) =>
         ? { model }
         : { model, commands: [StampSavedCourse({ courseCode: identity.courseCode })] };
     },
-    StampedSavedCourse: ({ courseCode, savedAt }) =>
-      applySavedListChange(
+    StampedSavedCourse: ({ courseCode, savedAt }) => {
+      const savedListChange = applySavedListChange(
         model,
         (state, identity) => saveCourse(state, identity, savedAt),
         courseCode,
-      ),
+      );
+      if (savedListChange.model === model) {
+        return savedListChange;
+      }
+      const nextState = savedListState(savedListChange.model.savedCourses);
+      const identity = courseIdentity(courseCode);
+      const course =
+        nextState === null || identity === null ? null : findSavedCourse(nextState, identity);
+      if (nextState === null || identity === null || course === null) {
+        return savedListChange;
+      }
+      const nextModel = modifyFields(savedListChange.model, {
+        savedListActions: () =>
+          withNotice(
+            model.savedListActions,
+            SavedListNoticeSchema.SavedActionSaved({
+              courses: [course],
+              memberships: membershipsForSavedCourse(nextState, identity),
+              isUndone: false,
+            }),
+          ),
+      });
+      return savedListChange.commands === undefined
+        ? { model: nextModel }
+        : { model: nextModel, commands: savedListChange.commands };
+    },
     RequestedRemoveSavedCourse: ({ courseCode }) => {
       const state = savedListState(model.savedCourses);
       const identity = courseIdentity(courseCode);
       if (state === null || identity === null) {
         return { model };
       }
-      if (findSavedCourse(state, identity) === null) {
+      const course = findSavedCourse(state, identity);
+      if (course === null) {
         return { model };
       }
+      const memberships = membershipsForSavedCourse(state, identity);
       const next = removeSavedCourse(state, identity);
       return {
         model: modifyFields(model, {
           savedCourses: () =>
             SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
           noteDrafts: () => withoutNoteDraft(model.noteDrafts, identity.courseCode),
-          // Removing a course clears its memberships, its note draft, and its
-          // selection in the same transition; nothing can act on it after.
           selectedCourseCodes: () =>
             withoutSelected(model.selectedCourseCodes, identity.courseCode),
           labelDialogTarget: () => withoutSelected(model.labelDialogTarget, identity.courseCode),
+          savedListActions: () =>
+            withNotice(
+              model.savedListActions,
+              SavedListNoticeSchema.SavedActionRemoved({
+                courses: [course],
+                memberships,
+                isUndone: false,
+              }),
+            ),
         }),
         commands: [PersistSavedCourses({ state: next })],
       };
@@ -2457,6 +2618,7 @@ export const update = (model: Model, message: Message) =>
             repairedEntries: 0,
           }),
         noteDrafts: () => [],
+        savedListActions: () => [],
         selectedCourseCodes: () => [],
         labelDialogTarget: () => [],
         labelFilter: () => emptyLabelFilter,
@@ -2479,6 +2641,102 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, {
         savedCoursesPersistFailed: () => true,
       }),
+    }),
+    RequestedToggleSavedListAction: ({ key }) => {
+      const state = savedListState(model.savedCourses);
+      const notice = model.savedListActions.find(
+        (candidate) => savedListNoticeKey(candidate) === key,
+      );
+      if (state === null || notice === undefined || notice.courses.length === 0) {
+        return { model };
+      }
+
+      const identities = notice.courses
+        .map((course) => courseIdentity(course.courseCode))
+        .filter((identity) => identity !== null);
+      if (identities.length !== notice.courses.length) {
+        return { model };
+      }
+
+      const shouldRestore = notice._tag === 'SavedActionSaved' ? notice.isUndone : !notice.isUndone;
+      const currentCourses = shouldRestore
+        ? notice.courses
+        : identities
+            .map((identity) => findSavedCourse(state, identity))
+            .filter((course) => course !== null);
+      if (!shouldRestore && currentCourses.length !== identities.length) {
+        return { model };
+      }
+      const currentMemberships = shouldRestore
+        ? notice.memberships
+        : identities.flatMap((identity) => membershipsForSavedCourse(state, identity));
+      const next = shouldRestore
+        ? currentCourses.reduce(
+            (restored, course) =>
+              restoreSavedCourse(
+                restored,
+                course,
+                currentMemberships.filter((membership) => membership.savedCourseId === course.id),
+              ),
+            state,
+          )
+        : identities.reduce((remaining, identity) => removeSavedCourse(remaining, identity), state);
+      if (next === state) {
+        return { model };
+      }
+
+      const nextNotice =
+        notice._tag === 'SavedActionSaved'
+          ? SavedListNoticeSchema.SavedActionSaved({
+              courses: currentCourses,
+              memberships: currentMemberships,
+              isUndone: !notice.isUndone,
+            })
+          : SavedListNoticeSchema.SavedActionRemoved({
+              courses: currentCourses,
+              memberships: currentMemberships,
+              isUndone: !notice.isUndone,
+            });
+      const affectedCodes = currentCourses.map((course) => course.courseCode);
+      const withoutAffected = (values: ReadonlyArray<string>): ReadonlyArray<string> =>
+        shouldRestore
+          ? values
+          : affectedCodes.reduce(
+              (remaining, courseCode) => withoutSelected(remaining, courseCode),
+              values,
+            );
+      const nextDrafts = shouldRestore
+        ? model.noteDrafts
+        : affectedCodes.reduce(
+            (drafts, courseCode) => withoutNoteDraft(drafts, courseCode),
+            model.noteDrafts,
+          );
+      const focusCourseCode = currentCourses[0]?.courseCode;
+      return {
+        model: modifyFields(model, {
+          savedCourses: () =>
+            SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
+          savedListActions: () => withNotice(model.savedListActions, nextNotice),
+          noteDrafts: () => nextDrafts,
+          selectedCourseCodes: () => withoutAffected(model.selectedCourseCodes),
+          labelDialogTarget: () => withoutAffected(model.labelDialogTarget),
+        }),
+        commands:
+          focusCourseCode === undefined
+            ? [PersistSavedCourses({ state: next })]
+            : [
+                PersistSavedCourses({ state: next }),
+                RestoreSavedListFocus({ courseCode: focusCourseCode, actionKey: key }),
+              ],
+      };
+    },
+    DismissedSavedListAction: ({ key }) => ({
+      model: modifyFields(model, {
+        savedListActions: () => withoutNotice(model.savedListActions, key),
+      }),
+    }),
+    DismissedAllSavedListActions: () => ({
+      model: modifyFields(model, { savedListActions: () => [] }),
     }),
     ChangedLabelInclusion: ({ predicate, isIncluded }) =>
       applyLabelFilter(model, setPredicateIncluded(model.labelFilter, predicate, isIncluded)),
@@ -2562,6 +2820,9 @@ export const update = (model: Model, message: Message) =>
           }),
         };
       }
+      const memberships = identities.flatMap((identity) =>
+        membershipsForSavedCourse(state, identity),
+      );
       const next = identities.reduce(
         (remaining, identity) => removeSavedCourse(remaining, identity),
         state,
@@ -2578,6 +2839,15 @@ export const update = (model: Model, message: Message) =>
           selectedCourseCodes: () => [],
           labelDialogTarget: () => [],
           selectionRemovePending: () => false,
+          savedListActions: () =>
+            withNotice(
+              model.savedListActions,
+              SavedListNoticeSchema.SavedActionRemoved({
+                courses,
+                memberships,
+                isUndone: false,
+              }),
+            ),
         }),
         commands: [PersistSavedCourses({ state: next })],
       };
@@ -2843,6 +3113,7 @@ export const initForHref = (
       location.scheduleHiddenActivityKeys,
     ),
     savedCourses: SavedCoursesResultSchema.SavedCoursesLoading(),
+    savedListActions: [],
     noteDrafts: [],
     savedCoursesPersistFailed: false,
     compareCodes: location.compareCodes,
@@ -2856,6 +3127,11 @@ export const initForHref = (
       id: 'saved-course-labels',
       isAnimated: true,
       focusSelector: '#saved-course-labels-close',
+    }),
+    keyboardShortcutsDialog: Dialog.init({
+      id: 'keyboard-shortcuts',
+      isAnimated: true,
+      focusSelector: '#keyboard-shortcuts-close',
     }),
     labelDialogTarget: [],
     labelDraftName: '',
@@ -2978,6 +3254,46 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
         ),
     },
   ),
+  keyboardShortcuts: entry(
+    {},
+    {
+      modelToDependencies: () => ({}),
+      dependenciesToStream: () =>
+        Subscription.fromEventFilterMap({
+          target: window,
+          type: 'keydown',
+          filterMapEvent: (event) => {
+            if (!(event instanceof KeyboardEvent) || event.defaultPrevented) return Option.none();
+            const target = event.target;
+            const isTextEntry =
+              target instanceof HTMLElement &&
+              (target.isContentEditable ||
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                target instanceof HTMLSelectElement);
+            if (
+              (event.metaKey || event.ctrlKey) &&
+              !event.altKey &&
+              event.key.toLowerCase() === 'k'
+            ) {
+              event.preventDefault();
+              return Option.some(Message.RequestedFocusCatalogueSearch());
+            }
+            if (
+              !isTextEntry &&
+              !event.metaKey &&
+              !event.ctrlKey &&
+              !event.altKey &&
+              event.key === '?'
+            ) {
+              event.preventDefault();
+              return Option.some(Message.RequestedOpenKeyboardShortcuts());
+            }
+            return Option.none();
+          },
+        }),
+    },
+  ),
 }));
 const browserPreferredLocale = (): Locale => {
   if (typeof window === 'undefined') return 'en';
@@ -3028,6 +3344,142 @@ const norwegianMessagesFailureAlert = (model: Model, h: HtmlBuilder<Message>): H
       )
     : h.empty;
 
+const keyboardShortcutKeyClass =
+  'inline-grid min-w-8 min-h-8 place-items-center rounded-m3-small border border-outline-variant bg-surface-container-high px-2 font-mono text-sm font-bold text-on-surface shadow-[0_1px_0_var(--md-sys-color-outline-variant)]';
+
+const keyboardShortcutRow = (
+  keys: ReadonlyArray<string>,
+  label: string,
+  help: string,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Class('grid grid-cols-[minmax(6rem,auto)_1fr] items-center gap-4 py-3')],
+    [
+      h.dt(
+        [h.Class('flex flex-wrap items-center gap-1.5')],
+        keys.map((key) => h.kbd([h.Class(keyboardShortcutKeyClass)], [key])),
+      ),
+      h.dd(
+        [h.Class('m-0')],
+        [
+          h.span([h.Class('block font-bold text-on-surface')], [label]),
+          h.span([h.Class('block text-sm leading-[1.45] text-on-surface-variant')], [help]),
+        ],
+      ),
+    ],
+  );
+
+const keyboardShortcutsDialogView = (model: Model, h: HtmlBuilder<Message>): Html =>
+  h.submodel({
+    slotId: 'keyboard-shortcuts-dialog',
+    model: model.keyboardShortcutsDialog,
+    view: Dialog.view,
+    viewInputs: {
+      toView: ({
+        dialog,
+        backdrop,
+        panel,
+        title,
+        description,
+        initialFocus,
+        closeButton,
+        isVisible,
+      }) =>
+        h.dialog(
+          [...dialog, h.Class('text-on-surface')],
+          isVisible
+            ? [
+                h.div(
+                  [
+                    ...backdrop,
+                    h.Class(
+                      'fixed inset-0 bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_42%,transparent)] opacity-100 transition-opacity duration-200 ease-in-out data-closed:opacity-0',
+                    ),
+                  ],
+                  [],
+                ),
+                h.section(
+                  [
+                    ...panel,
+                    h.Class(
+                      'fixed top-1/2 left-1/2 grid w-[min(calc(100%-2rem),38rem)] max-h-[min(88svh,42rem)] -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-m3-extra-large border border-outline-variant bg-surface p-6 shadow-m3-2 opacity-100 transition-opacity duration-150 data-closed:opacity-0',
+                    ),
+                  ],
+                  [
+                    h.header(
+                      [h.Class('flex items-start justify-between gap-4')],
+                      [
+                        h.div(
+                          [],
+                          [
+                            h.p(
+                              [h.Class('m-0 text-sm font-bold text-primary')],
+                              [translate(model.localization, 'app.name')],
+                            ),
+                            h.h2(
+                              [
+                                ...title,
+                                h.Class('mt-1 text-[clamp(1.5rem,5vw,2rem)] tracking-[-0.035em]'),
+                              ],
+                              [translate(model.localization, 'shortcuts.heading')],
+                            ),
+                            h.p(
+                              [
+                                ...description,
+                                h.Class('mt-2 leading-[1.5] text-on-surface-variant'),
+                              ],
+                              [translate(model.localization, 'shortcuts.description')],
+                            ),
+                          ],
+                        ),
+                        h.button(
+                          [
+                            ...closeButton,
+                            ...initialFocus,
+                            h.Id('keyboard-shortcuts-close'),
+                            h.Type('button'),
+                            h.Class(
+                              'grid size-11 flex-none place-items-center rounded-full border-0 bg-surface-container text-on-surface cursor-pointer focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2',
+                            ),
+                            h.AriaLabel(translate(model.localization, 'shortcuts.close')),
+                          ],
+                          [icon('close', undefined, h)],
+                        ),
+                      ],
+                    ),
+                    h.dl(
+                      [h.Class('m-0 divide-y divide-outline-variant')],
+                      [
+                        keyboardShortcutRow(
+                          ['Ctrl/⌘', 'K'],
+                          translate(model.localization, 'shortcuts.search'),
+                          translate(model.localization, 'shortcuts.searchHelp'),
+                          h,
+                        ),
+                        keyboardShortcutRow(
+                          ['?'],
+                          translate(model.localization, 'shortcuts.help'),
+                          translate(model.localization, 'shortcuts.helpHelp'),
+                          h,
+                        ),
+                        keyboardShortcutRow(
+                          ['Esc'],
+                          translate(model.localization, 'shortcuts.dismiss'),
+                          translate(model.localization, 'shortcuts.dismissHelp'),
+                          h,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ]
+            : [],
+        ),
+    },
+    toParentMessage: (message) => Message.GotKeyboardShortcutsDialogMessage({ message }),
+  });
+
 const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
   h.div(
     [h.Class('min-h-screen')],
@@ -3042,6 +3494,7 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
         progressUrl(model),
         appearanceUrl(model),
         Message.ToggledSidebar(),
+        Message.RequestedOpenKeyboardShortcuts(),
         languageSelectControl(
           model.selectFields,
           'language-desktop',
@@ -3115,6 +3568,7 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
           ),
         ],
       ),
+      keyboardShortcutsDialogView(model, h),
       lazyCatalogueRefineDialog(catalogueRefineDialogFromValues, [
         model.localization,
         model.query,

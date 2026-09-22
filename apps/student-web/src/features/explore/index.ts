@@ -30,6 +30,7 @@ import {
   gradeSignalsResponse,
   normalizedUrl,
   savedToggleAvailability,
+  scheduleCourseUrl,
   selectControl,
   checkboxControl,
   type Campus,
@@ -686,6 +687,9 @@ const catalogueList = (
             isCourseSaved(model.savedCourses, course.code),
             savedToggleAvailability(model.savedCourses),
             listUrl(model),
+            isCourseSaved(model.savedCourses, course.code)
+              ? scheduleCourseUrl(model, course.code)
+              : null,
             h,
           ]),
         ),
@@ -798,6 +802,7 @@ export const savedCourseToggle = (
         h.button(
           [
             ...attributes.button,
+            h.Id(`saved-toggle-${courseCode}`),
             h.Class(savedToggleClass(saved, tone)),
             h.AriaLabel(accessibleLabel),
             h.Title(title),
@@ -957,6 +962,7 @@ const courseCard = (
   saved: boolean,
   savedAvailability: 'ready' | 'loading' | 'paused',
   recoveryHref: string,
+  scheduleHref: string | null,
   h: HtmlBuilder<Message>,
 ): Html => {
   const title = courseTitle(course, locale);
@@ -974,7 +980,7 @@ const courseCard = (
             ],
             [
               h.div(
-                [h.Class('grid items-start gap-3 @min-[28rem]:grid-cols-[minmax(0,1fr)_auto]')],
+                [h.Class('grid items-start gap-3')],
                 [
                   h.div(
                     [h.Class('min-w-0')],
@@ -1006,14 +1012,37 @@ const courseCard = (
                       ),
                     ],
                   ),
-                  savedCourseToggle(
-                    course.code,
-                    saved,
-                    savedAvailability,
-                    locale,
-                    recoveryHref,
-                    'state',
-                    h,
+                  h.div(
+                    [h.Class('relative z-[2] flex flex-wrap items-center gap-2')],
+                    [
+                      savedCourseToggle(
+                        course.code,
+                        saved,
+                        savedAvailability,
+                        locale,
+                        recoveryHref,
+                        'state',
+                        h,
+                      ),
+                      scheduleHref === null
+                        ? h.empty
+                        : h.a(
+                            [
+                              h.Href(scheduleHref),
+                              h.Class(
+                                `${compactButtonBase} inline-flex min-h-11 items-center gap-1.5 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-sm font-bold text-primary no-underline`,
+                              ),
+                            ],
+                            [
+                              icon(
+                                'schedule',
+                                'block size-4 flex-none [&_svg]:block [&_svg]:size-full',
+                                h,
+                              ),
+                              translate(locale, 'signals.openSchedule'),
+                            ],
+                          ),
+                    ],
                   ),
                 ],
               ),
@@ -1224,6 +1253,72 @@ export const decisionSignalView = (
           ],
         )
       : h.span([], [factStateLabel(signal.collaboration.state, locale)]);
+  const workloadPatterns = [
+    ...parts.flatMap((part) =>
+      part.workloadPattern.state === 'known' ? [part.workloadPattern.value] : [],
+    ),
+    ...(signal.obligatoryActivities.state === 'known'
+      ? signal.obligatoryActivities.value.flatMap((activity) =>
+          activity.workloadPattern.state === 'known' ? [activity.workloadPattern.value] : [],
+        )
+      : []),
+  ].filter((pattern, index, all) => all.indexOf(pattern) === index);
+  const workloadPatternLabel = (pattern: (typeof workloadPatterns)[number]): string =>
+    M.value(pattern).pipe(
+      M.when('distributed', () => translate(locale, 'signals.timingDistributed')),
+      M.when('concentrated', () => translate(locale, 'signals.timingConcentrated')),
+      M.when('recurring', () => translate(locale, 'signals.timingRecurring')),
+      M.when('milestone', () => translate(locale, 'signals.timingMilestone')),
+      M.exhaustive,
+    );
+  const workloadTiming =
+    workloadPatterns.length === 0
+      ? h.span(
+          [h.Class('text-on-secondary-container/80')],
+          [translate(locale, 'signals.timingUnknown')],
+        )
+      : h.div(
+          [h.Class('flex flex-wrap gap-1.5')],
+          workloadPatterns.map((pattern) =>
+            h.span(
+              [
+                h.Class(
+                  'inline-flex min-h-7 items-center rounded-full bg-surface-container-highest px-2.5 text-xs font-extrabold text-on-surface',
+                ),
+              ],
+              [workloadPatternLabel(pattern)],
+            ),
+          ),
+        );
+  const attendance =
+    signal.attendance.state === 'known'
+      ? h.span(
+          [
+            h.Class(
+              signal.attendance.value === 'required'
+                ? 'inline-flex min-h-7 items-center rounded-full bg-constraint px-2.5 text-xs font-extrabold text-on-constraint'
+                : 'inline-flex min-h-7 items-center rounded-full bg-surface-container-highest px-2.5 text-xs font-extrabold text-on-surface',
+            ),
+          ],
+          [
+            translate(
+              locale,
+              signal.attendance.value === 'required'
+                ? 'signals.attendanceRequired'
+                : 'signals.attendanceNotRequired',
+            ),
+          ],
+        )
+      : h.span([], [factStateLabel(signal.attendance.state, locale)]);
+  const observedDate =
+    signal.sourceStatus.observedAt === null
+      ? null
+      : new Intl.DateTimeFormat(localeTag(locale.locale), { dateStyle: 'medium' }).format(
+          new Date(signal.sourceStatus.observedAt),
+        );
+  const sourceEvidence = signal.evidence.find(
+    (evidence) => evidence.kind !== 'fixture' && evidence.sourceUrl !== null,
+  );
   const inferred = signal.evidence.some((evidence) => evidence.kind === 'inference');
   const factRowClass =
     'grid gap-1.5 @min-[24rem]:grid-cols-[minmax(7.5rem,0.8fr)_minmax(0,1fr)] @min-[24rem]:gap-3';
@@ -1270,8 +1365,55 @@ export const decisionSignalView = (
               h.dd([h.Class('m-0 text-sm font-bold')], [collaboration]),
             ],
           ),
+          h.div(
+            [h.Class(factRowClass)],
+            [
+              h.dt([h.Class(factDtClass)], [translate(locale, 'signals.workloadTiming')]),
+              h.dd([h.Class('m-0 text-sm font-bold')], [workloadTiming]),
+            ],
+          ),
+          h.div(
+            [h.Class(factRowClass)],
+            [
+              h.dt([h.Class(factDtClass)], [translate(locale, 'signals.attendance')]),
+              h.dd([h.Class('m-0 text-sm font-bold')], [attendance]),
+            ],
+          ),
         ],
       ),
+      sourceEvidence?.sourceUrl === null || sourceEvidence?.sourceUrl === undefined
+        ? observedDate === null
+          ? h.empty
+          : h.p(
+              [h.Class('m-0 border-t border-on-secondary-container/15 pt-2 text-xs font-bold')],
+              [translate(locale, 'signals.checked', { date: observedDate })],
+            )
+        : h.div(
+            [
+              h.Class(
+                'flex flex-wrap items-center justify-between gap-2 border-t border-on-secondary-container/15 pt-1',
+              ),
+            ],
+            [
+              h.a(
+                [
+                  h.Href(sourceEvidence.sourceUrl),
+                  h.Target('_blank'),
+                  h.Rel('noreferrer'),
+                  h.Class(
+                    `${aboveCardOverlayClass} inline-flex min-h-11 items-center text-xs font-extrabold underline-offset-4 hover:underline`,
+                  ),
+                ],
+                [translate(locale, 'signals.officialSource')],
+              ),
+              observedDate === null
+                ? h.empty
+                : h.span(
+                    [h.Class('text-xs font-bold')],
+                    [translate(locale, 'signals.checked', { date: observedDate })],
+                  ),
+            ],
+          ),
     ],
   );
 };

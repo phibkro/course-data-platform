@@ -214,6 +214,7 @@ export const desktopNavigation = <Message>(
   progressHref: string,
   appearanceHref: string,
   onToggle: Message | undefined,
+  onOpenShortcuts: Message | undefined,
   languageControl: Html | undefined,
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -323,6 +324,29 @@ export const desktopNavigation = <Message>(
               ),
             ],
           ),
+          onOpenShortcuts === undefined
+            ? h.empty
+            : h.button(
+                [
+                  h.Type('button'),
+                  h.OnClick(onOpenShortcuts),
+                  h.Class(
+                    `flex min-h-11 w-full items-center gap-3 border-0 rounded-m3-medium bg-transparent font-semibold text-on-surface cursor-pointer hover:bg-surface-container-high focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-2 ${
+                      collapsed ? 'justify-center px-2' : 'px-3'
+                    }`,
+                  ),
+                  h.Title(translate(locale, 'shortcuts.open')),
+                  h.AriaHasPopup('dialog'),
+                  h.AriaControls('keyboard-shortcuts'),
+                ],
+                [
+                  icon<Message>('help', 'block size-5 [&_svg]:block [&_svg]:size-full', h),
+                  h.span(
+                    [h.Class(collapsed ? 'sr-only' : '')],
+                    [translate(locale, 'shortcuts.open')],
+                  ),
+                ],
+              ),
           languageControl ?? h.empty,
           collapsed
             ? h.empty

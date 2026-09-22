@@ -45,6 +45,7 @@ export type AppIcon =
   | 'collaboration-mixed'
   | 'degree'
   | 'explore'
+  | 'help'
   | 'list'
   | 'more'
   | 'obligatory-work'
@@ -74,6 +75,7 @@ const icons: Readonly<Record<AppIcon, string>> = {
   'collaboration-mixed': usersFour,
   degree: graduationCap,
   explore: compass,
+  help: question,
   list: bookmarkSimple,
   more: dotsThree,
   'obligatory-work': checkSquare,

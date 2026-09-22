@@ -594,11 +594,12 @@ const sourceSection = <Message>(
                       ? 'rounded-m3-medium border border-error bg-error-container px-4 py-3 text-on-error-container'
                       : 'rounded-m3-medium border border-warning bg-warning-container px-4 py-3 text-on-warning-container',
                   ),
-                  ...(source.status === 'failed' ? [h.Role('alert')] : [h.Role('status')]),
                 ],
                 [
-                  h.strong([], [source.provider]),
-                  h.span([], [` · ${source.warning ?? translateToken(locale, source.status)}`]),
+                  h.div(source.status === 'failed' ? [h.Role('alert')] : [h.Role('status')], [
+                    h.strong([], [source.provider]),
+                    h.span([], [` · ${source.warning ?? translateToken(locale, source.status)}`]),
+                  ]),
                 ],
               ),
             ),

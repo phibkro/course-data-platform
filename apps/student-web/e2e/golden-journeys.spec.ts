@@ -61,6 +61,22 @@ test('GJ-01 Find a plausible course', { tag: '@fixture' }, async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Course results' })).toBeVisible();
 
+  await expect(page.getByRole('button', { name: 'Keyboard shortcuts' })).toBeVisible();
+  await page.keyboard.press('?');
+  const shortcuts = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+  await expect(shortcuts).toBeVisible();
+  await expect(shortcuts.locator(':scope > div')).toHaveCSS('opacity', '1');
+  await expect(shortcuts.getByText('Open Explore and focus the course search.')).toBeVisible();
+  await expectNoAxeViolations(page);
+  await page.keyboard.press('Escape');
+  await expect(shortcuts).toBeHidden();
+
+  await page.getByRole('link', { name: 'Saved' }).first().click();
+  await expect(page).toHaveURL((url) => url.pathname === '/list');
+  await page.keyboard.press('Control+K');
+  await expect(page).toHaveURL((url) => url.pathname === '/');
+  await expect(page.getByLabel('Search courses')).toBeFocused();
+
   const search = page.getByLabel('Search courses');
   await search.fill('TDT4136');
   await search.press('Enter');
@@ -78,6 +94,7 @@ test('GJ-01 Find a plausible course', { tag: '@fixture' }, async ({ page }) => {
   await page.getByRole('button', { name: 'Refine' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
+  await expect(dialog.locator(':scope > div')).toHaveCSS('opacity', '1');
   await expectNoAxeViolations(page);
 
   await dialog.getByRole('button', { name: 'Term' }).click();
@@ -118,7 +135,7 @@ test('GJ-02 Understand and trust a candidate', { tag: '@real-http' }, async ({ p
     ),
   ).toHaveCount(2);
   await expect(detail.getByText(/ · 60%/)).toHaveCount(0);
-  await expect(detail.getByRole('heading', { name: 'Sources and freshness' })).toBeVisible();
+  await expect(detail.getByRole('heading', { name: 'References' })).toBeVisible();
   await expectNoAxeViolations(page);
 });
 
@@ -160,9 +177,28 @@ test('GJ-04 Remember and safely return', { tag: '@fixture' }, async ({ page }) =
     page.getByText('You have no saved courses or NTNU results yet', { exact: true }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Undo removing TDT4136' }).click();
+  await expect(
+    savedCourseRow(page, 'TDT4136').getByRole('button', {
+      name: 'Remove TDT4136 from List',
+    }),
+  ).toBeFocused();
   await expect(savedCourseRow(page, 'TDT4136').getByLabel('Your note')).toHaveValue(
     'Ask the adviser about the project',
   );
+
+  await page.getByRole('button', { name: 'Redo removing TDT4136' }).click();
+  await expect(
+    page.getByText('You have no saved courses or NTNU results yet', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo removing TDT4136' })).toBeFocused();
+  await page.getByRole('button', { name: 'Undo removing TDT4136' }).click();
+  await expect(savedCourseRow(page, 'TDT4136').getByLabel('Your note')).toHaveValue(
+    'Ask the adviser about the project',
+  );
+
+  await savedCourseRow(page, 'TDT4136').getByRole('link', { name: 'Weekly schedule' }).click();
+  await expect(page).toHaveURL(/\/schedule\?.*courses=TDT4136/);
+  await expect(page.getByRole('checkbox', { name: 'TDT4136' })).toBeChecked();
   await expectNoAxeViolations(page);
 });
 
@@ -260,6 +296,7 @@ test('GJ-06 Choose between finalists', { tag: '@fixture' }, async ({ page }) => 
       exact: true,
     }),
   ).toBeVisible();
+
   await expectNoAxeViolations(page);
 });
 

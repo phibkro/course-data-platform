@@ -78,7 +78,7 @@ export const selectionChip = <Message>(
           [
             ...attributes.label,
             h.Class(
-              `inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-[border-color,background-color,color,box-shadow] focus-within:outline-3 focus-within:outline-tertiary focus-within:outline-offset-2 ${
+              `relative inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-[border-color,background-color,color,box-shadow] focus-within:outline-3 focus-within:outline-tertiary focus-within:outline-offset-2 ${
                 isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
               } ${
                 isSelected
@@ -93,7 +93,9 @@ export const selectionChip = <Message>(
                 ...attributes.checkbox,
                 h.AriaLabelledBy(`${id}-text`),
                 ...(describedBy === undefined ? [] : [h.AriaDescribedBy(describedBy)]),
-                h.Class('sr-only'),
+                h.Class(
+                  `absolute inset-0 z-10 rounded-full outline-none ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`,
+                ),
               ],
               [],
             ),
