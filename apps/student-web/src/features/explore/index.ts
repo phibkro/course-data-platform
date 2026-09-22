@@ -5,8 +5,8 @@ import type {
 } from '@course-data/course-contracts';
 import { Match as M } from 'effect';
 import { Button, Dialog, Input } from '@foldkit/ui';
-import type { Html } from 'foldkit/html';
-import { createKeyedLazy, createLazy, html } from 'foldkit/html';
+import type { Html, HtmlBuilder } from 'foldkit/html';
+import { createKeyedLazy, createLazy } from 'foldkit/html';
 
 import {
   DEFAULT_SORT,
@@ -14,6 +14,7 @@ import {
   ChangedOutcomeView,
   ClosedCourse,
   GotRefineDialogMessage,
+  RequestedOpenRefineDialog,
   RequestedMoreCourses,
   RequestedRemoveSavedCourse,
   RequestedSaveCourse,
@@ -75,12 +76,11 @@ const lazyCourseCard = createKeyedLazy();
 const lazyCatalogueHeader = createLazy();
 const lazyCatalogueControls = createLazy();
 
-export const catalogueView = (model: Model): Html => {
-  const h = html<Message>();
+export const catalogueView = (model: Model, h: HtmlBuilder<Message>): Html => {
   return h.div(
     [h.Class('grid gap-6')],
     [
-      lazyCatalogueHeader(catalogueHeader, [model.locale]),
+      lazyCatalogueHeader(catalogueHeader, [model.locale, h]),
       lazyCatalogueControls(catalogueControlsFromValues, [
         model.locale,
         model.query,
@@ -92,14 +92,14 @@ export const catalogueView = (model: Model): Html => {
         model.englishOnly,
         model.catalogue._tag === 'CatalogueInitialLoading',
         model.selectFields,
+        h,
       ]),
-      catalogueResultView(model),
+      catalogueResultView(model, h),
     ],
   );
 };
 
-const catalogueHeader = (locale: Locale): Html => {
-  const h = html<Message>();
+const catalogueHeader = (locale: Locale, h: HtmlBuilder<Message>): Html => {
   return h.header(
     [h.Class('pt-[clamp(2rem,5vw,3.5rem)] pb-2')],
     [
@@ -144,19 +144,24 @@ const catalogueControlsFromValues = (
   englishOnly: boolean,
   loading: boolean,
   selectFields: Model['selectFields'],
+  h: HtmlBuilder<Message>,
 ): Html =>
-  catalogueControls({
-    locale,
-    query,
-    term,
-    campus,
-    level,
-    sort,
-    openOnly,
-    englishOnly,
-    loading,
-    selectFields,
-  });
+  catalogueControls(
+    {
+      locale,
+      query,
+      term,
+      campus,
+      level,
+      sort,
+      openOnly,
+      englishOnly,
+      loading,
+      selectFields,
+    },
+    {},
+    h,
+  );
 
 export const catalogueRefineDialogFromValues = (
   locale: Locale,
@@ -170,6 +175,7 @@ export const catalogueRefineDialogFromValues = (
   loading: boolean,
   refineDialog: Model['refineDialog'],
   selectFields: Model['selectFields'],
+  h: HtmlBuilder<Message>,
 ): Html =>
   catalogueRefineDialog(
     {
@@ -185,6 +191,7 @@ export const catalogueRefineDialogFromValues = (
       selectFields,
     },
     refineDialog,
+    h,
   );
 
 interface CatalogueControlsOptions {
@@ -200,9 +207,9 @@ const catalogueControlsSearchClass =
 
 const catalogueControls = (
   model: CatalogueControlsState,
-  options: CatalogueControlsOptions = {},
+  options: CatalogueControlsOptions,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
   const loading = model.loading;
   const idPrefix = options.idPrefix ?? '';
   const isDialog = options.className === 'catalogue-controls--dialog';
@@ -217,43 +224,49 @@ const catalogueControls = (
       h.div(
         [h.Class(catalogueControlsSearchClass)],
         [
-          Input.view<Message>({
-            id: `${idPrefix}course-query`,
-            value: model.query,
-            placeholder: translate(model.locale, 'catalogue.searchPlaceholder'),
-            onInput: (value) => UpdatedQuery({ value }),
-            toView: (attributes) =>
-              h.div(
-                [h.Class('flex-1')],
-                [
-                  h.label(
-                    [...attributes.label, h.Class(fieldLabelClass)],
-                    [translate(model.locale, 'catalogue.searchLabel')],
-                  ),
-                  h.input([
-                    ...attributes.input,
-                    h.Placeholder(translate(model.locale, 'catalogue.searchPlaceholder')),
-                    h.Class(
-                      'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base normal-case transition-[border-color,box-shadow] duration-150 ease-in-out focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
+          Input.view<Message>(
+            {
+              id: `${idPrefix}course-query`,
+              value: model.query,
+              placeholder: translate(model.locale, 'catalogue.searchPlaceholder'),
+              onInput: (value) => UpdatedQuery({ value }),
+              toView: (attributes) =>
+                h.div(
+                  [h.Class('flex-1')],
+                  [
+                    h.label(
+                      [...attributes.label, h.Class(fieldLabelClass)],
+                      [translate(model.locale, 'catalogue.searchLabel')],
                     ),
-                    h.Autocomplete('off'),
-                  ]),
-                ],
-              ),
-          }),
-          Button.view<Message>({
-            type: 'submit',
-            isDisabled: loading,
-            toView: (attributes) =>
-              h.button(
-                [...attributes.button, h.Class(buttonPrimary)],
-                [
-                  loading
-                    ? translate(model.locale, 'catalogue.searching')
-                    : translate(model.locale, 'catalogue.search'),
-                ],
-              ),
-          }),
+                    h.input([
+                      ...attributes.input,
+                      h.Placeholder(translate(model.locale, 'catalogue.searchPlaceholder')),
+                      h.Class(
+                        'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base normal-case transition-[border-color,box-shadow] duration-150 ease-in-out focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
+                      ),
+                      h.Autocomplete('off'),
+                    ]),
+                  ],
+                ),
+            },
+            h,
+          ),
+          Button.view<Message>(
+            {
+              type: 'submit',
+              isDisabled: loading,
+              toView: (attributes) =>
+                h.button(
+                  [...attributes.button, h.Class(buttonPrimary)],
+                  [
+                    loading
+                      ? translate(model.locale, 'catalogue.searching')
+                      : translate(model.locale, 'catalogue.search'),
+                  ],
+                ),
+            },
+            h,
+          ),
         ],
       ),
       h.div(
@@ -294,6 +307,7 @@ const catalogueControls = (
                   ],
                 ],
                 { portal: false },
+                h,
               ),
               selectControl(
                 model.selectFields,
@@ -307,6 +321,7 @@ const catalogueControls = (
                   ['alesund', translate(model.locale, 'catalogue.alesund')],
                 ],
                 { portal: false },
+                h,
               ),
               selectControl(
                 model.selectFields,
@@ -320,6 +335,7 @@ const catalogueControls = (
                   ['phd', translate(model.locale, 'catalogue.phd')],
                 ],
                 { portal: false },
+                h,
               ),
               selectControl(
                 model.selectFields,
@@ -334,6 +350,7 @@ const catalogueControls = (
                   ['code-desc', translate(model.locale, 'catalogue.codeDesc')],
                 ],
                 { portal: false },
+                h,
               ),
             ]
           : [
@@ -348,6 +365,8 @@ const catalogueControls = (
                   ['gjovik', translate(model.locale, 'catalogue.gjovik')],
                   ['alesund', translate(model.locale, 'catalogue.alesund')],
                 ],
+                {},
+                h,
               ),
             ],
       ),
@@ -360,12 +379,14 @@ const catalogueControls = (
                 translate(model.locale, 'catalogue.openAdmission'),
                 model.openOnly,
                 (isChecked) => ToggledOpen({ isChecked }),
+                h,
               ),
               checkboxControl(
                 `${idPrefix}english`,
                 translate(model.locale, 'catalogue.english'),
                 model.englishOnly,
                 (isChecked) => ToggledEnglish({ isChecked }),
+                h,
               ),
             ],
           )
@@ -393,8 +414,7 @@ const catalogueRefineActionSummaryClass =
 
 const catalogueRefineActionButtonClass = `${compactButtonBase} inline-flex min-h-12 items-center gap-[0.55rem] py-3 px-4 border border-outline-variant rounded-[1.5rem] bg-primary-container shadow-m3-2 text-on-primary-container font-bold [@media(min-width:48rem)_and_(min-height:34rem)]:flex-none [@media(min-width:48rem)_and_(min-height:34rem)]:shadow-none`;
 
-export const catalogueRefineAction = (model: Model): Html => {
-  const h = html<Message>();
+export const catalogueRefineAction = (model: Model, h: HtmlBuilder<Message>): Html => {
   const count = activeRefinementCount(model);
   return h.div(
     [h.Class(catalogueRefineActionClass)],
@@ -427,12 +447,12 @@ export const catalogueRefineAction = (model: Model): Html => {
         [
           h.Class(catalogueRefineActionButtonClass),
           h.Type('button'),
-          h.OnClick(GotRefineDialogMessage({ message: Dialog.RequestedOpen() })),
+          h.OnClick(RequestedOpenRefineDialog()),
           h.AriaHasPopup('dialog'),
           h.AriaControls('catalogue-refine'),
         ],
         [
-          icon<Message>('refine', 'block size-5 [&_svg]:block [&_svg]:w-full [&_svg]:h-full'),
+          icon('refine', 'block size-5 [&_svg]:block [&_svg]:w-full [&_svg]:h-full', h),
           h.span(
             [],
             [
@@ -453,8 +473,8 @@ export const refineDialogPanelClass =
 const catalogueRefineDialog = (
   model: CatalogueControlsState,
   refineDialog: Model['refineDialog'],
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
   return h.submodel({
     slotId: 'catalogue-refine-dialog',
     model: refineDialog,
@@ -520,14 +540,18 @@ const catalogueRefineDialog = (
                             h.Type('button'),
                             h.AriaLabel(translate(model.locale, 'catalogue.closeRefinements')),
                           ],
-                          [icon<Message>('close')],
+                          [icon('close', undefined, h)],
                         ),
                       ],
                     ),
-                    catalogueControls(model, {
-                      className: 'catalogue-controls--dialog',
-                      idPrefix: 'refine-',
-                    }),
+                    catalogueControls(
+                      model,
+                      {
+                        className: 'catalogue-controls--dialog',
+                        idPrefix: 'refine-',
+                      },
+                      h,
+                    ),
                     h.footer(
                       [h.Class('flex justify-end')],
                       [
@@ -551,8 +575,7 @@ const catalogueRefineDialog = (
   });
 };
 
-const catalogueResultView = (model: Model): Html => {
-  const h = html<Message>();
+const catalogueResultView = (model: Model, h: HtmlBuilder<Message>): Html => {
   switch (model.catalogue._tag) {
     case 'CatalogueInitialLoading':
       return h.section(
@@ -582,14 +605,18 @@ const catalogueResultView = (model: Model): Html => {
         ],
       );
     case 'CataloguePartial':
-      return catalogueList(model, model.catalogue.response, true);
+      return catalogueList(model, model.catalogue.response, true, h);
     case 'CatalogueSuccess':
-      return catalogueList(model, model.catalogue.response, false);
+      return catalogueList(model, model.catalogue.response, false, h);
   }
 };
 
-const catalogueList = (model: Model, response: CourseSearchResponse, partial: boolean): Html => {
-  const h = html<Message>();
+const catalogueList = (
+  model: Model,
+  response: CourseSearchResponse,
+  partial: boolean,
+  h: HtmlBuilder<Message>,
+): Html => {
   const shown = response.items.slice(0, model.visibleCount);
   const canRevealLocal = model.visibleCount < response.items.length;
   const canFetch = response.meta.hasMore;
@@ -650,6 +677,7 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
             isCourseSaved(model.savedCourses, course.code),
             savedToggleAvailability(model.savedCourses),
             listUrl(model),
+            h,
           ]),
         ),
       ),
@@ -668,23 +696,26 @@ const catalogueList = (model: Model, response: CourseSearchResponse, partial: bo
           )
         : h.empty,
       canRevealLocal || canFetch
-        ? Button.view<Message>({
-            type: 'button',
-            isDisabled: model.nextPage._tag === 'NextPageLoading',
-            onClick: RequestedMoreCourses(),
-            toView: (attributes) =>
-              h.button(
-                [
-                  ...attributes.button,
-                  h.Class(`${buttonSecondary} justify-self-center min-w-[min(100%,18rem)]`),
-                ],
-                [
-                  model.nextPage._tag === 'NextPageLoading'
-                    ? translate(model.locale, 'catalogue.loadingMore')
-                    : translate(model.locale, 'catalogue.showMore'),
-                ],
-              ),
-          })
+        ? Button.view<Message>(
+            {
+              type: 'button',
+              isDisabled: model.nextPage._tag === 'NextPageLoading',
+              onClick: RequestedMoreCourses(),
+              toView: (attributes) =>
+                h.button(
+                  [
+                    ...attributes.button,
+                    h.Class(`${buttonSecondary} justify-self-center min-w-[min(100%,18rem)]`),
+                  ],
+                  [
+                    model.nextPage._tag === 'NextPageLoading'
+                      ? translate(model.locale, 'catalogue.loadingMore')
+                      : translate(model.locale, 'catalogue.showMore'),
+                  ],
+                ),
+            },
+            h,
+          )
         : h.p(
             [h.Class('m-0 text-on-surface-variant text-center')],
             [translate(model.locale, 'catalogue.end')],
@@ -727,9 +758,9 @@ export const savedCourseToggle = (
   availability: 'ready' | 'loading' | 'paused',
   locale: Locale,
   recoveryHref: string,
-  tone: SavedToggleTone = 'state',
+  tone: SavedToggleTone,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
   const ready = availability === 'ready';
   const accessibleLabel = translate(locale, saved ? 'list.removeCourse' : 'list.saveCourse', {
     code: courseCode,
@@ -738,26 +769,29 @@ export const savedCourseToggle = (
     availability === 'ready'
       ? accessibleLabel
       : translate(locale, availability === 'loading' ? 'list.savePending' : 'list.savePaused');
-  const button = Button.view<Message>({
-    type: 'button',
-    isDisabled: !ready,
-    onClick: saved
-      ? RequestedRemoveSavedCourse({ courseCode })
-      : RequestedSaveCourse({ courseCode }),
-    toView: (attributes) =>
-      h.button(
-        [
-          ...attributes.button,
-          h.Class(savedToggleClass(saved, tone)),
-          h.AriaLabel(accessibleLabel),
-          h.Title(title),
-        ],
-        [
-          icon<Message>(saved ? 'check' : 'list', 'block size-4 [&_svg]:block [&_svg]:size-full'),
-          h.span([], [translate(locale, saved ? 'list.remove' : 'list.save')]),
-        ],
-      ),
-  });
+  const button = Button.view<Message>(
+    {
+      type: 'button',
+      isDisabled: !ready,
+      onClick: saved
+        ? RequestedRemoveSavedCourse({ courseCode })
+        : RequestedSaveCourse({ courseCode }),
+      toView: (attributes) =>
+        h.button(
+          [
+            ...attributes.button,
+            h.Class(savedToggleClass(saved, tone)),
+            h.AriaLabel(accessibleLabel),
+            h.Title(title),
+          ],
+          [
+            icon(saved ? 'check' : 'list', 'block size-4 [&_svg]:block [&_svg]:size-full', h),
+            h.span([], [translate(locale, saved ? 'list.remove' : 'list.save')]),
+          ],
+        ),
+    },
+    h,
+  );
   if (availability !== 'paused') return button;
   return h.span(
     [h.Class(`${aboveCardOverlayClass} inline-flex flex-col items-end gap-1`)],
@@ -852,8 +886,8 @@ export const courseIdentityFacts = (
   course: CourseSearchItemDtoType,
   decisionSignal: DecisionSignal,
   locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
   const { offering, place, term, credits } = courseOfferingFacts(course, decisionSignal, locale);
   return h.dl(
     [h.Class('grid gap-x-4 gap-y-3 @min-[24rem]:grid-cols-2')],
@@ -874,9 +908,10 @@ export const courseIdentityFacts = (
             [
               offering === null
                 ? h.empty
-                : icon<Message>(
+                : icon(
                     termSeasonIconName(offering.season),
                     'mt-0.5 block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
+                    h,
                   ),
               h.span([], [term]),
             ],
@@ -904,8 +939,8 @@ const courseCard = (
   saved: boolean,
   savedAvailability: 'ready' | 'loading' | 'paused',
   recoveryHref: string,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
   const title = courseTitle(course, locale);
   return h.li(
     [],
@@ -953,10 +988,18 @@ const courseCard = (
                       ),
                     ],
                   ),
-                  savedCourseToggle(course.code, saved, savedAvailability, locale, recoveryHref),
+                  savedCourseToggle(
+                    course.code,
+                    saved,
+                    savedAvailability,
+                    locale,
+                    recoveryHref,
+                    'state',
+                    h,
+                  ),
                 ],
               ),
-              courseIdentityFacts(course, decisionSignal, locale),
+              courseIdentityFacts(course, decisionSignal, locale, h),
             ],
           ),
           h.div(
@@ -966,8 +1009,8 @@ const courseCard = (
               ),
             ],
             [
-              decisionSignalView(decisionSignal, locale),
-              gradeSignalView(gradeSignal, locale, outcomeView),
+              decisionSignalView(decisionSignal, locale, h),
+              gradeSignalView(gradeSignal, locale, outcomeView, h),
             ],
           ),
         ],
@@ -992,8 +1035,11 @@ const assessmentIconName = (form: AssessmentForm): AppIcon =>
 const formatAssessmentWeight = (value: number, locale: Locale): string =>
   `${new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value)}%`;
 
-export const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html => {
-  const h = html<Message>();
+export const decisionSignalView = (
+  signal: DecisionSignal,
+  locale: Locale,
+  h: HtmlBuilder<Message>,
+): Html => {
   const stateClass =
     '@container grid min-w-0 content-start gap-3 p-3 rounded-m3-medium bg-secondary-container text-on-secondary-container';
   if (typeof signal === 'string') {
@@ -1032,7 +1078,12 @@ export const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html
         total + (part.weightPercent.state === 'known' ? part.weightPercent.value : 0),
       0,
     ) > 0;
-  const assessmentPart = (part: (typeof parts)[number], index: number, grouped: boolean): Html => {
+  const assessmentPart = (
+    part: (typeof parts)[number],
+    index: number,
+    grouped: boolean,
+    h: HtmlBuilder<Message>,
+  ): Html => {
     const label = assessmentLabel(part.form, locale);
     const weight =
       part.weightPercent.state === 'known'
@@ -1067,9 +1118,10 @@ export const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html
         h.AriaLabel(accessibleLabel),
       ],
       [
-        icon<Message>(
+        icon(
           assessmentIconName(part.form),
           'block size-4 shrink-0 [&_svg]:block [&_svg]:size-full',
+          h,
         ),
         h.span([h.Class('flex-1 @min-[28rem]:flex-none')], [label]),
         weight === null
@@ -1083,7 +1135,10 @@ export const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html
       ? parts.length === 0
         ? h.p([h.Class('m-0 text-sm')], [translate(locale, 'signals.noneReported')])
         : parts.length === 1
-          ? h.ul([h.Class('flex flex-wrap p-0 list-none')], [assessmentPart(parts[0]!, 0, false)])
+          ? h.ul(
+              [h.Class('flex flex-wrap p-0 list-none')],
+              [assessmentPart(parts[0]!, 0, false, h)],
+            )
           : h.ul(
               [
                 h.Class(
@@ -1091,7 +1146,7 @@ export const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html
                 ),
                 h.AriaLabel(translate(locale, 'signals.gradedAssessment')),
               ],
-              parts.map((part, index) => assessmentPart(part, index, true)),
+              parts.map((part, index) => assessmentPart(part, index, true, h)),
             )
       : h.p([h.Class('m-0 text-sm')], [factStateLabel(signal.assessment.state, locale)]);
   const obligatory =
@@ -1142,9 +1197,10 @@ export const decisionSignalView = (signal: DecisionSignal, locale: Locale): Html
             ),
           ],
           [
-            icon<Message>(
+            icon(
               collaborationIconName(signal.collaboration.value),
               'block size-4 flex-none [&_svg]:block [&_svg]:size-full',
+              h,
             ),
             collaborationLabel(signal.collaboration.value, locale),
           ],
@@ -1209,9 +1265,9 @@ export const gradeSignalView = (
   signal: GradeSignal,
   locale: Locale,
   outcomeView: OutcomeView,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  if (typeof signal !== 'string') return gradeSummaryView(signal, locale, outcomeView);
-  const h = html<Message>();
+  if (typeof signal !== 'string') return gradeSummaryView(signal, locale, outcomeView, h);
   const message = M.value(signal).pipe(
     M.when('loading', () => translate(locale, 'outcomes.checking')),
     M.when('failure', () => translate(locale, 'outcomes.failed')),
@@ -1277,8 +1333,8 @@ const gradeSummaryView = (
   summary: CourseGradeSummaryDtoType,
   locale: Locale,
   requestedView: OutcomeView,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
   const period =
     summary.period.state === 'known'
       ? `${summary.period.value.fromYear}–${summary.period.value.toYear}`
@@ -1378,7 +1434,12 @@ const gradeSummaryView = (
     ? (() => {
         const total = Math.max(passBucket.percentage + failBucket.percentage, 1);
         const passShare = Math.max(0, Math.min((passBucket.percentage / total) * 100, 100));
-        const legendItem = (colorClass: string, label: string, percentage: number): Html =>
+        const legendItem = (
+          colorClass: string,
+          label: string,
+          percentage: number,
+          h: HtmlBuilder<Message>,
+        ): Html =>
           h.div(
             [h.Class('grid grid-cols-[0.75rem_minmax(0,1fr)_auto] items-center gap-2')],
             [
@@ -1416,11 +1477,13 @@ const gradeSummaryView = (
                   'bg-valid',
                   gradeDisplayLabel(passBucket.grade, locale),
                   passBucket.percentage,
+                  h,
                 ),
                 legendItem(
                   'bg-danger',
                   gradeDisplayLabel(failBucket.grade, locale),
                   failBucket.percentage,
+                  h,
                 ),
               ],
             ),
@@ -1542,8 +1605,7 @@ const gradeSummaryView = (
   );
 };
 
-export const selectedCourseView = (model: Model): Html => {
-  const h = html<Message>();
+export const selectedCourseView = (model: Model, h: HtmlBuilder<Message>): Html => {
   const selectedCode = model.selectedCode;
   return h.div(
     [h.Class('grid gap-4 pt-4')],
@@ -1562,15 +1624,18 @@ export const selectedCourseView = (model: Model): Html => {
           ),
         ],
         [
-          Button.view<Message>({
-            type: 'button',
-            onClick: ClosedCourse(),
-            toView: (attributes) =>
-              h.button(
-                [...attributes.button, h.Class(backButtonClass)],
-                [translate(model.locale, 'course.back')],
-              ),
-          }),
+          Button.view<Message>(
+            {
+              type: 'button',
+              onClick: ClosedCourse(),
+              toView: (attributes) =>
+                h.button(
+                  [...attributes.button, h.Class(backButtonClass)],
+                  [translate(model.locale, 'course.back')],
+                ),
+            },
+            h,
+          ),
           selectedCode === null
             ? h.empty
             : savedCourseToggle(
@@ -1579,19 +1644,20 @@ export const selectedCourseView = (model: Model): Html => {
                 savedToggleAvailability(model.savedCourses),
                 model.locale,
                 listUrl(model),
+                'state',
+                h,
               ),
         ],
       ),
       model.detail._tag === 'DetailSuccess' || model.detail._tag === 'DetailPartial'
-        ? feedbackRow(model.locale)
+        ? feedbackRow(model.locale, h)
         : h.empty,
-      detailResultView(model.detail, model.locale),
+      detailResultView(model.detail, model.locale, h),
     ],
   );
 };
 
-const detailResultView = (detail: DetailResult, locale: Locale): Html => {
-  const h = html<Message>();
+const detailResultView = (detail: DetailResult, locale: Locale, h: HtmlBuilder<Message>): Html => {
   switch (detail._tag) {
     case 'DetailClosed':
       return h.empty;
@@ -1614,8 +1680,8 @@ const detailResultView = (detail: DetailResult, locale: Locale): Html => {
         ],
       );
     case 'DetailPartial':
-      return courseInsightView(detail.response, true, locale);
+      return courseInsightView(detail.response, true, locale, h);
     case 'DetailSuccess':
-      return courseInsightView(detail.response, false, locale);
+      return courseInsightView(detail.response, false, locale, h);
   }
 };

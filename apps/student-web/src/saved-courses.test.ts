@@ -1,11 +1,11 @@
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 
+import { courseIdentity } from './course-identity';
 import {
   attachLabel,
   compareCourses,
   compareSelection,
-  courseIdentity,
   createLabel,
   deleteLabel,
   detachLabel,

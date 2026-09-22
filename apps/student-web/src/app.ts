@@ -1,14 +1,12 @@
-import type { CourseInsightResponseDtoType } from '@course-data/course-contracts';
-import { Effect, Match as M, Option, Schema as S } from 'effect';
-import { Command, Navigation, Runtime, Url } from 'foldkit';
-import type { Document, Html } from 'foldkit/html';
-import { createLazy, html } from 'foldkit/html';
-import { m } from 'foldkit/message';
-import { ts } from 'foldkit/schema';
-import { evo } from 'foldkit/struct';
+import { Effect, Option, Schema as S } from 'effect';
+import { Command, Navigation, Runtime, Update, Url } from 'foldkit';
+import type { Document, Html, HtmlBuilder } from 'foldkit/html';
+import { createLazy } from 'foldkit/html';
+import { defineMessageUnion } from 'foldkit/message';
+import { defineTaggedUnion } from 'foldkit/schema';
+import { modifyFields } from 'foldkit/struct';
 
-import { Checkbox, Dialog } from '@foldkit/ui';
-
+import { Checkbox, Dialog, Listbox, RadioGroup } from '@foldkit/ui';
 import {
   CourseDecisionSignalsResponseSchema,
   CourseGradeSummariesResponseSchema,
@@ -21,6 +19,7 @@ import {
   type CourseSearchResponse,
   type CourseSearchSort,
 } from './course-client';
+import { courseIdentity, type CourseIdentity } from './course-identity';
 import { isLocale, localeTag, translate, type Locale } from './i18n';
 import type { AppIcon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
@@ -51,7 +50,6 @@ import {
   type LabelFilter,
   type LabelRejection,
   type LabelResult,
-  courseIdentity,
   emptySavedList,
   findSavedCourse,
   isSaved,
@@ -63,10 +61,15 @@ import {
   savedListStorageKey,
   serializeSavedList,
   setSavedCourseNote,
-  type CourseIdentity,
   type SavedCourse,
   type SavedListState,
 } from './saved-courses';
+import {
+  courseOriginFilters,
+  studentCourses,
+  type CourseOriginFilter,
+  type StudentCourse,
+} from './student-courses';
 import {
   initSelectField,
   selectField,
@@ -95,6 +98,9 @@ import {
   view as appearanceView,
 } from './features/appearance';
 import {
+  LabelDraftColorRadioGroup,
+  LabelFilterModeRadioGroup,
+  ListDensityRadioGroup,
   bottomStackView,
   labelDialogView,
   listView,
@@ -102,12 +108,21 @@ import {
   selectedSavedCourses,
 } from './features/saved';
 import { Message as CompareMessage, update as updateCompare } from './features/compare';
+import {
+  Message as ProgressMessage,
+  Model as ProgressModel,
+  init as initProgress,
+  progressResultCourses,
+  update as updateProgress,
+  view as progressView,
+} from './features/progress';
 
 const DISPLAY_CHUNK = 20;
 export const DEFAULT_TERM = '2026-autumn';
 export const DEFAULT_SORT: CourseSearchSort = 'relevance';
 const EXPLORE_PATH = '/';
 const LIST_PATH = '/list';
+const PROGRESS_PATH = '/progress';
 const APPEARANCE_PATH = '/appearance';
 const LEGACY_LIST_APPEARANCE_PATH = '/list/appearance';
 const listDensityStorageKey = 'course-lens:list-density';
@@ -158,143 +173,105 @@ const SelectFieldModels = S.Struct({
   languageMobile: SelectFieldModel,
 });
 
-export const CatalogueInitialLoading = ts('CatalogueInitialLoading');
-export const CatalogueSuccess = ts('CatalogueSuccess', { response: CourseSearchResponseSchema });
-export const CataloguePartial = ts('CataloguePartial', { response: CourseSearchResponseSchema });
-export const CatalogueEmpty = ts('CatalogueEmpty');
-export const CatalogueFailure = ts('CatalogueFailure', { error: S.String });
-
-const CatalogueResult = S.Union([
-  CatalogueInitialLoading,
-  CatalogueSuccess,
-  CataloguePartial,
-  CatalogueEmpty,
-  CatalogueFailure,
-]);
-
-type CatalogueResult =
-  | ReturnType<typeof CatalogueInitialLoading>
-  | { readonly _tag: 'CatalogueSuccess'; readonly response: CourseSearchResponse }
-  | { readonly _tag: 'CataloguePartial'; readonly response: CourseSearchResponse }
-  | ReturnType<typeof CatalogueEmpty>
-  | ReturnType<typeof CatalogueFailure>;
-
-export const GradeSignalsIdle = ts('GradeSignalsIdle');
-export const GradeSignalsLoading = ts('GradeSignalsLoading', {
-  previous: S.NullOr(CourseGradeSummariesResponseSchema),
-  pendingCodes: S.Array(S.String),
+const CatalogueResult = defineTaggedUnion({
+  CatalogueInitialLoading: {},
+  CatalogueSuccess: { response: CourseSearchResponseSchema },
+  CataloguePartial: { response: CourseSearchResponseSchema },
+  CatalogueEmpty: {},
+  CatalogueFailure: { error: S.String },
 });
-export const GradeSignalsSuccess = ts('GradeSignalsSuccess', {
-  response: CourseGradeSummariesResponseSchema,
-});
-export const GradeSignalsPartial = ts('GradeSignalsPartial', {
-  response: CourseGradeSummariesResponseSchema,
-});
-export const GradeSignalsFailure = ts('GradeSignalsFailure', {
-  previous: S.NullOr(CourseGradeSummariesResponseSchema),
-  error: S.String,
-});
-const GradeSignalsResult = S.Union([
-  GradeSignalsIdle,
-  GradeSignalsLoading,
-  GradeSignalsSuccess,
-  GradeSignalsPartial,
-  GradeSignalsFailure,
-]);
+export const CatalogueInitialLoading = CatalogueResult.CatalogueInitialLoading;
+export const CatalogueSuccess = CatalogueResult.CatalogueSuccess;
+export const CataloguePartial = CatalogueResult.CataloguePartial;
+export const CatalogueEmpty = CatalogueResult.CatalogueEmpty;
+export const CatalogueFailure = CatalogueResult.CatalogueFailure;
 
-export type GradeSignalsResult =
-  | ReturnType<typeof GradeSignalsIdle>
-  | {
-      readonly _tag: 'GradeSignalsLoading';
-      readonly previous: CourseGradeSummariesResponse | null;
-      readonly pendingCodes: ReadonlyArray<string>;
-    }
-  | { readonly _tag: 'GradeSignalsSuccess'; readonly response: CourseGradeSummariesResponse }
-  | { readonly _tag: 'GradeSignalsPartial'; readonly response: CourseGradeSummariesResponse }
-  | {
-      readonly _tag: 'GradeSignalsFailure';
-      readonly previous: CourseGradeSummariesResponse | null;
-      readonly error: string;
-    };
+type CatalogueResult = typeof CatalogueResult.Type;
 
-export const DecisionSignalsIdle = ts('DecisionSignalsIdle');
-export const DecisionSignalsLoading = ts('DecisionSignalsLoading', {
-  previous: S.NullOr(CourseDecisionSignalsResponseSchema),
-  pendingCodes: S.Array(S.String),
+const GradeSignalsResult = defineTaggedUnion({
+  GradeSignalsIdle: {},
+  GradeSignalsLoading: {
+    previous: S.NullOr(CourseGradeSummariesResponseSchema),
+    pendingCodes: S.Array(S.String),
+  },
+  GradeSignalsSuccess: { response: CourseGradeSummariesResponseSchema },
+  GradeSignalsPartial: { response: CourseGradeSummariesResponseSchema },
+  GradeSignalsFailure: {
+    previous: S.NullOr(CourseGradeSummariesResponseSchema),
+    error: S.String,
+  },
 });
-export const DecisionSignalsSuccess = ts('DecisionSignalsSuccess', {
-  response: CourseDecisionSignalsResponseSchema,
+export const GradeSignalsIdle = GradeSignalsResult.GradeSignalsIdle;
+export const GradeSignalsLoading = GradeSignalsResult.GradeSignalsLoading;
+export const GradeSignalsSuccess = GradeSignalsResult.GradeSignalsSuccess;
+export const GradeSignalsPartial = GradeSignalsResult.GradeSignalsPartial;
+export const GradeSignalsFailure = GradeSignalsResult.GradeSignalsFailure;
+
+export type GradeSignalsResult = typeof GradeSignalsResult.Type;
+
+const DecisionSignalsResult = defineTaggedUnion({
+  DecisionSignalsIdle: {},
+  DecisionSignalsLoading: {
+    previous: S.NullOr(CourseDecisionSignalsResponseSchema),
+    pendingCodes: S.Array(S.String),
+  },
+  DecisionSignalsSuccess: { response: CourseDecisionSignalsResponseSchema },
+  DecisionSignalsFailure: {
+    previous: S.NullOr(CourseDecisionSignalsResponseSchema),
+    error: S.String,
+  },
 });
-export const DecisionSignalsFailure = ts('DecisionSignalsFailure', {
-  previous: S.NullOr(CourseDecisionSignalsResponseSchema),
-  error: S.String,
+export const DecisionSignalsIdle = DecisionSignalsResult.DecisionSignalsIdle;
+export const DecisionSignalsLoading = DecisionSignalsResult.DecisionSignalsLoading;
+export const DecisionSignalsSuccess = DecisionSignalsResult.DecisionSignalsSuccess;
+export const DecisionSignalsFailure = DecisionSignalsResult.DecisionSignalsFailure;
+
+export type DecisionSignalsResult = typeof DecisionSignalsResult.Type;
+
+const NextPageState = defineTaggedUnion({
+  NextPageIdle: {},
+  NextPageLoading: {},
+  NextPageFailure: { error: S.String },
 });
-const DecisionSignalsResult = S.Union([
-  DecisionSignalsIdle,
-  DecisionSignalsLoading,
-  DecisionSignalsSuccess,
-  DecisionSignalsFailure,
-]);
+export const NextPageIdle = NextPageState.NextPageIdle;
+export const NextPageLoading = NextPageState.NextPageLoading;
+export const NextPageFailure = NextPageState.NextPageFailure;
 
-export type DecisionSignalsResult =
-  | ReturnType<typeof DecisionSignalsIdle>
-  | {
-      readonly _tag: 'DecisionSignalsLoading';
-      readonly previous: CourseDecisionSignalsResponse | null;
-      readonly pendingCodes: ReadonlyArray<string>;
-    }
-  | { readonly _tag: 'DecisionSignalsSuccess'; readonly response: CourseDecisionSignalsResponse }
-  | {
-      readonly _tag: 'DecisionSignalsFailure';
-      readonly previous: CourseDecisionSignalsResponse | null;
-      readonly error: string;
-    };
+const DetailResult = defineTaggedUnion({
+  DetailClosed: {},
+  DetailLoading: {},
+  DetailSuccess: { response: CourseInsightResponseSchema },
+  DetailPartial: { response: CourseInsightResponseSchema },
+  DetailFailure: { error: S.String },
+});
+export const DetailClosed = DetailResult.DetailClosed;
+export const DetailLoading = DetailResult.DetailLoading;
+export const DetailSuccess = DetailResult.DetailSuccess;
+export const DetailPartial = DetailResult.DetailPartial;
+export const DetailFailure = DetailResult.DetailFailure;
 
-export const NextPageIdle = ts('NextPageIdle');
-export const NextPageLoading = ts('NextPageLoading');
-export const NextPageFailure = ts('NextPageFailure', { error: S.String });
-const NextPageState = S.Union([NextPageIdle, NextPageLoading, NextPageFailure]);
-
-export const DetailClosed = ts('DetailClosed');
-export const DetailLoading = ts('DetailLoading');
-export const DetailSuccess = ts('DetailSuccess', { response: CourseInsightResponseSchema });
-export const DetailPartial = ts('DetailPartial', { response: CourseInsightResponseSchema });
-export const DetailFailure = ts('DetailFailure', { error: S.String });
-const DetailResult = S.Union([
-  DetailClosed,
-  DetailLoading,
-  DetailSuccess,
-  DetailPartial,
-  DetailFailure,
-]);
-
-export type DetailResult =
-  | ReturnType<typeof DetailClosed>
-  | ReturnType<typeof DetailLoading>
-  | { readonly _tag: 'DetailSuccess'; readonly response: CourseInsightResponseDtoType }
-  | { readonly _tag: 'DetailPartial'; readonly response: CourseInsightResponseDtoType }
-  | ReturnType<typeof DetailFailure>;
+export type DetailResult = typeof DetailResult.Type;
 
 /**
  * Student-owned saved state is explicit in the model. It is loaded through a
  * Command, never read or written while updating, and an unreadable stored
  * value becomes a visible recovery state instead of an empty list.
  */
-export const SavedCoursesLoading = ts('SavedCoursesLoading');
-export const SavedCoursesReady = ts('SavedCoursesReady', {
-  state: SavedListStateSchema,
-  repairedEntries: S.Number,
+const SavedCoursesResultSchema = defineTaggedUnion({
+  SavedCoursesLoading: {},
+  SavedCoursesReady: {
+    state: SavedListStateSchema,
+    repairedEntries: S.Number,
+  },
+  SavedCoursesRecovery: {
+    reason: S.Literals(['unavailable', 'unsupported-version', 'invalid-json', 'unreadable']),
+    storedVersion: S.NullOr(S.Number),
+    raw: S.String,
+  },
 });
-export const SavedCoursesRecovery = ts('SavedCoursesRecovery', {
-  reason: S.Literals(['unavailable', 'unsupported-version', 'invalid-json', 'unreadable']),
-  storedVersion: S.NullOr(S.Number),
-  raw: S.String,
-});
-const SavedCoursesResultSchema = S.Union([
-  SavedCoursesLoading,
-  SavedCoursesReady,
-  SavedCoursesRecovery,
-]);
+export const SavedCoursesLoading = SavedCoursesResultSchema.SavedCoursesLoading;
+export const SavedCoursesReady = SavedCoursesResultSchema.SavedCoursesReady;
+export const SavedCoursesRecovery = SavedCoursesResultSchema.SavedCoursesRecovery;
 export type SavedCoursesResult = typeof SavedCoursesResultSchema.Type;
 
 /**
@@ -305,24 +282,26 @@ export type SavedCoursesResult = typeof SavedCoursesResultSchema.Type;
 export const savedToggleAvailability = (
   result: SavedCoursesResult,
 ): 'ready' | 'loading' | 'paused' =>
-  M.value(result._tag).pipe(
-    M.when('SavedCoursesReady', () => 'ready' as const),
-    M.when('SavedCoursesLoading', () => 'loading' as const),
-    M.when('SavedCoursesRecovery', () => 'paused' as const),
-    M.exhaustive,
-  );
+  SavedCoursesResultSchema.match(result, {
+    SavedCoursesReady: () => 'ready' as const,
+    SavedCoursesLoading: () => 'loading' as const,
+    SavedCoursesRecovery: () => 'paused' as const,
+  });
 
 /**
  * A single ephemeral snapshot of the most recent Save or Remove, kept only to
  * drive the ` · Undo` confirmation. It is never persisted: Dismiss and a
  * later action simply replace it.
  */
-export const SavedActionSaved = ts('SavedActionSaved', { courseCode: S.String });
-export const SavedActionRemoved = ts('SavedActionRemoved', {
-  courses: S.Array(SavedCourseSchema),
-  memberships: S.Array(LabelMembershipSchema),
+const SavedListNoticeSchema = defineTaggedUnion({
+  SavedActionSaved: { courseCode: S.String },
+  SavedActionRemoved: {
+    courses: S.Array(SavedCourseSchema),
+    memberships: S.Array(LabelMembershipSchema),
+  },
 });
-const SavedListNoticeSchema = S.Union([SavedActionSaved, SavedActionRemoved]);
+export const SavedActionSaved = SavedListNoticeSchema.SavedActionSaved;
+export const SavedActionRemoved = SavedListNoticeSchema.SavedActionRemoved;
 export type SavedListNotice = typeof SavedListNoticeSchema.Type;
 
 /**
@@ -385,7 +364,7 @@ const LabelFilterNoticeSchema = S.Struct({
 
 const LabelRejectionSchema = S.Literals(labelRejections);
 
-const RouteSchema = S.Literals(['explore', 'list', 'appearance']);
+const RouteSchema = S.Literals(['explore', 'list', 'progress', 'appearance']);
 type Route = typeof RouteSchema.Type;
 
 /**
@@ -396,15 +375,19 @@ type Route = typeof RouteSchema.Type;
 export const listDensities = ['card', 'compact'] as const;
 const ListDensitySchema = S.Literals(listDensities);
 export type ListDensity = typeof ListDensitySchema.Type;
+const CourseOriginFilterSchema = S.Literals(courseOriginFilters);
 
 export const Model = S.Struct({
   locale: LocaleSchema,
   route: RouteSchema,
+  progress: ProgressModel,
   savedCourses: SavedCoursesResultSchema,
   savedListActions: S.Array(SavedListNoticeSchema),
   noteDrafts: S.Array(NoteDraftSchema),
   savedCoursesPersistFailed: S.Boolean,
   labelFilter: LabelFilterSchema,
+  courseOriginFilter: CourseOriginFilterSchema,
+  labelFilterModeRadioGroup: RadioGroup.Model,
   compareCodes: S.Array(S.String),
   labelFilterNotice: S.NullOr(LabelFilterNoticeSchema),
   selectedCourseCodes: S.Array(S.String),
@@ -412,6 +395,7 @@ export const Model = S.Struct({
   labelDialogTarget: S.Array(S.String),
   labelDraftName: S.String,
   labelDraftColor: LabelColorSchema,
+  labelDraftColorRadioGroup: RadioGroup.Model,
   labelEditing: S.NullOr(S.String),
   labelPendingDelete: S.NullOr(S.String),
   /**
@@ -428,6 +412,7 @@ export const Model = S.Struct({
   compareDifferencesOnly: S.Boolean,
   labelError: S.NullOr(LabelRejectionSchema),
   listDensity: ListDensitySchema,
+  listDensityRadioGroup: RadioGroup.Model,
   query: S.String,
   term: S.String,
   campus: CampusSchema,
@@ -461,222 +446,207 @@ export type Model = Omit<
   readonly detail: DetailResult;
 };
 
-export const UpdatedQuery = m('UpdatedQuery', { value: S.String });
-export const ChangedLocale = m('ChangedLocale', { value: S.String });
-export const SubmittedSearch = m('SubmittedSearch');
-export const ChangedTerm = m('ChangedTerm', { value: S.String });
-export const ChangedCampus = m('ChangedCampus', { value: S.String });
-export const ChangedLevel = m('ChangedLevel', { value: S.String });
-export const ChangedSort = m('ChangedSort', { value: S.String });
-export const ToggledOpen = m('ToggledOpen', { isChecked: S.Boolean });
-export const ToggledEnglish = m('ToggledEnglish', { isChecked: S.Boolean });
-export const ChangedOutcomeView = m('ChangedOutcomeView', { value: S.String });
-export const RequestedMoreCourses = m('RequestedMoreCourses');
-export const RequestedUrl = m('RequestedUrl', { href: S.String, external: S.Boolean });
-export const ChangedUrl = m('ChangedUrl', { href: S.String });
-export const ClosedCourse = m('ClosedCourse');
-export const SucceededCourseSearch = m('SucceededCourseSearch', {
-  requestKey: S.String,
-  append: S.Boolean,
-  response: CourseSearchResponseSchema,
+export const Message = defineMessageUnion({
+  UpdatedQuery: { value: S.String },
+  ChangedLocale: { value: S.String },
+  SubmittedSearch: {},
+  ChangedTerm: { value: S.String },
+  ChangedCampus: { value: S.String },
+  ChangedLevel: { value: S.String },
+  ChangedSort: { value: S.String },
+  ToggledOpen: { isChecked: S.Boolean },
+  ToggledEnglish: { isChecked: S.Boolean },
+  ChangedOutcomeView: { value: S.String },
+  RequestedMoreCourses: {},
+  RequestedUrl: { href: S.String, external: S.Boolean },
+  ChangedUrl: { href: S.String },
+  ClosedCourse: {},
+  SucceededCourseSearch: {
+    requestKey: S.String,
+    append: S.Boolean,
+    response: CourseSearchResponseSchema,
+  },
+  FailedCourseSearch: {
+    requestKey: S.String,
+    append: S.Boolean,
+    error: S.String,
+  },
+  SucceededGradeSignals: {
+    requestKey: S.String,
+    courseCodes: S.Array(S.String),
+    response: CourseGradeSummariesResponseSchema,
+  },
+  FailedGradeSignals: {
+    requestKey: S.String,
+    courseCodes: S.Array(S.String),
+    error: S.String,
+  },
+  SucceededDecisionSignals: {
+    requestKey: S.String,
+    courseCodes: S.Array(S.String),
+    response: CourseDecisionSignalsResponseSchema,
+  },
+  FailedDecisionSignals: {
+    requestKey: S.String,
+    courseCodes: S.Array(S.String),
+    error: S.String,
+  },
+  SucceededCourseInsight: {
+    courseCode: S.String,
+    response: CourseInsightResponseSchema,
+  },
+  FailedCourseInsight: { courseCode: S.String, error: S.String },
+  CompletedNavigation: {},
+  FailedNavigation: { error: S.String },
+  PersistedLocale: {},
+  FailedLocalePersistence: {},
+  ToggledSidebar: {},
+  PersistedSidebarPreference: {},
+  FailedSidebarPreferencePersistence: {},
+  RequestedOpenRefineDialog: {},
+  GotRefineDialogMessage: { message: Dialog.Message },
+  GotAppearanceMessage: { message: AppearanceMessage },
+  GotCompareMessage: { message: CompareMessage },
+  GotProgressMessage: { message: ProgressMessage },
+  GotSelectFieldMessage: {
+    id: SelectControlIdSchema,
+    message: Listbox.Message,
+  },
+  GotLabelFilterModeRadioGroupMessage: { message: RadioGroup.Message },
+  GotListDensityRadioGroupMessage: { message: RadioGroup.Message },
+  GotLabelDraftColorRadioGroupMessage: { message: RadioGroup.Message },
+  LoadedSavedCourses: { load: SavedListLoadSchema },
+  FailedSavedCoursesLoad: {},
+  RequestedSaveCourse: { courseCode: S.String },
+  StampedSavedCourse: { courseCode: S.String, savedAt: S.String },
+  RequestedRemoveSavedCourse: { courseCode: S.String },
+  UpdatedSavedNoteDraft: { courseCode: S.String, value: S.String },
+  SubmittedSavedNote: { courseCode: S.String },
+  RequestedSavedCoursesReset: {},
+  PersistedSavedCourses: {},
+  FailedSavedCoursesPersistence: {},
+  RequestedUndoSavedListAction: { key: S.String },
+  DismissedSavedListAction: { key: S.String },
+  DismissedAllSavedListActions: {},
+  ChangedLabelInclusion: {
+    predicate: LabelPredicateSchema,
+    isIncluded: S.Boolean,
+  },
+  ChangedLabelExclusion: {
+    predicate: LabelPredicateSchema,
+    isExcluded: S.Boolean,
+  },
+  ChangedLabelFilterMode: { mode: S.Literals(labelFilterModes) },
+  ClearedLabelFilter: {},
+  ClearedCourseFilters: {},
+  ChangedListDensity: { value: ListDensitySchema },
+  ChangedCourseOriginFilter: { value: CourseOriginFilterSchema },
+  PersistedListDensity: {},
+  FailedListDensityPersistence: {},
+  ToggledSavedCourseSelection: {
+    courseCode: S.String,
+    isSelected: S.Boolean,
+  },
+  ClearedSavedCourseSelection: {},
+  RequestedCompare: {},
+  RequestedRemoveSelected: {},
+  CancelledRemoveSelected: {},
+  ConfirmedRemoveSelected: {},
+  RequestedLabelDialog: { courseCodes: S.Array(S.String) },
+  GotLabelDialogMessage: { message: Dialog.Message },
+  UpdatedLabelDraftName: { value: S.String },
+  ChangedLabelDraftColor: { value: LabelColorSchema },
+  SubmittedLabelForm: {},
+  StampedLabel: { labelId: S.String },
+  RequestedEditLabel: { labelId: S.String },
+  CancelledLabelEdit: {},
+  RequestedDeleteLabel: { labelId: S.String },
+  ConfirmedDeleteLabel: { labelId: S.String },
+  CancelledLabelDelete: {},
+  ToggledLabelOnTarget: { labelId: S.String, isAttached: S.Boolean },
 });
-export const FailedCourseSearch = m('FailedCourseSearch', {
-  requestKey: S.String,
-  append: S.Boolean,
-  error: S.String,
-});
-export const SucceededGradeSignals = m('SucceededGradeSignals', {
-  requestKey: S.String,
-  courseCodes: S.Array(S.String),
-  response: CourseGradeSummariesResponseSchema,
-});
-export const FailedGradeSignals = m('FailedGradeSignals', {
-  requestKey: S.String,
-  courseCodes: S.Array(S.String),
-  error: S.String,
-});
-export const SucceededDecisionSignals = m('SucceededDecisionSignals', {
-  requestKey: S.String,
-  courseCodes: S.Array(S.String),
-  response: CourseDecisionSignalsResponseSchema,
-});
-export const FailedDecisionSignals = m('FailedDecisionSignals', {
-  requestKey: S.String,
-  courseCodes: S.Array(S.String),
-  error: S.String,
-});
-export const SucceededCourseInsight = m('SucceededCourseInsight', {
-  courseCode: S.String,
-  response: CourseInsightResponseSchema,
-});
-export const FailedCourseInsight = m('FailedCourseInsight', {
-  courseCode: S.String,
-  error: S.String,
-});
-export const CompletedNavigation = m('CompletedNavigation');
-export const FailedNavigation = m('FailedNavigation', { error: S.String });
-export const PersistedLocale = m('PersistedLocale');
-export const FailedLocalePersistence = m('FailedLocalePersistence');
-export const ToggledSidebar = m('ToggledSidebar');
-export const PersistedSidebarPreference = m('PersistedSidebarPreference');
-export const FailedSidebarPreferencePersistence = m('FailedSidebarPreferencePersistence');
-export const GotRefineDialogMessage = m('GotRefineDialogMessage', {
-  message: Dialog.Message,
-});
-export const GotAppearanceMessage = m('GotAppearanceMessage', {
-  message: AppearanceMessage,
-});
-export const GotCompareMessage = m('GotCompareMessage', {
-  message: CompareMessage,
-});
-export const GotSelectFieldMessage = m('GotSelectFieldMessage', {
-  id: SelectControlIdSchema,
-  message: SelectFieldMessage,
-});
-export const LoadedSavedCourses = m('LoadedSavedCourses', { load: SavedListLoadSchema });
-export const FailedSavedCoursesLoad = m('FailedSavedCoursesLoad');
-export const RequestedSaveCourse = m('RequestedSaveCourse', { courseCode: S.String });
-export const StampedSavedCourse = m('StampedSavedCourse', {
-  courseCode: S.String,
-  savedAt: S.String,
-});
-export const RequestedRemoveSavedCourse = m('RequestedRemoveSavedCourse', {
-  courseCode: S.String,
-});
-export const UpdatedSavedNoteDraft = m('UpdatedSavedNoteDraft', {
-  courseCode: S.String,
-  value: S.String,
-});
-export const SubmittedSavedNote = m('SubmittedSavedNote', { courseCode: S.String });
-export const RequestedSavedCoursesReset = m('RequestedSavedCoursesReset');
-export const PersistedSavedCourses = m('PersistedSavedCourses');
-export const FailedSavedCoursesPersistence = m('FailedSavedCoursesPersistence');
-export const RequestedUndoSavedListAction = m('RequestedUndoSavedListAction', {
-  key: S.String,
-});
-export const DismissedSavedListAction = m('DismissedSavedListAction', { key: S.String });
-export const DismissedAllSavedListActions = m('DismissedAllSavedListActions');
-/**
- * Filter messages carry the state the student asked for, not a flip of
- * whatever the model holds when the message lands. A duplicate click, a
- * bubbled event, or a stale history echo therefore cannot undo a selection.
- */
-export const ChangedLabelInclusion = m('ChangedLabelInclusion', {
-  predicate: LabelPredicateSchema,
-  isIncluded: S.Boolean,
-});
-export const ChangedLabelExclusion = m('ChangedLabelExclusion', {
-  predicate: LabelPredicateSchema,
-  isExcluded: S.Boolean,
-});
-export const ChangedLabelFilterMode = m('ChangedLabelFilterMode', {
-  mode: S.Literals(labelFilterModes),
-});
-export const ClearedLabelFilter = m('ClearedLabelFilter');
-export const ChangedListDensity = m('ChangedListDensity', { value: ListDensitySchema });
-export const PersistedListDensity = m('PersistedListDensity');
-export const FailedListDensityPersistence = m('FailedListDensityPersistence');
-export const ToggledSavedCourseSelection = m('ToggledSavedCourseSelection', {
-  courseCode: S.String,
-  isSelected: S.Boolean,
-});
-export const ClearedSavedCourseSelection = m('ClearedSavedCourseSelection');
-export const RequestedCompare = m('RequestedCompare');
-export const RequestedRemoveSelected = m('RequestedRemoveSelected');
-export const CancelledRemoveSelected = m('CancelledRemoveSelected');
-export const ConfirmedRemoveSelected = m('ConfirmedRemoveSelected');
-export const RequestedLabelDialog = m('RequestedLabelDialog', {
-  courseCodes: S.Array(S.String),
-});
-export const GotLabelDialogMessage = m('GotLabelDialogMessage', { message: Dialog.Message });
-export const UpdatedLabelDraftName = m('UpdatedLabelDraftName', { value: S.String });
-export const ChangedLabelDraftColor = m('ChangedLabelDraftColor', { value: LabelColorSchema });
-export const SubmittedLabelForm = m('SubmittedLabelForm');
-export const StampedLabel = m('StampedLabel', { labelId: S.String });
-export const RequestedEditLabel = m('RequestedEditLabel', { labelId: S.String });
-export const CancelledLabelEdit = m('CancelledLabelEdit');
-export const RequestedDeleteLabel = m('RequestedDeleteLabel', { labelId: S.String });
-export const ConfirmedDeleteLabel = m('ConfirmedDeleteLabel', { labelId: S.String });
-export const CancelledLabelDelete = m('CancelledLabelDelete');
-export const ToggledLabelOnTarget = m('ToggledLabelOnTarget', {
-  labelId: S.String,
-  isAttached: S.Boolean,
-});
-
-export const Message = S.Union([
-  UpdatedQuery,
-  ChangedLocale,
-  SubmittedSearch,
-  ChangedTerm,
-  ChangedCampus,
-  ChangedLevel,
-  ChangedSort,
-  ToggledOpen,
-  ToggledEnglish,
-  ChangedOutcomeView,
-  RequestedMoreCourses,
-  RequestedUrl,
-  ChangedUrl,
-  ClosedCourse,
-  SucceededCourseSearch,
-  FailedCourseSearch,
-  SucceededGradeSignals,
-  FailedGradeSignals,
-  SucceededDecisionSignals,
-  FailedDecisionSignals,
-  SucceededCourseInsight,
-  FailedCourseInsight,
-  CompletedNavigation,
-  FailedNavigation,
-  PersistedLocale,
-  FailedLocalePersistence,
-  ToggledSidebar,
-  PersistedSidebarPreference,
-  FailedSidebarPreferencePersistence,
-  GotRefineDialogMessage,
-  GotAppearanceMessage,
-  GotSelectFieldMessage,
-  LoadedSavedCourses,
-  FailedSavedCoursesLoad,
-  RequestedSaveCourse,
-  StampedSavedCourse,
-  RequestedRemoveSavedCourse,
-  UpdatedSavedNoteDraft,
-  SubmittedSavedNote,
-  RequestedSavedCoursesReset,
-  PersistedSavedCourses,
-  FailedSavedCoursesPersistence,
-  RequestedUndoSavedListAction,
-  DismissedSavedListAction,
-  DismissedAllSavedListActions,
-  ChangedLabelInclusion,
-  ChangedLabelExclusion,
-  ChangedLabelFilterMode,
-  ClearedLabelFilter,
-  ChangedListDensity,
-  PersistedListDensity,
-  FailedListDensityPersistence,
-  ToggledSavedCourseSelection,
-  ClearedSavedCourseSelection,
-  RequestedCompare,
-  GotCompareMessage,
-  RequestedRemoveSelected,
-  CancelledRemoveSelected,
-  ConfirmedRemoveSelected,
-  RequestedLabelDialog,
-  GotLabelDialogMessage,
-  UpdatedLabelDraftName,
-  ChangedLabelDraftColor,
-  SubmittedLabelForm,
-  StampedLabel,
-  RequestedEditLabel,
-  CancelledLabelEdit,
-  RequestedDeleteLabel,
-  ConfirmedDeleteLabel,
-  CancelledLabelDelete,
-  ToggledLabelOnTarget,
-]);
 export type Message = typeof Message.Type;
+
+export const UpdatedQuery = Message.UpdatedQuery;
+export const ChangedLocale = Message.ChangedLocale;
+export const SubmittedSearch = Message.SubmittedSearch;
+export const ChangedTerm = Message.ChangedTerm;
+export const ChangedCampus = Message.ChangedCampus;
+export const ChangedLevel = Message.ChangedLevel;
+export const ChangedSort = Message.ChangedSort;
+export const ToggledOpen = Message.ToggledOpen;
+export const ToggledEnglish = Message.ToggledEnglish;
+export const ChangedOutcomeView = Message.ChangedOutcomeView;
+export const RequestedMoreCourses = Message.RequestedMoreCourses;
+export const RequestedUrl = Message.RequestedUrl;
+export const ChangedUrl = Message.ChangedUrl;
+export const ClosedCourse = Message.ClosedCourse;
+export const SucceededCourseSearch = Message.SucceededCourseSearch;
+export const FailedCourseSearch = Message.FailedCourseSearch;
+export const SucceededGradeSignals = Message.SucceededGradeSignals;
+export const FailedGradeSignals = Message.FailedGradeSignals;
+export const SucceededDecisionSignals = Message.SucceededDecisionSignals;
+export const FailedDecisionSignals = Message.FailedDecisionSignals;
+export const SucceededCourseInsight = Message.SucceededCourseInsight;
+export const FailedCourseInsight = Message.FailedCourseInsight;
+export const CompletedNavigation = Message.CompletedNavigation;
+export const FailedNavigation = Message.FailedNavigation;
+export const PersistedLocale = Message.PersistedLocale;
+export const FailedLocalePersistence = Message.FailedLocalePersistence;
+export const ToggledSidebar = Message.ToggledSidebar;
+export const PersistedSidebarPreference = Message.PersistedSidebarPreference;
+export const FailedSidebarPreferencePersistence = Message.FailedSidebarPreferencePersistence;
+export const RequestedOpenRefineDialog = Message.RequestedOpenRefineDialog;
+export const GotRefineDialogMessage = Message.GotRefineDialogMessage;
+export const GotAppearanceMessage = Message.GotAppearanceMessage;
+export const GotCompareMessage = Message.GotCompareMessage;
+export const GotProgressMessage = Message.GotProgressMessage;
+export const GotLabelFilterModeRadioGroupMessage = Message.GotLabelFilterModeRadioGroupMessage;
+export const GotListDensityRadioGroupMessage = Message.GotListDensityRadioGroupMessage;
+export const GotLabelDraftColorRadioGroupMessage = Message.GotLabelDraftColorRadioGroupMessage;
+export const LoadedSavedCourses = Message.LoadedSavedCourses;
+export const FailedSavedCoursesLoad = Message.FailedSavedCoursesLoad;
+export const RequestedSaveCourse = Message.RequestedSaveCourse;
+export const StampedSavedCourse = Message.StampedSavedCourse;
+export const RequestedRemoveSavedCourse = Message.RequestedRemoveSavedCourse;
+export const UpdatedSavedNoteDraft = Message.UpdatedSavedNoteDraft;
+export const SubmittedSavedNote = Message.SubmittedSavedNote;
+export const RequestedSavedCoursesReset = Message.RequestedSavedCoursesReset;
+export const PersistedSavedCourses = Message.PersistedSavedCourses;
+export const FailedSavedCoursesPersistence = Message.FailedSavedCoursesPersistence;
+export const RequestedUndoSavedListAction = Message.RequestedUndoSavedListAction;
+export const DismissedSavedListAction = Message.DismissedSavedListAction;
+export const DismissedAllSavedListActions = Message.DismissedAllSavedListActions;
+export const ChangedLabelInclusion = Message.ChangedLabelInclusion;
+export const ChangedLabelExclusion = Message.ChangedLabelExclusion;
+export const ChangedLabelFilterMode = Message.ChangedLabelFilterMode;
+export const ClearedLabelFilter = Message.ClearedLabelFilter;
+export const ChangedListDensity = Message.ChangedListDensity;
+export const ClearedCourseFilters = Message.ClearedCourseFilters;
+export const ChangedCourseOriginFilter = Message.ChangedCourseOriginFilter;
+export const PersistedListDensity = Message.PersistedListDensity;
+export const FailedListDensityPersistence = Message.FailedListDensityPersistence;
+export const ToggledSavedCourseSelection = Message.ToggledSavedCourseSelection;
+export const ClearedSavedCourseSelection = Message.ClearedSavedCourseSelection;
+export const RequestedCompare = Message.RequestedCompare;
+export const RequestedRemoveSelected = Message.RequestedRemoveSelected;
+export const CancelledRemoveSelected = Message.CancelledRemoveSelected;
+export const ConfirmedRemoveSelected = Message.ConfirmedRemoveSelected;
+export const RequestedLabelDialog = Message.RequestedLabelDialog;
+export const GotLabelDialogMessage = Message.GotLabelDialogMessage;
+export const UpdatedLabelDraftName = Message.UpdatedLabelDraftName;
+export const ChangedLabelDraftColor = Message.ChangedLabelDraftColor;
+export const SubmittedLabelForm = Message.SubmittedLabelForm;
+export const StampedLabel = Message.StampedLabel;
+export const RequestedEditLabel = Message.RequestedEditLabel;
+export const CancelledLabelEdit = Message.CancelledLabelEdit;
+export const RequestedDeleteLabel = Message.RequestedDeleteLabel;
+export const ConfirmedDeleteLabel = Message.ConfirmedDeleteLabel;
+export const CancelledLabelDelete = Message.CancelledLabelDelete;
+export const ToggledLabelOnTarget = Message.ToggledLabelOnTarget;
+
+type UpdateReturn = Update.Return<Model, Message>;
+type Commands = Update.Commands<Message>;
 
 const searchRequest = (model: Model, page: number): CourseSearchRequest => ({
   query: model.query,
@@ -702,13 +672,12 @@ const requestKey = (request: CourseSearchRequest): string =>
     request.english,
   ].join('|');
 
-export const FetchCourseSearch = Command.define(
-  'FetchCourseSearch',
-  {
+export const FetchCourseSearch = Command.define('FetchCourseSearch', {
+  args: {
     query: S.String,
     term: S.String,
     page: S.Number,
-    sort: S.String,
+    sort: SortSchema,
     campus: S.NullOr(S.String),
     level: S.NullOr(S.String),
     continuingEducation: S.Boolean,
@@ -717,182 +686,172 @@ export const FetchCourseSearch = Command.define(
     requestKey: S.String,
     append: S.Boolean,
   },
-  SucceededCourseSearch,
-  FailedCourseSearch,
-)((input) =>
-  courseClient
-    .search({
-      query: input.query,
-      term: input.term,
-      page: input.page,
-      sort: input.sort as CourseSearchSort,
-      ...(input.campus === null ? {} : { campus: input.campus }),
-      ...(input.level === null ? {} : { level: input.level }),
-      continuingEducation: input.continuingEducation,
-      open: input.open,
-      english: input.english,
-    })
-    .pipe(
+  messages: [Message.SucceededCourseSearch, Message.FailedCourseSearch],
+  execute: (input) =>
+    courseClient
+      .search({
+        query: input.query,
+        term: input.term,
+        page: input.page,
+        sort: input.sort,
+        ...(input.campus === null ? {} : { campus: input.campus }),
+        ...(input.level === null ? {} : { level: input.level }),
+        continuingEducation: input.continuingEducation,
+        open: input.open,
+        english: input.english,
+      })
+      .pipe(
+        Effect.map((response) =>
+          Message.SucceededCourseSearch({
+            requestKey: input.requestKey,
+            append: input.append,
+            response,
+          }),
+        ),
+        Effect.catch((error) =>
+          Effect.succeed(
+            Message.FailedCourseSearch({
+              requestKey: input.requestKey,
+              append: input.append,
+              error: error.message,
+            }),
+          ),
+        ),
+      ),
+});
+
+export const FetchCourseInsight = Command.define('FetchCourseInsight', {
+  args: { courseCode: S.String, term: S.String },
+  messages: [Message.SucceededCourseInsight, Message.FailedCourseInsight],
+  execute: ({ courseCode, term }) =>
+    courseClient.getInsight(courseCode, term).pipe(
+      Effect.map((response) => Message.SucceededCourseInsight({ courseCode, response })),
+      Effect.catch((error) =>
+        Effect.succeed(Message.FailedCourseInsight({ courseCode, error: error.message })),
+      ),
+    ),
+});
+
+export const FetchGradeSignals = Command.define('FetchGradeSignals', {
+  args: { courseCodes: S.Array(S.String), requestKey: S.String },
+  messages: [Message.SucceededGradeSignals, Message.FailedGradeSignals],
+  execute: ({ courseCodes, requestKey: key }) =>
+    courseClient.getGradeSummaries(courseCodes).pipe(
       Effect.map((response) =>
-        SucceededCourseSearch({
-          requestKey: input.requestKey,
-          append: input.append,
-          response,
-        }),
+        Message.SucceededGradeSignals({ requestKey: key, courseCodes, response }),
       ),
       Effect.catch((error) =>
         Effect.succeed(
-          FailedCourseSearch({
-            requestKey: input.requestKey,
-            append: input.append,
-            error: error.message,
-          }),
+          Message.FailedGradeSignals({ requestKey: key, courseCodes, error: error.message }),
         ),
       ),
     ),
-);
+});
 
-export const FetchCourseInsight = Command.define(
-  'FetchCourseInsight',
-  { courseCode: S.String, term: S.String },
-  SucceededCourseInsight,
-  FailedCourseInsight,
-)(({ courseCode, term }) =>
-  courseClient.getInsight(courseCode, term).pipe(
-    Effect.map((response) => SucceededCourseInsight({ courseCode, response })),
-    Effect.catch((error) =>
-      Effect.succeed(FailedCourseInsight({ courseCode, error: error.message })),
+export const FetchDecisionSignals = Command.define('FetchDecisionSignals', {
+  args: { courseCodes: S.Array(S.String), term: S.String, requestKey: S.String },
+  messages: [Message.SucceededDecisionSignals, Message.FailedDecisionSignals],
+  execute: ({ courseCodes, term, requestKey: key }) =>
+    courseClient.getDecisionSignals(courseCodes, term).pipe(
+      Effect.map((response) =>
+        Message.SucceededDecisionSignals({ requestKey: key, courseCodes, response }),
+      ),
+      Effect.catch((error) =>
+        Effect.succeed(
+          Message.FailedDecisionSignals({ requestKey: key, courseCodes, error: error.message }),
+        ),
+      ),
     ),
-  ),
-);
+});
 
-export const FetchGradeSignals = Command.define(
-  'FetchGradeSignals',
-  { courseCodes: S.Array(S.String), requestKey: S.String },
-  SucceededGradeSignals,
-  FailedGradeSignals,
-)(({ courseCodes, requestKey: key }) =>
-  courseClient.getGradeSummaries(courseCodes).pipe(
-    Effect.map((response) => SucceededGradeSignals({ requestKey: key, courseCodes, response })),
-    Effect.catch((error) =>
-      Effect.succeed(FailedGradeSignals({ requestKey: key, courseCodes, error: error.message })),
+export const Navigate = Command.define('Navigate', {
+  args: { href: S.String, mode: S.String },
+  messages: [Message.CompletedNavigation, Message.FailedNavigation],
+  execute: ({ href, mode }) =>
+    (mode === 'external'
+      ? Navigation.load(href)
+      : mode === 'replace'
+        ? Navigation.replaceUrl(href)
+        : Navigation.pushUrl(href)
+    ).pipe(Effect.as(Message.CompletedNavigation())),
+});
+
+export const PersistLocale = Command.define('PersistLocale', {
+  args: { locale: LocaleSchema },
+  messages: [Message.PersistedLocale, Message.FailedLocalePersistence],
+  execute: ({ locale }) =>
+    Effect.try({
+      try: () => {
+        localStorage.setItem('course-lens:locale', locale);
+        document.documentElement.lang = localeTag(locale);
+      },
+      catch: () => new Error('Locale preference could not be persisted'),
+    }).pipe(
+      Effect.as(Message.PersistedLocale()),
+      Effect.catch(() => Effect.succeed(Message.FailedLocalePersistence())),
     ),
-  ),
-);
+});
 
-export const FetchDecisionSignals = Command.define(
-  'FetchDecisionSignals',
-  { courseCodes: S.Array(S.String), term: S.String, requestKey: S.String },
-  SucceededDecisionSignals,
-  FailedDecisionSignals,
-)(({ courseCodes, term, requestKey: key }) =>
-  courseClient.getDecisionSignals(courseCodes, term).pipe(
-    Effect.map((response) => SucceededDecisionSignals({ requestKey: key, courseCodes, response })),
-    Effect.catch((error) =>
-      Effect.succeed(FailedDecisionSignals({ requestKey: key, courseCodes, error: error.message })),
+export const PersistSidebarPreference = Command.define('PersistSidebarPreference', {
+  args: { collapsed: S.Boolean },
+  messages: [Message.PersistedSidebarPreference, Message.FailedSidebarPreferencePersistence],
+  execute: ({ collapsed }) =>
+    Effect.try({
+      try: () => {
+        localStorage.setItem('course-lens:sidebar-collapsed', collapsed ? '1' : '0');
+      },
+      catch: () => new Error('Sidebar preference could not be persisted'),
+    }).pipe(
+      Effect.as(Message.PersistedSidebarPreference()),
+      Effect.catch(() => Effect.succeed(Message.FailedSidebarPreferencePersistence())),
     ),
-  ),
-);
+});
 
-export const Navigate = Command.define(
-  'Navigate',
-  { href: S.String, mode: S.String },
-  CompletedNavigation,
-  FailedNavigation,
-)(({ href, mode }) =>
-  (mode === 'external'
-    ? Navigation.load(href)
-    : mode === 'replace'
-      ? Navigation.replaceUrl(href)
-      : Navigation.pushUrl(href)
-  ).pipe(Effect.as(CompletedNavigation())),
-);
-
-export const PersistLocale = Command.define(
-  'PersistLocale',
-  { locale: LocaleSchema },
-  PersistedLocale,
-  FailedLocalePersistence,
-)(({ locale }) =>
-  Effect.try({
-    try: () => {
-      localStorage.setItem('course-lens:locale', locale);
-      document.documentElement.lang = localeTag(locale);
-    },
-    catch: () => new Error('Locale preference could not be persisted'),
-  }).pipe(
-    Effect.as(PersistedLocale()),
-    Effect.catch(() => Effect.succeed(FailedLocalePersistence())),
-  ),
-);
-
-export const PersistSidebarPreference = Command.define(
-  'PersistSidebarPreference',
-  { collapsed: S.Boolean },
-  PersistedSidebarPreference,
-  FailedSidebarPreferencePersistence,
-)(({ collapsed }) =>
-  Effect.try({
-    try: () => {
-      localStorage.setItem('course-lens:sidebar-collapsed', collapsed ? '1' : '0');
-    },
-    catch: () => new Error('Sidebar preference could not be persisted'),
-  }).pipe(
-    Effect.as(PersistedSidebarPreference()),
-    Effect.catch(() => Effect.succeed(FailedSidebarPreferencePersistence())),
-  ),
-);
-
-export const PersistListDensity = Command.define(
-  'PersistListDensity',
-  { density: ListDensitySchema },
-  PersistedListDensity,
-  FailedListDensityPersistence,
-)(({ density }) =>
-  Effect.try({
-    try: () => {
-      localStorage.setItem(listDensityStorageKey, density);
-    },
-    catch: () => new Error('List density preference could not be persisted'),
-  }).pipe(
-    Effect.as(PersistedListDensity()),
-    Effect.catch(() => Effect.succeed(FailedListDensityPersistence())),
-  ),
-);
+export const PersistListDensity = Command.define('PersistListDensity', {
+  args: { density: ListDensitySchema },
+  messages: [Message.PersistedListDensity, Message.FailedListDensityPersistence],
+  execute: ({ density }) =>
+    Effect.try({
+      try: () => {
+        localStorage.setItem(listDensityStorageKey, density);
+      },
+      catch: () => new Error('List density preference could not be persisted'),
+    }).pipe(
+      Effect.as(Message.PersistedListDensity()),
+      Effect.catch(() => Effect.succeed(Message.FailedListDensityPersistence())),
+    ),
+});
 
 /**
  * Local storage is untrusted input and an untrusted destination: reading and
  * writing the saved list happen here, at the application boundary, and every
  * failure path produces an explicit Message.
  */
-export const LoadSavedCourses = Command.define(
-  'LoadSavedCourses',
-  LoadedSavedCourses,
-  FailedSavedCoursesLoad,
-)(
-  Effect.try({
+export const LoadSavedCourses = Command.define('LoadSavedCourses', {
+  messages: [Message.LoadedSavedCourses, Message.FailedSavedCoursesLoad],
+  execute: Effect.try({
     try: () =>
-      LoadedSavedCourses({ load: parseSavedList(localStorage.getItem(savedListStorageKey)) }),
+      Message.LoadedSavedCourses({
+        load: parseSavedList(localStorage.getItem(savedListStorageKey)),
+      }),
     catch: () => new Error('Saved courses could not be read from this browser'),
-  }).pipe(Effect.catch(() => Effect.succeed(FailedSavedCoursesLoad()))),
-);
+  }).pipe(Effect.catch(() => Effect.succeed(Message.FailedSavedCoursesLoad()))),
+});
 
-export const PersistSavedCourses = Command.define(
-  'PersistSavedCourses',
-  { state: SavedListStateSchema },
-  PersistedSavedCourses,
-  FailedSavedCoursesPersistence,
-)(({ state }) =>
-  Effect.try({
-    try: () => {
-      localStorage.setItem(savedListStorageKey, serializeSavedList(state));
-    },
-    catch: () => new Error('Saved courses could not be stored in this browser'),
-  }).pipe(
-    Effect.as(PersistedSavedCourses()),
-    Effect.catch(() => Effect.succeed(FailedSavedCoursesPersistence())),
-  ),
-);
+export const PersistSavedCourses = Command.define('PersistSavedCourses', {
+  args: { state: SavedListStateSchema },
+  messages: [Message.PersistedSavedCourses, Message.FailedSavedCoursesPersistence],
+  execute: ({ state }) =>
+    Effect.try({
+      try: () => {
+        localStorage.setItem(savedListStorageKey, serializeSavedList(state));
+      },
+      catch: () => new Error('Saved courses could not be stored in this browser'),
+    }).pipe(
+      Effect.as(Message.PersistedSavedCourses()),
+      Effect.catch(() => Effect.succeed(Message.FailedSavedCoursesPersistence())),
+    ),
+});
 
 /**
  * Label identity comes from the boundary for the same reason the save
@@ -905,19 +864,20 @@ const newLabelId = (): string =>
     ? `label-${crypto.randomUUID()}`
     : `label-${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffff).toString(36)}`;
 
-export const StampLabel = Command.define(
-  'StampLabel',
-  StampedLabel,
-)(Effect.sync(() => StampedLabel({ labelId: newLabelId() })));
+export const StampLabel = Command.define('StampLabel', {
+  messages: [Message.StampedLabel],
+  execute: Effect.sync(() => Message.StampedLabel({ labelId: newLabelId() })),
+});
 
 /** The clock stays in the boundary; `update` receives an observed timestamp. */
-export const StampSavedCourse = Command.define(
-  'StampSavedCourse',
-  { courseCode: S.String },
-  StampedSavedCourse,
-)(({ courseCode }) =>
-  Effect.sync(() => StampedSavedCourse({ courseCode, savedAt: new Date().toISOString() })),
-);
+export const StampSavedCourse = Command.define('StampSavedCourse', {
+  args: { courseCode: S.String },
+  messages: [Message.StampedSavedCourse],
+  execute: ({ courseCode }) =>
+    Effect.sync(() =>
+      Message.StampedSavedCourse({ courseCode, savedAt: new Date().toISOString() }),
+    ),
+});
 
 const fetchCommand = (
   request: CourseSearchRequest,
@@ -1016,13 +976,12 @@ const mergeDecisionSignals = (
   };
 };
 
-const requestVisibleGradeSignals = (
-  response: CourseSearchResponse,
-  visibleCount: number,
+const requestGradeSignals = (
+  requestedCodes: ReadonlyArray<string>,
   current: GradeSignalsResult,
   key: string,
   reset: boolean,
-): readonly [GradeSignalsResult, ReadonlyArray<Command.Command<Message>>] => {
+): Readonly<{ result: GradeSignalsResult; commands: Commands }> => {
   const previous = reset ? null : gradeSignalsResponse(current);
   const pendingCodes = reset
     ? []
@@ -1033,27 +992,39 @@ const requestVisibleGradeSignals = (
     ...(previous?.items.map((item) => item.courseCode) ?? []),
     ...pendingCodes,
   ]);
-  const courseCodes = response.items
-    .slice(0, visibleCount)
-    .map((item) => item.code)
-    .filter((courseCode) => !loadedCodes.has(courseCode));
-  if (courseCodes.length === 0) {
-    return [reset ? GradeSignalsIdle() : current, []];
-  }
-  return [
-    GradeSignalsLoading({ previous, pendingCodes: [...pendingCodes, ...courseCodes] }),
-    [FetchGradeSignals({ courseCodes, requestKey: key })],
-  ];
+  const courseCodes = requestedCodes.filter((courseCode) => !loadedCodes.has(courseCode));
+  return courseCodes.length === 0
+    ? { result: reset ? GradeSignalsResult.GradeSignalsIdle() : current, commands: [] }
+    : {
+        result: GradeSignalsResult.GradeSignalsLoading({
+          previous,
+          pendingCodes: [...pendingCodes, ...courseCodes],
+        }),
+        commands: [FetchGradeSignals({ courseCodes, requestKey: key })],
+      };
 };
 
-const requestVisibleDecisionSignals = (
+const requestVisibleGradeSignals = (
   response: CourseSearchResponse,
   visibleCount: number,
+  current: GradeSignalsResult,
+  key: string,
+  reset: boolean,
+): Readonly<{ result: GradeSignalsResult; commands: Commands }> =>
+  requestGradeSignals(
+    response.items.slice(0, visibleCount).map((item) => item.code),
+    current,
+    key,
+    reset,
+  );
+
+const requestDecisionSignals = (
+  requestedCodes: ReadonlyArray<string>,
   current: DecisionSignalsResult,
   term: string,
   key: string,
   reset: boolean,
-): readonly [DecisionSignalsResult, ReadonlyArray<Command.Command<Message>>] => {
+): Readonly<{ result: DecisionSignalsResult; commands: Commands }> => {
   const previous = reset ? null : decisionSignalsResponse(current);
   const pendingCodes = reset
     ? []
@@ -1064,17 +1035,63 @@ const requestVisibleDecisionSignals = (
     ...(previous?.items.map((item) => item.courseCode) ?? []),
     ...pendingCodes,
   ]);
-  const courseCodes = response.items
-    .slice(0, visibleCount)
-    .map((item) => item.code)
-    .filter((courseCode) => !loadedCodes.has(courseCode));
-  if (courseCodes.length === 0) {
-    return [reset ? DecisionSignalsIdle() : current, []];
-  }
-  return [
-    DecisionSignalsLoading({ previous, pendingCodes: [...pendingCodes, ...courseCodes] }),
-    [FetchDecisionSignals({ courseCodes, term, requestKey: key })],
+  const courseCodes = requestedCodes.filter((courseCode) => !loadedCodes.has(courseCode));
+  return courseCodes.length === 0
+    ? { result: reset ? DecisionSignalsResult.DecisionSignalsIdle() : current, commands: [] }
+    : {
+        result: DecisionSignalsResult.DecisionSignalsLoading({
+          previous,
+          pendingCodes: [...pendingCodes, ...courseCodes],
+        }),
+        commands: [FetchDecisionSignals({ courseCodes, term, requestKey: key })],
+      };
+};
+
+const requestVisibleDecisionSignals = (
+  response: CourseSearchResponse,
+  visibleCount: number,
+  current: DecisionSignalsResult,
+  term: string,
+  key: string,
+  reset: boolean,
+): Readonly<{ result: DecisionSignalsResult; commands: Commands }> =>
+  requestDecisionSignals(
+    response.items.slice(0, visibleCount).map((item) => item.code),
+    current,
+    term,
+    key,
+    reset,
+  );
+
+const requestListCourseSignals = (model: Model): UpdateReturn => {
+  if (model.route !== 'list') return { model };
+  const courseCodes = [
+    ...new Set(
+      projectedStudentCourses(model)
+        .slice(0, DISPLAY_CHUNK)
+        .map((course) => course.courseCode),
+    ),
   ];
+  const grades = requestGradeSignals(
+    courseCodes,
+    model.gradeSignals,
+    model.activeRequestKey,
+    false,
+  );
+  const decisions = requestDecisionSignals(
+    courseCodes,
+    model.decisionSignals,
+    model.term,
+    model.activeRequestKey,
+    false,
+  );
+  return {
+    model: modifyFields(model, {
+      gradeSignals: () => grades.result,
+      decisionSignals: () => decisions.result,
+    }),
+    commands: [...grades.commands, ...decisions.commands],
+  };
 };
 
 export const normalizedUrl = (
@@ -1130,7 +1147,13 @@ const sameLabelFilter = (left: LabelFilter, right: LabelFilter): boolean =>
   sameLabelIds(left.excludeLabelIds, right.excludeLabelIds);
 
 const routePath = (route: Route): string =>
-  route === 'list' ? LIST_PATH : route === 'appearance' ? APPEARANCE_PATH : EXPLORE_PATH;
+  route === 'list'
+    ? LIST_PATH
+    : route === 'progress'
+      ? PROGRESS_PATH
+      : route === 'appearance'
+        ? APPEARANCE_PATH
+        : EXPLORE_PATH;
 
 /** The shareable URL for the model as it currently stands. */
 const currentUrl = (model: Model, selectedCode: string | null = model.selectedCode): string =>
@@ -1139,6 +1162,8 @@ const currentUrl = (model: Model, selectedCode: string | null = model.selectedCo
 const appearanceUrl = (model: Model): string => normalizedUrl(model, null, APPEARANCE_PATH);
 
 export const listUrl = (model: Model): string => normalizedUrl(model, null, LIST_PATH);
+
+const progressUrl = (model: Model): string => normalizedUrl(model, null, PROGRESS_PATH);
 
 export const exploreUrl = (model: Model): string => normalizedUrl(model, null, EXPLORE_PATH);
 
@@ -1149,6 +1174,11 @@ export const isCourseSaved = (result: SavedCoursesResult, courseCode: string): b
   const state = savedListState(result);
   const identity = courseIdentity(courseCode);
   return state !== null && identity !== null && isSaved(state, identity);
+};
+
+export const projectedStudentCourses = (model: Model): ReadonlyArray<StudentCourse> => {
+  const saved = savedListState(model.savedCourses);
+  return saved === null ? [] : studentCourses(saved, progressResultCourses(model.progress));
 };
 
 /** Identities the label dialog acts on: the explicit target, intersected with
@@ -1186,20 +1216,24 @@ const applySavedListChange = (
   change: (state: SavedListState, identity: CourseIdentity) => SavedListState,
   courseCode: string,
   drafts: Model['noteDrafts'] = model.noteDrafts,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+): UpdateReturn => {
   const state = savedListState(model.savedCourses);
   const identity = courseIdentity(courseCode);
-  if (state === null || identity === null) return [model, []];
+  if (state === null || identity === null) {
+    return { model };
+  }
   const next = change(state, identity);
-  if (next === state && drafts === model.noteDrafts) return [model, []];
-  return [
-    {
-      ...model,
-      savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
-      noteDrafts: drafts,
-    },
-    next === state ? [] : [PersistSavedCourses({ state: next })],
-  ];
+  if (next === state && drafts === model.noteDrafts) {
+    return { model };
+  }
+  const nextModel = modifyFields(model, {
+    savedCourses: () =>
+      SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
+    noteDrafts: () => drafts,
+  });
+  return next === state
+    ? { model: nextModel }
+    : { model: nextModel, commands: [PersistSavedCourses({ state: next })] };
 };
 
 /**
@@ -1211,39 +1245,47 @@ const applySavedListChange = (
  * `replace`, so it never adds a history entry the student did not create, and
  * it never touches the catalogue request.
  */
-const canonicalizeLabelFilter = (
-  model: Model,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+const canonicalizeLabelFilter = (model: Model): UpdateReturn => {
   const state = savedListState(model.savedCourses);
-  if (state === null) return [model, []];
+  if (state === null) {
+    return { model };
+  }
   const normalized = normalizeLabelFilter(state, model.labelFilter);
-  if (sameLabelFilter(normalized.filter, model.labelFilter)) return [model, []];
-  const next: Model = {
-    ...model,
-    labelFilter: normalized.filter,
-    labelFilterNotice: {
+  if (sameLabelFilter(normalized.filter, model.labelFilter)) {
+    return { model };
+  }
+  const nextModel = modifyFields(model, {
+    labelFilter: () => normalized.filter,
+    labelFilterNotice: () => ({
       unknownCount: normalized.unknownLabelIds.length,
       contradictoryLabelIds: normalized.contradictoryLabelIds,
       contradictoryUnlabeled: normalized.contradictoryUnlabeled,
-    },
-  };
-  return [
-    next,
-    model.route === 'list' ? [Navigate({ href: currentUrl(next, null), mode: 'replace' })] : [],
-  ];
+    }),
+  });
+  return model.route === 'list'
+    ? {
+        model: nextModel,
+        commands: [Navigate({ href: currentUrl(nextModel, null), mode: 'replace' })],
+      }
+    : { model: nextModel };
 };
 
 /**
  * A student-driven filter change is a history entry: Back and Forward restore
  * the previous recipe. It stays inside List, so no catalogue request is made.
  */
-const applyLabelFilter = (
-  model: Model,
-  filter: LabelFilter,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
-  if (sameLabelFilter(filter, model.labelFilter)) return [model, []];
-  const next: Model = { ...model, labelFilter: filter, labelFilterNotice: null };
-  return [next, [Navigate({ href: currentUrl(next, null), mode: 'push' })]];
+const applyLabelFilter = (model: Model, filter: LabelFilter): UpdateReturn => {
+  if (sameLabelFilter(filter, model.labelFilter)) {
+    return { model };
+  }
+  const nextModel = modifyFields(model, {
+    labelFilter: () => filter,
+    labelFilterNotice: () => null,
+  });
+  return {
+    model: nextModel,
+    commands: [Navigate({ href: currentUrl(nextModel, null), mode: 'push' })],
+  };
 };
 
 /**
@@ -1251,15 +1293,16 @@ const applyLabelFilter = (
  * dialog, closing it by any route, and cancelling an edit all discard the draft
  * through this one value, so no path can leave half of it behind.
  */
-const discardedLabelDraft = {
-  labelEditing: null,
-  labelDraftName: '',
-  labelDraftColor: defaultLabelColor,
-  labelError: null,
-  labelPendingDelete: null,
-  selectionRemovePending: false,
-  compareDifferencesOnly: true,
-} as const satisfies Partial<Model>;
+const discardLabelDraft = (model: Model): Model =>
+  modifyFields(model, {
+    labelEditing: () => null,
+    labelDraftName: () => '',
+    labelDraftColor: () => defaultLabelColor,
+    labelError: () => null,
+    labelPendingDelete: () => null,
+    selectionRemovePending: () => false,
+    compareDifferencesOnly: () => true,
+  });
 
 /**
  * The reason the current draft would be refused, or `null` if Apply would
@@ -1283,22 +1326,23 @@ const applyLabelResult = (
   model: Model,
   result: LabelResult,
   patch: Partial<Model> = {},
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+): UpdateReturn => {
   switch (result._tag) {
-    case 'LabelApplied':
-      return [
-        {
-          ...model,
-          ...patch,
-          savedCourses: SavedCoursesReady({ state: result.state, repairedEntries: 0 }),
-          labelError: null,
-        },
-        [PersistSavedCourses({ state: result.state })],
-      ];
+    case 'LabelApplied': {
+      const patchedModel = { ...model, ...patch };
+      return {
+        model: modifyFields(patchedModel, {
+          savedCourses: () =>
+            SavedCoursesResultSchema.SavedCoursesReady({ state: result.state, repairedEntries: 0 }),
+          labelError: () => null,
+        }),
+        commands: [PersistSavedCourses({ state: result.state })],
+      };
+    }
     case 'LabelUnchanged':
-      return [{ ...model, ...patch, labelError: null }, []];
+      return { model: modifyFields({ ...model, ...patch }, { labelError: () => null }) };
     case 'LabelRejected':
-      return [{ ...model, labelError: result.reason }, []];
+      return { model: modifyFields(model, { labelError: () => result.reason }) };
   }
 };
 
@@ -1308,26 +1352,27 @@ const applyLabelStateChange = (
   model: Model,
   state: SavedListState,
   patch: Partial<Model> = {},
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+): UpdateReturn => {
   const normalized = normalizeLabelFilter(state, model.labelFilter);
   const filterChanged = !sameLabelFilter(normalized.filter, model.labelFilter);
-  const next: Model = {
-    ...model,
-    ...patch,
-    savedCourses: SavedCoursesReady({ state, repairedEntries: 0 }),
-    labelError: null,
-    labelFilter: normalized.filter,
-    labelFilterNotice: null,
-  };
-  return [
-    next,
-    [
+  const nextModel = modifyFields(
+    { ...model, ...patch },
+    {
+      savedCourses: () => SavedCoursesResultSchema.SavedCoursesReady({ state, repairedEntries: 0 }),
+      labelError: () => null,
+      labelFilter: () => normalized.filter,
+      labelFilterNotice: () => null,
+    },
+  );
+  return {
+    model: nextModel,
+    commands: [
       PersistSavedCourses({ state }),
       ...(filterChanged && model.route === 'list'
-        ? [Navigate({ href: currentUrl(next, null), mode: 'replace' })]
+        ? [Navigate({ href: currentUrl(nextModel, null), mode: 'replace' })]
         : []),
     ],
-  ];
+  };
 };
 
 const startCatalogue = (
@@ -1335,26 +1380,31 @@ const startCatalogue = (
   patch: Partial<
     Pick<Model, 'query' | 'term' | 'campus' | 'level' | 'sort' | 'openOnly' | 'englishOnly'>
   >,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
-  const next = { ...model, ...patch, selectedCode: null, detail: DetailClosed() };
-  const request = searchRequest(next, 1);
+): UpdateReturn => {
+  const requestedModel = modifyFields(
+    { ...model, ...patch },
+    {
+      selectedCode: () => null,
+      detail: () => DetailResult.DetailClosed(),
+    },
+  );
+  const request = searchRequest(requestedModel, 1);
   const key = requestKey(request);
-  const nextModel: Model = {
-    ...next,
-    activeRequestKey: key,
-    visibleCount: DISPLAY_CHUNK,
-    catalogue: CatalogueInitialLoading(),
-    gradeSignals: GradeSignalsIdle(),
-    decisionSignals: DecisionSignalsIdle(),
-    nextPage: NextPageIdle(),
-  };
-  return [
-    nextModel,
-    [
+  const nextModel = modifyFields(requestedModel, {
+    activeRequestKey: () => key,
+    visibleCount: () => DISPLAY_CHUNK,
+    catalogue: () => CatalogueResult.CatalogueInitialLoading(),
+    gradeSignals: () => GradeSignalsResult.GradeSignalsIdle(),
+    decisionSignals: () => DecisionSignalsResult.DecisionSignalsIdle(),
+    nextPage: () => NextPageState.NextPageIdle(),
+  });
+  return {
+    model: nextModel,
+    commands: [
       Navigate({ href: currentUrl(nextModel, null), mode: 'replace' }),
       fetchCommand(request, key, false),
     ],
-  ];
+  };
 };
 
 const oneOf = <A extends string>(value: string, values: ReadonlyArray<A>, fallback: A): A =>
@@ -1380,6 +1430,8 @@ const parsePathname = (pathname: string): Route => {
   switch (normalized === '' ? EXPLORE_PATH : normalized) {
     case LIST_PATH:
       return 'list';
+    case PROGRESS_PATH:
+      return 'progress';
     // Appearance was once an overlay over whichever page you were on, so it
     // had a path per host route. Both still resolve, because links to them
     // exist in the wild, but the destination is now one page of its own.
@@ -1431,9 +1483,11 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
     ),
     openOnly: url.searchParams.get('open') === '1',
     englishOnly: url.searchParams.get('english') === '1',
-    // List owns saved identities; course detail always belongs to Explore.
+    // List and Progress do not own course-detail state.
     selectedCode:
-      path === 'list' ? null : url.searchParams.get('course')?.trim().toUpperCase() || null,
+      path === 'list' || path === 'progress'
+        ? null
+        : url.searchParams.get('course')?.trim().toUpperCase() || null,
     compareCodes: path === 'list' ? parseCompareCodes(url.searchParams.get('compare')) : [],
     labelFilter:
       path === 'list'
@@ -1463,6 +1517,7 @@ const forRoute = (model: Model, route: Route): Model =>
     : {
         ...model,
         route,
+        courseOriginFilter: 'all',
         selectedCourseCodes: [],
         selectionRemovePending: false,
         labelDialogTarget: [],
@@ -1522,11 +1577,7 @@ const replaceSelectFieldModel = (
   }
 };
 
-const applySelectValue = (
-  model: Model,
-  id: SelectControlId,
-  value: string,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+const applySelectValue = (model: Model, id: SelectControlId, value: string): UpdateReturn => {
   switch (id) {
     case 'campus-inline':
     case 'campus-refine':
@@ -1550,849 +1601,1104 @@ const applySelectValue = (
     case 'language-desktop':
     case 'language-mobile': {
       const locale = isLocale(value) ? value : 'en';
-      const next = { ...model, locale };
-      return [
-        next,
-        [PersistLocale({ locale }), Navigate({ href: currentUrl(next), mode: 'replace' })],
-      ];
+      const nextModel = modifyFields(model, { locale: () => locale });
+      return {
+        model: nextModel,
+        commands: [
+          PersistLocale({ locale }),
+          Navigate({ href: currentUrl(nextModel), mode: 'replace' }),
+        ],
+      };
     }
   }
 };
+
+const updateSelectFieldControl = (
+  model: Model,
+  id: SelectControlId,
+  selectMessage: SelectFieldMessage,
+  toRootMessage: (message: SelectFieldMessage) => Message,
+): UpdateReturn => {
+  const selectFieldUpdate = updateSelectField(
+    selectFieldModel(model.selectFields, id),
+    selectMessage,
+  );
+  const nextModel = modifyFields(model, {
+    selectFields: () => replaceSelectFieldModel(model.selectFields, id, selectFieldUpdate.model),
+  });
+  const selectCommands = Command.mapMessages(selectFieldUpdate.commands, toRootMessage);
+  if (selectFieldUpdate.outMessage === undefined) {
+    return { model: nextModel, commands: selectCommands };
+  }
+  const selected = applySelectValue(nextModel, id, selectFieldUpdate.outMessage.value);
+  return {
+    model: selected.model,
+    commands: [...selectCommands, ...(selected.commands ?? [])],
+  };
+};
+
 const updateAppearancePreference = (
   model: Model,
   message: AppearanceMessage,
   toRootMessage: (message: AppearanceMessage) => Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
-  const [appearance, commands] = updateAppearance(initAppearance(model.themePreference), message);
-  return [
-    { ...model, themePreference: appearance.preference },
-    Command.mapMessages(commands, toRootMessage),
-  ];
+): UpdateReturn => {
+  const appearanceUpdate = updateAppearance(initAppearance(model.themePreference), message);
+  return {
+    model: modifyFields(model, {
+      themePreference: () => appearanceUpdate.model.preference,
+    }),
+    commands: Command.mapMessages(appearanceUpdate.commands, toRootMessage),
+  };
 };
-export const update = (
-  model: Model,
-  message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] =>
-  M.value(message).pipe(
-    M.withReturnType<readonly [Model, ReadonlyArray<Command.Command<Message>>]>(),
-    M.tagsExhaustive({
-      UpdatedQuery: ({ value }) => [evo(model, { query: () => value }), []],
-      ChangedLocale: ({ value }) => {
-        const locale = isLocale(value) ? value : 'en';
-        const next = { ...model, locale };
-        return [
-          next,
-          [PersistLocale({ locale }), Navigate({ href: currentUrl(next), mode: 'replace' })],
-        ];
-      },
-      ToggledSidebar: () => {
-        const sidebarCollapsed = !model.sidebarCollapsed;
-        return [
-          { ...model, sidebarCollapsed },
-          [PersistSidebarPreference({ collapsed: sidebarCollapsed })],
-        ];
-      },
-      SubmittedSearch: () =>
-        startCatalogue(model, {
-          query: model.query.trim(),
-          sort: model.query.trim().length === 0 ? DEFAULT_SORT : 'relevance',
-        }),
-      ChangedTerm: ({ value }) => startCatalogue(model, { term: value }),
-      ChangedCampus: ({ value }) =>
-        startCatalogue(model, {
-          campus: oneOf(value, ['all', 'trondheim', 'gjovik', 'alesund'], 'all'),
-        }),
-      ChangedLevel: ({ value }) =>
-        startCatalogue(model, {
-          level: oneOf(value, ['all', 'bachelor', 'master', 'phd'], 'all'),
-        }),
-      ChangedSort: ({ value }) =>
-        startCatalogue(model, {
-          sort: oneOf(
-            value,
-            ['relevance', 'title-asc', 'title-desc', 'code-asc', 'code-desc'],
-            'relevance',
-          ),
-        }),
-      ToggledOpen: ({ isChecked }) => startCatalogue(model, { openOnly: isChecked }),
-      ToggledEnglish: ({ isChecked }) => startCatalogue(model, { englishOnly: isChecked }),
-      ChangedOutcomeView: ({ value }) => [
-        { ...model, outcomeView: oneOf(value, ['letter', 'pass-fail'], 'letter') },
-        [],
-      ],
-      RequestedMoreCourses: () => {
-        const response = catalogueResponse(model.catalogue);
-        if (response === null || model.nextPage._tag === 'NextPageLoading') return [model, []];
-        if (model.visibleCount < response.items.length) {
-          const visibleCount = Math.min(response.items.length, model.visibleCount + DISPLAY_CHUNK);
-          const [gradeSignals, gradeCommands] = requestVisibleGradeSignals(
-            response,
-            visibleCount,
-            model.gradeSignals,
-            model.activeRequestKey,
-            false,
-          );
-          const [decisionSignals, decisionCommands] = requestVisibleDecisionSignals(
-            response,
-            visibleCount,
-            model.decisionSignals,
-            model.term,
-            model.activeRequestKey,
-            false,
-          );
-          return [
-            {
-              ...model,
-              visibleCount,
-              gradeSignals,
-              decisionSignals,
-              nextPage: NextPageIdle(),
-            },
-            [...gradeCommands, ...decisionCommands],
-          ];
-        }
-        if (!response.meta.hasMore) return [model, []];
-        const request = searchRequest(model, response.meta.page + 1);
-        return [
-          evo(model, { nextPage: () => NextPageLoading() }),
-          [fetchCommand(request, model.activeRequestKey, true)],
-        ];
-      },
-      RequestedUrl: ({ href, external }) => [
-        model,
-        [Navigate({ href, mode: external ? 'external' : 'push' })],
-      ],
-      ChangedUrl: ({ href }) => {
-        const location = parseLocation(href);
-        const withCanonicalFilter = (
-          result: readonly [Model, ReadonlyArray<Command.Command<Message>>],
-        ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
-          const [next, commands] = result;
-          const [canonical, filterCommands] = canonicalizeLabelFilter(next);
-          return [canonical, [...commands, ...filterCommands]];
-        };
-        if (!locationMatchesModel(location, model)) {
-          const next: Model = {
-            ...forRoute(model, location.route),
-            locale: location.locale,
-            route: location.route,
-            query: location.query,
-            term: location.term,
-            campus: location.campus,
-            level: location.level,
-            sort: location.sort,
-            openOnly: location.openOnly,
-            englishOnly: location.englishOnly,
-            selectedCode: location.selectedCode,
-            detail: location.selectedCode === null ? DetailClosed() : DetailLoading(),
-            catalogue: CatalogueInitialLoading(),
-            gradeSignals: GradeSignalsIdle(),
-            decisionSignals: DecisionSignalsIdle(),
-            nextPage: NextPageIdle(),
-            visibleCount: DISPLAY_CHUNK,
-            labelFilter: location.labelFilter,
-            compareCodes: location.compareCodes,
-            labelFilterNotice: null,
-          };
-          const request = searchRequest(next, 1);
-          const key = requestKey(request);
-          return withCanonicalFilter([
-            { ...next, activeRequestKey: key },
-            [
-              fetchCommand(request, key, false),
-              ...(location.selectedCode === null
-                ? []
-                : [FetchCourseInsight({ courseCode: location.selectedCode, term: location.term })]),
-            ],
-          ]);
-        }
-        /**
-         * A label-filter change is local interaction state: the catalogue
-         * request is unchanged, so history navigation restores the recipe
-         * without refetching anything.
-         */
-        const routedModel: Model =
-          location.locale === model.locale &&
-          location.route === model.route &&
-          sameLabelFilter(location.labelFilter, model.labelFilter)
-            ? model
+
+const updateLabelFilterModeRadioGroup = Update.foldChild({
+  update: LabelFilterModeRadioGroup.update,
+  read: (model: Model) => Option.some(model.labelFilterModeRadioGroup),
+  write: (model, nextLabelFilterModeRadioGroup) =>
+    modifyFields(model, {
+      labelFilterModeRadioGroup: () => nextLabelFilterModeRadioGroup,
+    }),
+  toParentMessage: (message) => Message.GotLabelFilterModeRadioGroupMessage({ message }),
+  foldOutMessage: (outMessage) =>
+    RadioGroup.OutMessage.match<Update.Step<Model, Message>, typeof outMessage>(outMessage, {
+      Selected:
+        ({ value }) =>
+        (model) =>
+          applyLabelFilter(model, setLabelFilterMode(model.labelFilter, value)),
+    }),
+});
+
+const updateListDensityRadioGroup = Update.foldChild({
+  update: ListDensityRadioGroup.update,
+  read: (model: Model) => Option.some(model.listDensityRadioGroup),
+  write: (model, nextListDensityRadioGroup) =>
+    modifyFields(model, {
+      listDensityRadioGroup: () => nextListDensityRadioGroup,
+    }),
+  toParentMessage: (message) => Message.GotListDensityRadioGroupMessage({ message }),
+  foldOutMessage: (outMessage) =>
+    RadioGroup.OutMessage.match<Update.Step<Model, Message>, typeof outMessage>(outMessage, {
+      Selected:
+        ({ value }) =>
+        (model) =>
+          model.listDensity === value
+            ? { model }
             : {
-                ...forRoute(model, location.route),
-                locale: location.locale,
-                route: location.route,
-                labelFilter: location.labelFilter,
-                compareCodes: location.compareCodes,
-                labelFilterNotice: sameLabelFilter(location.labelFilter, model.labelFilter)
-                  ? model.labelFilterNotice
-                  : null,
-              };
-        const localizedModel = routedModel;
-        const localeCommands =
-          location.locale === model.locale ? [] : [PersistLocale({ locale: location.locale })];
-        if (location.selectedCode === model.selectedCode) {
-          return withCanonicalFilter([localizedModel, localeCommands]);
-        }
-        return withCanonicalFilter(
-          location.selectedCode === null
-            ? [{ ...localizedModel, selectedCode: null, detail: DetailClosed() }, localeCommands]
-            : [
-                {
-                  ...localizedModel,
-                  selectedCode: location.selectedCode,
-                  detail: DetailLoading(),
-                },
-                [
-                  ...localeCommands,
-                  FetchCourseInsight({ courseCode: location.selectedCode, term: model.term }),
-                ],
-              ],
-        );
-      },
-      ClosedCourse: () => [model, [Navigate({ href: currentUrl(model, null), mode: 'replace' })]],
-      SucceededCourseSearch: ({ requestKey: key, append, response: nextResponse }) => {
-        if (key !== model.activeRequestKey) return [model, []];
-        const response = mergeResponses(
-          append ? catalogueResponse(model.catalogue) : null,
-          nextResponse,
-        );
-        const result: CatalogueResult =
-          response.items.length === 0
-            ? CatalogueEmpty()
-            : isPartial(response)
-              ? { _tag: 'CataloguePartial', response }
-              : { _tag: 'CatalogueSuccess', response };
-        const visibleCount = append
-          ? Math.min(response.items.length, model.visibleCount + DISPLAY_CHUNK)
-          : Math.min(DISPLAY_CHUNK, response.items.length);
-        const [gradeSignals, gradeCommands] = requestVisibleGradeSignals(
+                model: modifyFields(model, { listDensity: () => value }),
+                commands: [PersistListDensity({ density: value })],
+              },
+    }),
+});
+
+const updateLabelDraftColorRadioGroup = Update.foldChild({
+  update: LabelDraftColorRadioGroup.update,
+  read: (model: Model) => Option.some(model.labelDraftColorRadioGroup),
+  write: (model, nextLabelDraftColorRadioGroup) =>
+    modifyFields(model, {
+      labelDraftColorRadioGroup: () => nextLabelDraftColorRadioGroup,
+    }),
+  toParentMessage: (message) => Message.GotLabelDraftColorRadioGroupMessage({ message }),
+  foldOutMessage: (outMessage) =>
+    RadioGroup.OutMessage.match<Update.Step<Model, Message>, typeof outMessage>(outMessage, {
+      Selected:
+        ({ value }) =>
+        (model) => ({
+          model: modifyFields(model, { labelDraftColor: () => value }),
+        }),
+    }),
+});
+export const update = (model: Model, message: Message) =>
+  Message.match<UpdateReturn>(message, {
+    UpdatedQuery: ({ value }) => ({
+      model: modifyFields(model, { query: () => value }),
+    }),
+    ChangedLocale: ({ value }) => {
+      const locale = isLocale(value) ? value : 'en';
+      const nextModel = modifyFields(model, { locale: () => locale });
+      return {
+        model: nextModel,
+        commands: [
+          PersistLocale({ locale }),
+          Navigate({ href: currentUrl(nextModel), mode: 'replace' }),
+        ],
+      };
+    },
+    ToggledSidebar: () => {
+      const sidebarCollapsed = !model.sidebarCollapsed;
+      return {
+        model: modifyFields(model, { sidebarCollapsed: () => sidebarCollapsed }),
+        commands: [PersistSidebarPreference({ collapsed: sidebarCollapsed })],
+      };
+    },
+    SubmittedSearch: () =>
+      startCatalogue(model, {
+        query: model.query.trim(),
+        sort: model.query.trim().length === 0 ? DEFAULT_SORT : 'relevance',
+      }),
+    ChangedTerm: ({ value }) => startCatalogue(model, { term: value }),
+    ChangedCampus: ({ value }) =>
+      startCatalogue(model, {
+        campus: oneOf(value, ['all', 'trondheim', 'gjovik', 'alesund'], 'all'),
+      }),
+    ChangedLevel: ({ value }) =>
+      startCatalogue(model, {
+        level: oneOf(value, ['all', 'bachelor', 'master', 'phd'], 'all'),
+      }),
+    ChangedSort: ({ value }) =>
+      startCatalogue(model, {
+        sort: oneOf(
+          value,
+          ['relevance', 'title-asc', 'title-desc', 'code-asc', 'code-desc'],
+          'relevance',
+        ),
+      }),
+    ToggledOpen: ({ isChecked }) => startCatalogue(model, { openOnly: isChecked }),
+    ToggledEnglish: ({ isChecked }) => startCatalogue(model, { englishOnly: isChecked }),
+    ChangedOutcomeView: ({ value }) => ({
+      model: modifyFields(model, {
+        outcomeView: () => oneOf(value, ['letter', 'pass-fail'], 'letter'),
+      }),
+    }),
+    RequestedMoreCourses: () => {
+      const response = catalogueResponse(model.catalogue);
+      if (response === null || model.nextPage._tag === 'NextPageLoading') {
+        return { model };
+      }
+      if (model.visibleCount < response.items.length) {
+        const visibleCount = Math.min(response.items.length, model.visibleCount + DISPLAY_CHUNK);
+        const gradeSignalsRequest = requestVisibleGradeSignals(
           response,
           visibleCount,
           model.gradeSignals,
-          key,
-          !append,
+          model.activeRequestKey,
+          false,
         );
-        const [decisionSignals, decisionCommands] = requestVisibleDecisionSignals(
+        const decisionSignalsRequest = requestVisibleDecisionSignals(
           response,
           visibleCount,
           model.decisionSignals,
           model.term,
-          key,
-          !append,
+          model.activeRequestKey,
+          false,
         );
-        return [
-          {
-            ...model,
-            catalogue: result,
-            gradeSignals,
-            decisionSignals,
-            visibleCount,
-            nextPage: NextPageIdle(),
-          },
-          [...gradeCommands, ...decisionCommands],
-        ];
-      },
-      FailedCourseSearch: ({ requestKey: key, append, error }) => {
-        if (key !== model.activeRequestKey) return [model, []];
-        return append
-          ? [{ ...model, nextPage: NextPageFailure({ error }) }, []]
-          : [{ ...model, catalogue: CatalogueFailure({ error }) }, []];
-      },
-      SucceededGradeSignals: ({ requestKey: key, courseCodes, response: nextResponse }) => {
-        if (key !== model.activeRequestKey) return [model, []];
-        const response = mergeGradeSignals(gradeSignalsResponse(model.gradeSignals), nextResponse);
-        const completedCodes = new Set(courseCodes);
-        const pendingCodes =
-          model.gradeSignals._tag === 'GradeSignalsLoading'
-            ? model.gradeSignals.pendingCodes.filter((code) => !completedCodes.has(code))
-            : [];
-        return [
-          {
-            ...model,
-            gradeSignals:
-              pendingCodes.length > 0
-                ? GradeSignalsLoading({ previous: response, pendingCodes })
-                : isGradeSignalsPartial(response)
-                  ? GradeSignalsPartial({ response })
-                  : GradeSignalsSuccess({ response }),
-          },
-          [],
-        ];
-      },
-      FailedGradeSignals: ({ requestKey: key, error }) =>
-        key !== model.activeRequestKey
-          ? [model, []]
-          : [
-              {
-                ...model,
-                gradeSignals: GradeSignalsFailure({
+        return {
+          model: modifyFields(model, {
+            visibleCount: () => visibleCount,
+            gradeSignals: () => gradeSignalsRequest.result,
+            decisionSignals: () => decisionSignalsRequest.result,
+            nextPage: () => NextPageState.NextPageIdle(),
+          }),
+          commands: [...gradeSignalsRequest.commands, ...decisionSignalsRequest.commands],
+        };
+      }
+      if (!response.meta.hasMore) {
+        return { model };
+      }
+      const request = searchRequest(model, response.meta.page + 1);
+      return {
+        model: modifyFields(model, {
+          nextPage: () => NextPageState.NextPageLoading(),
+        }),
+        commands: [fetchCommand(request, model.activeRequestKey, true)],
+      };
+    },
+    RequestedUrl: ({ href, external }) => ({
+      model,
+      commands: [Navigate({ href, mode: external ? 'external' : 'push' })],
+    }),
+    ChangedUrl: ({ href }) => {
+      const location = parseLocation(href);
+      const withCanonicalFilter = (result: UpdateReturn): UpdateReturn => {
+        const canonicalization = canonicalizeLabelFilter(result.model);
+        const signals = requestListCourseSignals(canonicalization.model);
+        return {
+          model: signals.model,
+          commands: [
+            ...(result.commands ?? []),
+            ...(canonicalization.commands ?? []),
+            ...(signals.commands ?? []),
+          ],
+        };
+      };
+      if (!locationMatchesModel(location, model)) {
+        const locationModel = modifyFields(forRoute(model, location.route), {
+          locale: () => location.locale,
+          route: () => location.route,
+          query: () => location.query,
+          term: () => location.term,
+          campus: () => location.campus,
+          level: () => location.level,
+          sort: () => location.sort,
+          openOnly: () => location.openOnly,
+          englishOnly: () => location.englishOnly,
+          selectedCode: () => location.selectedCode,
+          detail: () =>
+            location.selectedCode === null
+              ? DetailResult.DetailClosed()
+              : DetailResult.DetailLoading(),
+          catalogue: () => CatalogueResult.CatalogueInitialLoading(),
+          gradeSignals: () => GradeSignalsResult.GradeSignalsIdle(),
+          decisionSignals: () => DecisionSignalsResult.DecisionSignalsIdle(),
+          nextPage: () => NextPageState.NextPageIdle(),
+          visibleCount: () => DISPLAY_CHUNK,
+          labelFilter: () => location.labelFilter,
+          compareCodes: () => location.compareCodes,
+          labelFilterNotice: () => null,
+        });
+        const request = searchRequest(locationModel, 1);
+        const key = requestKey(request);
+        const nextModel = modifyFields(locationModel, {
+          activeRequestKey: () => key,
+        });
+        return withCanonicalFilter({
+          model: nextModel,
+          commands: [
+            fetchCommand(request, key, false),
+            ...(location.selectedCode === null
+              ? []
+              : [FetchCourseInsight({ courseCode: location.selectedCode, term: location.term })]),
+          ],
+        });
+      }
+      /**
+       * A label-filter change is local interaction state: the catalogue
+       * request is unchanged, so history navigation restores the recipe
+       * without refetching anything.
+       */
+      const routedModel: Model =
+        location.locale === model.locale &&
+        location.route === model.route &&
+        sameLabelFilter(location.labelFilter, model.labelFilter)
+          ? model
+          : modifyFields(forRoute(model, location.route), {
+              locale: () => location.locale,
+              route: () => location.route,
+              labelFilter: () => location.labelFilter,
+              compareCodes: () => location.compareCodes,
+              labelFilterNotice: () =>
+                sameLabelFilter(location.labelFilter, model.labelFilter)
+                  ? model.labelFilterNotice
+                  : null,
+            });
+      const localeCommands: Commands =
+        location.locale === model.locale ? [] : [PersistLocale({ locale: location.locale })];
+      if (location.selectedCode === model.selectedCode) {
+        return withCanonicalFilter({ model: routedModel, commands: localeCommands });
+      }
+      const nextModel = modifyFields(routedModel, {
+        selectedCode: () => location.selectedCode,
+        detail: () =>
+          location.selectedCode === null
+            ? DetailResult.DetailClosed()
+            : DetailResult.DetailLoading(),
+      });
+      return withCanonicalFilter({
+        model: nextModel,
+        commands:
+          location.selectedCode === null
+            ? localeCommands
+            : [
+                ...localeCommands,
+                FetchCourseInsight({ courseCode: location.selectedCode, term: model.term }),
+              ],
+      });
+    },
+    ClosedCourse: () => ({
+      model,
+      commands: [Navigate({ href: currentUrl(model, null), mode: 'replace' })],
+    }),
+    SucceededCourseSearch: ({ requestKey: key, append, response: nextResponse }) => {
+      if (key !== model.activeRequestKey) {
+        return { model };
+      }
+      const response = mergeResponses(
+        append ? catalogueResponse(model.catalogue) : null,
+        nextResponse,
+      );
+      const result: CatalogueResult =
+        response.items.length === 0
+          ? CatalogueResult.CatalogueEmpty()
+          : isPartial(response)
+            ? CatalogueResult.CataloguePartial({ response })
+            : CatalogueResult.CatalogueSuccess({ response });
+      const visibleCount = append
+        ? Math.min(response.items.length, model.visibleCount + DISPLAY_CHUNK)
+        : Math.min(DISPLAY_CHUNK, response.items.length);
+      const gradeSignalsRequest = requestVisibleGradeSignals(
+        response,
+        visibleCount,
+        model.gradeSignals,
+        key,
+        !append,
+      );
+      const decisionSignalsRequest = requestVisibleDecisionSignals(
+        response,
+        visibleCount,
+        model.decisionSignals,
+        model.term,
+        key,
+        !append,
+      );
+      return {
+        model: modifyFields(model, {
+          catalogue: () => result,
+          gradeSignals: () => gradeSignalsRequest.result,
+          decisionSignals: () => decisionSignalsRequest.result,
+          visibleCount: () => visibleCount,
+          nextPage: () => NextPageState.NextPageIdle(),
+        }),
+        commands: [...gradeSignalsRequest.commands, ...decisionSignalsRequest.commands],
+      };
+    },
+    FailedCourseSearch: ({ requestKey: key, append, error }) => {
+      if (key !== model.activeRequestKey) {
+        return { model };
+      }
+      return {
+        model: modifyFields(model, {
+          ...(append
+            ? { nextPage: () => NextPageState.NextPageFailure({ error }) }
+            : { catalogue: () => CatalogueResult.CatalogueFailure({ error }) }),
+        }),
+      };
+    },
+    SucceededGradeSignals: ({ requestKey: key, courseCodes, response: nextResponse }) => {
+      if (key !== model.activeRequestKey) {
+        return { model };
+      }
+      const response = mergeGradeSignals(gradeSignalsResponse(model.gradeSignals), nextResponse);
+      const completedCodes = new Set(courseCodes);
+      const pendingCodes =
+        model.gradeSignals._tag === 'GradeSignalsLoading'
+          ? model.gradeSignals.pendingCodes.filter((code) => !completedCodes.has(code))
+          : [];
+      return {
+        model: modifyFields(model, {
+          gradeSignals: () =>
+            pendingCodes.length > 0
+              ? GradeSignalsResult.GradeSignalsLoading({ previous: response, pendingCodes })
+              : isGradeSignalsPartial(response)
+                ? GradeSignalsResult.GradeSignalsPartial({ response })
+                : GradeSignalsResult.GradeSignalsSuccess({ response }),
+        }),
+      };
+    },
+    FailedGradeSignals: ({ requestKey: key, error }) =>
+      key !== model.activeRequestKey
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              gradeSignals: () =>
+                GradeSignalsResult.GradeSignalsFailure({
                   previous: gradeSignalsResponse(model.gradeSignals),
                   error,
                 }),
-              },
-              [],
-            ],
-      SucceededDecisionSignals: ({ requestKey: key, courseCodes, response: nextResponse }) => {
-        if (key !== model.activeRequestKey) return [model, []];
-        const response = mergeDecisionSignals(
-          decisionSignalsResponse(model.decisionSignals),
-          nextResponse,
-        );
-        const completedCodes = new Set(courseCodes);
-        const pendingCodes =
-          model.decisionSignals._tag === 'DecisionSignalsLoading'
-            ? model.decisionSignals.pendingCodes.filter((code) => !completedCodes.has(code))
-            : [];
-        return [
-          {
-            ...model,
-            decisionSignals:
-              pendingCodes.length > 0
-                ? DecisionSignalsLoading({ previous: response, pendingCodes })
-                : DecisionSignalsSuccess({ response }),
+            }),
           },
-          [],
-        ];
-      },
-      FailedDecisionSignals: ({ requestKey: key, error }) =>
-        key !== model.activeRequestKey
-          ? [model, []]
-          : [
-              {
-                ...model,
-                decisionSignals: DecisionSignalsFailure({
+    SucceededDecisionSignals: ({ requestKey: key, courseCodes, response: nextResponse }) => {
+      if (key !== model.activeRequestKey) {
+        return { model };
+      }
+      const response = mergeDecisionSignals(
+        decisionSignalsResponse(model.decisionSignals),
+        nextResponse,
+      );
+      const completedCodes = new Set(courseCodes);
+      const pendingCodes =
+        model.decisionSignals._tag === 'DecisionSignalsLoading'
+          ? model.decisionSignals.pendingCodes.filter((code) => !completedCodes.has(code))
+          : [];
+      return {
+        model: modifyFields(model, {
+          decisionSignals: () =>
+            pendingCodes.length > 0
+              ? DecisionSignalsResult.DecisionSignalsLoading({ previous: response, pendingCodes })
+              : DecisionSignalsResult.DecisionSignalsSuccess({ response }),
+        }),
+      };
+    },
+    FailedDecisionSignals: ({ requestKey: key, error }) =>
+      key !== model.activeRequestKey
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              decisionSignals: () =>
+                DecisionSignalsResult.DecisionSignalsFailure({
                   previous: decisionSignalsResponse(model.decisionSignals),
                   error,
                 }),
-              },
-              [],
-            ],
-      SucceededCourseInsight: ({ courseCode, response }) => {
-        if (courseCode !== model.selectedCode) return [model, []];
-        return [
-          {
-            ...model,
-            detail: response.meta.partial
-              ? { _tag: 'DetailPartial', response }
-              : { _tag: 'DetailSuccess', response },
+            }),
           },
-          [],
-        ];
-      },
-      FailedCourseInsight: ({ courseCode, error }) =>
-        courseCode === model.selectedCode
-          ? [{ ...model, detail: DetailFailure({ error }) }, []]
-          : [model, []],
-      CompletedNavigation: () => [model, []],
-      FailedNavigation: () => [model, []],
-      PersistedLocale: () => [model, []],
-      FailedLocalePersistence: () => [model, []],
-      PersistedSidebarPreference: () => [model, []],
-      FailedSidebarPreferencePersistence: () => [model, []],
-      GotRefineDialogMessage: ({ message: dialogMessage }) => {
-        const [refineDialog, commands] = Dialog.update(model.refineDialog, dialogMessage);
-        return [
-          { ...model, refineDialog },
-          Command.mapMessages(commands, (message) => GotRefineDialogMessage({ message })),
-        ];
-      },
-      GotAppearanceMessage: ({ message: appearanceMessage }) =>
-        updateAppearancePreference(model, appearanceMessage, (message) =>
-          GotAppearanceMessage({ message }),
+    SucceededCourseInsight: ({ courseCode, response }) => {
+      if (courseCode !== model.selectedCode) {
+        return { model };
+      }
+      return {
+        model: modifyFields(model, {
+          detail: () =>
+            response.meta.partial
+              ? DetailResult.DetailPartial({ response })
+              : DetailResult.DetailSuccess({ response }),
+        }),
+      };
+    },
+    FailedCourseInsight: ({ courseCode, error }) =>
+      courseCode === model.selectedCode
+        ? {
+            model: modifyFields(model, {
+              detail: () => DetailResult.DetailFailure({ error }),
+            }),
+          }
+        : { model },
+    CompletedNavigation: () => ({ model }),
+    FailedNavigation: () => ({ model }),
+    PersistedLocale: () => ({ model }),
+    FailedLocalePersistence: () => ({ model }),
+    PersistedSidebarPreference: () => ({ model }),
+    FailedSidebarPreferencePersistence: () => ({ model }),
+    RequestedOpenRefineDialog: () => {
+      const refineDialogOpen = Dialog.open(model.refineDialog);
+      return {
+        model: modifyFields(model, {
+          refineDialog: () => refineDialogOpen.model,
+        }),
+        commands: Command.mapMessages(refineDialogOpen.commands, (message) =>
+          Message.GotRefineDialogMessage({ message }),
         ),
-      LoadedSavedCourses: ({ load }) => {
-        switch (load._tag) {
-          case 'SavedListEmpty':
-            return [
-              {
-                ...model,
-                savedCourses: SavedCoursesReady({ state: emptySavedList, repairedEntries: 0 }),
-              },
-              [],
-            ];
-          case 'SavedListLoaded': {
-            // A filter recipe can only be judged against a loaded label set, so
-            // canonicalization happens here rather than while parsing the URL.
-            const [canonical, filterCommands] = canonicalizeLabelFilter({
-              ...model,
-              savedCourses: SavedCoursesReady({
+      };
+    },
+    GotRefineDialogMessage: ({ message: dialogMessage }) => {
+      const refineDialogUpdate = Dialog.update(model.refineDialog, dialogMessage);
+      return {
+        model: modifyFields(model, {
+          refineDialog: () => refineDialogUpdate.model,
+        }),
+        commands: Command.mapMessages(refineDialogUpdate.commands, (message) =>
+          Message.GotRefineDialogMessage({ message }),
+        ),
+      };
+    },
+    GotAppearanceMessage: ({ message: appearanceMessage }) =>
+      updateAppearancePreference(model, appearanceMessage, (message) =>
+        Message.GotAppearanceMessage({ message }),
+      ),
+    GotProgressMessage: ({ message: progressMessage }) => {
+      const progressUpdate = updateProgress(model.progress, progressMessage);
+      const updatedModel = modifyFields(model, {
+        progress: () => progressUpdate.model,
+        selectedCourseCodes: () => (model.route === 'list' ? [] : model.selectedCourseCodes),
+        selectionRemovePending: () =>
+          model.route === 'list' ? false : model.selectionRemovePending,
+      });
+      const signals = requestListCourseSignals(updatedModel);
+      return {
+        model: signals.model,
+        commands: [
+          ...Command.mapMessages(progressUpdate.commands, (message) =>
+            Message.GotProgressMessage({ message }),
+          ),
+          ...(signals.commands ?? []),
+        ],
+      };
+    },
+    GotLabelFilterModeRadioGroupMessage: ({ message }) =>
+      updateLabelFilterModeRadioGroup(model, message),
+    GotListDensityRadioGroupMessage: ({ message }) => updateListDensityRadioGroup(model, message),
+    GotLabelDraftColorRadioGroupMessage: ({ message }) =>
+      updateLabelDraftColorRadioGroup(model, message),
+    LoadedSavedCourses: ({ load }) => {
+      switch (load._tag) {
+        case 'SavedListEmpty': {
+          const loadedModel = modifyFields(model, {
+            savedCourses: () =>
+              SavedCoursesResultSchema.SavedCoursesReady({
+                state: emptySavedList,
+                repairedEntries: 0,
+              }),
+          });
+          return requestListCourseSignals(loadedModel);
+        }
+        case 'SavedListLoaded': {
+          // A filter recipe can only be judged against a loaded label set, so
+          // canonicalization happens here rather than while parsing the URL.
+          const loadedModel = modifyFields(model, {
+            savedCourses: () =>
+              SavedCoursesResultSchema.SavedCoursesReady({
                 state: load.state,
                 repairedEntries: load.repairedEntries,
               }),
-            });
-            return [
-              canonical,
-              [
-                // Repairs are written back so the stored value matches what the
-                // student is shown; an untouched list is never rewritten.
-                ...(load.repairedEntries === 0 ? [] : [PersistSavedCourses({ state: load.state })]),
-                ...filterCommands,
-              ],
-            ];
-          }
-          case 'SavedListUnsupported':
-            return [
-              {
-                ...model,
-                savedCourses: SavedCoursesRecovery({
+          });
+          const canonicalization = canonicalizeLabelFilter(loadedModel);
+          const signals = requestListCourseSignals(canonicalization.model);
+          return {
+            model: signals.model,
+            commands: [
+              // Repairs are written back so the stored value matches what the
+              // student is shown; an untouched list is never rewritten.
+              ...(load.repairedEntries === 0 ? [] : [PersistSavedCourses({ state: load.state })]),
+              ...(canonicalization.commands ?? []),
+              ...(signals.commands ?? []),
+            ],
+          };
+        }
+        case 'SavedListUnsupported':
+          return {
+            model: modifyFields(model, {
+              savedCourses: () =>
+                SavedCoursesResultSchema.SavedCoursesRecovery({
                   reason: 'unsupported-version',
                   storedVersion: load.storedVersion,
                   raw: load.raw,
                 }),
-              },
-              [],
-            ];
-          case 'SavedListCorrupt':
-            return [
-              {
-                ...model,
-                savedCourses: SavedCoursesRecovery({
+            }),
+          };
+        case 'SavedListCorrupt':
+          return {
+            model: modifyFields(model, {
+              savedCourses: () =>
+                SavedCoursesResultSchema.SavedCoursesRecovery({
                   reason: load.reason === 'invalid-json' ? 'invalid-json' : 'unreadable',
                   storedVersion: null,
                   raw: load.raw,
                 }),
-              },
-              [],
-            ];
-        }
-      },
-      FailedSavedCoursesLoad: () => [
-        {
-          ...model,
-          savedCourses: SavedCoursesRecovery({
+            }),
+          };
+      }
+    },
+    FailedSavedCoursesLoad: () => ({
+      model: modifyFields(model, {
+        savedCourses: () =>
+          SavedCoursesResultSchema.SavedCoursesRecovery({
             reason: 'unavailable',
             storedVersion: null,
             raw: '',
           }),
-        },
-        [],
-      ],
-      RequestedSaveCourse: ({ courseCode }) => {
-        const state = savedListState(model.savedCourses);
-        const identity = courseIdentity(courseCode);
-        if (state === null || identity === null || isSaved(state, identity)) return [model, []];
-        return [model, [StampSavedCourse({ courseCode: identity.courseCode })]];
-      },
-      StampedSavedCourse: ({ courseCode, savedAt }) => {
-        const [next, commands] = applySavedListChange(
-          model,
-          (state, identity) => saveCourse(state, identity, savedAt),
-          courseCode,
-        );
-        if (next === model) return [next, commands];
-        return [
-          {
-            ...next,
-            savedListActions: withNotice(model.savedListActions, SavedActionSaved({ courseCode })),
-          },
-          commands,
-        ];
-      },
-      RequestedRemoveSavedCourse: ({ courseCode }) => {
-        const state = savedListState(model.savedCourses);
-        const identity = courseIdentity(courseCode);
-        if (state === null || identity === null) return [model, []];
-        const course = findSavedCourse(state, identity);
-        if (course === null) return [model, []];
-        const memberships = membershipsForSavedCourse(state, identity);
-        const next = removeSavedCourse(state, identity);
-        return [
-          {
-            ...model,
-            savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
-            noteDrafts: withoutNoteDraft(model.noteDrafts, identity.courseCode),
-            // Removing a course clears its memberships, its note draft, and its
-            // selection in the same transition; nothing can act on it after.
-            selectedCourseCodes: withoutSelected(model.selectedCourseCodes, identity.courseCode),
-            labelDialogTarget: withoutSelected(model.labelDialogTarget, identity.courseCode),
-            savedListActions: withNotice(
+      }),
+    }),
+    RequestedSaveCourse: ({ courseCode }) => {
+      const state = savedListState(model.savedCourses);
+      const identity = courseIdentity(courseCode);
+      return state === null || identity === null || isSaved(state, identity)
+        ? { model }
+        : { model, commands: [StampSavedCourse({ courseCode: identity.courseCode })] };
+    },
+    StampedSavedCourse: ({ courseCode, savedAt }) => {
+      const savedListChange = applySavedListChange(
+        model,
+        (state, identity) => saveCourse(state, identity, savedAt),
+        courseCode,
+      );
+      if (savedListChange.model === model) {
+        return savedListChange;
+      }
+      const nextModel = modifyFields(savedListChange.model, {
+        savedListActions: () =>
+          withNotice(
+            model.savedListActions,
+            SavedListNoticeSchema.SavedActionSaved({ courseCode }),
+          ),
+      });
+      return savedListChange.commands === undefined
+        ? { model: nextModel }
+        : { model: nextModel, commands: savedListChange.commands };
+    },
+    RequestedRemoveSavedCourse: ({ courseCode }) => {
+      const state = savedListState(model.savedCourses);
+      const identity = courseIdentity(courseCode);
+      if (state === null || identity === null) {
+        return { model };
+      }
+      const course = findSavedCourse(state, identity);
+      if (course === null) {
+        return { model };
+      }
+      const memberships = membershipsForSavedCourse(state, identity);
+      const next = removeSavedCourse(state, identity);
+      return {
+        model: modifyFields(model, {
+          savedCourses: () =>
+            SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
+          noteDrafts: () => withoutNoteDraft(model.noteDrafts, identity.courseCode),
+          // Removing a course clears its memberships, its note draft, and its
+          // selection in the same transition; nothing can act on it after.
+          selectedCourseCodes: () =>
+            withoutSelected(model.selectedCourseCodes, identity.courseCode),
+          labelDialogTarget: () => withoutSelected(model.labelDialogTarget, identity.courseCode),
+          savedListActions: () =>
+            withNotice(
               model.savedListActions,
-              SavedActionRemoved({ courses: [course], memberships }),
+              SavedListNoticeSchema.SavedActionRemoved({ courses: [course], memberships }),
             ),
-          },
-          [PersistSavedCourses({ state: next })],
-        ];
-      },
-      UpdatedSavedNoteDraft: ({ courseCode, value }) => [
-        {
-          ...model,
-          noteDrafts: [...withoutNoteDraft(model.noteDrafts, courseCode), { courseCode, value }],
-        },
-        [],
-      ],
-      SubmittedSavedNote: ({ courseCode }) => {
-        const draft = model.noteDrafts.find((entry) => entry.courseCode === courseCode);
-        if (draft === undefined) return [model, []];
-        return applySavedListChange(
-          model,
-          (state, identity) => setSavedCourseNote(state, identity, draft.value),
-          courseCode,
-          withoutNoteDraft(model.noteDrafts, courseCode),
-        );
-      },
-      RequestedSavedCoursesReset: () => [
-        {
-          ...model,
-          savedCourses: SavedCoursesReady({ state: emptySavedList, repairedEntries: 0 }),
-          noteDrafts: [],
-          savedListActions: [],
-          selectedCourseCodes: [],
-          labelDialogTarget: [],
-          labelFilter: emptyLabelFilter,
-          labelFilterNotice: null,
-          labelEditing: null,
-          labelDraftName: '',
-          labelPendingDelete: null,
-        },
-        [PersistSavedCourses({ state: emptySavedList })],
-      ],
-      PersistedSavedCourses: () =>
-        model.savedCoursesPersistFailed
-          ? [{ ...model, savedCoursesPersistFailed: false }, []]
-          : [model, []],
-      FailedSavedCoursesPersistence: () => [{ ...model, savedCoursesPersistFailed: true }, []],
-      /**
-       * Undo reverses the ephemeral snapshot, never the live saved state
-       * directly: a save is undone by removing that identity, and a removal
-       * is undone by restoring the exact course and memberships it carried.
-       * Both branches are idempotent, so a stale or repeated Undo is inert
-       * once the snapshot has already been consumed.
-       */
-      RequestedUndoSavedListAction: ({ key }) => {
-        const state = savedListState(model.savedCourses);
-        const notice = model.savedListActions.find(
-          (candidate) => savedListNoticeKey(candidate) === key,
-        );
-        if (state === null || notice === undefined) return [model, []];
-        const remaining = withoutNotice(model.savedListActions, key);
-        return M.value(notice).pipe(
-          M.withReturnType<readonly [Model, ReadonlyArray<Command.Command<Message>>]>(),
-          M.tagsExhaustive({
-            SavedActionSaved: ({ courseCode }) => {
-              const identity = courseIdentity(courseCode);
-              const next = identity === null ? state : removeSavedCourse(state, identity);
-              if (next === state) return [{ ...model, savedListActions: remaining }, []];
-              return [
-                {
-                  ...model,
-                  savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
-                  savedListActions: [],
-                  selectedCourseCodes: withoutSelected(model.selectedCourseCodes, courseCode),
-                  labelDialogTarget: withoutSelected(model.labelDialogTarget, courseCode),
-                },
-                [PersistSavedCourses({ state: next })],
-              ];
-            },
-            SavedActionRemoved: ({ courses, memberships }) => {
-              const next = courses.reduce(
-                (restored, course) =>
-                  restoreSavedCourse(
-                    restored,
-                    course,
-                    memberships.filter((membership) => membership.savedCourseId === course.id),
-                  ),
-                state,
-              );
-              if (next === state) return [{ ...model, savedListActions: remaining }, []];
-              return [
-                {
-                  ...model,
-                  savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
-                  savedListActions: [],
-                },
-                [PersistSavedCourses({ state: next })],
-              ];
-            },
+        }),
+        commands: [PersistSavedCourses({ state: next })],
+      };
+    },
+    UpdatedSavedNoteDraft: ({ courseCode, value }) => ({
+      model: modifyFields(model, {
+        noteDrafts: () => [
+          ...withoutNoteDraft(model.noteDrafts, courseCode),
+          { courseCode, value },
+        ],
+      }),
+    }),
+    SubmittedSavedNote: ({ courseCode }) => {
+      const draft = model.noteDrafts.find((entry) => entry.courseCode === courseCode);
+      return draft === undefined
+        ? { model }
+        : applySavedListChange(
+            model,
+            (state, identity) => setSavedCourseNote(state, identity, draft.value),
+            courseCode,
+            withoutNoteDraft(model.noteDrafts, courseCode),
+          );
+    },
+    RequestedSavedCoursesReset: () => ({
+      model: modifyFields(model, {
+        savedCourses: () =>
+          SavedCoursesResultSchema.SavedCoursesReady({
+            state: emptySavedList,
+            repairedEntries: 0,
           }),
-        );
-      },
-      DismissedSavedListAction: ({ key }) => [
-        { ...model, savedListActions: withoutNotice(model.savedListActions, key) },
-        [],
-      ],
-      DismissedAllSavedListActions: () => [{ ...model, savedListActions: [] }, []],
-      ChangedLabelInclusion: ({ predicate, isIncluded }) =>
-        applyLabelFilter(model, setPredicateIncluded(model.labelFilter, predicate, isIncluded)),
-      ChangedLabelExclusion: ({ predicate, isExcluded }) =>
-        applyLabelFilter(model, setPredicateExcluded(model.labelFilter, predicate, isExcluded)),
-      ChangedLabelFilterMode: ({ mode }) =>
-        applyLabelFilter(model, setLabelFilterMode(model.labelFilter, mode)),
-      ClearedLabelFilter: () => applyLabelFilter(model, emptyLabelFilter),
-      ToggledSavedCourseSelection: ({ courseCode, isSelected }) => [
-        {
-          ...model,
-          selectedCourseCodes: isSelected
+        noteDrafts: () => [],
+        savedListActions: () => [],
+        selectedCourseCodes: () => [],
+        labelDialogTarget: () => [],
+        labelFilter: () => emptyLabelFilter,
+        labelFilterNotice: () => null,
+        labelEditing: () => null,
+        labelDraftName: () => '',
+        labelPendingDelete: () => null,
+      }),
+      commands: [PersistSavedCourses({ state: emptySavedList })],
+    }),
+    PersistedSavedCourses: () =>
+      model.savedCoursesPersistFailed
+        ? {
+            model: modifyFields(model, {
+              savedCoursesPersistFailed: () => false,
+            }),
+          }
+        : { model },
+    FailedSavedCoursesPersistence: () => ({
+      model: modifyFields(model, {
+        savedCoursesPersistFailed: () => true,
+      }),
+    }),
+    /**
+     * Undo reverses the ephemeral snapshot, never the live saved state
+     * directly: a save is undone by removing that identity, and a removal
+     * is undone by restoring the exact course and memberships it carried.
+     * Both branches are idempotent, so a stale or repeated Undo is inert
+     * once the snapshot has already been consumed.
+     */
+    RequestedUndoSavedListAction: ({ key }) => {
+      const state = savedListState(model.savedCourses);
+      const notice = model.savedListActions.find(
+        (candidate) => savedListNoticeKey(candidate) === key,
+      );
+      if (state === null || notice === undefined) {
+        return { model };
+      }
+      const remaining = withoutNotice(model.savedListActions, key);
+      return SavedListNoticeSchema.match<UpdateReturn>(notice, {
+        SavedActionSaved: ({ courseCode }) => {
+          const identity = courseIdentity(courseCode);
+          const next = identity === null ? state : removeSavedCourse(state, identity);
+          if (next === state) {
+            return {
+              model: modifyFields(model, {
+                savedListActions: () => remaining,
+              }),
+            };
+          }
+          return {
+            model: modifyFields(model, {
+              savedCourses: () =>
+                SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
+              savedListActions: () => [],
+              selectedCourseCodes: () => withoutSelected(model.selectedCourseCodes, courseCode),
+              labelDialogTarget: () => withoutSelected(model.labelDialogTarget, courseCode),
+            }),
+            commands: [PersistSavedCourses({ state: next })],
+          };
+        },
+        SavedActionRemoved: ({ courses, memberships }) => {
+          const next = courses.reduce(
+            (restored, course) =>
+              restoreSavedCourse(
+                restored,
+                course,
+                memberships.filter((membership) => membership.savedCourseId === course.id),
+              ),
+            state,
+          );
+          if (next === state) {
+            return {
+              model: modifyFields(model, {
+                savedListActions: () => remaining,
+              }),
+            };
+          }
+          return {
+            model: modifyFields(model, {
+              savedCourses: () =>
+                SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
+              savedListActions: () => [],
+            }),
+            commands: [PersistSavedCourses({ state: next })],
+          };
+        },
+      });
+    },
+    DismissedSavedListAction: ({ key }) => ({
+      model: modifyFields(model, {
+        savedListActions: () => withoutNotice(model.savedListActions, key),
+      }),
+    }),
+    DismissedAllSavedListActions: () => ({
+      model: modifyFields(model, { savedListActions: () => [] }),
+    }),
+    ChangedLabelInclusion: ({ predicate, isIncluded }) =>
+      applyLabelFilter(model, setPredicateIncluded(model.labelFilter, predicate, isIncluded)),
+    ChangedLabelExclusion: ({ predicate, isExcluded }) =>
+      applyLabelFilter(model, setPredicateExcluded(model.labelFilter, predicate, isExcluded)),
+    ChangedLabelFilterMode: ({ mode }) =>
+      applyLabelFilter(model, setLabelFilterMode(model.labelFilter, mode)),
+    ClearedLabelFilter: () => applyLabelFilter(model, emptyLabelFilter),
+    ClearedCourseFilters: () =>
+      applyLabelFilter(
+        modifyFields(model, {
+          courseOriginFilter: () => 'all',
+          selectedCourseCodes: () => [],
+          selectionRemovePending: () => false,
+        }),
+        emptyLabelFilter,
+      ),
+    ToggledSavedCourseSelection: ({ courseCode, isSelected }) => ({
+      model: modifyFields(model, {
+        selectedCourseCodes: () =>
+          isSelected
             ? [...withoutSelected(model.selectedCourseCodes, courseCode), courseCode]
             : withoutSelected(model.selectedCourseCodes, courseCode),
-          // The prompt named a specific set; changing the set retracts it.
-          selectionRemovePending: false,
-        },
-        [],
-      ],
-      ClearedSavedCourseSelection: () => [
-        { ...model, selectedCourseCodes: [], selectionRemovePending: false },
-        [],
-      ],
-      /**
-       * Entering a comparison hands the ephemeral selection to the URL, where
-       * a refresh or a back step can find it again. The selection itself stays
-       * out of the URL and is cleared, so the tray does not shadow the
-       * comparison it just opened.
-       */
-      RequestedCompare: () => {
-        const next: Model = {
-          ...model,
-          compareCodes: model.selectedCourseCodes,
-          selectedCourseCodes: [],
-          selectionRemovePending: false,
+        // The prompt named a specific set; changing the set retracts it.
+        selectionRemovePending: () => false,
+      }),
+    }),
+    ClearedSavedCourseSelection: () => ({
+      model: modifyFields(model, {
+        selectedCourseCodes: () => [],
+        selectionRemovePending: () => false,
+      }),
+    }),
+    /**
+     * Entering a comparison hands the ephemeral selection to the URL, where
+     * a refresh or a back step can find it again. The selection itself stays
+     * out of the URL and is cleared, so the tray does not shadow the
+     * comparison it just opened.
+     */
+    RequestedCompare: () => {
+      const nextModel = modifyFields(model, {
+        compareCodes: () => model.selectedCourseCodes,
+        selectedCourseCodes: () => [],
+        selectionRemovePending: () => false,
+      });
+      return {
+        model: nextModel,
+        commands: [Navigate({ href: currentUrl(nextModel, null), mode: 'push' })],
+      };
+    },
+    GotCompareMessage: ({ message: compareMessage }) =>
+      updateComparison(model, compareMessage, (message) => Message.GotCompareMessage({ message })),
+    RequestedRemoveSelected: () => ({
+      model: modifyFields(model, { selectionRemovePending: () => true }),
+    }),
+    CancelledRemoveSelected: () => ({
+      model: modifyFields(model, { selectionRemovePending: () => false }),
+    }),
+    ConfirmedRemoveSelected: () => {
+      const state = savedListState(model.savedCourses);
+      if (state === null) {
+        return {
+          model: modifyFields(model, { selectionRemovePending: () => false }),
         };
-        return [next, [Navigate({ href: currentUrl(next, null), mode: 'push' })]];
-      },
-      GotCompareMessage: ({ message: compareMessage }) =>
-        updateComparison(model, compareMessage, (message) => GotCompareMessage({ message })),
-      RequestedRemoveSelected: () => [{ ...model, selectionRemovePending: true }, []],
-      CancelledRemoveSelected: () => [{ ...model, selectionRemovePending: false }, []],
-      ConfirmedRemoveSelected: () => {
-        const state = savedListState(model.savedCourses);
-        if (state === null) return [{ ...model, selectionRemovePending: false }, []];
-        const identities = model.selectedCourseCodes
-          .map((courseCode) => courseIdentity(courseCode))
-          .filter((identity) => identity !== null);
-        const courses = identities
-          .map((identity) => findSavedCourse(state, identity))
-          .filter((course) => course !== null);
-        if (courses.length === 0) {
-          return [{ ...model, selectionRemovePending: false, selectedCourseCodes: [] }, []];
-        }
-        // Every membership travels with the removal so undo restores what the
-        // student had, not just the courses.
-        const memberships = identities.flatMap((identity) =>
-          membershipsForSavedCourse(state, identity),
-        );
-        const next = identities.reduce(
-          (remaining, identity) => removeSavedCourse(remaining, identity),
-          state,
-        );
-        return [
-          {
-            ...model,
-            savedCourses: SavedCoursesReady({ state: next, repairedEntries: 0 }),
-            noteDrafts: identities.reduce(
+      }
+      const identities = model.selectedCourseCodes
+        .map((courseCode) => courseIdentity(courseCode))
+        .filter((identity) => identity !== null);
+      const courses = identities
+        .map((identity) => findSavedCourse(state, identity))
+        .filter((course) => course !== null);
+      if (courses.length === 0) {
+        return {
+          model: modifyFields(model, {
+            selectionRemovePending: () => false,
+            selectedCourseCodes: () => [],
+          }),
+        };
+      }
+      // Every membership travels with the removal so undo restores what the
+      // student had, not just the courses.
+      const memberships = identities.flatMap((identity) =>
+        membershipsForSavedCourse(state, identity),
+      );
+      const next = identities.reduce(
+        (remaining, identity) => removeSavedCourse(remaining, identity),
+        state,
+      );
+      return {
+        model: modifyFields(model, {
+          savedCourses: () =>
+            SavedCoursesResultSchema.SavedCoursesReady({ state: next, repairedEntries: 0 }),
+          noteDrafts: () =>
+            identities.reduce(
               (drafts, identity) => withoutNoteDraft(drafts, identity.courseCode),
               model.noteDrafts,
             ),
-            selectedCourseCodes: [],
-            labelDialogTarget: [],
-            selectionRemovePending: false,
-            savedListActions: withNotice(
+          selectedCourseCodes: () => [],
+          labelDialogTarget: () => [],
+          selectionRemovePending: () => false,
+          savedListActions: () =>
+            withNotice(
               model.savedListActions,
-              SavedActionRemoved({ courses, memberships }),
+              SavedListNoticeSchema.SavedActionRemoved({ courses, memberships }),
             ),
+        }),
+        commands: [PersistSavedCourses({ state: next })],
+      };
+    },
+    /** A density change is a preference, never a change to the saved set: it
+     *  persists locally and produces no navigation and no fetch. */
+    ChangedListDensity: ({ value }) =>
+      model.listDensity === value
+        ? { model }
+        : {
+            model: modifyFields(model, { listDensity: () => value }),
+            commands: [PersistListDensity({ density: value })],
           },
-          [PersistSavedCourses({ state: next })],
-        ];
-      },
-      /** A density change is a preference, never a change to the saved set: it
-       *  persists locally and produces no navigation and no fetch. */
-      ChangedListDensity: ({ value }) =>
-        model.listDensity === value
-          ? [model, []]
-          : [{ ...model, listDensity: value }, [PersistListDensity({ density: value })]],
-      PersistedListDensity: () => [model, []],
-      FailedListDensityPersistence: () => [model, []],
-      /**
-       * One dialog owns label creation, editing, and attachment. Opening it
-       * carries the explicit target: a single row, the current selection, or
-       * nothing at all when the student only manages the label set.
-       */
-      RequestedLabelDialog: ({ courseCodes }) => {
-        const [labelDialog, commands] = Dialog.open(model.labelDialog);
-        return [
-          { ...model, ...discardedLabelDraft, labelDialog, labelDialogTarget: courseCodes },
-          Command.mapMessages(commands, (message) => GotLabelDialogMessage({ message })),
-        ];
-      },
-      /**
-       * Cancel, the backdrop, and Escape all arrive here as one close, so the
-       * draft is discarded on exactly one path rather than three.
-       */
-      GotLabelDialogMessage: ({ message: dialogMessage }) => {
-        const [labelDialog, commands] = Dialog.update(model.labelDialog, dialogMessage);
-        const closing = dialogMessage._tag === 'RequestedClose';
-        return [
-          {
-            ...model,
-            labelDialog,
-            ...(closing ? { ...discardedLabelDraft, labelDialogTarget: [] } : {}),
-          },
-          Command.mapMessages(commands, (message) => GotLabelDialogMessage({ message })),
-        ];
-      },
-      /**
-       * The draft is the only thing that changes while the student types. Once
-       * an Apply attempt has produced feedback, the feedback is recomputed from
-       * the draft being corrected, so it never describes a name that is no
-       * longer on screen — and it stays absent until that first attempt.
-       */
-      UpdatedLabelDraftName: ({ value }) => {
-        const next: Model = { ...model, labelDraftName: value };
-        return [
-          { ...next, labelError: model.labelError === null ? null : labelDraftRejection(next) },
-          [],
-        ];
-      },
-      /**
-       * Colour is draft state like the name. Choosing one never creates,
-       * updates, or attaches a label; only Apply does.
-       */
-      ChangedLabelDraftColor: ({ value }) => [{ ...model, labelDraftColor: value }, []],
-      /**
-       * Apply is the single transition. Creating needs an id from the boundary,
-       * so the rules are checked here first: an empty or duplicate name never
-       * reaches the command, and the student keeps the draft they have to fix.
-       */
-      SubmittedLabelForm: () => {
-        const state = savedListState(model.savedCourses);
-        if (state === null) return [model, []];
-        const editing = model.labelEditing;
-        if (editing !== null) {
-          return applyLabelResult(
-            model,
-            editLabel(state, editing, {
-              name: model.labelDraftName,
-              color: model.labelDraftColor,
+    ChangedCourseOriginFilter: ({ value }) =>
+      model.courseOriginFilter === value
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              courseOriginFilter: () => value satisfies CourseOriginFilter,
+              selectedCourseCodes: () => [],
+              selectionRemovePending: () => false,
             }),
-            { labelEditing: null, labelDraftName: '', labelDraftColor: defaultLabelColor },
-          );
-        }
-        const rejection = validateNewLabel(state, model.labelDraftName);
-        if (rejection !== null) return [{ ...model, labelError: rejection }, []];
-        return [model, [StampLabel()]];
-      },
-      /**
-       * A label created from a course or a selection is attached in the same
-       * transition, so "Add labels" is one action rather than create-then-find.
-       */
-      StampedLabel: ({ labelId }) => {
-        const state = savedListState(model.savedCourses);
-        if (state === null) return [model, []];
-        const created = createLabel(state, {
-          id: labelId,
-          name: model.labelDraftName,
-          color: model.labelDraftColor,
-        });
-        // A refused create attaches nothing: the draft stays exactly as the
-        // student left it so they can correct the reason and try again.
-        if (created._tag !== 'LabelApplied') return applyLabelResult(model, created);
-        const targets = labelTargetIdentities(created.state, model.labelDialogTarget);
-        const attached = attachLabel(created.state, labelId, targets);
+          },
+    PersistedListDensity: () => ({ model }),
+    FailedListDensityPersistence: () => ({ model }),
+    /**
+     * One dialog owns label creation, editing, and attachment. Opening it
+     * carries the explicit target: a single row, the current selection, or
+     * nothing at all when the student only manages the label set.
+     */
+    RequestedLabelDialog: ({ courseCodes }) => {
+      const labelDialogOpen = Dialog.open(model.labelDialog);
+      return {
+        model: modifyFields(discardLabelDraft(model), {
+          labelDialog: () => labelDialogOpen.model,
+          labelDialogTarget: () => courseCodes,
+        }),
+        commands: Command.mapMessages(labelDialogOpen.commands, (message) =>
+          Message.GotLabelDialogMessage({ message }),
+        ),
+      };
+    },
+    /**
+     * Cancel, the backdrop, and Escape all arrive here as one close, so the
+     * draft is discarded on exactly one path rather than three.
+     */
+    GotLabelDialogMessage: ({ message: dialogMessage }) => {
+      const labelDialogUpdate = Dialog.update(model.labelDialog, dialogMessage);
+      const closing = dialogMessage._tag === 'RequestedClose';
+      return {
+        model: modifyFields(closing ? discardLabelDraft(model) : model, {
+          labelDialog: () => labelDialogUpdate.model,
+          ...(closing ? { labelDialogTarget: () => [] } : {}),
+        }),
+        commands: Command.mapMessages(labelDialogUpdate.commands, (message) =>
+          Message.GotLabelDialogMessage({ message }),
+        ),
+      };
+    },
+    /**
+     * The draft is the only thing that changes while the student types. Once
+     * an Apply attempt has produced feedback, the feedback is recomputed from
+     * the draft being corrected, so it never describes a name that is no
+     * longer on screen — and it stays absent until that first attempt.
+     */
+    UpdatedLabelDraftName: ({ value }) => {
+      const nextModel = modifyFields(model, { labelDraftName: () => value });
+      return {
+        model: modifyFields(nextModel, {
+          labelError: () => (model.labelError === null ? null : labelDraftRejection(nextModel)),
+        }),
+      };
+    },
+    /**
+     * Colour is draft state like the name. Choosing one never creates,
+     * updates, or attaches a label; only Apply does.
+     */
+    ChangedLabelDraftColor: ({ value }) => ({
+      model: modifyFields(model, { labelDraftColor: () => value }),
+    }),
+    /**
+     * Apply is the single transition. Creating needs an id from the boundary,
+     * so the rules are checked here first: an empty or duplicate name never
+     * reaches the command, and the student keeps the draft they have to fix.
+     */
+    SubmittedLabelForm: () => {
+      const state = savedListState(model.savedCourses);
+      if (state === null) {
+        return { model };
+      }
+      const editing = model.labelEditing;
+      if (editing !== null) {
         return applyLabelResult(
           model,
-          { _tag: 'LabelApplied', state: attached },
-          {
-            labelDraftName: '',
-            labelDraftColor: defaultLabelColor,
-          },
+          editLabel(state, editing, {
+            name: model.labelDraftName,
+            color: model.labelDraftColor,
+          }),
+          { labelEditing: null, labelDraftName: '', labelDraftColor: defaultLabelColor },
         );
-      },
-      RequestedEditLabel: ({ labelId }) => {
-        const state = savedListState(model.savedCourses);
-        const label = state === null ? null : findLabel(state, labelId);
-        if (label === null) return [{ ...model, labelError: 'unknown-label' }, []];
-        return [
-          {
-            ...model,
-            labelEditing: label.id,
-            labelDraftName: label.name,
-            labelDraftColor: label.color,
-            labelError: null,
+      }
+      const rejection = validateNewLabel(state, model.labelDraftName);
+      return rejection === null
+        ? { model, commands: [StampLabel()] }
+        : {
+            model: modifyFields(model, {
+              labelError: () => rejection,
+            }),
+          };
+    },
+    /**
+     * A label created from a course or a selection is attached in the same
+     * transition, so "Add labels" is one action rather than create-then-find.
+     */
+    StampedLabel: ({ labelId }) => {
+      const state = savedListState(model.savedCourses);
+      if (state === null) {
+        return { model };
+      }
+      const created = createLabel(state, {
+        id: labelId,
+        name: model.labelDraftName,
+        color: model.labelDraftColor,
+      });
+      // A refused create attaches nothing: the draft stays exactly as the
+      // student left it so they can correct the reason and try again.
+      if (created._tag !== 'LabelApplied') {
+        return applyLabelResult(model, created);
+      }
+      const targets = labelTargetIdentities(created.state, model.labelDialogTarget);
+      const attached = attachLabel(created.state, labelId, targets);
+      return applyLabelResult(
+        model,
+        { _tag: 'LabelApplied', state: attached },
+        {
+          labelDraftName: '',
+          labelDraftColor: defaultLabelColor,
+        },
+      );
+    },
+    RequestedEditLabel: ({ labelId }) => {
+      const state = savedListState(model.savedCourses);
+      const label = state === null ? null : findLabel(state, labelId);
+      return label === null
+        ? {
+            model: modifyFields(model, {
+              labelError: () => 'unknown-label',
+            }),
+          }
+        : {
+            model: modifyFields(model, {
+              labelEditing: () => label.id,
+              labelDraftName: () => label.name,
+              labelDraftColor: () => label.color,
+              labelError: () => null,
+            }),
+          };
+    },
+    CancelledLabelEdit: () => ({ model: discardLabelDraft(model) }),
+    /** Deletion is permanent and drops every membership on the label, so a
+     *  single click only arms an in-dialog confirmation. Nothing is removed
+     *  until the student explicitly confirms that specific label. */
+    RequestedDeleteLabel: ({ labelId }) =>
+      savedListState(model.savedCourses) === null
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              labelPendingDelete: () => labelId,
+            }),
           },
-          [],
-        ];
-      },
-      CancelledLabelEdit: () => [{ ...model, ...discardedLabelDraft }, []],
-      /** Deletion is permanent and drops every membership on the label, so a
-       *  single click only arms an in-dialog confirmation. Nothing is removed
-       *  until the student explicitly confirms that specific label. */
-      RequestedDeleteLabel: ({ labelId }) => {
-        const state = savedListState(model.savedCourses);
-        if (state === null) return [model, []];
-        return [{ ...model, labelPendingDelete: labelId }, []];
-      },
-      CancelledLabelDelete: () => [{ ...model, labelPendingDelete: null }, []],
-      /** Deleting a label removes its memberships and leaves no filter that can
-       *  still refer to it, so the URL is rewritten to the canonical recipe. */
-      ConfirmedDeleteLabel: ({ labelId }) => {
-        const state = savedListState(model.savedCourses);
-        if (state === null) return [model, []];
-        const result = deleteLabel(state, labelId);
-        if (result._tag !== 'LabelApplied') return applyLabelResult(model, result);
-        // Deleting the label currently being edited discards that draft rather
-        // than leaving the form pointed at something that no longer exists.
-        return applyLabelStateChange(model, result.state, {
-          ...(model.labelEditing === labelId
-            ? { labelEditing: null, labelDraftName: '', labelDraftColor: defaultLabelColor }
-            : {}),
-          labelPendingDelete: null,
-        });
-      },
-      ToggledLabelOnTarget: ({ labelId, isAttached }) => {
-        const state = savedListState(model.savedCourses);
-        if (state === null) return [model, []];
-        const targets = labelTargetIdentities(state, model.labelDialogTarget);
-        if (targets.length === 0) return [model, []];
-        const next = isAttached
-          ? attachLabel(state, labelId, targets)
-          : detachLabel(state, labelId, targets);
-        if (next === state) return [model, []];
-        return applyLabelResult(model, { _tag: 'LabelApplied', state: next });
-      },
-      GotSelectFieldMessage: ({ id, message: selectMessage }) => {
-        const [field, commands, maybeSelection] = updateSelectField(
-          selectFieldModel(model.selectFields, id),
-          selectMessage,
-        );
-        const next = {
-          ...model,
-          selectFields: replaceSelectFieldModel(model.selectFields, id, field),
-        };
-        const selectCommands = Command.mapMessages(commands, (message) =>
-          GotSelectFieldMessage({ id, message }),
-        );
-        return Option.match(maybeSelection, {
-          onNone: () => [next, selectCommands],
-          onSome: ({ value }) => {
-            const [selected, domainCommands] = applySelectValue(next, id, value);
-            return [selected, [...selectCommands, ...domainCommands]];
-          },
-        });
-      },
+    CancelledLabelDelete: () => ({
+      model: modifyFields(model, { labelPendingDelete: () => null }),
     }),
-  );
+    /** Deleting a label removes its memberships and leaves no filter that can
+     *  still refer to it, so the URL is rewritten to the canonical recipe. */
+    ConfirmedDeleteLabel: ({ labelId }) => {
+      const state = savedListState(model.savedCourses);
+      if (state === null) {
+        return { model };
+      }
+      const result = deleteLabel(state, labelId);
+      if (result._tag !== 'LabelApplied') {
+        return applyLabelResult(model, result);
+      }
+      // Deleting the label currently being edited discards that draft rather
+      // than leaving the form pointed at something that no longer exists.
+      return applyLabelStateChange(model, result.state, {
+        ...(model.labelEditing === labelId
+          ? { labelEditing: null, labelDraftName: '', labelDraftColor: defaultLabelColor }
+          : {}),
+        labelPendingDelete: null,
+      });
+    },
+    ToggledLabelOnTarget: ({ labelId, isAttached }) => {
+      const state = savedListState(model.savedCourses);
+      if (state === null) {
+        return { model };
+      }
+      const targets = labelTargetIdentities(state, model.labelDialogTarget);
+      if (targets.length === 0) {
+        return { model };
+      }
+      const next = isAttached
+        ? attachLabel(state, labelId, targets)
+        : detachLabel(state, labelId, targets);
+      return next === state
+        ? { model }
+        : applyLabelResult(model, { _tag: 'LabelApplied', state: next });
+    },
+    GotSelectFieldMessage: ({ id, message: selectMessage }) =>
+      updateSelectFieldControl(model, id, selectMessage, (message) =>
+        Message.GotSelectFieldMessage({ id, message }),
+      ),
+  });
 const updateComparison = (
   model: Model,
   message: CompareMessage,
   toRootMessage: (message: CompareMessage) => Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
-  const [comparison, commands, maybeOutMessage] = updateCompare(
+): UpdateReturn => {
+  const comparisonUpdate = updateCompare(
     {
       codes: model.compareCodes,
       differencesOnly: model.compareDifferencesOnly,
     },
     message,
   );
-  const next: Model = {
-    ...model,
-    compareCodes: comparison.codes,
-    compareDifferencesOnly: comparison.differencesOnly,
-  };
-  const mappedCommands = Command.mapMessages(commands, toRootMessage);
-  return Option.match(maybeOutMessage, {
-    onNone: () => [next, mappedCommands],
-    onSome: () => [
-      next,
-      [...mappedCommands, Navigate({ href: currentUrl(next, null), mode: 'push' })],
-    ],
+  const nextModel = modifyFields(model, {
+    compareCodes: () => comparisonUpdate.model.codes,
+    compareDifferencesOnly: () => comparisonUpdate.model.differencesOnly,
   });
+  const commands = Command.mapMessages(comparisonUpdate.commands, toRootMessage);
+  return comparisonUpdate.outMessage === undefined
+    ? { model: nextModel, commands }
+    : {
+        model: nextModel,
+        commands: [...commands, Navigate({ href: currentUrl(nextModel, null), mode: 'push' })],
+      };
 };
 
 export const initForHref = (
@@ -2401,18 +2707,22 @@ export const initForHref = (
   sidebarCollapsed = false,
   themePreference: ThemePreference = defaultThemePreference,
   listDensity: ListDensity = 'card',
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+): UpdateReturn => {
   const location = parseLocation(href, fallbackLocale);
+  const progressInit = initProgress();
   const base: Model = {
     locale: location.locale,
     route: location.route,
-    savedCourses: SavedCoursesLoading(),
+    progress: progressInit.model,
+    savedCourses: SavedCoursesResultSchema.SavedCoursesLoading(),
     savedListActions: [],
     noteDrafts: [],
     savedCoursesPersistFailed: false,
     compareCodes: location.compareCodes,
     compareDifferencesOnly: true,
     labelFilter: location.labelFilter,
+    courseOriginFilter: 'all',
+    labelFilterModeRadioGroup: RadioGroup.init({ id: 'saved-label-filter-mode' }),
     labelFilterNotice: null,
     selectedCourseCodes: [],
     labelDialog: Dialog.init({
@@ -2423,11 +2733,13 @@ export const initForHref = (
     labelDialogTarget: [],
     labelDraftName: '',
     labelDraftColor: defaultLabelColor,
+    labelDraftColorRadioGroup: RadioGroup.init({ id: 'saved-label-draft-color' }),
     labelEditing: null,
     labelPendingDelete: null,
     selectionRemovePending: false,
     labelError: null,
     listDensity,
+    listDensityRadioGroup: RadioGroup.init({ id: 'saved-list-density' }),
     query: location.query,
     term: location.term,
     campus: location.campus,
@@ -2438,12 +2750,13 @@ export const initForHref = (
     outcomeView: 'letter',
     activeRequestKey: '',
     visibleCount: DISPLAY_CHUNK,
-    catalogue: CatalogueInitialLoading(),
-    gradeSignals: GradeSignalsIdle(),
-    decisionSignals: DecisionSignalsIdle(),
-    nextPage: NextPageIdle(),
+    catalogue: CatalogueResult.CatalogueInitialLoading(),
+    gradeSignals: GradeSignalsResult.GradeSignalsIdle(),
+    decisionSignals: DecisionSignalsResult.DecisionSignalsIdle(),
+    nextPage: NextPageState.NextPageIdle(),
     selectedCode: location.selectedCode,
-    detail: location.selectedCode === null ? DetailClosed() : DetailLoading(),
+    detail:
+      location.selectedCode === null ? DetailResult.DetailClosed() : DetailResult.DetailLoading(),
     sidebarCollapsed,
     refineDialog: Dialog.init({
       id: 'catalogue-refine',
@@ -2463,17 +2776,20 @@ export const initForHref = (
   };
   const request = searchRequest(base, 1);
   const key = requestKey(request);
-  const model = { ...base, activeRequestKey: key };
-  return [
+  const model = modifyFields(base, { activeRequestKey: () => key });
+  return {
     model,
-    [
+    commands: [
       LoadSavedCourses(),
+      ...Command.mapMessages(progressInit.commands, (message) =>
+        Message.GotProgressMessage({ message }),
+      ),
       fetchCommand(request, key, false),
       ...(location.selectedCode === null
         ? []
         : [FetchCourseInsight({ courseCode: location.selectedCode, term: location.term })]),
     ],
-  ];
+  };
 };
 
 export const init: Runtime.ApplicationInit<Model, Message> = () =>
@@ -2518,35 +2834,38 @@ const browserListDensity = (): ListDensity => {
 
 const documentTitle = (model: Model): string => {
   if (model.route === 'list') return translate(model.locale, 'app.listTitle');
+  if (model.route === 'progress') return translate(model.locale, 'app.progressTitle');
   return model.detail._tag === 'DetailSuccess' || model.detail._tag === 'DetailPartial'
     ? `${model.detail.response.item.code} · ${translate(model.locale, 'app.name')}`
     : translate(model.locale, 'app.catalogueTitle');
 };
 
-export const view = (model: Model): Document => ({
+export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: documentTitle(model),
-  body: appView(model),
+  body: appView(model, h),
 });
 
-const appView = (model: Model): Html => {
-  const h = html<Message>();
-  return h.div(
+const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
+  h.div(
     [h.Class('min-h-screen')],
     [
-      lazyDesktopNavigation(desktopNavigation<Message>, [
+      lazyDesktopNavigation(desktopNavigation, [
         model.locale,
         model.sidebarCollapsed,
         model.route,
         exploreUrl(model),
         listUrl(model),
+        progressUrl(model),
         appearanceUrl(model),
-        ToggledSidebar(),
+        Message.ToggledSidebar(),
         languageSelectControl(
           model.selectFields,
           'language-desktop',
           model.locale,
           model.sidebarCollapsed,
+          h,
         ),
+        h,
       ]),
       h.main(
         [h.Class(mainContentClass(model.sidebarCollapsed))],
@@ -2554,7 +2873,7 @@ const appView = (model: Model): Html => {
           h.div(
             [h.Class(mainColumnClass)],
             [
-              savedCoursesPersistenceAlert(model),
+              savedCoursesPersistenceAlert(model, h),
               model.route === 'appearance'
                 ? h.submodel({
                     slotId: 'appearance-settings',
@@ -2572,16 +2891,29 @@ const appView = (model: Model): Html => {
                             ['en', translate(model.locale, 'locale.en')],
                             ['nb', translate(model.locale, 'locale.nb')],
                           ],
+                          {},
+                          h,
                         ),
-                      renderFooter: () => lazyProductFooter(productFooter, [model.locale]),
+                      renderFooter: () => lazyProductFooter(productFooter, [model.locale, h]),
                     },
-                    toParentMessage: (message) => GotAppearanceMessage({ message }),
+                    toParentMessage: (message) => Message.GotAppearanceMessage({ message }),
                   })
-                : model.route === 'list'
-                  ? listView(model)
-                  : model.selectedCode === null
-                    ? catalogueView(model)
-                    : selectedCourseView(model),
+                : model.route === 'progress'
+                  ? h.submodel({
+                      slotId: 'progress',
+                      model: model.progress,
+                      view: progressView,
+                      viewInputs: {
+                        locale: model.locale,
+                        courseUrl: (courseCode) => normalizedUrl(model, courseCode, EXPLORE_PATH),
+                      },
+                      toParentMessage: (message) => Message.GotProgressMessage({ message }),
+                    })
+                  : model.route === 'list'
+                    ? listView(model, h)
+                    : model.selectedCode === null
+                      ? catalogueView(model, h)
+                      : selectedCourseView(model, h),
             ],
           ),
         ],
@@ -2598,19 +2930,21 @@ const appView = (model: Model): Html => {
         model.catalogue._tag === 'CatalogueInitialLoading',
         model.refineDialog,
         model.selectFields,
+        h,
       ]),
-      bottomStackView(model, selectedSavedCourses(model)),
-      model.route === 'list' ? labelDialogView(model) : h.empty,
-      lazyMobileNavigation(mobileNavigation<Message>, [
+      bottomStackView(model, selectedSavedCourses(model), h),
+      model.route === 'list' ? labelDialogView(model, h) : h.empty,
+      lazyMobileNavigation(mobileNavigation, [
         model.locale,
         model.route,
         exploreUrl(model),
         listUrl(model),
+        progressUrl(model),
         appearanceUrl(model),
+        h,
       ]),
     ],
   );
-};
 
 /** A failed write is never silent: the student is told the change was not kept. */
 
@@ -2620,29 +2954,32 @@ export const selectControl = (
   label: string,
   value: string,
   options: ReadonlyArray<readonly [string, string, AppIcon?]>,
-  config: Readonly<{ compact?: boolean; portal?: boolean }> = {},
+  config: Readonly<{ compact?: boolean; portal?: boolean }>,
+  h: HtmlBuilder<Message>,
 ): Html =>
-  selectField<Message>({
-    model: selectFieldModel(fields, id),
-    label,
-    value,
-    options: options.map(
-      ([optionValue, optionLabel, optionIcon]): SelectOption => ({
+  selectField(
+    {
+      model: selectFieldModel(fields, id),
+      label,
+      value,
+      options: options.map(([optionValue, optionLabel, optionIcon]): SelectOption => ({
         value: optionValue,
         label: optionLabel,
         ...(optionIcon === undefined ? {} : { icon: optionIcon }),
-      }),
-    ),
-    ...(config.compact === undefined ? {} : { compact: config.compact }),
-    ...(config.portal === undefined ? {} : { portal: config.portal }),
-    toParentMessage: (message) => GotSelectFieldMessage({ id, message }),
-  });
+      })),
+      ...(config.compact === undefined ? {} : { compact: config.compact }),
+      ...(config.portal === undefined ? {} : { portal: config.portal }),
+      toParentMessage: (message) => Message.GotSelectFieldMessage({ id, message }),
+    },
+    h,
+  );
 
 export const languageSelectControl = (
   fields: Model['selectFields'],
   id: 'language-desktop' | 'language-mobile',
   locale: Locale,
-  compact = false,
+  compact: boolean,
+  h: HtmlBuilder<Message>,
 ): Html =>
   selectControl(
     fields,
@@ -2654,6 +2991,7 @@ export const languageSelectControl = (
       ['nb', compact ? 'NO' : translate(locale, 'locale.nb')],
     ],
     { compact },
+    h,
   );
 
 export const checkboxControl = (
@@ -2661,43 +2999,44 @@ export const checkboxControl = (
   label: string,
   isChecked: boolean,
   onToggle: (isChecked: boolean) => Message,
-): Html => {
-  const h = html<Message>();
-  return Checkbox.view<Message>({
-    id,
-    isChecked,
-    onToggle,
-    toView: (attributes) =>
-      h.label(
-        [
-          ...attributes.label,
-          h.Class(
-            'inline-flex items-center gap-[0.55rem] min-h-11 py-[0.45rem] px-[0.85rem] border border-outline rounded-[1.5rem] text-on-surface-variant cursor-pointer has-[[data-checked]]:border-secondary-container has-[[data-checked]]:bg-secondary-container has-[[data-checked]]:text-on-secondary-container',
-          ),
-        ],
-        [
-          h.span(
-            [
-              ...attributes.checkbox,
-              h.Class(
-                'grid w-[1.2rem] h-[1.2rem] place-items-center border-2 border-current rounded-[0.3rem] text-xs leading-none',
-              ),
-            ],
-            [isChecked ? '✓' : ''],
-          ),
-          h.span([], [label]),
-        ],
-      ),
-  });
-};
+  h: HtmlBuilder<Message>,
+): Html =>
+  Checkbox.view(
+    {
+      id,
+      isChecked,
+      onToggle,
+      toView: (attributes) =>
+        h.label(
+          [
+            ...attributes.label,
+            h.Class(
+              'inline-flex items-center gap-[0.55rem] min-h-11 py-[0.45rem] px-[0.85rem] border border-outline rounded-[1.5rem] text-on-surface-variant cursor-pointer has-[[data-checked]]:border-secondary-container has-[[data-checked]]:bg-secondary-container has-[[data-checked]]:text-on-secondary-container',
+            ),
+          ],
+          [
+            h.span(
+              [
+                ...attributes.checkbox,
+                h.Class(
+                  'grid w-[1.2rem] h-[1.2rem] place-items-center border-2 border-current rounded-[0.3rem] text-xs leading-none',
+                ),
+              ],
+              [isChecked ? '✓' : ''],
+            ),
+            h.span([], [label]),
+          ],
+        ),
+    },
+    h,
+  );
 
 /**
  * The one contextual feedback affordance for the decision screens. It follows
  * the VITE_TIP_URL pattern exactly: a static HTTPS link that exists only when
  * the operator configured a valid HTTPS URL, and opens in a new tab.
  */
-export const feedbackRow = (locale: Locale): Html => {
-  const h = html<Message>();
+export const feedbackRow = (locale: Locale, h: HtmlBuilder<Message>): Html => {
   if (feedbackUrl === null) return h.empty;
   return h.p(
     [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]')],
@@ -2717,8 +3056,7 @@ export const feedbackRow = (locale: Locale): Html => {
   );
 };
 
-export const productFooter = (locale: Locale): Html => {
-  const h = html<Message>();
+export const productFooter = (locale: Locale, h: HtmlBuilder<Message>): Html => {
   const externalLink = (url: string, label: string): Html =>
     h.a(
       [h.Href(url), h.Target('_blank'), h.Rel('noreferrer'), h.Class('relative font-semibold')],

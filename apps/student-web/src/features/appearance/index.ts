@@ -1,9 +1,9 @@
 import { Effect, Schema as S } from 'effect';
-import { Command } from 'foldkit';
-import { html } from 'foldkit/html';
-import type { Html } from 'foldkit/html';
-import { m } from 'foldkit/message';
+import { Command, type Update } from 'foldkit';
+import type { Html, HtmlBuilder } from 'foldkit/html';
+import { defineMessageUnion } from 'foldkit/message';
 import { defineView } from 'foldkit/submodel';
+import { modifyFields } from 'foldkit/struct';
 
 import {
   colorModes,
@@ -44,62 +44,57 @@ export const ThemePreferenceSchema = S.Struct({
 export const Model = S.Struct({ preference: ThemePreferenceSchema });
 export type Model = typeof Model.Type;
 
-export const ChangedThemePreset = m('ChangedThemePreset', { value: ThemePresetIdSchema });
-export const ChangedColorMode = m('ChangedColorMode', { value: ColorModeSchema });
-export const ResetThemePreference = m('ResetThemePreference');
-export const PersistedThemePreference = m('PersistedThemePreference');
-export const FailedThemePreferencePersistence = m('FailedThemePreferencePersistence');
-export const Message = S.Union([
-  ChangedThemePreset,
-  ChangedColorMode,
-  ResetThemePreference,
-  PersistedThemePreference,
-  FailedThemePreferencePersistence,
-]);
+export const Message = defineMessageUnion({
+  ChangedThemePreset: { value: ThemePresetIdSchema },
+  ChangedColorMode: { value: ColorModeSchema },
+  ResetThemePreference: {},
+  PersistedThemePreference: {},
+  FailedThemePreferencePersistence: {},
+});
 export type Message = typeof Message.Type;
 
-export const PersistThemePreference = Command.define(
-  'PersistThemePreference',
-  { preference: ThemePreferenceSchema },
-  PersistedThemePreference,
-  FailedThemePreferencePersistence,
-)(({ preference }) =>
-  Effect.try({
-    try: () => persistThemePreference(preference),
-    catch: () => new Error('Theme preference could not be persisted'),
-  }).pipe(
-    Effect.as(PersistedThemePreference()),
-    Effect.catch(() => Effect.succeed(FailedThemePreferencePersistence())),
-  ),
-);
+export const PersistThemePreference = Command.define('PersistThemePreference', {
+  args: { preference: ThemePreferenceSchema },
+  messages: [Message.PersistedThemePreference, Message.FailedThemePreferencePersistence],
+  execute: ({ preference }) =>
+    Effect.try({
+      try: () => persistThemePreference(preference),
+      catch: () => new Error('Theme preference could not be persisted'),
+    }).pipe(
+      Effect.as(Message.PersistedThemePreference()),
+      Effect.catch(() => Effect.succeed(Message.FailedThemePreferencePersistence())),
+    ),
+});
 
 export const init = (preference: ThemePreference = defaultThemePreference): Model => ({
   preference: decodeThemePreference(preference),
 });
 
-export const update = (
-  model: Model,
-  message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
-  switch (message._tag) {
-    case 'ChangedThemePreset': {
-      const preference = presetPreference(message.value, model.preference.mode);
-      return [{ preference }, [PersistThemePreference({ preference })]];
-    }
-    case 'ChangedColorMode': {
-      const preference = decodeThemePreference({ ...model.preference, mode: message.value });
-      return [{ preference }, [PersistThemePreference({ preference })]];
-    }
-    case 'ResetThemePreference':
-      return [
-        { preference: defaultThemePreference },
-        [PersistThemePreference({ preference: defaultThemePreference })],
-      ];
-    case 'PersistedThemePreference':
-    case 'FailedThemePreferencePersistence':
-      return [model, []];
-  }
-};
+type UpdateReturn = Update.Return<Model, Message>;
+
+export const update = (model: Model, message: Message) =>
+  Message.match<UpdateReturn>(message, {
+    ChangedThemePreset: ({ value }) => {
+      const preference = presetPreference(value, model.preference.mode);
+      return {
+        model: modifyFields(model, { preference: () => preference }),
+        commands: [PersistThemePreference({ preference })],
+      };
+    },
+    ChangedColorMode: ({ value }) => {
+      const preference = decodeThemePreference({ ...model.preference, mode: value });
+      return {
+        model: modifyFields(model, { preference: () => preference }),
+        commands: [PersistThemePreference({ preference })],
+      };
+    },
+    ResetThemePreference: () => ({
+      model: modifyFields(model, { preference: () => defaultThemePreference }),
+      commands: [PersistThemePreference({ preference: defaultThemePreference })],
+    }),
+    PersistedThemePreference: () => ({ model }),
+    FailedThemePreferencePersistence: () => ({ model }),
+  });
 
 export interface ViewInputs {
   readonly locale: Locale;
@@ -152,8 +147,7 @@ const colorModeLabel = (locale: Locale, mode: ColorMode): string => {
   }
 };
 
-const themePreview = (locale: Locale): Html => {
-  const h = html<Message>();
+const themePreview = (locale: Locale, h: HtmlBuilder<Message>): Html => {
   return h.section(
     [
       h.Class(
@@ -225,9 +219,8 @@ const themePreview = (locale: Locale): Html => {
 };
 
 export const view = defineView<Model, Message, ViewInputs>(
-  (model, { locale, renderFooter, renderMobileLanguageControl }) => {
+  (model, { locale, renderFooter, renderMobileLanguageControl }, h) => {
     const preference = model.preference;
-    const h = html<Message>();
     const selectedPreset = selectedPresetId(preference);
     return h.section(
       [h.Class('grid gap-5 pt-[clamp(1.5rem,4vw,3rem)]')],
@@ -278,7 +271,7 @@ export const view = defineView<Model, Message, ViewInputs>(
                               : 'border-outline-variant'
                           }`,
                         ),
-                        h.OnClick(ChangedThemePreset({ value: preset.id })),
+                        h.OnClick(Message.ChangedThemePreset({ value: preset.id })),
                         h.AriaPressed(String(isSelected)),
                       ],
                       [
@@ -302,6 +295,7 @@ export const view = defineView<Model, Message, ViewInputs>(
                               ? icon<Message>(
                                   'check',
                                   'block size-5 text-primary [&_svg]:block [&_svg]:size-full',
+                                  h,
                                 )
                               : h.empty,
                           ],
@@ -342,7 +336,7 @@ export const view = defineView<Model, Message, ViewInputs>(
                                   : 'bg-surface-container text-on-surface'
                               }`,
                             ),
-                            h.OnClick(ChangedColorMode({ value: mode })),
+                            h.OnClick(Message.ChangedColorMode({ value: mode })),
                             h.AriaPressed(String(preference.mode === mode)),
                           ],
                           [colorModeLabel(locale, mode)],
@@ -356,9 +350,13 @@ export const view = defineView<Model, Message, ViewInputs>(
             h.div(
               [h.Class('grid content-start gap-3')],
               [
-                themePreview(locale),
+                themePreview(locale, h),
                 h.button(
-                  [h.Type('button'), h.Class(buttonSecondary), h.OnClick(ResetThemePreference())],
+                  [
+                    h.Type('button'),
+                    h.Class(buttonSecondary),
+                    h.OnClick(Message.ResetThemePreference()),
+                  ],
                   [translate(locale, 'appearance.reset')],
                 ),
               ],

@@ -15,12 +15,12 @@ import {
   view,
 } from './app';
 
-const baseModel = () => initForHref('http://course-lens.local/')[0];
+const baseModel = () => initForHref('http://course-lens.local/').model;
 
 test('Scene: catalogue loading is announced as a live semantic state', () => {
   Scene.scene(
     { update, view },
-    Scene.with(baseModel()),
+    Scene.given(baseModel()),
     Scene.expect(Scene.role('status')).toExist(),
     Scene.expect(Scene.text('Loading the NTNU catalogue')).toExist(),
   );
@@ -29,7 +29,7 @@ test('Scene: catalogue loading is announced as a live semantic state', () => {
 test('Scene: an empty catalogue is a non-failure outcome with guidance', () => {
   Scene.scene(
     { update, view },
-    Scene.with({ ...baseModel(), catalogue: CatalogueEmpty() }),
+    Scene.given({ ...baseModel(), catalogue: CatalogueEmpty() }),
     Scene.expect(Scene.role('status')).toExist(),
     Scene.expect(Scene.text('No courses match these filters')).toExist(),
     Scene.expect(Scene.role('alert')).toBeAbsent(),
@@ -39,7 +39,7 @@ test('Scene: an empty catalogue is a non-failure outcome with guidance', () => {
 test('Scene: a catalogue failure exposes the cause without pretending the result is empty', () => {
   Scene.scene(
     { update, view },
-    Scene.with({ ...baseModel(), catalogue: CatalogueFailure({ error: 'NTNU is unavailable' }) }),
+    Scene.given({ ...baseModel(), catalogue: CatalogueFailure({ error: 'NTNU is unavailable' }) }),
     Scene.expect(Scene.role('alert')).toExist(),
     Scene.expect(Scene.text('We could not load courses')).toExist(),
     Scene.expect(Scene.text('NTNU is unavailable')).toExist(),
@@ -49,7 +49,7 @@ test('Scene: a catalogue failure exposes the cause without pretending the result
 test('Scene: partial catalogue data keeps validated official courses visible with attribution', () => {
   Scene.scene(
     { update, view },
-    Scene.with({
+    Scene.given({
       ...baseModel(),
       catalogue: CataloguePartial({ response: fixtureSearchResponse(1) }),
       visibleCount: 1,
@@ -82,7 +82,7 @@ test('Scene: partial Inspect facts retain evidence and named uncertainty', () =>
 
   Scene.scene(
     { update, view },
-    Scene.with({
+    Scene.given({
       ...baseModel(),
       selectedCode: 'TDT4136',
       detail: DetailPartial({ response }),
@@ -97,7 +97,7 @@ test('Scene: partial Inspect facts retain evidence and named uncertainty', () =>
 test('Scene: Inspect failure remains distinct from partial evidence', () => {
   Scene.scene(
     { update, view },
-    Scene.with({
+    Scene.given({
       ...baseModel(),
       selectedCode: 'TDT4136',
       detail: DetailFailure({ error: 'The detail provider timed out' }),

@@ -1,13 +1,12 @@
-import type { Html } from 'foldkit/html';
-import { html } from 'foldkit/html';
+import type { Html, HtmlBuilder } from 'foldkit/html';
 
 import { translate, type Locale } from './i18n';
 import { icon, type AppIcon } from './icons';
 
-export type NavigationRoute = 'explore' | 'list' | 'appearance';
+export type NavigationRoute = 'explore' | 'list' | 'progress' | 'appearance';
 
 export interface NavigationItem {
-  readonly id: 'list' | 'schedule' | 'explore' | 'degree' | 'appearance';
+  readonly id: 'list' | 'schedule' | 'explore' | 'progress' | 'appearance';
   readonly label: string;
   readonly accessibleLabel: string;
   readonly icon: AppIcon;
@@ -50,14 +49,15 @@ export const bottomBarSeating = <T extends { readonly priority: number }>(
 
 /**
  * The desktop sidebar and mobile bottom bar intentionally consume the same
- * explicit navigation model. Planned destinations stay non-interactive until
- * the corresponding product surface exists.
+ * explicit navigation model. A planned destination stays non-interactive until
+ * its corresponding product surface exists.
  */
 export const primaryNavigation = (
   locale: Locale,
   route: NavigationRoute,
   exploreHref: string,
   listHref: string,
+  progressHref: string,
   appearanceHref: string,
 ): ReadonlyArray<NavigationItem> => [
   {
@@ -88,12 +88,12 @@ export const primaryNavigation = (
     priority: 1,
   },
   {
-    id: 'degree',
-    label: translate(locale, 'nav.degree'),
-    accessibleLabel: translate(locale, 'nav.degreeAccessible'),
+    id: 'progress',
+    label: translate(locale, 'nav.progress'),
+    accessibleLabel: translate(locale, 'nav.progress'),
     icon: 'degree',
-    href: null,
-    isCurrent: false,
+    href: progressHref,
+    isCurrent: route === 'progress',
     priority: 4,
   },
   {
@@ -118,10 +118,14 @@ const desktopItemBase =
 const desktopItemIcon =
   'grid size-6 flex-none place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
 
-const desktopItem = <Message>(locale: Locale, item: NavigationItem, collapsed: boolean): Html => {
-  const h = html<Message>();
+const desktopItem = <Message>(
+  locale: Locale,
+  item: NavigationItem,
+  collapsed: boolean,
+  h: HtmlBuilder<Message>,
+): Html => {
   const children = [
-    icon<Message>(item.icon, desktopItemIcon),
+    icon<Message>(item.icon, desktopItemIcon, h),
     h.span([h.Class(collapsed ? 'sr-only' : '')], [item.label]),
   ];
   const layoutClass = collapsed ? 'justify-center px-3' : '';
@@ -189,11 +193,14 @@ const mobileItemIcon = (isCurrent: boolean): string =>
  * could drift away from its peers. It is a page now, so there is no special
  * case left.
  */
-const mobileItem = <Message>(locale: Locale, item: NavigationItem): Html => {
-  const h = html<Message>();
+const mobileItem = <Message>(
+  locale: Locale,
+  item: NavigationItem,
+  h: HtmlBuilder<Message>,
+): Html => {
   const itemClass = mobileItemLayout(item.isCurrent);
   const children = [
-    icon<Message>(item.icon, mobileItemIcon(item.isCurrent)),
+    icon<Message>(item.icon, mobileItemIcon(item.isCurrent), h),
     h.span([h.Class('max-w-full truncate')], [item.label]),
   ];
 
@@ -219,17 +226,25 @@ const mobileItem = <Message>(locale: Locale, item: NavigationItem): Html => {
 };
 
 export const desktopNavigation = <Message>(
-  locale: Locale = 'en',
-  collapsed = false,
-  route: NavigationRoute = 'explore',
-  exploreHref = '/',
-  listHref = '/list',
-  appearanceHref = '/appearance',
-  onToggle?: Message,
-  languageControl?: Html,
+  locale: Locale,
+  collapsed: boolean,
+  route: NavigationRoute,
+  exploreHref: string,
+  listHref: string,
+  progressHref: string,
+  appearanceHref: string,
+  onToggle: Message | undefined,
+  languageControl: Html | undefined,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
-  const items = primaryNavigation(locale, route, exploreHref, listHref, appearanceHref);
+  const items = primaryNavigation(
+    locale,
+    route,
+    exploreHref,
+    listHref,
+    progressHref,
+    appearanceHref,
+  );
   return h.aside(
     [
       h.Class(
@@ -267,6 +282,7 @@ export const desktopNavigation = <Message>(
                   icon<Message>(
                     'sidebar',
                     `block size-5 [&_svg]:block [&_svg]:size-full ${collapsed ? '-scale-x-100' : ''}`,
+                    h,
                   ),
                 ],
               ),
@@ -283,7 +299,7 @@ export const desktopNavigation = <Message>(
         [...items]
           .filter((item) => item.id !== 'appearance')
           .sort((left, right) => left.priority - right.priority)
-          .map((item) => desktopItem<Message>(locale, item, collapsed)),
+          .map((item) => desktopItem<Message>(locale, item, collapsed, h)),
       ),
       h.div(
         [h.Class(`mt-auto grid gap-4 pt-4 ${collapsed ? '' : 'mx-3'}`)],
@@ -306,7 +322,7 @@ export const desktopNavigation = <Message>(
               h.Title(translate(locale, 'appearance.navLabel')),
             ],
             [
-              icon<Message>('appearance', 'block size-5 [&_svg]:block [&_svg]:size-full'),
+              icon<Message>('appearance', 'block size-5 [&_svg]:block [&_svg]:size-full', h),
               h.span(
                 [h.Class(collapsed ? 'sr-only' : '')],
                 [translate(locale, 'appearance.navLabel')],
@@ -331,13 +347,14 @@ export const desktopNavigation = <Message>(
 };
 
 export const mobileNavigation = <Message>(
-  locale: Locale = 'en',
-  route: NavigationRoute = 'explore',
-  exploreHref = '/',
-  listHref = '/list',
-  appearanceHref = '/appearance',
+  locale: Locale,
+  route: NavigationRoute,
+  exploreHref: string,
+  listHref: string,
+  progressHref: string,
+  appearanceHref: string,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
   return h.nav(
     [
       h.Class(
@@ -345,8 +362,8 @@ export const mobileNavigation = <Message>(
       ),
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
-    bottomBarSeating(primaryNavigation(locale, route, exploreHref, listHref, appearanceHref)).map(
-      (item) => mobileItem<Message>(locale, item),
-    ),
+    bottomBarSeating(
+      primaryNavigation(locale, route, exploreHref, listHref, progressHref, appearanceHref),
+    ).map((item) => mobileItem<Message>(locale, item, h)),
   );
 };

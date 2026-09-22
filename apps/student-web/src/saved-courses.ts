@@ -1,5 +1,7 @@
 import { Result, Schema as S } from 'effect';
-import { ts } from 'foldkit/schema';
+import { defineTaggedUnion } from 'foldkit/schema';
+
+import { courseIdentity, type CourseIdentity } from './course-identity';
 
 /**
  * Student-owned saved-course state for the List slice.
@@ -84,24 +86,6 @@ export const emptySavedList: SavedListState = {
   savedCourses: [],
   labels: [],
   memberships: [],
-};
-
-/**
- * A course identity that survived normalization. Construct it with
- * `courseIdentity`; an unparseable code cannot reach the saved set.
- */
-export interface CourseIdentity {
-  readonly institutionId: 'ntnu';
-  readonly courseCode: string;
-  readonly savedCourseId: string;
-}
-
-const courseCodePattern = /^[A-ZÆØÅ0-9]{2,20}$/;
-
-export const courseIdentity = (candidate: string): CourseIdentity | null => {
-  const courseCode = candidate.trim().toUpperCase();
-  if (!courseCodePattern.test(courseCode)) return null;
-  return { institutionId: 'ntnu', courseCode, savedCourseId: `ntnu:${courseCode}` };
 };
 
 /**
@@ -466,13 +450,15 @@ export type LabelFilterMode = (typeof labelFilterModes)[number];
  * than stored: it is exactly the saved courses carrying no label at all, so it
  * needs no identity, cannot be renamed, and cannot go stale.
  */
-export const FilterLabel = ts('FilterLabel', { labelId: S.String });
-export const FilterUnlabeled = ts('FilterUnlabeled');
-export const LabelPredicateSchema = S.Union([FilterLabel, FilterUnlabeled]);
+export const LabelPredicateSchema = defineTaggedUnion({
+  FilterLabel: { labelId: S.String },
+  FilterUnlabeled: {},
+});
 export type LabelPredicate = typeof LabelPredicateSchema.Type;
 
-export const filterLabel = (labelId: string): LabelPredicate => FilterLabel({ labelId });
-export const filterUnlabeled: LabelPredicate = FilterUnlabeled();
+export const filterLabel = (labelId: string): LabelPredicate =>
+  LabelPredicateSchema.FilterLabel({ labelId });
+export const filterUnlabeled: LabelPredicate = LabelPredicateSchema.FilterUnlabeled();
 
 /**
  * The whole collection language: included predicates combined by `any` or
@@ -680,36 +666,22 @@ export const setLabelFilterMode = (filter: LabelFilter, mode: LabelFilterMode): 
 
 export const serializeSavedList = (state: SavedListState): string => JSON.stringify(state);
 
-export const SavedListEmpty = ts('SavedListEmpty');
-export const SavedListLoaded = ts('SavedListLoaded', {
-  state: SavedListStateSchema,
-  repairedEntries: S.Number,
+export const SavedListLoadSchema = defineTaggedUnion({
+  SavedListEmpty: {},
+  SavedListLoaded: {
+    state: SavedListStateSchema,
+    repairedEntries: S.Number,
+  },
+  SavedListUnsupported: {
+    storedVersion: S.NullOr(S.Number),
+    raw: S.String,
+  },
+  SavedListCorrupt: {
+    reason: S.String,
+    raw: S.String,
+  },
 });
-export const SavedListUnsupported = ts('SavedListUnsupported', {
-  storedVersion: S.NullOr(S.Number),
-  raw: S.String,
-});
-export const SavedListCorrupt = ts('SavedListCorrupt', {
-  reason: S.String,
-  raw: S.String,
-});
-
-export const SavedListLoadSchema = S.Union([
-  SavedListEmpty,
-  SavedListLoaded,
-  SavedListUnsupported,
-  SavedListCorrupt,
-]);
-
-export type SavedListLoad =
-  | ReturnType<typeof SavedListEmpty>
-  | {
-      readonly _tag: 'SavedListLoaded';
-      readonly state: SavedListState;
-      readonly repairedEntries: number;
-    }
-  | ReturnType<typeof SavedListUnsupported>
-  | ReturnType<typeof SavedListCorrupt>;
+export type SavedListLoad = typeof SavedListLoadSchema.Type;
 
 /**
  * Legacy colour values and the colour that replaces them. A migration is a
@@ -833,37 +805,38 @@ const storedVersionOf = (value: unknown): number | null => {
  * overwriting data it could not read.
  */
 export const parseSavedList = (raw: string | null): SavedListLoad => {
-  if (raw === null || raw.trim().length === 0) return SavedListEmpty();
+  if (raw === null || raw.trim().length === 0) return SavedListLoadSchema.SavedListEmpty();
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return SavedListCorrupt({ reason: 'invalid-json', raw });
+    return SavedListLoadSchema.SavedListCorrupt({ reason: 'invalid-json', raw });
   }
 
   const storedVersion = storedVersionOf(parsed);
   if (storedVersion === null) {
-    return SavedListCorrupt({ reason: 'missing-version', raw });
+    return SavedListLoadSchema.SavedListCorrupt({ reason: 'missing-version', raw });
   }
   if (storedVersion > savedListSchemaVersion) {
-    return SavedListUnsupported({ storedVersion, raw });
+    return SavedListLoadSchema.SavedListUnsupported({ storedVersion, raw });
   }
 
   let candidate = parsed;
   for (let version = storedVersion; version < savedListSchemaVersion; version += 1) {
     const migration = migrations[version];
-    if (migration === undefined) return SavedListUnsupported({ storedVersion, raw });
+    if (migration === undefined)
+      return SavedListLoadSchema.SavedListUnsupported({ storedVersion, raw });
     candidate = migration(candidate);
   }
 
   const decoded = decodeSavedList(candidate);
   if (Result.isFailure(decoded)) {
-    return SavedListCorrupt({ reason: 'invalid-shape', raw });
+    return SavedListLoadSchema.SavedListCorrupt({ reason: 'invalid-shape', raw });
   }
 
   const repaired = repairSavedList(decoded.success);
-  return SavedListLoaded({
+  return SavedListLoadSchema.SavedListLoaded({
     state: repaired.state,
     repairedEntries: repaired.repairedEntries,
   });

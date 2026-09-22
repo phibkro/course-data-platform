@@ -1,6 +1,5 @@
 import type { CourseInsightResponseDtoType } from '@course-data/course-contracts';
-import type { Html } from 'foldkit/html';
-import { html } from 'foldkit/html';
+import type { Html, HtmlBuilder } from 'foldkit/html';
 
 import { localeTag, translate, translateToken, type Locale } from './i18n';
 import { collaborationIconName, icon, termSeasonIconName } from './icons';
@@ -49,12 +48,12 @@ const factStateClass =
 const uncertainFactStateClass =
   'inline-flex items-center min-h-[1.7rem] py-[0.2rem] px-[0.65rem] rounded-[1rem] bg-tertiary-container text-on-tertiary-container text-xs font-bold whitespace-nowrap';
 
-export const courseInsightView = (
+export const courseInsightView = <Message>(
   response: CourseInsightResponse,
   partial: boolean,
-  locale: Locale = 'en',
+  locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<never>();
   const course = response.item;
   const title =
     course.title.state === 'known'
@@ -69,7 +68,7 @@ export const courseInsightView = (
     label: string,
     fact: ProtocolFact<A>,
     renderKnown: (value: A) => Html,
-  ): Html => factView(label, fact, renderKnown, locale, inferenceEvidenceIds);
+  ): Html => factView(label, fact, renderKnown, locale, inferenceEvidenceIds, h);
 
   return h.article(
     [h.Class('grid gap-4'), h.AriaLabel(translate(locale, 'detail.aria', { code: course.code }))],
@@ -129,18 +128,21 @@ export const courseInsightView = (
                 course.credits,
                 (value) => `${value}`,
                 locale,
+                h,
               ),
               compactFact(
                 translate(locale, 'detail.level'),
                 course.level,
                 (value) => translateToken(locale, value),
                 locale,
+                h,
               ),
               compactFact(
                 translate(locale, 'detail.language'),
                 course.teachingLanguage,
                 String,
                 locale,
+                h,
               ),
             ],
           ),
@@ -148,6 +150,7 @@ export const courseInsightView = (
             course.title.evidenceIds,
             locale,
             'text-on-primary [&_a]:text-on-primary [@media(min-width:64rem)]:col-span-full',
+            h,
           ),
         ],
       ),
@@ -156,72 +159,94 @@ export const courseInsightView = (
         translate(locale, 'detail.availabilityHelp'),
         [
           decisionFact(translate(locale, 'detail.termLocation'), course.offerings, (offerings) =>
-            offeringList(offerings, locale),
+            offeringList(offerings, locale, h),
           ),
         ],
+        h,
       ),
-      decisionSection(translate(locale, 'detail.learn'), translate(locale, 'detail.learnHelp'), [
-        decisionFact(translate(locale, 'detail.content'), course.content, paragraph),
-        decisionFact(
-          translate(locale, 'detail.learningOutcomes'),
-          course.learningOutcomes,
-          paragraph,
-        ),
-      ]),
-      decisionSection(translate(locale, 'detail.works'), translate(locale, 'detail.worksHelp'), [
-        decisionFact(
-          translate(locale, 'detail.teachingMethods'),
-          course.teachingMethods,
-          paragraph,
-        ),
-        decisionFact(translate(locale, 'detail.workForms'), course.workForms, (forms) =>
-          chipList(forms.map((form) => translateToken(locale, form))),
-        ),
-        decisionFact(translate(locale, 'detail.collaboration'), course.collaboration, (value) =>
-          collaborationPill(value, locale),
-        ),
-        decisionFact(translate(locale, 'detail.attendance'), course.attendance, (value) =>
-          paragraph(translateToken(locale, value)),
-        ),
-        decisionFact(translate(locale, 'detail.online'), course.onlineParticipation, (value) =>
-          paragraph(translateToken(locale, value)),
-        ),
-      ]),
+      decisionSection(
+        translate(locale, 'detail.learn'),
+        translate(locale, 'detail.learnHelp'),
+        [
+          decisionFact(translate(locale, 'detail.content'), course.content, (value) =>
+            paragraph(value, h),
+          ),
+          decisionFact(
+            translate(locale, 'detail.learningOutcomes'),
+            course.learningOutcomes,
+            (value) => paragraph(value, h),
+          ),
+        ],
+        h,
+      ),
+      decisionSection(
+        translate(locale, 'detail.works'),
+        translate(locale, 'detail.worksHelp'),
+        [
+          decisionFact(
+            translate(locale, 'detail.teachingMethods'),
+            course.teachingMethods,
+            (value) => paragraph(value, h),
+          ),
+          decisionFact(translate(locale, 'detail.workForms'), course.workForms, (forms) =>
+            chipList(
+              forms.map((form) => translateToken(locale, form)),
+              h,
+            ),
+          ),
+          decisionFact(translate(locale, 'detail.collaboration'), course.collaboration, (value) =>
+            collaborationPill(value, locale, h),
+          ),
+          decisionFact(translate(locale, 'detail.attendance'), course.attendance, (value) =>
+            paragraph(translateToken(locale, value), h),
+          ),
+          decisionFact(translate(locale, 'detail.online'), course.onlineParticipation, (value) =>
+            paragraph(translateToken(locale, value), h),
+          ),
+        ],
+        h,
+      ),
       decisionSection(
         translate(locale, 'detail.assessment'),
         translate(locale, 'detail.assessmentHelp'),
         [
           decisionFact(translate(locale, 'detail.assessmentFact'), course.assessment, (parts) =>
-            assessmentList(parts, locale),
+            assessmentList(parts, locale, h),
           ),
           decisionFact(
             translate(locale, 'detail.obligatory'),
             course.obligatoryActivities,
-            (items) => obligatoryActivityList(items, locale),
+            (items) => obligatoryActivityList(items, locale, h),
           ),
         ],
+        h,
       ),
       decisionSection(
         translate(locale, 'detail.requirements'),
         translate(locale, 'detail.requirementsHelp'),
         [
-          decisionFact(translate(locale, 'detail.prerequisites'), course.prerequisites, paragraph),
-          decisionFact(translate(locale, 'detail.access'), course.accessRestrictions, paragraph),
+          decisionFact(translate(locale, 'detail.prerequisites'), course.prerequisites, (value) =>
+            paragraph(value, h),
+          ),
+          decisionFact(translate(locale, 'detail.access'), course.accessRestrictions, (value) =>
+            paragraph(value, h),
+          ),
         ],
+        h,
       ),
-      gradeSection(course, locale),
-      sourceSection(course, locale),
+      gradeSection(course, locale, h),
+      sourceSection(course, locale, h),
     ],
   );
 };
 
-const compactFact = <A>(
+const compactFact = <A, Message>(
   label: string,
   fact: ProtocolFact<A>,
   format: (value: A) => string,
   locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<never>();
   return h.div(
     [
       h.Class(
@@ -244,8 +269,12 @@ const compactFact = <A>(
   );
 };
 
-const decisionSection = (title: string, description: string, facts: ReadonlyArray<Html>): Html => {
-  const h = html<never>();
+const decisionSection = <Message>(
+  title: string,
+  description: string,
+  facts: ReadonlyArray<Html>,
+  h: HtmlBuilder<Message>,
+): Html => {
   return h.section(
     [h.Class(decisionSectionClass)],
     [
@@ -255,15 +284,16 @@ const decisionSection = (title: string, description: string, facts: ReadonlyArra
   );
 };
 
-const factView = <A>(
+const noInferenceEvidenceIds: ReadonlySet<string> = new Set();
+
+const factView = <A, Message>(
   label: string,
   fact: ProtocolFact<A>,
   renderKnown: (value: A) => Html,
   locale: Locale,
-  inferenceEvidenceIds: ReadonlySet<string> = new Set(),
+  inferenceEvidenceIds: ReadonlySet<string>,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<never>();
-
   if (fact.state === 'known') {
     const inferred =
       fact.evidenceIds.length > 0 &&
@@ -281,7 +311,7 @@ const factView = <A>(
           ],
         ),
         renderKnown(fact.value),
-        evidenceLinks(fact.evidenceIds, locale),
+        evidenceLinks(fact.evidenceIds, locale, '', h),
       ],
     );
   }
@@ -305,10 +335,13 @@ const factView = <A>(
             ),
           ],
           fact.candidates.map((candidate) =>
-            h.li([], [renderKnown(candidate.value), evidenceLinks(candidate.evidenceIds, locale)]),
+            h.li(
+              [],
+              [renderKnown(candidate.value), evidenceLinks(candidate.evidenceIds, locale, '', h)],
+            ),
           ),
         ),
-        evidenceLinks(fact.evidenceIds, locale),
+        evidenceLinks(fact.evidenceIds, locale, '', h),
       ],
     );
   }
@@ -324,13 +357,16 @@ const factView = <A>(
         ],
       ),
       h.p([], [fact.reason]),
-      evidenceLinks(fact.evidenceIds, locale),
+      evidenceLinks(fact.evidenceIds, locale, '', h),
     ],
   );
 };
 
-const gradeSection = (course: CourseInsight, locale: Locale): Html => {
-  const h = html<never>();
+const gradeSection = <Message>(
+  course: CourseInsight,
+  locale: Locale,
+  h: HtmlBuilder<Message>,
+): Html => {
   const grades = course.gradeOutcomes;
 
   return h.section(
@@ -349,8 +385,10 @@ const gradeSection = (course: CourseInsight, locale: Locale): Html => {
           factView(
             translate(locale, 'detail.coveredPeriod'),
             grades.period,
-            (period) => paragraph(`${period.fromYear}–${period.toYear}`),
+            (period) => paragraph(`${period.fromYear}–${period.toYear}`, h),
             locale,
+            noInferenceEvidenceIds,
+            h,
           ),
           factView(
             translate(locale, 'detail.sampleSize'),
@@ -360,8 +398,11 @@ const gradeSection = (course: CourseInsight, locale: Locale): Html => {
                 translate(locale, 'detail.results', {
                   count: value.toLocaleString(localeTag(locale)),
                 }),
+                h,
               ),
             locale,
+            noInferenceEvidenceIds,
+            h,
           ),
           factView(
             translate(locale, 'detail.failureRate'),
@@ -372,35 +413,49 @@ const gradeSection = (course: CourseInsight, locale: Locale): Html => {
                   style: 'percent',
                   maximumFractionDigits: 1,
                 }).format(value / 100),
+                h,
               ),
             locale,
+            noInferenceEvidenceIds,
+            h,
           ),
           factView(
             translate(locale, 'detail.averageGrade'),
             grades.averageGrade,
-            paragraph,
+            (value) => paragraph(value, h),
             locale,
+            noInferenceEvidenceIds,
+            h,
           ),
-          factView(translate(locale, 'detail.medianGrade'), grades.medianGrade, paragraph, locale),
+          factView(
+            translate(locale, 'detail.medianGrade'),
+            grades.medianGrade,
+            (value) => paragraph(value, h),
+            locale,
+            noInferenceEvidenceIds,
+            h,
+          ),
         ],
       ),
       factView(
         translate(locale, 'detail.distribution'),
         grades.distribution,
-        (distribution) => gradeDistribution(distribution, locale),
+        (distribution) => gradeDistribution(distribution, locale, h),
         locale,
+        noInferenceEvidenceIds,
+        h,
       ),
     ],
   );
 };
 
-const gradeDistribution = (
+const gradeDistribution = <Message>(
   distribution: CourseInsight['gradeOutcomes']['distribution'] extends ProtocolFact<infer A>
     ? A
     : never,
   locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<never>();
   return h.div(
     [h.Class('overflow-x-auto')],
     [
@@ -444,8 +499,11 @@ const gradeDistribution = (
   );
 };
 
-const sourceSection = (course: CourseInsight, locale: Locale): Html => {
-  const h = html<never>();
+const sourceSection = <Message>(
+  course: CourseInsight,
+  locale: Locale,
+  h: HtmlBuilder<Message>,
+): Html => {
   return h.section(
     [h.Class(decisionSectionClass)],
     [
@@ -541,12 +599,12 @@ const sourceSection = (course: CourseInsight, locale: Locale): Html => {
   );
 };
 
-const evidenceLinks = (
+const evidenceLinks = <Message>(
   evidenceIds: ReadonlyArray<string>,
   locale: Locale,
-  contextClass = '',
+  contextClass: string,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<never>();
   if (evidenceIds.length === 0) {
     return h.span(
       [h.Class(`text-on-surface-variant text-xs italic ${contextClass}`)],
@@ -574,11 +632,11 @@ const evidenceLinks = (
   );
 };
 
-const offeringList = (
+const offeringList = <Message>(
   offerings: CourseInsight['offerings'] extends ProtocolFact<infer A> ? A : never,
   locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<never>();
   if (offerings.length === 0) {
     return h.p([], [translate(locale, 'detail.noneReported')]);
   }
@@ -597,9 +655,10 @@ const offeringList = (
       return h.li(
         [h.Class('flex items-start gap-2')],
         [
-          icon<never>(
+          icon<Message>(
             termSeasonIconName(offering.season),
             'mt-0.5 block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
+            h,
           ),
           h.span([], [label]),
         ],
@@ -608,11 +667,11 @@ const offeringList = (
   );
 };
 
-const assessmentList = (
+const assessmentList = <Message>(
   assessment: CourseInsight['assessment'] extends ProtocolFact<infer A> ? A : never,
   locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<never>();
   const formatWeight = (value: number): string =>
     new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value);
   return h.ul(
@@ -639,7 +698,7 @@ const assessmentList = (
                       `${translate(locale, 'detail.assessmentWeight')}: ${translateToken(locale, part.weightPercent.state)}. ${part.weightPercent.reason}`,
                     ],
                   ),
-                  evidenceLinks(part.weightPercent.evidenceIds, locale),
+                  evidenceLinks(part.weightPercent.evidenceIds, locale, '', h),
                 ],
               ),
         ],
@@ -648,11 +707,11 @@ const assessmentList = (
   );
 };
 
-const obligatoryActivityList = (
+const obligatoryActivityList = <Message>(
   activities: CourseInsight['obligatoryActivities'] extends ProtocolFact<infer A> ? A : never,
   locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<never>();
   if (activities.length === 0) {
     return h.p([], [translate(locale, 'detail.noneReported')]);
   }
@@ -677,16 +736,13 @@ const obligatoryActivityList = (
   );
 };
 
-const paragraph = (value: string): Html => {
-  const h = html<never>();
-  return h.p([], [value]);
-};
+const paragraph = <Message>(value: string, h: HtmlBuilder<Message>): Html => h.p([], [value]);
 
-const collaborationPill = (
+const collaborationPill = <Message>(
   collaboration: 'individual' | 'group' | 'mixed',
   locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<never>();
   return h.span(
     [
       h.Class(
@@ -694,17 +750,17 @@ const collaborationPill = (
       ),
     ],
     [
-      icon<never>(
+      icon<Message>(
         collaborationIconName(collaboration),
         'block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
+        h,
       ),
       translateToken(locale, collaboration),
     ],
   );
 };
 
-const chipList = (items: ReadonlyArray<string>): Html => {
-  const h = html<never>();
+const chipList = <Message>(items: ReadonlyArray<string>, h: HtmlBuilder<Message>): Html => {
   return h.ul(
     [
       h.Class(

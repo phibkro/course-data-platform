@@ -1,9 +1,9 @@
-import { Option, Schema as S } from 'effect';
-import type { Command } from 'foldkit';
-import { html } from 'foldkit/html';
+import { Schema as S } from 'effect';
+import type { Update } from 'foldkit';
 import type { Html } from 'foldkit/html';
-import { m } from 'foldkit/message';
+import { defineMessageUnion } from 'foldkit/message';
 import { defineView } from 'foldkit/submodel';
+import { modifyFields } from 'foldkit/struct';
 import { Button, Checkbox } from '@foldkit/ui';
 import type {
   CourseDecisionSignalsDtoType,
@@ -29,15 +29,15 @@ export const Model = S.Struct({
 });
 export type Model = typeof Model.Type;
 
-export const ClosedCompare = m('ClosedCompare');
-export const ToggledCompareDifferencesOnly = m('ToggledCompareDifferencesOnly', {
-  differencesOnly: S.Boolean,
+export const Message = defineMessageUnion({
+  ClosedCompare: {},
+  ToggledCompareDifferencesOnly: { differencesOnly: S.Boolean },
 });
-export const Message = S.Union([ClosedCompare, ToggledCompareDifferencesOnly]);
 export type Message = typeof Message.Type;
 
-export const RequestedComparisonUrlWrite = m('RequestedComparisonUrlWrite');
-export const OutMessage = S.Union([RequestedComparisonUrlWrite]);
+export const OutMessage = defineMessageUnion({
+  RequestedComparisonUrlWrite: {},
+});
 export type OutMessage = typeof OutMessage.Type;
 
 export const init = (codes: ReadonlyArray<string>, differencesOnly = true): Model => ({
@@ -45,17 +45,18 @@ export const init = (codes: ReadonlyArray<string>, differencesOnly = true): Mode
   differencesOnly,
 });
 
-export const update = (
-  model: Model,
-  message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>, Option.Option<OutMessage>] => {
-  switch (message._tag) {
-    case 'ClosedCompare':
-      return [{ ...model, codes: [] }, [], Option.some(RequestedComparisonUrlWrite())];
-    case 'ToggledCompareDifferencesOnly':
-      return [{ ...model, differencesOnly: message.differencesOnly }, [], Option.none()];
-  }
-};
+type UpdateReturn = Update.ReturnWithOutMessage<Model, Message, OutMessage>;
+
+export const update = (model: Model, message: Message) =>
+  Message.match<UpdateReturn>(message, {
+    ClosedCompare: () => ({
+      model: modifyFields(model, { codes: () => [] }),
+      outMessage: OutMessage.RequestedComparisonUrlWrite(),
+    }),
+    ToggledCompareDifferencesOnly: ({ differencesOnly }) => ({
+      model: modifyFields(model, { differencesOnly: () => differencesOnly }),
+    }),
+  });
 
 export interface CompareCourseFacts {
   readonly course: SavedCourse;
@@ -209,8 +210,7 @@ const compareRowDiffers = (row: CompareRow): boolean => {
 };
 
 export const view = defineView<Model, Message, ViewInputs>(
-  (model, { courses, facts, feedback, locale }) => {
-    const h = html<Message>();
+  (model, { courses, facts, feedback, locale }, h) => {
     const rows = compareRows(locale, facts);
     const visible = model.differencesOnly ? rows.filter(compareRowDiffers) : rows;
     const headerCellClass =
@@ -244,44 +244,51 @@ export const view = defineView<Model, Message, ViewInputs>(
             h.div(
               [h.Class(controlGroupClass)],
               [
-                Checkbox.view<Message>({
-                  id: 'compare-differences-only',
-                  isChecked: model.differencesOnly,
-                  onToggle: (differencesOnly) => ToggledCompareDifferencesOnly({ differencesOnly }),
-                  toView: (attributes) =>
-                    h.label(
-                      [
-                        ...attributes.label,
-                        h.Class(
-                          'inline-flex min-h-11 cursor-pointer items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm font-bold text-on-surface-variant has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary-container has-[[data-checked]]:text-on-primary-container',
-                        ),
-                      ],
-                      [
-                        h.span(
-                          [
-                            ...attributes.checkbox,
-                            h.Class(
-                              'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
-                            ),
-                          ],
-                          [model.differencesOnly ? '✓' : ''],
-                        ),
-                        h.span([], [translate(locale, 'compare.differencesOnly')]),
-                      ],
-                    ),
-                }),
-                Button.view<Message>({
-                  type: 'button',
-                  onClick: ClosedCompare(),
-                  toView: (attributes) =>
-                    h.button(
-                      [
-                        ...attributes.button,
-                        h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
-                      ],
-                      [translate(locale, 'compare.close')],
-                    ),
-                }),
+                Checkbox.view<Message>(
+                  {
+                    id: 'compare-differences-only',
+                    isChecked: model.differencesOnly,
+                    onToggle: (differencesOnly) =>
+                      Message.ToggledCompareDifferencesOnly({ differencesOnly }),
+                    toView: (attributes) =>
+                      h.label(
+                        [
+                          ...attributes.label,
+                          h.Class(
+                            'inline-flex min-h-11 cursor-pointer items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm font-bold text-on-surface-variant has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary-container has-[[data-checked]]:text-on-primary-container',
+                          ),
+                        ],
+                        [
+                          h.span(
+                            [
+                              ...attributes.checkbox,
+                              h.Class(
+                                'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
+                              ),
+                            ],
+                            [model.differencesOnly ? '✓' : ''],
+                          ),
+                          h.span([], [translate(locale, 'compare.differencesOnly')]),
+                        ],
+                      ),
+                  },
+                  h,
+                ),
+                Button.view<Message>(
+                  {
+                    type: 'button',
+                    onClick: Message.ClosedCompare(),
+                    toView: (attributes) =>
+                      h.button(
+                        [
+                          ...attributes.button,
+                          h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                        ],
+                        [translate(locale, 'compare.close')],
+                      ),
+                  },
+                  h,
+                ),
               ],
             ),
           ],

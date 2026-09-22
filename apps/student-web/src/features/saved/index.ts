@@ -5,18 +5,17 @@ import type {
 } from '@course-data/course-contracts';
 import { Match as M, Option } from 'effect';
 import { Button, Checkbox, Dialog, Input, RadioGroup } from '@foldkit/ui';
-import type { Html } from 'foldkit/html';
-import { createKeyedLazy, createLazy, html } from 'foldkit/html';
+import type { Html, HtmlBuilder } from 'foldkit/html';
+import { createKeyedLazy, createLazy } from 'foldkit/html';
 
 import {
   CancelledLabelDelete,
   CancelledLabelEdit,
   CancelledRemoveSelected,
-  ChangedLabelDraftColor,
+  ChangedCourseOriginFilter,
   ChangedLabelExclusion,
-  ChangedLabelFilterMode,
   ChangedLabelInclusion,
-  ChangedListDensity,
+  ClearedCourseFilters,
   ClearedLabelFilter,
   ClearedSavedCourseSelection,
   ConfirmedDeleteLabel,
@@ -25,6 +24,9 @@ import {
   DismissedSavedListAction,
   GotLabelDialogMessage,
   GotCompareMessage,
+  GotLabelDraftColorRadioGroupMessage,
+  GotLabelFilterModeRadioGroupMessage,
+  GotListDensityRadioGroupMessage,
   RequestedCompare,
   RequestedDeleteLabel,
   RequestedEditLabel,
@@ -44,6 +46,7 @@ import {
   listDensities,
   normalizedUrl,
   noteDraftFor,
+  projectedStudentCourses,
   savedListNoticeKey,
   savedListState,
   type ListDensity,
@@ -91,13 +94,18 @@ import {
   type LabelFilter,
   type LabelFilterMode,
   type LabelPredicate,
-  courseIdentity,
   compareMaximum,
   compareMinimum,
   savedCoursesNewestFirst,
   type SavedCourse,
   type SavedListState,
 } from '../../saved-courses';
+import {
+  courseOriginFilters,
+  filterStudentCoursesByOrigin,
+  type CourseOriginFilter,
+  type StudentCourse,
+} from '../../student-courses';
 import {
   catalogueItemForCode,
   catalogueRefineAction,
@@ -112,12 +120,14 @@ import {
   savedCourseToggle,
 } from '../explore';
 import { init as initCompare, type CompareCourseFacts, view as compareView } from '../compare';
+export const LabelFilterModeRadioGroup = RadioGroup.create<LabelFilterMode>();
+export const ListDensityRadioGroup = RadioGroup.create<ListDensity>();
+export const LabelDraftColorRadioGroup = RadioGroup.create<LabelColor>();
 
 const lazySavedCourseRow = createKeyedLazy();
 const lazyListHeader = createLazy();
 
-export const savedCoursesPersistenceAlert = (model: Model): Html => {
-  const h = html<Message>();
+export const savedCoursesPersistenceAlert = (model: Model, h: HtmlBuilder<Message>): Html => {
   if (!model.savedCoursesPersistFailed) return h.empty;
   return h.div(
     [
@@ -136,13 +146,12 @@ export const savedCoursesPersistenceAlert = (model: Model): Html => {
  * Undo while the ephemeral snapshot is still available, and Dismiss so the
  * student is never forced to wait it out.
  */
-const savedListActionStatus = (model: Model): Html => {
-  const h = html<Message>();
+const savedListActionStatus = (model: Model, h: HtmlBuilder<Message>): Html => {
   const notices = model.savedListActions;
   if (notices.length === 0) return h.empty;
   const buttonClass = `${compactButtonBase} ${buttonSecondary}`;
 
-  const noticeCard = (notice: SavedListNotice): Html => {
+  const noticeCard = (notice: SavedListNotice, h: HtmlBuilder<Message>): Html => {
     const key = savedListNoticeKey(notice);
     const single = notice._tag === 'SavedActionRemoved' && notice.courses.length === 1;
     const removed = notice._tag === 'SavedActionRemoved' ? notice.courses : [];
@@ -172,26 +181,32 @@ const savedListActionStatus = (model: Model): Html => {
         h.div(
           [h.Class('flex items-center gap-2')],
           [
-            Button.view<Message>({
-              type: 'button',
-              onClick: RequestedUndoSavedListAction({ key }),
-              toView: (attributes) =>
-                h.button(
-                  [...attributes.button, h.Class(buttonClass), h.AriaLabel(undoLabel)],
-                  [translate(model.locale, 'list.undo')],
-                ),
-            }),
-            Button.view<Message>({
-              type: 'button',
-              onClick: DismissedSavedListAction({ key }),
-              // Its own name: sharing Undo's would give two buttons one
-              // accessible name for opposite outcomes.
-              toView: (attributes) =>
-                h.button(
-                  [...attributes.button, h.Class(buttonClass)],
-                  [translate(model.locale, 'list.dismissStatus')],
-                ),
-            }),
+            Button.view<Message>(
+              {
+                type: 'button',
+                onClick: RequestedUndoSavedListAction({ key }),
+                toView: (attributes) =>
+                  h.button(
+                    [...attributes.button, h.Class(buttonClass), h.AriaLabel(undoLabel)],
+                    [translate(model.locale, 'list.undo')],
+                  ),
+              },
+              h,
+            ),
+            Button.view<Message>(
+              {
+                type: 'button',
+                onClick: DismissedSavedListAction({ key }),
+                // Its own name: sharing Undo's would give two buttons one
+                // accessible name for opposite outcomes.
+                toView: (attributes) =>
+                  h.button(
+                    [...attributes.button, h.Class(buttonClass)],
+                    [translate(model.locale, 'list.dismissStatus')],
+                  ),
+              },
+              h,
+            ),
           ],
         ),
       ],
@@ -207,29 +222,31 @@ const savedListActionStatus = (model: Model): Html => {
   return h.div(
     [h.Class('pointer-events-none grid gap-2')],
     [
-      ...notices.map(noticeCard),
+      ...notices.map((notice) => noticeCard(notice, h)),
       notices.length < 2
         ? h.empty
         : h.div(
             [h.Class('pointer-events-auto flex justify-end')],
             [
-              Button.view<Message>({
-                type: 'button',
-                onClick: DismissedAllSavedListActions(),
-                toView: (attributes) =>
-                  h.button(
-                    [...attributes.button, h.Class(`${buttonClass} min-h-11`)],
-                    [translate(model.locale, 'list.dismissAllStatus', { count: notices.length })],
-                  ),
-              }),
+              Button.view<Message>(
+                {
+                  type: 'button',
+                  onClick: DismissedAllSavedListActions(),
+                  toView: (attributes) =>
+                    h.button(
+                      [...attributes.button, h.Class(`${buttonClass} min-h-11`)],
+                      [translate(model.locale, 'list.dismissAllStatus', { count: notices.length })],
+                    ),
+                },
+                h,
+              ),
             ],
           ),
     ],
   );
 };
 
-const listHeader = (locale: Locale): Html => {
-  const h = html<Message>();
+const listHeader = (locale: Locale, h: HtmlBuilder<Message>): Html => {
   return h.header(
     [h.Class('pt-[clamp(1.5rem,4vw,3rem)] pb-2 grid gap-4')],
     [
@@ -293,16 +310,14 @@ const labelColorName = (color: LabelColor, locale: Locale): string =>
 const labelChipClass = (color: LabelColor): string =>
   `inline-flex min-h-7 items-center gap-1.5 rounded-full border border-outline-variant px-2.5 text-xs font-bold ${labelChipTone(color)}`;
 
-const labelChip = (label: Label, id: string | null = null): Html => {
-  const h = html<Message>();
+const labelChip = (label: Label, id: string | null, h: HtmlBuilder<Message>): Html => {
   return h.span(
     [h.Class(labelChipClass(label.color)), ...(id === null ? [] : [h.Id(id)])],
     [label.name],
   );
 };
 
-const labelDot = (color: LabelColor): Html => {
-  const h = html<Message>();
+const labelDot = (color: LabelColor, h: HtmlBuilder<Message>): Html => {
   return h.span(
     [
       h.Class(
@@ -316,8 +331,7 @@ const labelDot = (color: LabelColor): Html => {
 
 /** The count is visible as a number and named for assistive technology, so the
  *  chip never depends on the digit alone to explain itself. */
-const labelCountBadge = (count: number, locale: Locale): Html => {
-  const h = html<Message>();
+const labelCountBadge = (count: number, locale: Locale, h: HtmlBuilder<Message>): Html => {
   return h.span(
     [h.Class('inline-flex items-center gap-1')],
     [
@@ -367,6 +381,56 @@ const rowCheckboxClass =
 const noteFieldClass =
   'w-full min-h-20 p-3 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base leading-[1.45] focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]';
 
+const systemBadgeClass =
+  'inline-flex min-h-7 items-center rounded-full border border-primary/40 bg-primary-container px-2.5 text-xs font-extrabold text-on-primary-container';
+
+const resultGradeLabel = (grade: string, locale: Locale): string => {
+  switch (grade) {
+    case 'pass':
+      return translate(locale, 'progress.gradePass');
+    case 'fail':
+      return translate(locale, 'progress.gradeFail');
+    case 'recognized':
+      return translate(locale, 'progress.gradeRecognized');
+    default:
+      return grade;
+  }
+};
+
+const resultSummary = (course: StudentCourse, locale: Locale): string | null => {
+  const result = course.resultCourse?.latest;
+  if (result === undefined) return null;
+  return translate(locale, 'list.resultSummary', {
+    grade: resultGradeLabel(result.grade, locale),
+    term: translate(locale, result.term === 1 ? 'progress.termSpring' : 'progress.termAutumn'),
+    year: result.year,
+    credits: new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(
+      result.credits,
+    ),
+  });
+};
+
+const resultEvidence = (course: StudentCourse, locale: Locale, h: HtmlBuilder<Message>): Html => {
+  const summary = resultSummary(course, locale);
+  if (summary === null) return h.empty;
+  return h.section(
+    [
+      h.Class(
+        'grid gap-1 rounded-m3-medium bg-secondary-container p-3 text-on-secondary-container',
+      ),
+      h.AriaLabel(translate(locale, 'list.resultEvidence')),
+    ],
+    [
+      h.p(
+        [h.Class('m-0 text-xs font-extrabold uppercase tracking-[0.08em]')],
+        [translate(locale, 'list.resultEvidence')],
+      ),
+      h.p([h.Class('m-0 font-bold')], [summary]),
+      h.p([h.Class('m-0 text-xs leading-[1.4]')], [translate(locale, 'list.resultEvidenceHelp')]),
+    ],
+  );
+};
+
 /**
  * A saved row shows the student's own material (identity, note, actions) plus
  * whatever official facts this session already loaded. It never invents a fact
@@ -374,7 +438,7 @@ const noteFieldClass =
  */
 const savedCourseRow = (
   href: string,
-  course: SavedCourse,
+  course: StudentCourse,
   state: SavedListState,
   item: CourseSearchItemDtoType | null,
   decisionSignal: CourseDecisionSignalsDtoType | null,
@@ -384,52 +448,70 @@ const savedCourseRow = (
   locale: Locale,
   outcomeView: OutcomeView,
   density: ListDensity,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
+  const savedCourse = course.savedCourse;
+  const resultCourse = course.resultCourse;
   const noteFieldId = `saved-note-${course.courseCode}`;
   const noteHelpId = `${noteFieldId}-help`;
-  const title = item === null ? null : courseTitle(item, locale);
+  const title = item === null ? (resultCourse?.title ?? null) : courseTitle(item, locale);
   const openLabel = translate(locale, 'list.openCourse', { code: course.courseCode });
-  const identity = courseIdentity(course.courseCode);
-  const labels = identity === null ? [] : labelsForSavedCourse(state, identity);
-  const selectionCheckbox = Checkbox.view<Message>({
-    id: `select-${course.courseCode}`,
-    isChecked: isSelected,
-    onToggle: (checked) =>
-      ToggledSavedCourseSelection({ courseCode: course.courseCode, isSelected: checked }),
-    toView: (attributes) =>
-      h.label(
-        [
-          ...attributes.label,
-          // The visual box stays compact; the label keeps a 44px touch target.
-          h.Class('flex min-h-11 min-w-11 flex-none items-center justify-center cursor-pointer'),
-        ],
-        [
-          h.span([...attributes.checkbox, h.Class(rowCheckboxClass)], [isSelected ? '✓' : '']),
-          h.span(
-            [h.Class('sr-only')],
-            [translate(locale, 'list.selectCourse', { code: course.courseCode })],
-          ),
-        ],
-      ),
-  });
-  const labelsAction = Button.view<Message>({
-    type: 'button',
-    onClick: RequestedLabelDialog({ courseCodes: [course.courseCode] }),
-    toView: (attributes) =>
-      h.button(
-        [
-          ...attributes.button,
-          h.Class(
-            `${compactButtonBase} inline-flex min-h-11 items-center gap-1.5 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-sm font-bold text-primary`,
-          ),
-          h.AriaLabel(translate(locale, 'list.editLabelsFor', { code: course.courseCode })),
-          h.AriaHasPopup('dialog'),
-          h.AriaControls('saved-course-labels'),
-        ],
-        [translate(locale, 'list.openLabels')],
-      ),
-  });
+  const labels = savedCourse === null ? [] : labelsForSavedCourse(state, course.identity);
+  const selectionCheckbox =
+    savedCourse === null
+      ? h.span([h.Class('size-11 flex-none'), h.AriaHidden(true)], [])
+      : Checkbox.view<Message>(
+          {
+            id: `select-${course.courseCode}`,
+            isChecked: isSelected,
+            onToggle: (checked) =>
+              ToggledSavedCourseSelection({ courseCode: course.courseCode, isSelected: checked }),
+            toView: (attributes) =>
+              h.label(
+                [
+                  ...attributes.label,
+                  // The visual box stays compact; the label keeps a 44px touch target.
+                  h.Class(
+                    'flex min-h-11 min-w-11 flex-none items-center justify-center cursor-pointer',
+                  ),
+                ],
+                [
+                  h.span(
+                    [...attributes.checkbox, h.Class(rowCheckboxClass)],
+                    [isSelected ? '✓' : ''],
+                  ),
+                  h.span(
+                    [h.Class('sr-only')],
+                    [translate(locale, 'list.selectCourse', { code: course.courseCode })],
+                  ),
+                ],
+              ),
+          },
+          h,
+        );
+  const labelsAction =
+    savedCourse === null
+      ? h.empty
+      : Button.view<Message>(
+          {
+            type: 'button',
+            onClick: RequestedLabelDialog({ courseCodes: [course.courseCode] }),
+            toView: (attributes) =>
+              h.button(
+                [
+                  ...attributes.button,
+                  h.Class(
+                    `${compactButtonBase} inline-flex min-h-11 items-center gap-1.5 rounded-[1.5rem] border border-outline bg-surface-container px-3 text-sm font-bold text-primary`,
+                  ),
+                  h.AriaLabel(translate(locale, 'list.editLabelsFor', { code: course.courseCode })),
+                  h.AriaHasPopup('dialog'),
+                  h.AriaControls('saved-course-labels'),
+                ],
+                [translate(locale, 'list.openLabels')],
+              ),
+          },
+          h,
+        );
   const identityBlock = h.div(
     [h.Class('min-w-0 flex-1')],
     [
@@ -468,27 +550,57 @@ const savedCourseRow = (
       ),
     ],
   );
-  const labelsBlock = h.div(
+  const originsBlock = h.div(
     [
       h.Class('flex flex-wrap items-center gap-2'),
       h.Role('group'),
-      h.AriaLabel(translate(locale, 'list.rowLabels', { code: course.courseCode })),
+      h.AriaLabel(translate(locale, 'list.rowOrigins', { code: course.courseCode })),
     ],
     [
-      ...labels.map((label) => labelChip(label)),
-      labels.length === 0
+      ...(savedCourse === null
+        ? []
+        : [h.span([h.Class(systemBadgeClass)], [translate(locale, 'list.savedBadge')])]),
+      ...(resultCourse === null
+        ? []
+        : [h.span([h.Class(systemBadgeClass)], [translate(locale, 'list.resultBadge')])]),
+      savedCourse === null
         ? h.span(
             [h.Class('text-on-surface-variant text-sm')],
-            [translate(locale, 'list.rowNoLabels')],
+            [translate(locale, 'list.resultOnlyHelp')],
           )
         : h.empty,
     ],
   );
+  const labelsBlock =
+    savedCourse === null
+      ? h.empty
+      : h.div(
+          [
+            h.Class('flex flex-wrap items-center gap-2'),
+            h.Role('group'),
+            h.AriaLabel(translate(locale, 'list.rowLabels', { code: course.courseCode })),
+          ],
+          [
+            ...labels.map((label) => labelChip(label, null, h)),
+            labels.length === 0
+              ? h.span(
+                  [h.Class('text-on-surface-variant text-sm')],
+                  [translate(locale, 'list.rowNoLabels')],
+                )
+              : h.empty,
+          ],
+        );
 
-  /** Both controls that act on this row, kept together at its end. */
+  /** Actions depend on ownership: result-only rows can become explicitly saved,
+   *  while saved rows retain their existing label and removal controls. */
   const rowActions = h.div(
     [h.Class(savedRowActionsClass)],
-    [labelsAction, savedCourseToggle(course.courseCode, true, 'ready', locale, '', 'destructive')],
+    [
+      labelsAction,
+      savedCourse === null
+        ? savedCourseToggle(course.courseCode, false, 'ready', locale, '', 'state', h)
+        : savedCourseToggle(course.courseCode, true, 'ready', locale, '', 'destructive', h),
+    ],
   );
   /**
    * Compact keeps the same saved-course identity, its current offering, its
@@ -497,8 +609,12 @@ const savedCourseRow = (
    * card view and in Inspect, so density never changes what is known.
    */
   if (density === 'compact') {
-    const facts =
+    const offering =
       item === null ? null : courseOfferingFacts(item, decisionSignal ?? 'idle', locale);
+    const facts =
+      offering === null
+        ? resultSummary(course, locale)
+        : `${offering.credits} · ${offering.term} · ${offering.place}`;
     return h.li(
       [],
       [
@@ -508,12 +624,9 @@ const savedCourseRow = (
             h.div([h.Class(savedRowHeaderClass)], [selectionCheckbox, identityBlock, rowActions]),
             h.p(
               [h.Class('m-0 text-on-surface-variant text-sm leading-[1.4]')],
-              [
-                facts === null
-                  ? translate(locale, 'list.factsNotLoaded')
-                  : `${facts.credits} · ${facts.term} · ${facts.place}`,
-              ],
+              [facts ?? translate(locale, 'list.factsNotLoaded')],
             ),
+            originsBlock,
             labelsBlock,
           ],
         ),
@@ -527,6 +640,7 @@ const savedCourseRow = (
         [h.Class(savedRowClass(isSelected))],
         [
           h.div([h.Class(savedRowHeaderClass)], [selectionCheckbox, identityBlock, rowActions]),
+          originsBlock,
           labelsBlock,
           item === null
             ? h.div(
@@ -543,7 +657,7 @@ const savedCourseRow = (
                   ),
                 ],
               )
-            : courseIdentityFacts(item, decisionSignal ?? 'idle', locale),
+            : courseIdentityFacts(item, decisionSignal ?? 'idle', locale, h),
           decisionSignal === null && gradeSignal === null
             ? h.empty
             : h.div(
@@ -553,66 +667,128 @@ const savedCourseRow = (
                   ),
                 ],
                 [
-                  decisionSignal === null ? h.empty : decisionSignalView(decisionSignal, locale),
+                  decisionSignal === null ? h.empty : decisionSignalView(decisionSignal, locale, h),
                   gradeSignal === null
                     ? h.empty
-                    : gradeSignalView(gradeSignal, locale, outcomeView),
+                    : gradeSignalView(gradeSignal, locale, outcomeView, h),
                 ],
               ),
-          h.form(
-            [
-              h.Class('grid gap-2'),
-              h.OnSubmit(SubmittedSavedNote({ courseCode: course.courseCode })),
-            ],
-            [
-              h.label(
-                [h.For(noteFieldId), h.Class(fieldLabelClass)],
-                [translate(locale, 'list.note')],
-              ),
-              h.textarea(
+          resultEvidence(course, locale, h),
+          savedCourse === null
+            ? h.empty
+            : h.form(
                 [
-                  h.Id(noteFieldId),
-                  h.Rows(2),
-                  h.Value(noteDraft),
-                  h.Placeholder(translate(locale, 'list.notePlaceholder')),
-                  h.AriaDescribedBy(noteHelpId),
-                  h.Class(noteFieldClass),
-                  h.OnInput((value) =>
-                    UpdatedSavedNoteDraft({ courseCode: course.courseCode, value }),
+                  h.Class('grid gap-2'),
+                  h.OnSubmit(SubmittedSavedNote({ courseCode: course.courseCode })),
+                ],
+                [
+                  h.label(
+                    [h.For(noteFieldId), h.Class(fieldLabelClass)],
+                    [translate(locale, 'list.note')],
+                  ),
+                  h.textarea([
+                    h.Id(noteFieldId),
+                    h.Rows(2),
+                    h.Value(noteDraft),
+                    h.Placeholder(translate(locale, 'list.notePlaceholder')),
+                    h.AriaDescribedBy(noteHelpId),
+                    h.Class(noteFieldClass),
+                    h.OnInput((value) =>
+                      UpdatedSavedNoteDraft({ courseCode: course.courseCode, value }),
+                    ),
+                  ]),
+                  h.p(
+                    [
+                      h.Id(noteHelpId),
+                      h.Class('m-0 text-on-surface-variant text-xs leading-[1.4]'),
+                    ],
+                    [translate(locale, 'list.noteHelp')],
+                  ),
+                  h.div(
+                    [h.Class('flex flex-wrap gap-3')],
+                    [
+                      Button.view<Message>(
+                        {
+                          type: 'submit',
+                          toView: (attributes) =>
+                            h.button(
+                              [
+                                ...attributes.button,
+                                h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                              ],
+                              [translate(locale, 'list.saveNote')],
+                            ),
+                        },
+                        h,
+                      ),
+                    ],
                   ),
                 ],
-                [],
               ),
-              h.p(
-                [h.Id(noteHelpId), h.Class('m-0 text-on-surface-variant text-xs leading-[1.4]')],
-                [translate(locale, 'list.noteHelp')],
-              ),
-              h.div(
-                [h.Class('flex flex-wrap gap-3')],
-                [
-                  Button.view<Message>({
-                    type: 'submit',
-                    toView: (attributes) =>
-                      h.button(
-                        [
-                          ...attributes.button,
-                          h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
-                        ],
-                        [translate(locale, 'list.saveNote')],
-                      ),
-                  }),
-                ],
-              ),
-            ],
-          ),
         ],
       ),
     ],
   );
 };
 
-const savedCountLabel = (count: number, locale: Locale): string =>
-  count === 1 ? translate(locale, 'list.countOne') : translate(locale, 'list.countMany', { count });
+const courseCountLabel = (count: number, locale: Locale): string =>
+  count === 1
+    ? translate(locale, 'list.courseCountOne')
+    : translate(locale, 'list.courseCountMany', { count });
+
+const originFilterLabel = (filter: CourseOriginFilter, count: number, locale: Locale): string =>
+  translate(
+    locale,
+    filter === 'all'
+      ? 'list.originAll'
+      : filter === 'saved'
+        ? 'list.originSaved'
+        : 'list.originResults',
+    { count },
+  );
+
+const originFilterView = (
+  model: Model,
+  courses: ReadonlyArray<StudentCourse>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [
+      h.Class('flex flex-wrap items-center gap-2'),
+      h.Role('group'),
+      h.AriaLabel(translate(model.locale, 'list.originFilter')),
+    ],
+    courseOriginFilters.map((filter) => {
+      const selected = model.courseOriginFilter === filter;
+      const label = originFilterLabel(
+        filter,
+        filterStudentCoursesByOrigin(courses, filter).length,
+        model.locale,
+      );
+      return Button.view<Message>(
+        {
+          type: 'button',
+          onClick: ChangedCourseOriginFilter({ value: filter }),
+          toView: (attributes) =>
+            h.button(
+              [
+                ...attributes.button,
+                h.Class(
+                  `${compactButtonBase} min-h-11 rounded-full border px-4 ${
+                    selected
+                      ? 'border-primary bg-primary text-on-primary'
+                      : 'border-outline bg-surface-container text-on-surface'
+                  }`,
+                ),
+                h.AriaPressed(String(selected)),
+              ],
+              [label],
+            ),
+        },
+        h,
+      );
+    }),
+  );
 
 const nameList = (
   names: ReadonlyArray<string>,
@@ -689,35 +865,38 @@ const excludeCheckbox = (
   name: string,
   dot: Html,
   locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
-  return Checkbox.view<Message>({
-    id,
-    isChecked: isExcluded,
-    onToggle: (checked) => ChangedLabelExclusion({ predicate, isExcluded: checked }),
-    toView: (attributes) =>
-      h.label(
-        [
-          ...attributes.label,
-          h.Class(
-            'inline-flex min-h-11 items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm text-on-surface-variant cursor-pointer has-[[data-checked]]:border-error has-[[data-checked]]:bg-error-container has-[[data-checked]]:text-on-error-container',
-          ),
-        ],
-        [
-          h.span(
-            [
-              ...attributes.checkbox,
-              h.Class(
-                'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
-              ),
-            ],
-            [isExcluded ? '✓' : ''],
-          ),
-          dot,
-          h.span([], [translate(locale, 'list.filterExclude', { name })]),
-        ],
-      ),
-  });
+  return Checkbox.view<Message>(
+    {
+      id,
+      isChecked: isExcluded,
+      onToggle: (checked) => ChangedLabelExclusion({ predicate, isExcluded: checked }),
+      toView: (attributes) =>
+        h.label(
+          [
+            ...attributes.label,
+            h.Class(
+              'inline-flex min-h-11 items-center gap-[0.55rem] rounded-[1.5rem] border border-outline px-3 text-sm text-on-surface-variant cursor-pointer has-[[data-checked]]:border-error has-[[data-checked]]:bg-error-container has-[[data-checked]]:text-on-error-container',
+            ),
+          ],
+          [
+            h.span(
+              [
+                ...attributes.checkbox,
+                h.Class(
+                  'grid size-[1.15rem] place-items-center rounded-[0.3rem] border-2 border-current text-xs leading-none',
+                ),
+              ],
+              [isExcluded ? '✓' : ''],
+            ),
+            dot,
+            h.span([], [translate(locale, 'list.filterExclude', { name })]),
+          ],
+        ),
+    },
+    h,
+  );
 };
 
 /**
@@ -725,8 +904,7 @@ const excludeCheckbox = (
  * `Exclude` live behind one progressive disclosure, so the common case stays a
  * single tap and the bounded composition is still reachable by keyboard.
  */
-const labelFilterView = (model: Model, state: SavedListState): Html => {
-  const h = html<Message>();
+const labelFilterView = (model: Model, state: SavedListState, h: HtmlBuilder<Message>): Html => {
   const locale = model.locale;
   const labels = labelsByName(state);
   if (labels.length === 0) {
@@ -743,7 +921,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
           [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]')],
           [translate(locale, 'list.noLabels')],
         ),
-        h.div([h.Class('flex')], [labelDialogAction([], locale)]),
+        h.div([h.Class('flex')], [labelDialogAction([], locale, h)]),
       ],
     );
   }
@@ -764,50 +942,24 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
    * collection, but it is derived from membership rather than stored: it has no
    * colour swatch, cannot be renamed, and cannot go stale.
    */
-  const unlabeledChip = Button.view<Message>({
-    type: 'button',
-    onClick: ChangedLabelInclusion({
-      predicate: filterUnlabeled,
-      isIncluded: !filter.includeUnlabeled,
-    }),
-    toView: (attributes) =>
-      h.button(
-        [
-          ...attributes.button,
-          h.Class(`${labelFilterChipClass(filter.includeUnlabeled)} border-dashed`),
-          h.AriaPressed(String(filter.includeUnlabeled)),
-        ],
-        [
-          h.span([], [unlabeledName]),
-          labelCountBadge(unlabeledCourseCount(state), locale),
-          filter.excludeUnlabeled
-            ? h.span(
-                [h.Class('text-xs font-extrabold uppercase')],
-                [translate(locale, 'list.filterExcludedBadge')],
-              )
-            : h.empty,
-        ],
-      ),
-  });
-  const includeChips = labels.map((label) =>
-    Button.view<Message>({
+  const unlabeledChip = Button.view<Message>(
+    {
       type: 'button',
       onClick: ChangedLabelInclusion({
-        predicate: filterLabel(label.id),
-        isIncluded: !included.has(label.id),
+        predicate: filterUnlabeled,
+        isIncluded: !filter.includeUnlabeled,
       }),
       toView: (attributes) =>
         h.button(
           [
             ...attributes.button,
-            h.Class(labelFilterChipClass(included.has(label.id))),
-            h.AriaPressed(String(included.has(label.id))),
+            h.Class(`${labelFilterChipClass(filter.includeUnlabeled)} border-dashed`),
+            h.AriaPressed(String(filter.includeUnlabeled)),
           ],
           [
-            labelDot(label.color),
-            h.span([], [label.name]),
-            labelCountBadge(labelCourseCount(state, label.id), locale),
-            excluded.has(label.id)
+            h.span([], [unlabeledName]),
+            labelCountBadge(unlabeledCourseCount(state), locale, h),
+            filter.excludeUnlabeled
               ? h.span(
                   [h.Class('text-xs font-extrabold uppercase')],
                   [translate(locale, 'list.filterExcludedBadge')],
@@ -815,7 +967,39 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
               : h.empty,
           ],
         ),
-    }),
+    },
+    h,
+  );
+  const includeChips = labels.map((label) =>
+    Button.view<Message>(
+      {
+        type: 'button',
+        onClick: ChangedLabelInclusion({
+          predicate: filterLabel(label.id),
+          isIncluded: !included.has(label.id),
+        }),
+        toView: (attributes) =>
+          h.button(
+            [
+              ...attributes.button,
+              h.Class(labelFilterChipClass(included.has(label.id))),
+              h.AriaPressed(String(included.has(label.id))),
+            ],
+            [
+              labelDot(label.color, h),
+              h.span([], [label.name]),
+              labelCountBadge(labelCourseCount(state, label.id), locale, h),
+              excluded.has(label.id)
+                ? h.span(
+                    [h.Class('text-xs font-extrabold uppercase')],
+                    [translate(locale, 'list.filterExcludedBadge')],
+                  )
+                : h.empty,
+            ],
+          ),
+      },
+      h,
+    ),
   );
 
   /**
@@ -831,43 +1015,47 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
   const includeModeControl =
     includedPredicateCount < 2
       ? h.empty
-      : RadioGroup.view<LabelFilterMode, Message>({
-          id: 'label-filter-mode',
-          selectedValue: Option.some(filter.includeMode),
-          options: labelFilterModes,
-          ariaLabel: translate(locale, 'list.filterMode'),
-          onSelect: (mode) => ChangedLabelFilterMode({ mode }),
-          toView: ({ group, options }) =>
-            h.div(
-              [
-                ...group,
-                h.Class('inline-flex w-fit overflow-hidden rounded-full border border-outline'),
-              ],
-              options.map((option) =>
-                h.button(
-                  [
-                    ...option.option,
-                    h.Class(
-                      `min-h-11 cursor-pointer border-0 px-4 text-sm font-extrabold ${
-                        option.isSelected
-                          ? 'bg-primary text-on-primary'
-                          : 'bg-surface-container text-on-surface'
-                      }`,
-                    ),
-                  ],
-                  [
-                    translate(
-                      locale,
-                      option.value === 'all' ? 'list.filterModeAll' : 'list.filterModeAny',
-                    ),
-                    h.span(
-                      [h.Class('ml-2 font-bold tabular-nums opacity-[0.75]')],
-                      [countFor(option.value).toLocaleString(localeTag(locale))],
-                    ),
-                  ],
+      : h.submodel({
+          slotId: 'label-filter-mode',
+          model: model.labelFilterModeRadioGroup,
+          view: LabelFilterModeRadioGroup.view,
+          viewInputs: {
+            options: labelFilterModes,
+            selectedValue: Option.some(filter.includeMode),
+            ariaLabel: translate(locale, 'list.filterMode'),
+            toView: ({ group, options }) =>
+              h.div(
+                [
+                  ...group,
+                  h.Class('inline-flex w-fit overflow-hidden rounded-full border border-outline'),
+                ],
+                options.map((option) =>
+                  h.button(
+                    [
+                      ...option.option,
+                      h.Class(
+                        `min-h-11 cursor-pointer border-0 px-4 text-sm font-extrabold ${
+                          option.isSelected
+                            ? 'bg-primary text-on-primary'
+                            : 'bg-surface-container text-on-surface'
+                        }`,
+                      ),
+                    ],
+                    [
+                      translate(
+                        locale,
+                        option.value === 'all' ? 'list.filterModeAll' : 'list.filterModeAny',
+                      ),
+                      h.span(
+                        [h.Class('ml-2 font-bold tabular-nums opacity-[0.75]')],
+                        [countFor(option.value).toLocaleString(localeTag(locale))],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+          },
+          toParentMessage: (message) => GotLabelFilterModeRadioGroupMessage({ message }),
         });
 
   return h.section(
@@ -882,7 +1070,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
         [h.Class('flex flex-wrap items-center justify-between gap-3')],
         [
           h.p([h.Class(factDtClass)], [translate(locale, 'list.filterHeading')]),
-          labelDialogAction([], locale),
+          labelDialogAction([], locale, h),
         ],
       ),
       /**
@@ -927,8 +1115,9 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
                   excluded.has(label.id),
                   filterLabel(label.id),
                   label.name,
-                  labelDot(label.color),
+                  labelDot(label.color, h),
                   locale,
+                  h,
                 ),
               ),
               excludeCheckbox(
@@ -938,6 +1127,7 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
                 unlabeledName,
                 h.empty,
                 locale,
+                h,
               ),
             ],
           ),
@@ -993,41 +1183,50 @@ const labelFilterView = (model: Model, state: SavedListState): Html => {
             [translate(locale, 'list.filterUnknownDropped', { count: unknownCount })],
           ),
       isLabelFilterActive(filter)
-        ? Button.view<Message>({
-            type: 'button',
-            onClick: ClearedLabelFilter(),
-            toView: (attributes) =>
-              h.button(
-                [
-                  ...attributes.button,
-                  h.Class(`${compactButtonBase} ${buttonSecondary} justify-self-start min-h-11`),
-                ],
-                [translate(locale, 'list.filterClear')],
-              ),
-          })
+        ? Button.view<Message>(
+            {
+              type: 'button',
+              onClick: ClearedLabelFilter(),
+              toView: (attributes) =>
+                h.button(
+                  [
+                    ...attributes.button,
+                    h.Class(`${compactButtonBase} ${buttonSecondary} justify-self-start min-h-11`),
+                  ],
+                  [translate(locale, 'list.filterClear')],
+                ),
+            },
+            h,
+          )
         : h.empty,
     ],
   );
 };
 
-const labelDialogAction = (courseCodes: ReadonlyArray<string>, locale: Locale): Html => {
-  const h = html<Message>();
+const labelDialogAction = (
+  courseCodes: ReadonlyArray<string>,
+  locale: Locale,
+  h: HtmlBuilder<Message>,
+): Html => {
   const forSelection = courseCodes.length > 0;
-  return Button.view<Message>({
-    type: 'button',
-    onClick: RequestedLabelDialog({ courseCodes }),
-    toView: (attributes) =>
-      h.button(
-        [
-          ...attributes.button,
-          h.Class(groupedAction('neutral')),
-          h.AriaHasPopup('dialog'),
-          h.AriaControls('saved-course-labels'),
-          ...(forSelection ? [] : [h.AriaLabel(translate(locale, 'list.labelsManageOnly'))]),
-        ],
-        [translate(locale, forSelection ? 'list.selectionAddLabels' : 'list.labels')],
-      ),
-  });
+  return Button.view<Message>(
+    {
+      type: 'button',
+      onClick: RequestedLabelDialog({ courseCodes }),
+      toView: (attributes) =>
+        h.button(
+          [
+            ...attributes.button,
+            h.Class(groupedAction('neutral')),
+            h.AriaHasPopup('dialog'),
+            h.AriaControls('saved-course-labels'),
+            ...(forSelection ? [] : [h.AriaLabel(translate(locale, 'list.labelsManageOnly'))]),
+          ],
+          [translate(locale, forSelection ? 'list.selectionAddLabels' : 'list.labels')],
+        ),
+    },
+    h,
+  );
 };
 
 const selectionTrayClass =
@@ -1085,10 +1284,13 @@ export const selectedSavedCourses = (model: Model): ReadonlyArray<SavedCourse> =
   return savedCoursesNewestFirst(state).filter((course) => selectedCodes.has(course.courseCode));
 };
 
-export const bottomStackView = (model: Model, selected: ReadonlyArray<SavedCourse>): Html => {
-  const h = html<Message>();
-  const status = savedListActionStatus(model);
-  const tray = selectionTrayView(model, selected);
+export const bottomStackView = (
+  model: Model,
+  selected: ReadonlyArray<SavedCourse>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const status = savedListActionStatus(model, h);
+  const tray = selectionTrayView(model, selected, h);
   /**
    * Refine floats over the same region, so it belongs to the same stack.
    * Centred in its own fixed box it landed on top of a notice; here the stack
@@ -1096,7 +1298,7 @@ export const bottomStackView = (model: Model, selected: ReadonlyArray<SavedCours
    */
   const refine =
     model.route === 'explore' && model.selectedCode === null
-      ? catalogueRefineAction(model)
+      ? catalogueRefineAction(model, h)
       : h.empty;
   if (status === h.empty && tray === h.empty && refine === h.empty) return h.empty;
   return h.div([h.Class(bottomStackClass)], [status, tray, refine]);
@@ -1113,8 +1315,11 @@ export const bottomStackView = (model: Model, selected: ReadonlyArray<SavedCours
  * course still removes without a prompt: undo restores it, and prompting for
  * a reversible act only teaches the student to dismiss prompts.
  */
-const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): Html => {
-  const h = html<Message>();
+const selectionTrayView = (
+  model: Model,
+  selected: ReadonlyArray<SavedCourse>,
+  h: HtmlBuilder<Message>,
+): Html => {
   if (selected.length === 0) return h.empty;
   const locale = model.locale;
   return h.div(
@@ -1140,32 +1345,38 @@ const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): 
                 [h.Class('m-0 basis-full text-sm leading-[1.45]'), h.Role('status')],
                 [translate(locale, 'list.selectionRemoveConfirm', { count: selected.length })],
               ),
-              Button.view<Message>({
-                type: 'button',
-                onClick: ConfirmedRemoveSelected(),
-                toView: (attributes) =>
-                  h.button(
-                    [
-                      ...attributes.button,
-                      h.Class(
-                        `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-sm font-bold text-on-error-container`,
-                      ),
-                    ],
-                    [translate(locale, 'list.selectionRemoveConfirmAction')],
-                  ),
-              }),
-              Button.view<Message>({
-                type: 'button',
-                onClick: CancelledRemoveSelected(),
-                toView: (attributes) =>
-                  h.button(
-                    [
-                      ...attributes.button,
-                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
-                    ],
-                    [translate(locale, 'list.selectionRemoveCancel')],
-                  ),
-              }),
+              Button.view<Message>(
+                {
+                  type: 'button',
+                  onClick: ConfirmedRemoveSelected(),
+                  toView: (attributes) =>
+                    h.button(
+                      [
+                        ...attributes.button,
+                        h.Class(
+                          `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-sm font-bold text-on-error-container`,
+                        ),
+                      ],
+                      [translate(locale, 'list.selectionRemoveConfirmAction')],
+                    ),
+                },
+                h,
+              ),
+              Button.view<Message>(
+                {
+                  type: 'button',
+                  onClick: CancelledRemoveSelected(),
+                  toView: (attributes) =>
+                    h.button(
+                      [
+                        ...attributes.button,
+                        h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                      ],
+                      [translate(locale, 'list.selectionRemoveCancel')],
+                    ),
+                },
+                h,
+              ),
             ],
           )
         : h.div(
@@ -1173,48 +1384,58 @@ const selectionTrayView = (model: Model, selected: ReadonlyArray<SavedCourse>): 
             [
               selected.length < compareMinimum || selected.length > compareMaximum
                 ? h.empty
-                : Button.view<Message>({
-                    type: 'button',
-                    onClick: RequestedCompare(),
-                    toView: (attributes) =>
-                      h.button(
-                        [
-                          ...attributes.button,
-                          h.Class(`${compactButtonBase} ${buttonPrimary} min-h-11`),
-                        ],
-                        [translate(locale, 'compare.open')],
-                      ),
-                  }),
+                : Button.view<Message>(
+                    {
+                      type: 'button',
+                      onClick: RequestedCompare(),
+                      toView: (attributes) =>
+                        h.button(
+                          [
+                            ...attributes.button,
+                            h.Class(`${compactButtonBase} ${buttonPrimary} min-h-11`),
+                          ],
+                          [translate(locale, 'compare.open')],
+                        ),
+                    },
+                    h,
+                  ),
               labelDialogAction(
                 selected.map((course) => course.courseCode),
                 locale,
+                h,
               ),
-              Button.view<Message>({
-                type: 'button',
-                onClick: ClearedSavedCourseSelection(),
-                toView: (attributes) =>
-                  h.button(
-                    [
-                      ...attributes.button,
-                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
-                    ],
-                    [translate(locale, 'list.selectionClear')],
-                  ),
-              }),
-              Button.view<Message>({
-                type: 'button',
-                onClick: RequestedRemoveSelected(),
-                toView: (attributes) =>
-                  h.button(
-                    [
-                      ...attributes.button,
-                      h.Class(
-                        `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-sm font-bold text-on-error-container`,
-                      ),
-                    ],
-                    [translate(locale, 'list.selectionRemove')],
-                  ),
-              }),
+              Button.view<Message>(
+                {
+                  type: 'button',
+                  onClick: ClearedSavedCourseSelection(),
+                  toView: (attributes) =>
+                    h.button(
+                      [
+                        ...attributes.button,
+                        h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                      ],
+                      [translate(locale, 'list.selectionClear')],
+                    ),
+                },
+                h,
+              ),
+              Button.view<Message>(
+                {
+                  type: 'button',
+                  onClick: RequestedRemoveSelected(),
+                  toView: (attributes) =>
+                    h.button(
+                      [
+                        ...attributes.button,
+                        h.Class(
+                          `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-sm font-bold text-on-error-container`,
+                        ),
+                      ],
+                      [translate(locale, 'list.selectionRemove')],
+                    ),
+                },
+                h,
+              ),
             ],
           ),
     ],
@@ -1244,8 +1465,8 @@ const recoveryMessage = (
 const savedCoursesRecoveryView = (
   recovery: Extract<SavedCoursesResult, { readonly _tag: 'SavedCoursesRecovery' }>,
   locale: Locale,
+  h: HtmlBuilder<Message>,
 ): Html => {
-  const h = html<Message>();
   return h.section(
     [
       h.Class(
@@ -1284,18 +1505,21 @@ const savedCoursesRecoveryView = (
             ],
           ),
       h.p([h.Class('m-0 text-sm leading-[1.4]')], [translate(locale, 'list.resetHelp')]),
-      Button.view<Message>({
-        type: 'button',
-        onClick: RequestedSavedCoursesReset(),
-        toView: (attributes) =>
-          h.button(
-            [
-              ...attributes.button,
-              h.Class(`${compactButtonBase} ${buttonSecondary} justify-self-start`),
-            ],
-            [translate(locale, 'list.reset')],
-          ),
-      }),
+      Button.view<Message>(
+        {
+          type: 'button',
+          onClick: RequestedSavedCoursesReset(),
+          toView: (attributes) =>
+            h.button(
+              [
+                ...attributes.button,
+                h.Class(`${compactButtonBase} ${buttonSecondary} justify-self-start`),
+              ],
+              [translate(locale, 'list.reset')],
+            ),
+        },
+        h,
+      ),
     ],
   );
 };
@@ -1305,52 +1529,74 @@ const savedCoursesRecoveryView = (
  * rather than with the collection recipe, stays out of the URL, and never
  * changes which courses are shown.
  */
-const listDensityChoice = (density: ListDensity, locale: Locale): Html => {
-  const h = html<Message>();
-  return RadioGroup.view<ListDensity, Message>({
-    id: 'list-density',
-    selectedValue: Option.some(density),
-    options: listDensities,
-    ariaLabel: translate(locale, 'list.density'),
-    orientation: 'Horizontal',
-    onSelect: (value) => ChangedListDensity({ value }),
-    toView: ({ group, options }) =>
-      h.div(
-        [
-          ...group,
-          h.Class('inline-flex w-fit flex-none overflow-hidden rounded-full border border-outline'),
-        ],
-        options.map((option) =>
-          h.button(
-            [
-              ...option.option,
-              h.Type('button'),
-              h.Class(
-                `min-h-11 cursor-pointer border-0 px-3 text-sm font-bold ${
-                  option.isSelected
-                    ? 'bg-primary text-on-primary'
-                    : 'bg-surface-container text-on-surface'
-                }`,
-              ),
-            ],
-            [
-              translate(
-                locale,
-                option.value === 'card' ? 'list.densityCard' : 'list.densityCompact',
-              ),
-            ],
+const listDensityChoice = (
+  density: ListDensity,
+  locale: Locale,
+  radioGroup: Model['listDensityRadioGroup'],
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: 'list-density',
+    model: radioGroup,
+    view: ListDensityRadioGroup.view,
+    viewInputs: {
+      options: listDensities,
+      selectedValue: Option.some(density),
+      ariaLabel: translate(locale, 'list.density'),
+      orientation: 'Horizontal',
+      toView: ({ group, options }) =>
+        h.div(
+          [
+            ...group,
+            h.Class(
+              'inline-flex w-fit flex-none overflow-hidden rounded-full border border-outline',
+            ),
+          ],
+          options.map((option) =>
+            h.button(
+              [
+                ...option.option,
+                h.Type('button'),
+                h.Class(
+                  `min-h-11 cursor-pointer border-0 px-3 text-sm font-bold ${
+                    option.isSelected
+                      ? 'bg-primary text-on-primary'
+                      : 'bg-surface-container text-on-surface'
+                  }`,
+                ),
+              ],
+              [
+                translate(
+                  locale,
+                  option.value === 'card' ? 'list.densityCard' : 'list.densityCompact',
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+    },
+    toParentMessage: (message) => GotListDensityRadioGroupMessage({ message }),
   });
-};
 
-const savedCourseListView = (model: Model, state: SavedListState, repaired: number): Html => {
-  const h = html<Message>();
-  const total = savedCoursesNewestFirst(state);
-  const courses = filterSavedCourses(state, model.labelFilter);
+const savedCourseListView = (
+  model: Model,
+  state: SavedListState,
+  repaired: number,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const total = projectedStudentCourses(model);
+  const matchingSavedIds = new Set(
+    filterSavedCourses(state, model.labelFilter).map((course) => course.id),
+  );
+  const labelFilterActive = isLabelFilterActive(model.labelFilter);
+  const afterLabels = labelFilterActive
+    ? total.filter(
+        (course) => course.savedCourse !== null && matchingSavedIds.has(course.savedCourse.id),
+      )
+    : total;
+  const courses = filterStudentCoursesByOrigin(afterLabels, model.courseOriginFilter);
   const selectedCodes = new Set(model.selectedCourseCodes);
-  const filterActive = isLabelFilterActive(model.labelFilter);
+  const filterActive = labelFilterActive || model.courseOriginFilter !== 'all';
   if (total.length === 0) {
     return h.section(
       [h.Class(stateCardBase), h.Role('status')],
@@ -1397,12 +1643,13 @@ const savedCourseListView = (model: Model, state: SavedListState, repaired: numb
             locale: model.locale,
             courses,
             facts,
-            feedback: feedbackRow(model.locale),
+            feedback: feedbackRow(model.locale, h),
           },
           toParentMessage: (message) => GotCompareMessage({ message }),
         });
       })(),
-      labelFilterView(model, state),
+      originFilterView(model, total, h),
+      state.savedCourses.length === 0 ? h.empty : labelFilterView(model, state, h),
       h.header(
         [h.Class('flex items-end justify-between gap-4 py-2 px-1 border-b border-outline-variant')],
         [
@@ -1414,29 +1661,35 @@ const savedCourseListView = (model: Model, state: SavedListState, repaired: numb
                     shown: courses.length,
                     total: total.length,
                   })
-                : savedCountLabel(total.length, model.locale),
+                : courseCountLabel(total.length, model.locale),
             ],
           ),
-          listDensityChoice(model.listDensity, model.locale),
+          listDensityChoice(model.listDensity, model.locale, model.listDensityRadioGroup, h),
         ],
       ),
       // A collection that matches nothing is a filter outcome, never a failure
-      // and never an empty saved List.
+      // and never an empty course list.
       courses.length === 0
         ? h.section(
             [h.Class(stateCardBase), h.Role('status')],
             [
               h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'list.filterEmpty')]),
               h.p([h.Class(stateCardPClass)], [translate(model.locale, 'list.filterEmptyHelp')]),
-              Button.view<Message>({
-                type: 'button',
-                onClick: ClearedLabelFilter(),
-                toView: (attributes) =>
-                  h.button(
-                    [...attributes.button, h.Class(`${compactButtonBase} ${buttonSecondary} mt-4`)],
-                    [translate(model.locale, 'list.filterClear')],
-                  ),
-              }),
+              Button.view<Message>(
+                {
+                  type: 'button',
+                  onClick: ClearedCourseFilters(),
+                  toView: (attributes) =>
+                    h.button(
+                      [
+                        ...attributes.button,
+                        h.Class(`${compactButtonBase} ${buttonSecondary} mt-4`),
+                      ],
+                      [translate(model.locale, 'list.filtersClear')],
+                    ),
+                },
+                h,
+              ),
             ],
           )
         : h.ol(
@@ -1449,11 +1702,12 @@ const savedCourseListView = (model: Model, state: SavedListState, repaired: numb
                 catalogueItemForCode(model, course.courseCode),
                 savedDecisionSignal(model, course.courseCode),
                 savedGradeSignal(model, course.courseCode),
-                noteDraftFor(model, course),
-                selectedCodes.has(course.courseCode),
+                course.savedCourse === null ? '' : noteDraftFor(model, course.savedCourse),
+                course.savedCourse !== null && selectedCodes.has(course.courseCode),
                 model.locale,
                 model.outcomeView,
                 model.listDensity,
+                h,
               ]),
             ),
           ),
@@ -1483,8 +1737,7 @@ const labelErrorMessage = (model: Model): string | null => {
  * indeterminate when a label is on only some of them and the visible text says
  * how many.
  */
-export const labelDialogView = (model: Model): Html => {
-  const h = html<Message>();
+export const labelDialogView = (model: Model, h: HtmlBuilder<Message>): Html => {
   const locale = model.locale;
   const state = savedListState(model.savedCourses);
   const labels = state === null ? [] : labelsByName(state);
@@ -1509,7 +1762,7 @@ export const labelDialogView = (model: Model): Html => {
     return { matched, all: matched === targets.length, some: matched > 0 };
   };
   const deleteLabelButtonClass = `${compactButtonBase} min-h-11 rounded-[1.5rem] border border-error bg-error-container px-3 text-sm font-bold text-on-error-container`;
-  const labelRow = (label: Label): Html => {
+  const labelRow = (label: Label, h: HtmlBuilder<Message>): Html => {
     const attachment = attachmentOf(label);
     const count = state === null ? 0 : labelCourseCount(state, label.id);
     const confirmingDelete = model.labelPendingDelete === label.id;
@@ -1545,211 +1798,239 @@ export const labelDialogView = (model: Model): Html => {
               ],
               [translate(locale, 'list.deleteLabelConfirm', { name: label.name })],
             ),
-            Button.view<Message>({
-              type: 'button',
-              onClick: ConfirmedDeleteLabel({ labelId: label.id }),
-              toView: (attributes) =>
-                h.button(
-                  [
-                    ...attributes.button,
-                    h.Class(deleteLabelButtonClass),
-                    h.AriaDescribedBy(confirmPromptId),
-                  ],
-                  [translate(locale, 'list.deleteLabel')],
-                ),
-            }),
-            Button.view<Message>({
-              type: 'button',
-              onClick: CancelledLabelDelete(),
-              toView: (attributes) =>
-                h.button(
-                  [
-                    ...attributes.button,
-                    h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
-                  ],
-                  [translate(locale, 'list.cancelDeleteLabel')],
-                ),
-            }),
+            Button.view<Message>(
+              {
+                type: 'button',
+                onClick: ConfirmedDeleteLabel({ labelId: label.id }),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(deleteLabelButtonClass),
+                      h.AriaDescribedBy(confirmPromptId),
+                    ],
+                    [translate(locale, 'list.deleteLabel')],
+                  ),
+              },
+              h,
+            ),
+            Button.view<Message>(
+              {
+                type: 'button',
+                onClick: CancelledLabelDelete(),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                    ],
+                    [translate(locale, 'list.cancelDeleteLabel')],
+                  ),
+              },
+              h,
+            ),
           ]
         : [
-            Button.view<Message>({
-              type: 'button',
-              onClick: RequestedEditLabel({ labelId: label.id }),
-              toView: (attributes) =>
-                h.button(
-                  [
-                    ...attributes.button,
-                    h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
-                    h.AriaDescribedBy(labelNameId),
-                  ],
-                  [translate(locale, 'list.editLabel')],
-                ),
-            }),
-            Button.view<Message>({
-              type: 'button',
-              onClick: RequestedDeleteLabel({ labelId: label.id }),
-              toView: (attributes) =>
-                h.button(
-                  [
-                    ...attributes.button,
-                    h.Class(deleteLabelButtonClass),
-                    h.AriaDescribedBy(labelNameId),
-                  ],
-                  [translate(locale, 'list.deleteLabel')],
-                ),
-            }),
+            Button.view<Message>(
+              {
+                type: 'button',
+                onClick: RequestedEditLabel({ labelId: label.id }),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-11`),
+                      h.AriaDescribedBy(labelNameId),
+                    ],
+                    [translate(locale, 'list.editLabel')],
+                  ),
+              },
+              h,
+            ),
+            Button.view<Message>(
+              {
+                type: 'button',
+                onClick: RequestedDeleteLabel({ labelId: label.id }),
+                toView: (attributes) =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(deleteLabelButtonClass),
+                      h.AriaDescribedBy(labelNameId),
+                    ],
+                    [translate(locale, 'list.deleteLabel')],
+                  ),
+              },
+              h,
+            ),
           ],
     );
     const identity =
       targets.length === 0
         ? h.div(
             [h.Class('flex min-w-0 flex-1 items-center gap-2')],
-            [labelChip(label, labelNameId), labelCountBadge(count, locale)],
+            [labelChip(label, labelNameId, h), labelCountBadge(count, locale, h)],
           )
-        : Checkbox.view<Message>({
-            id: `label-target-${label.id}`,
-            isChecked: attachment.all,
-            isIndeterminate: attachment.some && !attachment.all,
-            onToggle: (isAttached) => ToggledLabelOnTarget({ labelId: label.id, isAttached }),
-            toView: (attributes) =>
-              h.label(
-                [
-                  ...attributes.label,
-                  h.Class('flex min-w-0 flex-1 items-center gap-[0.6rem] cursor-pointer'),
-                ],
-                [
-                  h.span(
-                    [...attributes.checkbox, h.Class(rowCheckboxClass)],
-                    [attachment.all ? '✓' : attachment.some ? '–' : ''],
-                  ),
-                  labelChip(label, labelNameId),
-                  h.span(
-                    [h.Class('text-on-surface-variant text-xs')],
-                    [
-                      attachment.all && targets.length === 1
-                        ? translate(locale, 'list.labelOnCourse', {
-                            code: targets[0]!.courseCode,
-                          })
-                        : attachment.some && !attachment.all
-                          ? translate(locale, 'list.labelPartlyOnSelection', {
-                              matched: attachment.matched,
-                              count: targets.length,
+        : Checkbox.view<Message>(
+            {
+              id: `label-target-${label.id}`,
+              isChecked: attachment.all,
+              isIndeterminate: attachment.some && !attachment.all,
+              onToggle: (isAttached) => ToggledLabelOnTarget({ labelId: label.id, isAttached }),
+              toView: (attributes) =>
+                h.label(
+                  [
+                    ...attributes.label,
+                    h.Class('flex min-w-0 flex-1 items-center gap-[0.6rem] cursor-pointer'),
+                  ],
+                  [
+                    h.span(
+                      [...attributes.checkbox, h.Class(rowCheckboxClass)],
+                      [attachment.all ? '✓' : attachment.some ? '–' : ''],
+                    ),
+                    labelChip(label, labelNameId, h),
+                    h.span(
+                      [h.Class('text-on-surface-variant text-xs')],
+                      [
+                        attachment.all && targets.length === 1
+                          ? translate(locale, 'list.labelOnCourse', {
+                              code: targets[0]!.courseCode,
                             })
-                          : '',
-                    ],
-                  ),
-                  labelCountBadge(count, locale),
-                ],
-              ),
-          });
+                          : attachment.some && !attachment.all
+                            ? translate(locale, 'list.labelPartlyOnSelection', {
+                                matched: attachment.matched,
+                                count: targets.length,
+                              })
+                            : '',
+                      ],
+                    ),
+                    labelCountBadge(count, locale, h),
+                  ],
+                ),
+            },
+            h,
+          );
     return h.li(
       [h.Class('flex flex-wrap items-center justify-between gap-3 py-2')],
       [identity, actions],
     );
   };
-  const colorChoice = RadioGroup.view<LabelColor, Message>({
-    id: 'label-draft-color',
-    selectedValue: Option.some(model.labelDraftColor),
-    options: labelColors,
-    ariaLabel: translate(locale, 'list.labelColor'),
-    orientation: 'Horizontal',
-    onSelect: (value) => ChangedLabelDraftColor({ value }),
-    toView: ({ group, options }) =>
-      h.div(
-        [h.Class('grid gap-2')],
-        [
-          h.p([h.Class(fieldLabelClass)], [translate(locale, 'list.labelColor')]),
-          h.div(
-            [...group, h.Class('flex flex-wrap gap-2')],
-            options.map((option) =>
-              h.button(
-                [
-                  ...option.option,
-                  // A bare <button> inside a <form> defaults to type="submit",
-                  // so without this a colour choice would also Apply the form:
-                  // browsing colours would create, rename, and attach labels.
-                  h.Type('button'),
-                  h.Class(
-                    `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border px-3 text-sm font-bold ${labelChipTone(option.value)} ${
-                      option.isSelected ? 'border-primary' : 'border-outline-variant'
-                    }`,
-                  ),
-                ],
-                [
-                  option.isSelected
-                    ? icon<Message>('check', 'block size-4 [&_svg]:block [&_svg]:size-full')
-                    : h.empty,
-                  h.span([], [labelColorName(option.value, locale)]),
-                ],
+  const colorChoice = h.submodel({
+    slotId: 'label-draft-color',
+    model: model.labelDraftColorRadioGroup,
+    view: LabelDraftColorRadioGroup.view,
+    viewInputs: {
+      options: labelColors,
+      selectedValue: Option.some(model.labelDraftColor),
+      ariaLabel: translate(locale, 'list.labelColor'),
+      orientation: 'Horizontal',
+      toView: ({ group, options }) =>
+        h.div(
+          [h.Class('grid gap-2')],
+          [
+            h.p([h.Class(fieldLabelClass)], [translate(locale, 'list.labelColor')]),
+            h.div(
+              [...group, h.Class('flex flex-wrap gap-2')],
+              options.map((option) =>
+                h.button(
+                  [
+                    ...option.option,
+                    // A bare <button> inside a <form> defaults to type="submit",
+                    // so without this a colour choice would also Apply the form:
+                    // browsing colours would create, rename, and attach labels.
+                    h.Type('button'),
+                    h.Class(
+                      `${compactButtonBase} inline-flex min-h-11 items-center gap-2 rounded-[1.5rem] border px-3 text-sm font-bold ${labelChipTone(option.value)} ${
+                        option.isSelected ? 'border-primary' : 'border-outline-variant'
+                      }`,
+                    ),
+                  ],
+                  [
+                    option.isSelected
+                      ? icon('check', 'block size-4 [&_svg]:block [&_svg]:size-full', h)
+                      : h.empty,
+                    h.span([], [labelColorName(option.value, locale)]),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+    },
+    toParentMessage: (message) => GotLabelDraftColorRadioGroupMessage({ message }),
   });
   const form = h.form(
     [h.Class('grid gap-3'), h.OnSubmit(SubmittedLabelForm())],
     [
-      Input.view<Message>({
-        id: 'label-draft-name',
-        value: model.labelDraftName,
-        onInput: (value) => UpdatedLabelDraftName({ value }),
-        toView: (attributes) =>
-          h.div(
-            [h.Class('grid')],
-            [
-              h.label(
-                [...attributes.label, h.Class(fieldLabelClass)],
-                [translate(locale, 'list.labelName')],
-              ),
-              h.input([
-                ...attributes.input,
-                h.Placeholder(translate(locale, 'list.labelNamePlaceholder')),
-                h.Class(
-                  'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]',
+      Input.view<Message>(
+        {
+          id: 'label-draft-name',
+          value: model.labelDraftName,
+          onInput: (value) => UpdatedLabelDraftName({ value }),
+          toView: (attributes) =>
+            h.div(
+              [h.Class('grid')],
+              [
+                h.label(
+                  [...attributes.label, h.Class(fieldLabelClass)],
+                  [translate(locale, 'list.labelName')],
                 ),
-                h.Autocomplete('off'),
-                // Feedback is absent until an Apply attempt; once present it is
-                // tied to the field it describes, so a screen reader reaches it
-                // from the input rather than only through the live region.
-                ...(nameError === null
-                  ? []
-                  : [h.AriaInvalid(true), h.AriaDescribedBy(labelErrorId)]),
-              ]),
-            ],
-          ),
-      }),
+                h.input([
+                  ...attributes.input,
+                  h.Placeholder(translate(locale, 'list.labelNamePlaceholder')),
+                  h.Class(
+                    'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)]',
+                  ),
+                  h.Autocomplete('off'),
+                  // Feedback is absent until an Apply attempt; once present it is
+                  // tied to the field it describes, so a screen reader reaches it
+                  // from the input rather than only through the live region.
+                  ...(nameError === null
+                    ? []
+                    : [h.AriaInvalid(true), h.AriaDescribedBy(labelErrorId)]),
+                ]),
+              ],
+            ),
+        },
+        h,
+      ),
       colorChoice,
       h.div(
         [h.Class('flex flex-wrap justify-end gap-3')],
         [
-          Button.view<Message>({
-            type: 'submit',
-            toView: (attributes) =>
-              h.button(
-                [...attributes.button, h.Class(`${compactButtonBase} ${buttonPrimary} min-h-12`)],
-                [
-                  translate(
-                    locale,
-                    model.labelEditing === null ? 'list.addLabel' : 'list.saveLabel',
-                  ),
-                ],
-              ),
-          }),
+          Button.view<Message>(
+            {
+              type: 'submit',
+              toView: (attributes) =>
+                h.button(
+                  [...attributes.button, h.Class(`${compactButtonBase} ${buttonPrimary} min-h-12`)],
+                  [
+                    translate(
+                      locale,
+                      model.labelEditing === null ? 'list.addLabel' : 'list.saveLabel',
+                    ),
+                  ],
+                ),
+            },
+            h,
+          ),
           model.labelEditing === null
             ? h.empty
-            : Button.view<Message>({
-                type: 'button',
-                onClick: CancelledLabelEdit(),
-                toView: (attributes) =>
-                  h.button(
-                    [
-                      ...attributes.button,
-                      h.Class(`${compactButtonBase} ${buttonSecondary} min-h-12`),
-                    ],
-                    [translate(locale, 'list.cancelLabelEdit')],
-                  ),
-              }),
+            : Button.view<Message>(
+                {
+                  type: 'button',
+                  onClick: CancelledLabelEdit(),
+                  toView: (attributes) =>
+                    h.button(
+                      [
+                        ...attributes.button,
+                        h.Class(`${compactButtonBase} ${buttonSecondary} min-h-12`),
+                      ],
+                      [translate(locale, 'list.cancelLabelEdit')],
+                    ),
+                },
+                h,
+              ),
         ],
       ),
     ],
@@ -1819,7 +2100,7 @@ export const labelDialogView = (model: Model): Html => {
                             h.Type('button'),
                             h.AriaLabel(translate(locale, 'list.closeLabels')),
                           ],
-                          [icon<Message>('close')],
+                          [icon('close', undefined, h)],
                         ),
                       ],
                     ),
@@ -1845,7 +2126,7 @@ export const labelDialogView = (model: Model): Html => {
                             h.Class('grid gap-1 m-0 p-0 list-none divide-y divide-outline-variant'),
                             h.AriaLabel(translate(locale, 'list.labelsHeading')),
                           ],
-                          labels.map((label) => labelRow(label)),
+                          labels.map((label) => labelRow(label, h)),
                         ),
                     form,
                   ],
@@ -1858,8 +2139,7 @@ export const labelDialogView = (model: Model): Html => {
   });
 };
 
-const savedCoursesResultView = (model: Model): Html => {
-  const h = html<Message>();
+const savedCoursesResultView = (model: Model, h: HtmlBuilder<Message>): Html => {
   switch (model.savedCourses._tag) {
     case 'SavedCoursesLoading':
       return h.section(
@@ -1871,20 +2151,20 @@ const savedCoursesResultView = (model: Model): Html => {
         ],
       );
     case 'SavedCoursesRecovery':
-      return savedCoursesRecoveryView(model.savedCourses, model.locale);
+      return savedCoursesRecoveryView(model.savedCourses, model.locale, h);
     case 'SavedCoursesReady':
       return savedCourseListView(
         model,
         model.savedCourses.state,
         model.savedCourses.repairedEntries,
+        h,
       );
   }
 };
 
-export const listView = (model: Model): Html => {
-  const h = html<Message>();
+export const listView = (model: Model, h: HtmlBuilder<Message>): Html => {
   return h.div(
     [h.Class('grid gap-6')],
-    [lazyListHeader(listHeader, [model.locale]), savedCoursesResultView(model)],
+    [lazyListHeader(listHeader, [model.locale, h]), savedCoursesResultView(model, h)],
   );
 };

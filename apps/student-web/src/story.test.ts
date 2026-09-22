@@ -2,6 +2,7 @@ import fc from 'fast-check';
 import { expect, test } from 'vitest';
 
 import { fixtureSearchResponse } from './course-client';
+import { courseIdentity } from './course-identity';
 import {
   ChangedCampus,
   ChangedLabelInclusion,
@@ -20,7 +21,6 @@ import {
 } from './app';
 import {
   attachLabel,
-  courseIdentity,
   createLabel,
   emptyLabelFilter,
   emptySavedList,
@@ -41,7 +41,7 @@ const identity = (courseCode: string) => {
 };
 
 const readyModel = (state: SavedListState = emptySavedList): Model => ({
-  ...initForHref('http://course-lens.local/list')[0],
+  ...initForHref('http://course-lens.local/list').model,
   savedCourses: SavedCoursesReady({ state, repairedEntries: 0 }),
 });
 
@@ -56,9 +56,9 @@ const commandNames = (commands: ReadonlyArray<{ readonly name: string }>): Reado
   commands.map((command) => command.name);
 
 test('stale catalogue responses cannot overwrite a newer Explore transition', () => {
-  const initial = initForHref('http://course-lens.local/')[0];
-  const [filtered] = update(initial, ChangedCampus({ value: 'trondheim' }));
-  const [afterStaleResponse, commands] = update(
+  const initial = initForHref('http://course-lens.local/').model;
+  const filtered = update(initial, ChangedCampus({ value: 'trondheim' })).model;
+  const staleResponse = update(
     filtered,
     SucceededCourseSearch({
       requestKey: initial.activeRequestKey,
@@ -67,36 +67,35 @@ test('stale catalogue responses cannot overwrite a newer Explore transition', ()
     }),
   );
 
-  expect(afterStaleResponse).toBe(filtered);
-  expect(commands).toEqual([]);
+  expect(staleResponse.model).toBe(filtered);
+  expect(staleResponse.commands ?? []).toEqual([]);
 });
 
 test('saved-list persistence follows explicit save and note commits, never drafts', () => {
-  const [saveRequested, saveRequestCommands] = update(
-    readyModel(),
-    RequestedSaveCourse({ courseCode: 'TDT4136' }),
-  );
-  expect(commandNames(saveRequestCommands)).toEqual(['StampSavedCourse']);
+  const saveRequest = update(readyModel(), RequestedSaveCourse({ courseCode: 'TDT4136' }));
+  expect(commandNames(saveRequest.commands ?? [])).toEqual(['StampSavedCourse']);
 
-  const [saved, saveCommands] = update(
-    saveRequested,
+  const savedResult = update(
+    saveRequest.model,
     StampedSavedCourse({ courseCode: 'TDT4136', savedAt }),
   );
-  expect(commandNames(saveCommands)).toEqual(['PersistSavedCourses']);
+  expect(commandNames(savedResult.commands ?? [])).toEqual(['PersistSavedCourses']);
 
-  const [drafted, draftCommands] = update(
-    saved,
+  const draftedResult = update(
+    savedResult.model,
     UpdatedSavedNoteDraft({ courseCode: 'TDT4136', value: 'Ask an adviser' }),
   );
-  expect(draftCommands).toEqual([]);
-  expect(findSavedCourse(savedState(drafted), identity('TDT4136'))?.note).toBeNull();
+  expect(draftedResult.commands ?? []).toEqual([]);
+  expect(findSavedCourse(savedState(draftedResult.model), identity('TDT4136'))?.note).toBeNull();
 
-  const [committed, commitCommands] = update(
-    drafted,
+  const committedResult = update(
+    draftedResult.model,
     SubmittedSavedNote({ courseCode: 'TDT4136' }),
   );
-  expect(commandNames(commitCommands)).toEqual(['PersistSavedCourses']);
-  expect(findSavedCourse(savedState(committed), identity('TDT4136'))?.note).toBe('Ask an adviser');
+  expect(commandNames(committedResult.commands ?? [])).toEqual(['PersistSavedCourses']);
+  expect(findSavedCourse(savedState(committedResult.model), identity('TDT4136'))?.note).toBe(
+    'Ask an adviser',
+  );
 });
 
 test('the Foldkit undo transition restores the exact removed course and memberships', () => {
@@ -109,30 +108,34 @@ test('the Foldkit undo transition restores the exact removed course and membersh
   if (labelled._tag !== 'LabelApplied') throw new Error('Expected a label');
   const original = attachLabel(labelled.state, 'label-plan', [identity('TDT4136')]);
 
-  const [removed, removeCommands] = update(
+  const removedResult = update(
     readyModel(original),
     RequestedRemoveSavedCourse({ courseCode: 'TDT4136' }),
   );
-  expect(commandNames(removeCommands)).toEqual(['PersistSavedCourses']);
+  expect(commandNames(removedResult.commands ?? [])).toEqual(['PersistSavedCourses']);
 
-  const [restored, undoCommands] = update(
-    removed,
+  const restoredResult = update(
+    removedResult.model,
     RequestedUndoSavedListAction({ key: 'removed:TDT4136' }),
   );
-  expect(commandNames(undoCommands)).toEqual(['PersistSavedCourses']);
-  expect(savedState(restored)).toEqual(original);
+  expect(commandNames(restoredResult.commands ?? [])).toEqual(['PersistSavedCourses']);
+  expect(savedState(restoredResult.model)).toEqual(original);
 });
 
 test('label-filter changes are URL-backed List transitions without catalogue refetches', () => {
   const saved = saveCourse(emptySavedList, identity('TDT4136'), savedAt);
   const labelled = createLabel(saved, { id: 'label-plan', name: 'Plan', color: 'sky' });
   if (labelled._tag !== 'LabelApplied') throw new Error('Expected a label');
-  const [filtered, commands] = update(
+  const filteredResult = update(
     readyModel(labelled.state),
     ChangedLabelInclusion({ predicate: filterLabel('label-plan'), isIncluded: true }),
   );
+  const commands = filteredResult.commands ?? [];
 
-  expect(filtered.labelFilter).toEqual({ ...emptyLabelFilter, includeLabelIds: ['label-plan'] });
+  expect(filteredResult.model.labelFilter).toEqual({
+    ...emptyLabelFilter,
+    includeLabelIds: ['label-plan'],
+  });
   expect(commandNames(commands)).toEqual(['Navigate']);
   expect(commands[0]?.args).toMatchObject({
     href: '/list?lang=en&labels=label-plan',
@@ -175,9 +178,9 @@ const urlFilterArbitrary: fc.Arbitrary<LabelFilter> = fc
 test('property: canonical List filter URLs round-trip through the public route seam', () => {
   fc.assert(
     fc.property(urlFilterArbitrary, (labelFilter) => {
-      const [base] = initForHref('http://course-lens.local/list');
+      const base = initForHref('http://course-lens.local/list').model;
       const url = normalizedUrl({ ...base, labelFilter }, null, '/list');
-      const [restored] = initForHref(`http://course-lens.local${url}`);
+      const restored = initForHref(`http://course-lens.local${url}`).model;
 
       expect(restored.route).toBe('list');
       expect(restored.labelFilter).toEqual(labelFilter);

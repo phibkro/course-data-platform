@@ -1,4 +1,3 @@
-import { Option } from 'effect';
 import { describe, expect, test } from 'vitest';
 
 import {
@@ -6,20 +5,9 @@ import {
   fixtureGradeSummariesResponse,
   fixtureSearchResponse,
 } from '../../course-client';
-import {
-  courseIdentity,
-  emptySavedList,
-  saveCourse,
-  savedCoursesNewestFirst,
-} from '../../saved-courses';
-import {
-  ClosedCompare,
-  ToggledCompareDifferencesOnly,
-  compareRows,
-  init,
-  update,
-  type CompareCourseFacts,
-} from './index';
+import { courseIdentity } from '../../course-identity';
+import { emptySavedList, saveCourse, savedCoursesNewestFirst } from '../../saved-courses';
+import { Message, compareRows, init, update, type CompareCourseFacts } from './index';
 
 const identity = (courseCode: string) => {
   const parsed = courseIdentity(courseCode);
@@ -98,17 +86,17 @@ describe('saved-course comparison', () => {
 
   test('comparison controls are explicit Foldkit transitions', () => {
     const comparison = init(['TDT4136', 'TDT4290']);
-    const [showAll, showAllCommands, showAllOut] = update(
+    const showAll = update(
       comparison,
-      ToggledCompareDifferencesOnly({ differencesOnly: false }),
+      Message.ToggledCompareDifferencesOnly({ differencesOnly: false }),
     );
-    expect(showAll.differencesOnly).toBe(false);
-    expect(showAllCommands).toEqual([]);
-    expect(Option.isNone(showAllOut)).toBe(true);
+    expect(showAll.model.differencesOnly).toBe(false);
+    expect(showAll.commands ?? []).toEqual([]);
+    expect(showAll.outMessage).toBeUndefined();
 
-    const [closed, closeCommands, closeOut] = update(showAll, ClosedCompare());
-    expect(closed.codes).toEqual([]);
-    expect(closeCommands).toEqual([]);
-    expect(Option.isSome(closeOut)).toBe(true);
+    const closed = update(showAll.model, Message.ClosedCompare());
+    expect(closed.model.codes).toEqual([]);
+    expect(closed.commands ?? []).toEqual([]);
+    expect(closed.outMessage).toBeDefined();
   });
 });

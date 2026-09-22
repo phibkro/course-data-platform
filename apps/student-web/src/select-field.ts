@@ -1,7 +1,6 @@
 import { Option } from 'effect';
-import type { Command } from 'foldkit';
-import type { Html } from 'foldkit/html';
-import { html } from 'foldkit/html';
+import type { Update } from 'foldkit';
+import type { Html, HtmlBuilder } from 'foldkit/html';
 
 import { Listbox } from '@foldkit/ui';
 
@@ -26,11 +25,8 @@ export const initSelectField = (id: string): SelectFieldModel =>
 export const updateSelectField = (
   model: SelectFieldModel,
   message: SelectFieldMessage,
-): readonly [
-  SelectFieldModel,
-  ReadonlyArray<Command.Command<SelectFieldMessage>>,
-  Option.Option<Listbox.OutMessage<string>>,
-] => StyledListbox.update(model, message);
+): Update.ReturnWithOutMessage<SelectFieldModel, SelectFieldMessage, Listbox.OutMessage<string>> =>
+  StyledListbox.update(model, message);
 
 interface SelectFieldViewOptions<Message> {
   readonly model: SelectFieldModel;
@@ -42,16 +38,18 @@ interface SelectFieldViewOptions<Message> {
   readonly portal?: boolean;
 }
 
-export const selectField = <Message>({
-  model,
-  label,
-  value,
-  options,
-  toParentMessage,
-  compact = false,
-  portal = true,
-}: SelectFieldViewOptions<Message>): Html => {
-  const h = html<Message>();
+export const selectField = <Message>(
+  {
+    model,
+    label,
+    value,
+    options,
+    toParentMessage,
+    compact = false,
+    portal = true,
+  }: SelectFieldViewOptions<Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const selected = options.find((option) => option.value === value) ?? { value, label: value };
   const labelId = `${model.id}-label`;
   return h.div(
@@ -92,6 +90,7 @@ export const selectField = <Message>({
                 : icon<Message>(
                     selected.icon,
                     'block size-4 flex-none [&_svg]:block [&_svg]:size-full',
+                    h,
                   ),
               h.span(
                 [h.Class(compact ? 'flex-none whitespace-nowrap' : 'min-w-0 flex-1 truncate')],
@@ -102,6 +101,7 @@ export const selectField = <Message>({
                 `block flex-none transition-transform duration-150 ease-in-out group-data-[open]:rotate-180 [&_svg]:block [&_svg]:size-full ${
                   compact ? 'size-3.5' : 'size-4'
                 }`,
+                h,
               ),
             ],
           ),
@@ -121,12 +121,14 @@ export const selectField = <Message>({
                   : icon<Message>(
                       item.icon,
                       'block size-4 flex-none [&_svg]:block [&_svg]:size-full',
+                      h,
                     ),
                 h.span([h.Class('min-w-0 flex-1 truncate')], [item.label]),
                 isSelected
                   ? icon<Message>(
                       'check',
                       'block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
+                      h,
                     )
                   : h.empty,
               ],

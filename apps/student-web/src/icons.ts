@@ -25,8 +25,7 @@ import usersThree from '@phosphor-icons/core/regular/users-three.svg?raw';
 import leaf from '@phosphor-icons/core/regular/leaf.svg?raw';
 import wrench from '@phosphor-icons/core/regular/wrench.svg?raw';
 import x from '@phosphor-icons/core/regular/x.svg?raw';
-import type { Html } from 'foldkit/html';
-import { html } from 'foldkit/html';
+import type { Html, HtmlBuilder } from 'foldkit/html';
 
 export type AppIcon =
   | 'assessment-assignment'
@@ -123,7 +122,5 @@ export const termSeasonIconName = (season: string): AppIcon => {
 export const icon = <Message>(
   name: AppIcon,
   className = '[&_svg]:block [&_svg]:w-full [&_svg]:h-full',
-): Html => {
-  const h = html<Message>();
-  return h.span([h.Class(className), h.AriaHidden(true), h.InnerHTML(icons[name])], []);
-};
+  h: HtmlBuilder<Message>,
+): Html => h.span([h.Class(className), h.AriaHidden(true), h.InnerHTML(icons[name])]);
