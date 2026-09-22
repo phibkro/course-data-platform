@@ -1,6 +1,7 @@
-import { validateMessageCatalogues } from '../src/i18n';
+import { englishMessages, validateMessageCatalogues } from '../src/i18n';
+import { norwegianMessages } from '../src/i18n.nb';
 
-const issues = validateMessageCatalogues();
+const issues = validateMessageCatalogues({ en: englishMessages, nb: norwegianMessages });
 
 if (issues.length > 0) {
   console.error('Translation catalogue validation failed:');

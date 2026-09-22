@@ -1,6 +1,6 @@
 import type { Html, HtmlBuilder } from 'foldkit/html';
 
-import { translate, type Locale } from './i18n';
+import { translate, type Localization } from './i18n';
 import { icon, type AppIcon } from './icons';
 
 export type NavigationRoute = 'explore' | 'list' | 'progress' | 'appearance';
@@ -53,7 +53,7 @@ export const bottomBarSeating = <T extends { readonly priority: number }>(
  * its corresponding product surface exists.
  */
 export const primaryNavigation = (
-  locale: Locale,
+  locale: Localization,
   route: NavigationRoute,
   exploreHref: string,
   listHref: string,
@@ -119,7 +119,7 @@ const desktopItemIcon =
   'grid size-6 flex-none place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
 
 const desktopItem = <Message>(
-  locale: Locale,
+  locale: Localization,
   item: NavigationItem,
   collapsed: boolean,
   h: HtmlBuilder<Message>,
@@ -194,7 +194,7 @@ const mobileItemIcon = (isCurrent: boolean): string =>
  * case left.
  */
 const mobileItem = <Message>(
-  locale: Locale,
+  locale: Localization,
   item: NavigationItem,
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -226,7 +226,7 @@ const mobileItem = <Message>(
 };
 
 export const desktopNavigation = <Message>(
-  locale: Locale,
+  locale: Localization,
   collapsed: boolean,
   route: NavigationRoute,
   exploreHref: string,
@@ -347,7 +347,7 @@ export const desktopNavigation = <Message>(
 };
 
 export const mobileNavigation = <Message>(
-  locale: Locale,
+  locale: Localization,
   route: NavigationRoute,
   exploreHref: string,
   listHref: string,

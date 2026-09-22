@@ -20,7 +20,7 @@ import {
   stateCardFailurePClass,
   stateCardH2Class,
 } from '../../app-styles';
-import { localeTag, translate, type Locale } from '../../i18n';
+import { localeTag, translate, type Locale, type Localization } from '../../i18n';
 import {
   CourseDraftFieldsSchema,
   CourseResultSchema,
@@ -57,7 +57,6 @@ import {
   type TranscriptVocabulary,
 } from './domain';
 import * as Editor from './editor';
-import { openTranscriptPreview, parseTranscriptPreview, releaseTranscriptPreview } from './pdf';
 
 const RetakePolicySchema = S.Literals(['latest', 'best']);
 const DraftTextFieldSchema = S.Literals([
@@ -360,12 +359,19 @@ export const PersistProgress = Command.define('PersistProgress', {
     ),
 });
 
+/**
+ * A static PDF import would retain the parser in the initial app chunk. Each
+ * command imports the complete browser-only adapter at the boundary instead.
+ */
 const OpenTranscriptPreview = Command.define('OpenTranscriptPreview', {
   args: { file: S.File, requestId: S.Number },
   messages: [Message.OpenedTranscriptPreview, Message.FailedTranscriptPreview],
   execute: ({ file, requestId }) =>
-    Effect.try({
-      try: () => openTranscriptPreview(file),
+    Effect.tryPromise({
+      try: async () => {
+        const { openTranscriptPreview } = await import('./pdf');
+        return openTranscriptPreview(file);
+      },
       catch: () => undefined,
     }).pipe(
       Effect.map(({ fileName, objectUrl }) =>
@@ -387,8 +393,10 @@ const ParseTranscriptPreview = Command.define('ParseTranscriptPreview', {
   messages: [Message.ParsedTranscript, Message.FailedTranscriptParse],
   execute: ({ objectUrl, fileName, requestId, vocabulary }) =>
     Effect.tryPromise({
-      try: (signal) =>
-        parseTranscriptPreview(objectUrl, signal, validateTranscriptVocabulary(vocabulary)),
+      try: async (signal) => {
+        const { parseTranscriptPreview } = await import('./pdf');
+        return parseTranscriptPreview(objectUrl, signal, validateTranscriptVocabulary(vocabulary));
+      },
       catch: () => undefined,
     }).pipe(
       Effect.map((proposal) => Message.ParsedTranscript({ requestId, fileName, proposal })),
@@ -400,7 +408,20 @@ const ReleaseTranscriptPreview = Command.define('ReleaseTranscriptPreview', {
   args: { objectUrl: S.String },
   messages: [Message.ReleasedTranscriptPreview],
   execute: ({ objectUrl }) =>
-    Effect.sync(() => releaseTranscriptPreview(objectUrl)).pipe(
+    Effect.tryPromise({
+      try: async () => {
+        const { releaseTranscriptPreview } = await import('./pdf');
+        releaseTranscriptPreview(objectUrl);
+      },
+      catch: () => new Error('Transcript preview could not be released'),
+    }).pipe(
+      Effect.catch(() =>
+        Effect.sync(() => {
+          if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+            URL.revokeObjectURL(objectUrl);
+          }
+        }),
+      ),
       Effect.as(Message.ReleasedTranscriptPreview({ objectUrl })),
     ),
 });
@@ -1243,12 +1264,13 @@ const numberFormatters: Readonly<Record<Locale, Intl.NumberFormat>> = {
   nb: new Intl.NumberFormat(localeTag('nb'), { maximumFractionDigits: 2 }),
 };
 
-const formatNumber = (value: number, locale: Locale): string =>
-  numberFormatters[locale].format(value);
+const formatNumber = (value: number, locale: Localization): string =>
+  numberFormatters[locale.locale].format(value);
 
-const formatCredits = (credits: number, locale: Locale): string => formatNumber(credits, locale);
+const formatCredits = (credits: number, locale: Localization): string =>
+  formatNumber(credits, locale);
 
-const gradeLabel = (grade: Grade, locale: Locale): string => {
+const gradeLabel = (grade: Grade, locale: Localization): string => {
   switch (grade) {
     case 'pass':
       return translate(locale, 'progress.gradePass');
@@ -1264,7 +1286,7 @@ const gradeLabel = (grade: Grade, locale: Locale): string => {
 const resultTitleId = (scope: 'history' | 'review', index: number): string =>
   `progress-${scope}-result-${index}-title`;
 
-const resultFacts = (result: CourseResult, locale: Locale, h: HtmlBuilder<Message>): Html =>
+const resultFacts = (result: CourseResult, locale: Localization, h: HtmlBuilder<Message>): Html =>
   h.dl(
     [h.Class('grid grid-cols-2 gap-x-4 gap-y-3 m-0 @min-[28rem]:grid-cols-4')],
     [
@@ -1316,7 +1338,7 @@ const checkboxControl = (
   describedBy: string,
   isChecked: boolean,
   onToggle: (isChecked: boolean) => Message,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html =>
   Checkbox.view<Message>(
@@ -1344,7 +1366,7 @@ const checkboxControl = (
     h,
   );
 
-const pageHeader = (locale: Locale, h: HtmlBuilder<Message>): Html =>
+const pageHeader = (locale: Localization, h: HtmlBuilder<Message>): Html =>
   h.header(
     [],
     [
@@ -1409,7 +1431,7 @@ const actionButton = (
     h,
   );
 
-const summaryView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const summaryView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   const state = model.session.current;
   const summary = calculateProgress(state.results, state.policy);
   const average =
@@ -1525,7 +1547,7 @@ const policyButton = (
   );
 };
 
-const calculatorView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const calculatorView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   const state = model.session.current;
   return h.section(
     [h.Class(panelClass), h.AriaLabel(translate(locale, 'progress.calculatorHeading'))],
@@ -1636,7 +1658,7 @@ const calculatorView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): 
   );
 };
 
-const distributionView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const distributionView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   const rows = gradeCreditDistribution(
     model.session.current.results,
     model.session.current.policy,
@@ -1691,7 +1713,7 @@ const distributionView = (model: Model, locale: Locale, h: HtmlBuilder<Message>)
   );
 };
 
-const trendView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const trendView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   const points = cumulativeSemesterAverageSeries(
     model.session.current.results,
     model.session.current.policy,
@@ -1754,7 +1776,7 @@ const trendView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html 
 
 const importFailureMessage = (
   reason: typeof ImportFailureReasonSchema.Type,
-  locale: Locale,
+  locale: Localization,
 ): string => {
   switch (reason) {
     case 'non-file':
@@ -1770,7 +1792,7 @@ const importFailureMessage = (
   }
 };
 
-const fileDropView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const fileDropView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   const retrying = model.importState._tag === 'ImportFailure';
   const helpId = 'progress-transcript-file-help';
   return h.submodel({
@@ -1840,7 +1862,7 @@ const vocabularyField = (
     ],
   );
 
-const vocabularyView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html =>
+const vocabularyView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html =>
   h.details(
     [h.Class('rounded-m3-large border border-outline-variant bg-surface-container p-4')],
     [
@@ -1890,7 +1912,7 @@ const vocabularyView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): 
 const pdfPreview = (
   objectUrl: string,
   fileName: string,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
@@ -1913,7 +1935,11 @@ const pdfPreview = (
     ],
   );
 
-const previewView = (previewing: ImportPreview, locale: Locale, h: HtmlBuilder<Message>): Html =>
+const previewView = (
+  previewing: ImportPreview,
+  locale: Localization,
+  h: HtmlBuilder<Message>,
+): Html =>
   h.div(
     [h.Class('grid gap-4')],
     [
@@ -1997,7 +2023,7 @@ const importDraftField = (
   );
 };
 
-const draftLabels = (field: DraftTextField, locale: Locale): string => {
+const draftLabels = (field: DraftTextField, locale: Localization): string => {
   switch (field) {
     case 'institution':
       return translate(locale, 'progress.fieldInstitution');
@@ -2016,7 +2042,7 @@ const draftLabels = (field: DraftTextField, locale: Locale): string => {
   }
 };
 
-const differenceLabel = (disposition: string, locale: Locale): string => {
+const differenceLabel = (disposition: string, locale: Localization): string => {
   switch (disposition) {
     case 'new':
       return translate(locale, 'progress.reviewNew');
@@ -2036,7 +2062,7 @@ const reviewRow = (
   index: number,
   disposition: string | null,
   reviewing: ImportReview,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const validation = validateCourseDraft(row.fields);
@@ -2111,7 +2137,7 @@ const reviewRow = (
 const reviewView = (
   reviewing: ImportReview,
   state: ProgressState,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const selected = selectedDraftResults(reviewing);
@@ -2292,7 +2318,7 @@ const reviewView = (
   );
 };
 
-const importView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const importView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   const state = model.importState;
   return h.section(
     [h.Class(panelClass), h.AriaLabel(translate(locale, 'progress.importHeading'))],
@@ -2362,7 +2388,7 @@ const importView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html
   );
 };
 
-const editorLabels = (locale: Locale): Editor.Labels => ({
+const editorLabels = (locale: Localization): Editor.Labels => ({
   addHeading: translate(locale, 'progress.addCourse'),
   editHeading: translate(locale, 'progress.editResult'),
   description: translate(locale, 'progress.editorDescription'),
@@ -2389,7 +2415,7 @@ const editorLabels = (locale: Locale): Editor.Labels => ({
 
 const historyRow = (
   result: CourseResult,
-  locale: Locale,
+  locale: Localization,
   courseUrl: (courseCode: string) => string,
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -2453,17 +2479,17 @@ const historyRow = (
 
 const historyView = (
   model: Model,
-  locale: Locale,
+  locale: Localization,
   courseUrl: (courseCode: string) => string,
   h: HtmlBuilder<Message>,
 ): Html => {
   const state = model.session.current;
-  const query = model.search.trim().toLocaleLowerCase(localeTag(locale));
+  const query = model.search.trim().toLocaleLowerCase(localeTag(locale.locale));
   const filtered = state.results.filter((result) =>
     query.length === 0
       ? true
       : `${result.code} ${result.name} ${result.institution}`
-          .toLocaleLowerCase(localeTag(locale))
+          .toLocaleLowerCase(localeTag(locale.locale))
           .includes(query),
   );
   const partitioned = partitionAttempts(filtered, state.policy);
@@ -2579,7 +2605,7 @@ const historyView = (
   );
 };
 
-const receiptsView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const receiptsView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   const rows = [];
   let sequence = 0;
   for (const receipt of model.session.current.importReceipts) {
@@ -2627,7 +2653,7 @@ const receiptsView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Ht
 
 const timelineKindLabel = (
   kind: ProgressSession['timeline'][number]['kind'],
-  locale: Locale,
+  locale: Localization,
 ): string => {
   switch (kind) {
     case 'import':
@@ -2643,7 +2669,7 @@ const timelineKindLabel = (
   }
 };
 
-const timelineView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const timelineView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   const session = model.session;
   const rows = [];
   let cursor = 0;
@@ -2741,7 +2767,7 @@ const timelineView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Ht
   );
 };
 
-const calculationView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const calculationView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   const summary = calculateProgress(model.session.current.results, model.session.current.policy);
   const average =
     summary.average === null
@@ -2800,7 +2826,7 @@ const calculationView = (model: Model, locale: Locale, h: HtmlBuilder<Message>):
   );
 };
 
-const dataActionsView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html =>
+const dataActionsView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html =>
   h.section(
     [h.Class(panelClass), h.AriaLabel(translate(locale, 'progress.dataHeading'))],
     [
@@ -2839,7 +2865,7 @@ const dataActionsView = (model: Model, locale: Locale, h: HtmlBuilder<Message>):
     ],
   );
 
-const statusView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const statusView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   if (model.persistence._tag === 'PersistenceSaving') {
     return h.p(
       [h.Class('m-0 text-sm text-on-surface-variant'), h.Role('status'), h.AriaLive('polite')],
@@ -2890,7 +2916,7 @@ const statusView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html
   );
 };
 
-const confirmationView = (model: Model, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const confirmationView = (model: Model, locale: Localization, h: HtmlBuilder<Message>): Html => {
   if (model.confirmation === 'none') return h.empty;
   const destructive = model.confirmation === 'clear';
   const prompt =
@@ -2937,7 +2963,7 @@ const confirmationView = (model: Model, locale: Locale, h: HtmlBuilder<Message>)
   );
 };
 
-const loadingView = (locale: Locale, h: HtmlBuilder<Message>): Html =>
+const loadingView = (locale: Localization, h: HtmlBuilder<Message>): Html =>
   h.section(
     [h.Class(stateCardBase), h.Role('status'), h.AriaLive('polite')],
     [
@@ -2948,7 +2974,7 @@ const loadingView = (locale: Locale, h: HtmlBuilder<Message>): Html =>
 
 const recoveryView = (
   loadState: Exclude<LoadState, { readonly _tag: 'ProgressLoading' | 'ProgressReady' }>,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const unavailable = loadState._tag === 'ProgressUnavailable';
@@ -2993,7 +3019,7 @@ const recoveryView = (
 };
 
 export interface ViewInputs {
-  readonly locale: Locale;
+  readonly locale: Localization;
   readonly courseUrl: (courseCode: string) => string;
 }
 

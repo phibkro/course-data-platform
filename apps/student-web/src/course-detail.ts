@@ -1,7 +1,7 @@
 import type { CourseInsightResponseDtoType } from '@course-data/course-contracts';
 import type { Html, HtmlBuilder } from 'foldkit/html';
 
-import { localeTag, translate, translateToken, type Locale } from './i18n';
+import { localeTag, translate, translateToken, type Localization } from './i18n';
 import { collaborationIconName, icon, termSeasonIconName } from './icons';
 
 type CourseInsightResponse = CourseInsightResponseDtoType;
@@ -51,7 +51,7 @@ const uncertainFactStateClass =
 export const courseInsightView = <Message>(
   response: CourseInsightResponse,
   partial: boolean,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const course = response.item;
@@ -245,7 +245,7 @@ const compactFact = <A, Message>(
   label: string,
   fact: ProtocolFact<A>,
   format: (value: A) => string,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   return h.div(
@@ -291,7 +291,7 @@ const factView = <A, Message>(
   label: string,
   fact: ProtocolFact<A>,
   renderKnown: (value: A) => Html,
-  locale: Locale,
+  locale: Localization,
   inferenceEvidenceIds: ReadonlySet<string>,
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -365,7 +365,7 @@ const factView = <A, Message>(
 
 const gradeSection = <Message>(
   course: CourseInsight,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const grades = course.gradeOutcomes;
@@ -397,7 +397,7 @@ const gradeSection = <Message>(
             (value) =>
               paragraph(
                 translate(locale, 'detail.results', {
-                  count: value.toLocaleString(localeTag(locale)),
+                  count: value.toLocaleString(localeTag(locale.locale)),
                 }),
                 h,
               ),
@@ -410,7 +410,7 @@ const gradeSection = <Message>(
             grades.failureRatePercent,
             (value) =>
               paragraph(
-                new Intl.NumberFormat(localeTag(locale), {
+                new Intl.NumberFormat(localeTag(locale.locale), {
                   style: 'percent',
                   maximumFractionDigits: 1,
                 }).format(value / 100),
@@ -454,7 +454,7 @@ const gradeDistribution = <Message>(
   distribution: CourseInsight['gradeOutcomes']['distribution'] extends ProtocolFact<infer A>
     ? A
     : never,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   return h.div(
@@ -502,14 +502,14 @@ const gradeDistribution = <Message>(
 
 const examParticipationSection = <Message>(
   course: CourseInsight,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const participation = course.examParticipation;
   const count = (value: number) =>
     paragraph(
       translate(locale, 'detail.examRegistrations', {
-        count: value.toLocaleString(localeTag(locale)),
+        count: value.toLocaleString(localeTag(locale.locale)),
       }),
       h,
     );
@@ -583,7 +583,7 @@ const examParticipationSection = <Message>(
 
 const sourceSection = <Message>(
   course: CourseInsight,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   return h.section(
@@ -683,7 +683,7 @@ const sourceSection = <Message>(
 
 const evidenceLinks = <Message>(
   evidenceIds: ReadonlyArray<string>,
-  locale: Locale,
+  locale: Localization,
   contextClass: string,
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -716,7 +716,7 @@ const evidenceLinks = <Message>(
 
 const offeringList = <Message>(
   offerings: CourseInsight['offerings'] extends ProtocolFact<infer A> ? A : never,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   if (offerings.length === 0) {
@@ -751,11 +751,11 @@ const offeringList = <Message>(
 
 const assessmentList = <Message>(
   assessment: CourseInsight['assessment'] extends ProtocolFact<infer A> ? A : never,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const formatWeight = (value: number): string =>
-    new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value);
+    new Intl.NumberFormat(localeTag(locale.locale), { maximumFractionDigits: 2 }).format(value);
   return h.ul(
     [h.Class('mt-[0.35rem] mr-0 mb-0 ml-0 pl-[1.2rem] [&_li]:my-[0.35rem] [&_li]:leading-[1.5]')],
     assessment.map((part) =>
@@ -791,7 +791,7 @@ const assessmentList = <Message>(
 
 const obligatoryActivityList = <Message>(
   activities: CourseInsight['obligatoryActivities'] extends ProtocolFact<infer A> ? A : never,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   if (activities.length === 0) {
@@ -822,7 +822,7 @@ const paragraph = <Message>(value: string, h: HtmlBuilder<Message>): Html => h.p
 
 const collaborationPill = <Message>(
   collaboration: 'individual' | 'group' | 'mixed',
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   return h.span(
@@ -853,7 +853,11 @@ const chipList = <Message>(items: ReadonlyArray<string>, h: HtmlBuilder<Message>
   );
 };
 
-const formatOfferingPeriod = (academicYear: number, season: string, locale: Locale): string => {
+const formatOfferingPeriod = (
+  academicYear: number,
+  season: string,
+  locale: Localization,
+): string => {
   const academicYearLabel = `${academicYear}/${String(academicYear + 1).slice(-2)}`;
   if (season === 'full-year') {
     return translate(locale, 'offering.academicYear', { year: academicYearLabel });
@@ -862,8 +866,8 @@ const formatOfferingPeriod = (academicYear: number, season: string, locale: Loca
   return `${translateToken(locale, season)} ${calendarYear} · ${academicYearLabel}`;
 };
 
-const formatTimestamp = (value: string, locale: Locale): string =>
-  new Intl.DateTimeFormat(localeTag(locale), {
+const formatTimestamp = (value: string, locale: Localization): string =>
+  new Intl.DateTimeFormat(localeTag(locale.locale), {
     dateStyle: 'medium',
     timeZone: 'Europe/Oslo',
   }).format(new Date(value));

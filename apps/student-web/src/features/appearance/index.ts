@@ -19,7 +19,7 @@ import {
 } from '../../theme';
 import { buttonSecondary, eyebrowClass } from '../../app-styles';
 import { icon } from '../../icons';
-import { translate, type Locale } from '../../i18n';
+import { translate, type Localization } from '../../i18n';
 
 const BaseColorSchema = S.Literals(['mist', 'zinc', 'stone', 'mauve', 'olive', 'neutral']);
 const ThemeColorSchema = S.Literals(['blue', 'violet', 'amber', 'rose', 'emerald', 'sky']);
@@ -97,12 +97,12 @@ export const update = (model: Model, message: Message) =>
   });
 
 export interface ViewInputs {
-  readonly locale: Locale;
+  readonly locale: Localization;
   readonly renderMobileLanguageControl: () => Html;
   readonly renderFooter: () => Html;
 }
 
-const themePresetName = (locale: Locale, presetId: ThemePresetId): string => {
+const themePresetName = (locale: Localization, presetId: ThemePresetId): string => {
   switch (presetId) {
     case 'fjord':
       return translate(locale, 'appearance.fjord');
@@ -119,7 +119,7 @@ const themePresetName = (locale: Locale, presetId: ThemePresetId): string => {
   }
 };
 
-const themePresetDescription = (locale: Locale, presetId: ThemePresetId): string => {
+const themePresetDescription = (locale: Localization, presetId: ThemePresetId): string => {
   switch (presetId) {
     case 'fjord':
       return translate(locale, 'appearance.fjordDescription');
@@ -136,7 +136,7 @@ const themePresetDescription = (locale: Locale, presetId: ThemePresetId): string
   }
 };
 
-const colorModeLabel = (locale: Locale, mode: ColorMode): string => {
+const colorModeLabel = (locale: Localization, mode: ColorMode): string => {
   switch (mode) {
     case 'system':
       return translate(locale, 'appearance.system');
@@ -147,7 +147,7 @@ const colorModeLabel = (locale: Locale, mode: ColorMode): string => {
   }
 };
 
-const themePreview = (locale: Locale, h: HtmlBuilder<Message>): Html => {
+const themePreview = (locale: Localization, h: HtmlBuilder<Message>): Html => {
   return h.section(
     [
       h.Class(

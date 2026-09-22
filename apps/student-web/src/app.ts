@@ -12,15 +12,24 @@ import {
   CourseGradeSummariesResponseSchema,
   CourseInsightResponseSchema,
   CourseSearchResponseSchema,
-  courseClient,
   type CourseDecisionSignalsResponse,
   type CourseGradeSummariesResponse,
   type CourseSearchRequest,
   type CourseSearchResponse,
   type CourseSearchSort,
 } from './course-client';
+import { courseClient } from './course-client-runtime';
 import { courseIdentity, type CourseIdentity } from './course-identity';
-import { isLocale, localeTag, translate, type Locale } from './i18n';
+import {
+  IndexedMessageCatalogueSchema,
+  isLocale,
+  LocaleSchema,
+  localeTag,
+  Localization,
+  TokenCatalogueSchema,
+  translate,
+  type Locale,
+} from './i18n';
 import type { AppIcon } from './icons';
 import { desktopNavigation, mobileNavigation } from './navigation';
 import {
@@ -152,7 +161,6 @@ const CampusSchema = S.Literals(['all', 'trondheim', 'gjovik', 'alesund']);
 const LevelSchema = S.Literals(['all', 'bachelor', 'master', 'phd']);
 const OutcomeViewSchema = S.Literals(['letter', 'pass-fail']);
 const SortSchema = S.Literals(['relevance', 'title-asc', 'title-desc', 'code-asc', 'code-desc']);
-const LocaleSchema = S.Literals(['en', 'nb']);
 const SelectControlIdSchema = S.Literals([
   'campus-inline',
   'term-refine',
@@ -236,6 +244,22 @@ const NextPageState = defineTaggedUnion({
 export const NextPageIdle = NextPageState.NextPageIdle;
 export const NextPageLoading = NextPageState.NextPageLoading;
 export const NextPageFailure = NextPageState.NextPageFailure;
+
+/**
+ * The successful catalogue belongs to `localization`; this state records the
+ * asynchronous boundary so a selected Norwegian locale can fall back safely.
+ */
+const NorwegianMessagesState = defineTaggedUnion({
+  NorwegianMessagesIdle: {},
+  NorwegianMessagesLoading: {},
+  NorwegianMessagesLoaded: {},
+  NorwegianMessagesFailed: { error: S.String },
+});
+export const NorwegianMessagesIdle = NorwegianMessagesState.NorwegianMessagesIdle;
+export const NorwegianMessagesLoading = NorwegianMessagesState.NorwegianMessagesLoading;
+export const NorwegianMessagesLoaded = NorwegianMessagesState.NorwegianMessagesLoaded;
+export const NorwegianMessagesFailed = NorwegianMessagesState.NorwegianMessagesFailed;
+export type NorwegianMessagesState = typeof NorwegianMessagesState.Type;
 
 const DetailResult = defineTaggedUnion({
   DetailClosed: {},
@@ -378,7 +402,8 @@ export type ListDensity = typeof ListDensitySchema.Type;
 const CourseOriginFilterSchema = S.Literals(courseOriginFilters);
 
 export const Model = S.Struct({
-  locale: LocaleSchema,
+  localization: Localization,
+  norwegianMessages: NorwegianMessagesState,
   route: RouteSchema,
   progress: ProgressModel,
   savedCourses: SavedCoursesResultSchema,
@@ -438,17 +463,23 @@ export const Model = S.Struct({
 type SchemaModel = typeof Model.Type;
 export type Model = Omit<
   SchemaModel,
-  'catalogue' | 'gradeSignals' | 'decisionSignals' | 'detail'
+  'catalogue' | 'gradeSignals' | 'decisionSignals' | 'detail' | 'norwegianMessages'
 > & {
   readonly catalogue: CatalogueResult;
   readonly gradeSignals: GradeSignalsResult;
   readonly decisionSignals: DecisionSignalsResult;
   readonly detail: DetailResult;
+  readonly norwegianMessages: NorwegianMessagesState;
 };
 
 export const Message = defineMessageUnion({
   UpdatedQuery: { value: S.String },
   ChangedLocale: { value: S.String },
+  LoadedNorwegianMessages: {
+    messages: IndexedMessageCatalogueSchema,
+    tokens: TokenCatalogueSchema,
+  },
+  FailedNorwegianMessages: { error: S.String },
   SubmittedSearch: {},
   ChangedTerm: { value: S.String },
   ChangedCampus: { value: S.String },
@@ -569,6 +600,8 @@ export type Message = typeof Message.Type;
 
 export const UpdatedQuery = Message.UpdatedQuery;
 export const ChangedLocale = Message.ChangedLocale;
+export const LoadedNorwegianMessages = Message.LoadedNorwegianMessages;
+export const FailedNorwegianMessages = Message.FailedNorwegianMessages;
 export const SubmittedSearch = Message.SubmittedSearch;
 export const ChangedTerm = Message.ChangedTerm;
 export const ChangedCampus = Message.ChangedCampus;
@@ -792,6 +825,28 @@ export const PersistLocale = Command.define('PersistLocale', {
     ),
 });
 
+/**
+ * A static import would retain Norwegian strings in the initial production
+ * chunk, so this is the only runtime edge to the Norwegian chunk.
+ */
+export const LoadNorwegianMessages = Command.define('LoadNorwegianMessages', {
+  messages: [Message.LoadedNorwegianMessages, Message.FailedNorwegianMessages],
+  execute: Effect.tryPromise({
+    try: async () => {
+      const { norwegianIndexedMessages, norwegianTokenCatalogue } = await import('./i18n.nb');
+      return Message.LoadedNorwegianMessages({
+        messages: norwegianIndexedMessages,
+        tokens: norwegianTokenCatalogue,
+      });
+    },
+    catch: () => new Error('Norwegian translations could not be loaded'),
+  }).pipe(
+    Effect.catch((error) =>
+      Effect.succeed(Message.FailedNorwegianMessages({ error: error.message })),
+    ),
+  ),
+});
+
 export const PersistSidebarPreference = Command.define('PersistSidebarPreference', {
   args: { collapsed: S.Boolean },
   messages: [Message.PersistedSidebarPreference, Message.FailedSidebarPreferencePersistence],
@@ -891,6 +946,33 @@ const fetchCommand = (
     requestKey: key,
     append,
   });
+
+const loadNorwegianMessages = (model: Model): UpdateReturn => {
+  if (
+    model.localization.locale !== 'nb' ||
+    model.norwegianMessages._tag === 'NorwegianMessagesLoading' ||
+    model.norwegianMessages._tag === 'NorwegianMessagesLoaded'
+  ) {
+    return { model };
+  }
+  return {
+    model: modifyFields(model, {
+      norwegianMessages: () => NorwegianMessagesLoading(),
+    }),
+    commands: [LoadNorwegianMessages()],
+  };
+};
+
+const selectLocale = (model: Model, locale: Locale): UpdateReturn =>
+  loadNorwegianMessages(
+    modifyFields(model, {
+      localization: () => ({
+        locale,
+        messages: model.localization.messages,
+        tokens: model.localization.tokens,
+      }),
+    }),
+  );
 
 export const catalogueResponse = (result: CatalogueResult): CourseSearchResponse | null =>
   result._tag === 'CatalogueSuccess' || result._tag === 'CataloguePartial' ? result.response : null;
@@ -1100,7 +1182,7 @@ export const normalizedUrl = (
   pathname = EXPLORE_PATH,
 ): string => {
   const params = new URLSearchParams();
-  params.set('lang', model.locale);
+  params.set('lang', model.localization.locale);
   if (model.query.trim().length > 0) params.set('q', model.query.trim());
   if (model.term !== DEFAULT_TERM) params.set('term', model.term);
   if (model.campus !== 'all') params.set('campus', model.campus);
@@ -1601,10 +1683,12 @@ const applySelectValue = (model: Model, id: SelectControlId, value: string): Upd
     case 'language-desktop':
     case 'language-mobile': {
       const locale = isLocale(value) ? value : 'en';
-      const nextModel = modifyFields(model, { locale: () => locale });
+      const selected = selectLocale(model, locale);
+      const nextModel = selected.model;
       return {
         model: nextModel,
         commands: [
+          ...(selected.commands ?? []),
           PersistLocale({ locale }),
           Navigate({ href: currentUrl(nextModel), mode: 'replace' }),
         ],
@@ -1714,15 +1798,34 @@ export const update = (model: Model, message: Message) =>
     }),
     ChangedLocale: ({ value }) => {
       const locale = isLocale(value) ? value : 'en';
-      const nextModel = modifyFields(model, { locale: () => locale });
+      const selected = selectLocale(model, locale);
+      const nextModel = selected.model;
       return {
         model: nextModel,
         commands: [
+          ...(selected.commands ?? []),
           PersistLocale({ locale }),
           Navigate({ href: currentUrl(nextModel), mode: 'replace' }),
         ],
       };
     },
+    LoadedNorwegianMessages: ({ messages, tokens }) => {
+      return {
+        model: modifyFields(model, {
+          localization: () => ({
+            locale: model.localization.locale,
+            messages,
+            tokens,
+          }),
+          norwegianMessages: () => NorwegianMessagesLoaded(),
+        }),
+      };
+    },
+    FailedNorwegianMessages: ({ error }) => ({
+      model: modifyFields(model, {
+        norwegianMessages: () => NorwegianMessagesFailed({ error }),
+      }),
+    }),
     ToggledSidebar: () => {
       const sidebarCollapsed = !model.sidebarCollapsed;
       return {
@@ -1822,7 +1925,6 @@ export const update = (model: Model, message: Message) =>
       };
       if (!locationMatchesModel(location, model)) {
         const locationModel = modifyFields(forRoute(model, location.route), {
-          locale: () => location.locale,
           route: () => location.route,
           query: () => location.query,
           term: () => location.term,
@@ -1845,14 +1947,19 @@ export const update = (model: Model, message: Message) =>
           compareCodes: () => location.compareCodes,
           labelFilterNotice: () => null,
         });
-        const request = searchRequest(locationModel, 1);
+        const localized = selectLocale(locationModel, location.locale);
+        const request = searchRequest(localized.model, 1);
         const key = requestKey(request);
-        const nextModel = modifyFields(locationModel, {
+        const nextModel = modifyFields(localized.model, {
           activeRequestKey: () => key,
         });
         return withCanonicalFilter({
           model: nextModel,
           commands: [
+            ...(localized.commands ?? []),
+            ...(location.locale === model.localization.locale
+              ? []
+              : [PersistLocale({ locale: location.locale })]),
             fetchCommand(request, key, false),
             ...(location.selectedCode === null
               ? []
@@ -1866,12 +1973,11 @@ export const update = (model: Model, message: Message) =>
        * without refetching anything.
        */
       const routedModel: Model =
-        location.locale === model.locale &&
+        location.locale === model.localization.locale &&
         location.route === model.route &&
         sameLabelFilter(location.labelFilter, model.labelFilter)
           ? model
           : modifyFields(forRoute(model, location.route), {
-              locale: () => location.locale,
               route: () => location.route,
               labelFilter: () => location.labelFilter,
               compareCodes: () => location.compareCodes,
@@ -1880,12 +1986,17 @@ export const update = (model: Model, message: Message) =>
                   ? model.labelFilterNotice
                   : null,
             });
-      const localeCommands: Commands =
-        location.locale === model.locale ? [] : [PersistLocale({ locale: location.locale })];
+      const localized = selectLocale(routedModel, location.locale);
+      const localeCommands: Commands = [
+        ...(localized.commands ?? []),
+        ...(location.locale === model.localization.locale
+          ? []
+          : [PersistLocale({ locale: location.locale })]),
+      ];
       if (location.selectedCode === model.selectedCode) {
-        return withCanonicalFilter({ model: routedModel, commands: localeCommands });
+        return withCanonicalFilter({ model: localized.model, commands: localeCommands });
       }
-      const nextModel = modifyFields(routedModel, {
+      const nextModel = modifyFields(localized.model, {
         selectedCode: () => location.selectedCode,
         detail: () =>
           location.selectedCode === null
@@ -2711,7 +2822,8 @@ export const initForHref = (
   const location = parseLocation(href, fallbackLocale);
   const progressInit = initProgress();
   const base: Model = {
-    locale: location.locale,
+    localization: { locale: location.locale },
+    norwegianMessages: NorwegianMessagesIdle(),
     route: location.route,
     progress: progressInit.model,
     savedCourses: SavedCoursesResultSchema.SavedCoursesLoading(),
@@ -2774,12 +2886,14 @@ export const initForHref = (
       languageMobile: initSelectField('language-mobile'),
     },
   };
-  const request = searchRequest(base, 1);
+  const localized = loadNorwegianMessages(base);
+  const request = searchRequest(localized.model, 1);
   const key = requestKey(request);
-  const model = modifyFields(base, { activeRequestKey: () => key });
+  const model = modifyFields(localized.model, { activeRequestKey: () => key });
   return {
     model,
     commands: [
+      ...(localized.commands ?? []),
       LoadSavedCourses(),
       ...Command.mapMessages(progressInit.commands, (message) =>
         Message.GotProgressMessage({ message }),
@@ -2833,11 +2947,11 @@ const browserListDensity = (): ListDensity => {
 };
 
 const documentTitle = (model: Model): string => {
-  if (model.route === 'list') return translate(model.locale, 'app.listTitle');
-  if (model.route === 'progress') return translate(model.locale, 'app.progressTitle');
+  if (model.route === 'list') return translate(model.localization, 'app.listTitle');
+  if (model.route === 'progress') return translate(model.localization, 'app.progressTitle');
   return model.detail._tag === 'DetailSuccess' || model.detail._tag === 'DetailPartial'
-    ? `${model.detail.response.item.code} · ${translate(model.locale, 'app.name')}`
-    : translate(model.locale, 'app.catalogueTitle');
+    ? `${model.detail.response.item.code} · ${translate(model.localization, 'app.name')}`
+    : translate(model.localization, 'app.catalogueTitle');
 };
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
@@ -2845,12 +2959,25 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   body: appView(model, h),
 });
 
+const norwegianMessagesFailureAlert = (model: Model, h: HtmlBuilder<Message>): Html =>
+  model.localization.locale === 'nb' && model.norwegianMessages._tag === 'NorwegianMessagesFailed'
+    ? h.p(
+        [
+          h.Class(
+            'm-0 rounded-m3-medium border border-error bg-error-container px-4 py-3 text-sm font-bold text-on-error-container',
+          ),
+          h.Role('alert'),
+        ],
+        ['Norwegian translations could not be loaded. English is shown instead.'],
+      )
+    : h.empty;
+
 const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
   h.div(
     [h.Class('min-h-screen')],
     [
       lazyDesktopNavigation(desktopNavigation, [
-        model.locale,
+        model.localization,
         model.sidebarCollapsed,
         model.route,
         exploreUrl(model),
@@ -2861,7 +2988,7 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
         languageSelectControl(
           model.selectFields,
           'language-desktop',
-          model.locale,
+          model.localization,
           model.sidebarCollapsed,
           h,
         ),
@@ -2874,27 +3001,28 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
             [h.Class(mainColumnClass)],
             [
               savedCoursesPersistenceAlert(model, h),
+              norwegianMessagesFailureAlert(model, h),
               model.route === 'appearance'
                 ? h.submodel({
                     slotId: 'appearance-settings',
                     model: initAppearance(model.themePreference),
                     view: appearanceView,
                     viewInputs: {
-                      locale: model.locale,
+                      locale: model.localization,
                       renderMobileLanguageControl: () =>
                         selectControl(
                           model.selectFields,
                           'language-mobile',
-                          translate(model.locale, 'locale.label'),
-                          model.locale,
+                          translate(model.localization, 'locale.label'),
+                          model.localization.locale,
                           [
-                            ['en', translate(model.locale, 'locale.en')],
-                            ['nb', translate(model.locale, 'locale.nb')],
+                            ['en', translate(model.localization, 'locale.en')],
+                            ['nb', translate(model.localization, 'locale.nb')],
                           ],
                           {},
                           h,
                         ),
-                      renderFooter: () => lazyProductFooter(productFooter, [model.locale, h]),
+                      renderFooter: () => lazyProductFooter(productFooter, [model.localization, h]),
                     },
                     toParentMessage: (message) => Message.GotAppearanceMessage({ message }),
                   })
@@ -2904,7 +3032,7 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
                       model: model.progress,
                       view: progressView,
                       viewInputs: {
-                        locale: model.locale,
+                        locale: model.localization,
                         courseUrl: (courseCode) => normalizedUrl(model, courseCode, EXPLORE_PATH),
                       },
                       toParentMessage: (message) => Message.GotProgressMessage({ message }),
@@ -2919,7 +3047,7 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
         ],
       ),
       lazyCatalogueRefineDialog(catalogueRefineDialogFromValues, [
-        model.locale,
+        model.localization,
         model.query,
         model.term,
         model.campus,
@@ -2935,7 +3063,7 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
       bottomStackView(model, selectedSavedCourses(model), h),
       model.route === 'list' ? labelDialogView(model, h) : h.empty,
       lazyMobileNavigation(mobileNavigation, [
-        model.locale,
+        model.localization,
         model.route,
         exploreUrl(model),
         listUrl(model),
@@ -2977,18 +3105,18 @@ export const selectControl = (
 export const languageSelectControl = (
   fields: Model['selectFields'],
   id: 'language-desktop' | 'language-mobile',
-  locale: Locale,
+  localization: Localization,
   compact: boolean,
   h: HtmlBuilder<Message>,
 ): Html =>
   selectControl(
     fields,
     id,
-    translate(locale, 'locale.label'),
-    locale,
+    translate(localization, 'locale.label'),
+    localization.locale,
     [
-      ['en', compact ? 'EN' : translate(locale, 'locale.en')],
-      ['nb', compact ? 'NO' : translate(locale, 'locale.nb')],
+      ['en', compact ? 'EN' : translate(localization, 'locale.en')],
+      ['nb', compact ? 'NO' : translate(localization, 'locale.nb')],
     ],
     { compact },
     h,
@@ -3036,7 +3164,7 @@ export const checkboxControl = (
  * the VITE_TIP_URL pattern exactly: a static HTTPS link that exists only when
  * the operator configured a valid HTTPS URL, and opens in a new tab.
  */
-export const feedbackRow = (locale: Locale, h: HtmlBuilder<Message>): Html => {
+export const feedbackRow = (locale: Localization, h: HtmlBuilder<Message>): Html => {
   if (feedbackUrl === null) return h.empty;
   return h.p(
     [h.Class('m-0 text-on-surface-variant text-sm leading-[1.45]')],
@@ -3056,7 +3184,7 @@ export const feedbackRow = (locale: Locale, h: HtmlBuilder<Message>): Html => {
   );
 };
 
-export const productFooter = (locale: Locale, h: HtmlBuilder<Message>): Html => {
+export const productFooter = (locale: Localization, h: HtmlBuilder<Message>): Html => {
   const externalLink = (url: string, label: string): Html =>
     h.a(
       [h.Href(url), h.Target('_blank'), h.Rel('noreferrer'), h.Class('relative font-semibold')],

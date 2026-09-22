@@ -4,7 +4,7 @@ import type {
 } from '@course-data/course-contracts';
 import { Match as M } from 'effect';
 
-import { localeTag, translate, translateToken, type Locale } from './i18n';
+import { localeTag, translate, translateToken, type Localization } from './i18n';
 
 export type DecisionSignal =
   | CourseDecisionSignalsDtoType
@@ -13,13 +13,13 @@ export type DecisionSignal =
   | 'idle'
   | 'missing';
 
-export const factStateLabel = (state: string, locale: Locale): string =>
+export const factStateLabel = (state: string, locale: Localization): string =>
   translateToken(locale, state);
 
 export const formatOfferingPeriod = (
   academicYear: number,
   season: string,
-  locale: Locale,
+  locale: Localization,
 ): string => {
   if (season === 'full-year') {
     const academicYearLabel = `${academicYear}/${String(academicYear + 1).slice(-2)}`;
@@ -45,7 +45,7 @@ export interface CourseOfferingFacts {
 export const courseOfferingFacts = (
   course: CourseSearchItemDtoType,
   decisionSignal: DecisionSignal,
-  locale: Locale,
+  locale: Localization,
 ): CourseOfferingFacts => {
   const offering =
     course.offerings.state === 'known' && course.offerings.value.length > 0
@@ -72,7 +72,7 @@ export const courseOfferingFacts = (
   const credits =
     creditsFact.state === 'known'
       ? translate(locale, 'course.creditsValue', {
-          value: new Intl.NumberFormat(localeTag(locale), {
+          value: new Intl.NumberFormat(localeTag(locale.locale), {
             maximumFractionDigits: 1,
           }).format(creditsFact.value),
         })
@@ -90,7 +90,7 @@ export type AssessmentForm =
   | 'assignment'
   | 'other';
 
-export const assessmentLabel = (form: AssessmentForm, locale: Locale): string =>
+export const assessmentLabel = (form: AssessmentForm, locale: Localization): string =>
   M.value(form).pipe(
     M.when('written-exam', () => translate(locale, 'signals.writtenExam')),
     M.when('oral-exam', () => translate(locale, 'signals.oralExam')),
@@ -105,7 +105,7 @@ export const assessmentLabel = (form: AssessmentForm, locale: Locale): string =>
 
 export const collaborationLabel = (
   collaboration: 'individual' | 'group' | 'mixed',
-  locale: Locale,
+  locale: Localization,
 ): string =>
   M.value(collaboration).pipe(
     M.when('individual', () => translate(locale, 'signals.individual')),
@@ -114,7 +114,10 @@ export const collaborationLabel = (
     M.exhaustive,
   );
 
-export const gradeScaleLabel = (scale: 'letter' | 'pass-fail' | 'mixed', locale: Locale): string =>
+export const gradeScaleLabel = (
+  scale: 'letter' | 'pass-fail' | 'mixed',
+  locale: Localization,
+): string =>
   M.value(scale).pipe(
     M.when('letter', () => translate(locale, 'outcomes.letter')),
     M.when('pass-fail', () => translate(locale, 'outcomes.passFail')),
@@ -122,5 +125,5 @@ export const gradeScaleLabel = (scale: 'letter' | 'pass-fail' | 'mixed', locale:
     M.exhaustive,
   );
 
-export const formatPercentage = (value: number, locale: Locale): string =>
-  new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 }).format(value);
+export const formatPercentage = (value: number, locale: Localization): string =>
+  new Intl.NumberFormat(localeTag(locale.locale), { maximumFractionDigits: 1 }).format(value);

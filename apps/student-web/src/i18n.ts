@@ -1,7 +1,10 @@
+import { Schema as S } from 'effect';
+
 export const supportedLocales = ['en', 'nb'] as const;
+export const LocaleSchema = S.Literals(supportedLocales);
 export type Locale = (typeof supportedLocales)[number];
 
-const en = {
+export const englishMessages = {
   'app.name': 'Course lens',
   'app.catalogueTitle': 'Browse NTNU courses · Course lens',
   'app.listTitle': 'Your courses · Course lens',
@@ -627,643 +630,45 @@ const en = {
   'progress.editResult': 'Edit course result',
 } as const;
 
-export type MessageKey = keyof typeof en;
-type MessageCatalogue = Readonly<Record<MessageKey, string>>;
+export type MessageKey = keyof typeof englishMessages;
+export type MessageCatalogue = Readonly<Record<MessageKey, string>>;
 
-const nb = {
-  'app.name': 'Emneblikk',
-  'app.catalogueTitle': 'Utforsk NTNU-emner · Emneblikk',
-  'app.listTitle': 'Dine emner · Emneblikk',
-  'app.progressTitle': 'Studieprogresjon · Emneblikk',
-  'locale.label': 'Språk',
-  'locale.en': 'English',
-  'locale.nb': 'Norsk bokmål',
-  'nav.primary': 'Hovednavigasjon',
-  'nav.list': 'Lagret',
-  'nav.schedule': 'Timeplan',
-  'nav.explore': 'Utforsk',
-  'nav.progress': 'Progresjon',
-  'nav.more': 'Mer',
-  'nav.planned': '{label}, planlagt',
-  'nav.plannedTitle': '{label} er planlagt',
-  'nav.collapse': 'Slå sammen sidemenyen',
-  'nav.expand': 'Utvid sidemenyen',
-  'nav.claim': 'Fakta kan spores. Manglende informasjon forblir synlig.',
-  'appearance.open': 'Åpne utseendeinnstillinger',
-  'appearance.label': 'Utseende',
-  'appearance.navLabel': 'Stil',
-  'appearance.heading': 'Temalaboratorium',
-  'appearance.description':
-    'Velg en nordisk palett og hvordan den følger enheten din. Plan- og statusfarger beholder betydningen sin.',
-  'appearance.close': 'Lukk utseendeinnstillingene',
-  'appearance.palettes': 'Nordisk palett',
-  'appearance.mode': 'Lys og mørk modus',
-  'appearance.system': 'System',
-  'appearance.light': 'Lys',
-  'appearance.dark': 'Mørk',
-  'appearance.preview': 'Forhåndsvisning av tema',
-  'appearance.previewTerm': 'Høstsemester',
-  'appearance.previewCredits': '30 studiepoeng',
-  'appearance.previewCourse': 'Menneskesentrert databehandling',
-  'appearance.previewRequired': 'Påkrevd',
-  'appearance.previewValid': 'Passer i planen',
-  'appearance.previewWarning': 'Sjekk overlapp',
-  'appearance.reset': 'Tilbakestill til Fjord',
-  'appearance.fjord': 'Fjord',
-  'appearance.fjordDescription': 'Klare blåtoner over kjølig dis.',
-  'appearance.aurora': 'Nordlys',
-  'appearance.auroraDescription': 'Fiolett lys over dempet sink.',
-  'appearance.birch': 'Bjørk',
-  'appearance.birchDescription': 'Varm rav over lys stein.',
-  'appearance.heather': 'Lyng',
-  'appearance.heatherDescription': 'Myk rose over dempet lilla.',
-  'appearance.pine': 'Furu',
-  'appearance.pineDescription': 'Den opprinnelige smaragd- og olivenpaletten.',
-  'appearance.polarNight': 'Polarnatt',
-  'appearance.polarNightDescription': 'Himmelblått over dype nøytraler.',
-  'catalogue.eyebrow': 'NTNUs emnekatalog',
-  'catalogue.heading': 'Utforsk emner før du velger.',
-  'catalogue.intro':
-    'Se gjennom NTNUs offisielle emnetilbud, snevre inn katalogen og åpne et emne for vurderingsform, arbeidsform og karakterdata.',
-  'catalogue.searchRegion': 'Finn og filtrer NTNU-emner',
-  'catalogue.searchLabel': 'Søk i emner',
-  'catalogue.searchPlaceholder': 'Emnekode eller tittel',
-  'catalogue.search': 'Søk',
-  'catalogue.searching': 'Søker …',
-  'catalogue.term': 'Semester',
-  'catalogue.campus': 'Studiested',
-  'catalogue.level': 'Studienivå',
-  'catalogue.sort': 'Sorter',
-  'catalogue.allCampuses': 'Alle studiesteder',
-  'catalogue.trondheim': 'Trondheim',
-  'catalogue.gjovik': 'Gjøvik',
-  'catalogue.alesund': 'Ålesund',
-  'catalogue.allLevels': 'Alle nivåer',
-  'catalogue.bachelor': 'Bachelor',
-  'catalogue.master': 'Master',
-  'catalogue.phd': 'Ph.d.',
-  'catalogue.relevance': 'NTNU-relevans',
-  'catalogue.titleAsc': 'Tittel A–Å',
-  'catalogue.titleDesc': 'Tittel Å–A',
-  'catalogue.codeAsc': 'Kode A–Å',
-  'catalogue.codeDesc': 'Kode Å–A',
-  'catalogue.openAdmission': 'Åpent opptak',
-  'catalogue.english': 'Undervises på engelsk',
-  'catalogue.allCourses': 'Alle NTNU-emner',
-  'catalogue.activeRefinements': '{count} aktive avgrensninger{suffix}',
-  'catalogue.refineHelp': 'Endre søk, filtre eller sortering hvor som helst i listen.',
-  'catalogue.refine': 'Avgrens',
-  'catalogue.refineCount': 'Avgrens · {count}',
-  'catalogue.refineHeading': 'Avgrens emner',
-  'catalogue.refineDescription': 'Endringer brukes med én gang og beholdes i den delbare lenken.',
-  'catalogue.closeRefinements': 'Lukk emnefiltrene',
-  'catalogue.viewResults': 'Vis resultater',
-  'catalogue.loading': 'Laster NTNUs emnekatalog',
-  'catalogue.loadingHelp':
-    'Offisielle emnesammendrag vises før mer detaljert dokumentasjon lastes.',
-  'catalogue.unavailable': 'Emnekatalogen er utilgjengelig',
-  'catalogue.loadFailed': 'Vi kunne ikke laste emnene',
-  'catalogue.retry': 'Filtrene dine er bevart. Send søket på nytt for å prøve igjen.',
-  'catalogue.empty': 'Ingen emner passer til disse filtrene',
-  'catalogue.emptyHelp': 'Prøv et annet uttrykk, studiested, semester eller studienivå.',
-  'catalogue.results': 'Emneresultater',
-  'catalogue.partial':
-    'Noen katalogdata kunne ikke brukes. Offisielle resultater som ble validert, er fortsatt synlige.',
-  'catalogue.courses': 'Emner',
-  'catalogue.showing': 'Viser {shown} av {total} emner',
-  'catalogue.official': 'Offisiell NTNU-katalog',
-  'catalogue.moreFailed': 'Flere emner kunne ikke lastes.',
-  'catalogue.loadingMore': 'Laster flere emner …',
-  'catalogue.showMore': 'Vis flere emner',
-  'catalogue.end': 'Slutten av resultatene',
-  'course.open': 'Åpne {code}: {title}',
-  'course.titleUnavailable': 'Tittel er utilgjengelig',
-  'course.termUnavailable': 'Semester er utilgjengelig',
-  'course.campusUnreported': 'Studiested er ikke oppgitt',
-  'course.creditsValue': '{value} studiepoeng',
-  'course.termFact': 'Semester',
-  'course.campusFact': 'Studiested',
-  'course.back': '← Tilbake til emneresultatene',
-  'list.eyebrow': 'Dine emner',
-  'list.heading': 'Lagrede emner og resultater',
-  'list.intro':
-    'Lagrede emner og NTNU-resultater møtes her. Resultater kommer fra din lokale progresjonshistorikk og blir aldri bokmerker av seg selv.',
-  'list.backToExplore': 'Utforsk flere emner',
-  'list.loading': 'Åpner emnene dine',
-  'list.loadingHelp':
-    'Lagrede emner og lokale resultater leses fra denne nettleseren før listen vises.',
-  'list.density': 'Visning',
-  'list.densityCard': 'Kort',
-  'list.densityCompact': 'Kompakt',
-  'list.originFilter': 'Emnekilde',
-  'list.originAll': 'Alle {count}',
-  'list.originSaved': 'Lagret {count}',
-  'list.originResults': 'Resultater {count}',
-  'list.rowOrigins': 'Kilder for {code}',
-  'list.resultBadge': 'Resultat',
-  'list.savedBadge': 'Lagret',
-  'list.resultOnlyHelp': 'Lagre emnet for å legge til etiketter og et privat notat.',
-  'list.resultEvidence': 'Siste lokale resultat',
-  'list.resultEvidenceHelp':
-    'Fra din lokale progresjonshistorikk, ikke gjeldende emnedokumentasjon.',
-  'list.resultSummary': '{grade} · {term} {year} · {credits} studiepoeng',
-  'list.courseCountOne': '1 emne',
-  'list.courseCountMany': '{count} emner',
-  'list.countOne': '1 lagret emne',
-  'list.countMany': '{count} lagrede emner',
-  'list.empty': 'Du har ingen lagrede emner eller NTNU-resultater ennå',
-  'list.emptyHelp': 'Lagre et emne i Utforsk, eller legg til et NTNU-resultat i Progresjon.',
-  'list.saveCourse': 'Lagre {code} i listen',
-  'list.removeCourse': 'Fjern {code} fra listen',
-  'list.save': 'Lagre',
-  'list.remove': 'Fjern',
-  'list.savePending': 'De lagrede emnene lastes fortsatt',
-  'list.savePaused':
-    'Lagring er satt på pause til den lagrede listen er gjenopprettet eller tilbakestilt.',
-  'list.savePausedLink': 'Åpne listen for å gjenopprette lagrede emner',
-  'list.factsNotLoaded': 'Emnedetaljer ble ikke lastet i denne økten.',
-  'list.factsNotLoadedHelp':
-    'Åpne emnet for å laste dokumentasjon om vurdering, arbeid og historiske resultater.',
-  'list.note': 'Notatet ditt',
-  'list.notePlaceholder':
-    'Hvorfor emnet er interessant, spørsmål du vil stille, kollisjoner å sjekke',
-  'list.noteHelp':
-    'Privat på denne enheten. Notater er skrevet av deg og teller aldri som emnedokumentasjon.',
-  'list.saveNote': 'Lagre notat',
-  'list.openCourse': 'Åpne {code}',
-  'list.repaired': 'Ubrukelige lagrede oppføringer ble fjernet: {count}.',
-  'list.recoveryHeading': 'Kunne ikke laste lagrede emner',
-  'list.recoveryUnsupported':
-    'Nettleseren har lagret en nyere versjon av listen (versjon {version}). Oppdater applikasjonen, eller tilbakestill listen for å begynne på nytt på denne enheten.',
-  'list.recoveryCorrupt': 'Den lagrede listen kunne ikke leses.',
-  'list.recoveryUnavailable':
-    'Nettleseren tillot ikke lokal lagring, så lagrede emner er utilgjengelige her.',
-  'list.recoveryKept':
-    'Ingenting er slettet. Den lagrede verdien beholdes nedenfor slik at du kan kopiere den før du tilbakestiller.',
-  'list.recoveryShowStored': 'Vis den lagrede verdien',
-  'list.reset': 'Tilbakestill lagrede emner',
-  'list.resetHelp': 'Tilbakestilling sletter den lagrede listen på denne enheten permanent.',
-  'list.persistFailed':
-    'Den siste endringen i lagrede emner kunne ikke lagres i denne nettleseren.',
-  'list.savedStatus': '{code} er lagret i listen.',
-  'list.removedStatus': '{code} er fjernet fra listen.',
-  'list.removedManyStatus': '{count} emner er fjernet fra listen.',
-  'list.dismissAllStatus': 'Lukk alle {count}',
-  'list.undo': 'Angre',
-  'list.undoSave': 'Angre lagring av {code}',
-  'list.undoRemove': 'Angre fjerning av {code}',
-  'list.undoRemoveMany': 'Angre fjerning av {count} emner',
-  'list.dismissStatus': 'Lukk',
-  'list.labels': 'Etiketter',
-  'list.labelsHeading': 'Etikettene dine',
-  'list.labelsHelp':
-    'Etiketter er dine egne ord for dine egne planer. De endrer aldri emnefakta og teller aldri som dokumentasjon.',
-  'list.labelsForCourse': 'Etiketter for {code}',
-  'list.labelsForSelection': 'Etiketter for {count} valgte lagrede emner',
-  'list.labelsManageOnly': 'Opprett og endre etiketter',
-  'list.openLabels': 'Etiketter',
-  'list.editLabelsFor': 'Endre etiketter for {code}',
-  'list.closeLabels': 'Lukk etiketter',
-  'list.labelName': 'Etikettnavn',
-  'list.labelNamePlaceholder': 'Høst 2027, Spør veileder, Digitale kandidater',
-  'list.labelColor': 'Etikettfarge',
-  'list.addLabel': 'Legg til etikett',
-  'list.saveLabel': 'Lagre etikett',
-  'list.cancelLabelEdit': 'Avbryt endringen',
-  'list.editLabel': 'Endre etikett',
-  'list.deleteLabel': 'Slett etikett',
-  'list.labelRowActions': 'Handlinger for {name}',
-  'list.deleteLabelConfirm':
-    'Slette «{name}»? Lagrede emner beholder identiteten sin; bare etiketten fjernes.',
-  'list.cancelDeleteLabel': 'Avbryt slettingen',
-  'list.labelCountUnit': 'lagrede emner',
-  'list.labelCountUnitOne': 'lagret emne',
-  'list.filterExcludedBadge': 'Utelatt',
-  'list.noLabels': 'Du har ikke opprettet en etikett ennå.',
-  'list.labelOnCourse': 'På {code}',
-  'list.labelPartlyOnSelection': 'På {matched} av {count} valgte',
-  'list.labelDuplicate': 'Det finnes allerede en etikett med det navnet.',
-  'list.labelEmptyName': 'Gi etiketten et navn først.',
-  'list.labelLimit': 'Maksimum er {count} etiketter. Slett en for å legge til en ny.',
-  'list.labelUnknownError': 'Den etiketten finnes ikke lenger.',
-  'list.rowLabels': 'Etiketter på {code}',
-  'list.rowNoLabels': 'Ingen etiketter ennå',
-  'compare.heading': 'Sammenlign lagrede emner',
-  'compare.intro': 'Bare det som skiller vises. Fakta kildene ikke oppgav beholder navnet sitt.',
-  'compare.close': 'Lukk sammenligningen',
-  'compare.open': 'Sammenlign',
-  'compare.differencesOnly': 'Forskjeller',
-  'compare.showAll': 'Vis alt',
-  'compare.dimension': 'Dimensjon',
-  'compare.notLoaded': 'Ikke lastet',
-  'compare.none': 'Ingen',
-  'compare.activityCount': '{count} aktiviteter',
-  'compare.credits': 'Studiepoeng',
-  'compare.term': 'Termin',
-  'compare.campus': 'Studiested',
-  'compare.assessment': 'Vurdering',
-  'compare.obligatory': 'Obligatorisk arbeid',
-  'compare.collaboration': 'Samarbeid',
-  'compare.outcomeScale': 'Karakterskala',
-  'compare.failureRate': 'Strykprosent',
-  'compare.sample': 'Utvalg',
-  'compare.period': 'Observert periode',
-  'compare.identical': 'Alle gjenværende dimensjoner er like for disse emnene.',
-  'list.filterHeading': 'Filtrer på etikett',
-  'list.filterCombine': 'Kombiner etiketter',
-  'list.filterMode': 'Treff på inkluderte etiketter',
-  'list.filterModeAny': 'Minst én',
-  'list.filterModeAll': 'Alle',
-  'list.filterIncludeHeading': 'Inkluder etiketter',
-  'list.filterExcludeHeading': 'Utelat etiketter',
-  'list.filterExcludeHelp': 'Å utelate flere etiketter fjerner emner som har én av dem.',
-  'list.filterExclude': 'Utelat {name}',
-  'list.filterClear': 'Fjern etikettfilteret',
-  'list.filterSummaryInclude': 'Viser lagrede emner i {labels}.',
-  'list.filterSummaryExclude': 'Viser lagrede emner, utenom {excluded}.',
-  'list.filterSummaryBoth': 'Viser lagrede emner i {labels}, utenom {excluded}.',
-  'list.filterSummaryNone': 'Viser alle lagrede emner.',
-  'list.filterContradiction':
-    '{labels} forblir utelatt og ble derfor fjernet fra de inkluderte etikettene.',
-  'list.filterUnknownDropped':
-    'Filteret viste til etiketter som ikke finnes lenger. De ble fjernet: {count}.',
-  'list.filterUnlabeled': 'Uten etikett',
-  'list.filterUnsatisfiable':
-    '{unlabeled} betyr ingen etikett i det hele tatt, så Alle kan aldri treffe den sammen med en etikett. Bytt til Minst én, eller fjern en av dem.',
-  'list.filteredCount': 'Viser {shown} av {total} emner',
-  'list.filterEmpty': 'Ingen emner passer til disse filtrene',
-  'list.filterEmptyHelp': 'Endre filtrene, eller fjern dem for å se alle emner.',
-  'list.filtersClear': 'Fjern filtre',
-  'list.selectCourse': 'Velg {code}',
-  'list.selectionTray': 'Valgte lagrede emner',
-  'list.selectionCount': '{count} valgt',
-  'list.selectionCountOne': '1 valgt',
-  'list.selectionAddLabels': 'Legg til etiketter',
-  'list.selectionClear': 'Fjern utvalget',
-  'list.selectionRemove': 'Fjern valgte',
-  'list.selectionRemoveConfirm': 'Fjerne {count} lagrede emner, med notater og etiketter?',
-  'list.selectionRemoveConfirmAction': 'Ja, fjern dem',
-  'list.selectionRemoveCancel': 'Behold dem',
-  'label.colorViolet': 'Fiolett',
-  'label.colorAmber': 'Rav',
-  'label.colorRose': 'Rosa',
-  'label.colorEmerald': 'Smaragd',
-  'label.colorSky': 'Himmelblå',
-  'signals.heading': 'Vurdering og arbeid',
-  'signals.gradedAssessment': 'Tellende vurdering',
-  'signals.checking': 'Sjekker NTNUs emneside …',
-  'signals.failed': 'Emnesignaler er utilgjengelige',
-  'signals.waiting': 'Venter på kontroll',
-  'signals.missing': 'Ingen emnesignaler',
-  'signals.inferred': 'Utledet fra NTNUs emnetekst',
-  'signals.writtenExam': 'Skriftlig eksamen',
-  'signals.oralExam': 'Muntlig eksamen',
-  'signals.homeExam': 'Hjemmeeksamen',
-  'signals.project': 'Prosjekt',
-  'signals.portfolio': 'Mappe',
-  'signals.practical': 'Praktisk',
-  'signals.assignment': 'Innlevering',
-  'signals.otherAssessment': 'Annen vurdering',
-  'signals.obligatory': 'Obligatorisk arbeid',
-  'signals.noObligatory': 'Ingen obligatoriske aktiviteter oppgitt',
-  'signals.individual': 'Individuelt arbeid',
-  'signals.group': 'Gruppearbeid',
-  'signals.mixedCollaboration': 'Individuelt + gruppearbeid',
-  'signals.required': 'Påkrevd',
-  'signals.graded': 'tellende',
-  'signals.ungraded': 'Ikke tellende',
-  'signals.oneActivity': '1 aktivitet',
-  'signals.activityCount': '{count} aktiviteter',
-  'signals.noneReported': 'Ikke oppgitt',
-  'outcomes.heading': 'Historiske resultater',
-  'outcomes.source': 'HK-dir (DBH)',
-  'outcomes.checking': 'Sjekker HK-dir …',
-  'outcomes.failed': 'Karakterdata er utilgjengelig',
-  'outcomes.waiting': 'Venter på kontroll',
-  'outcomes.missing': 'Ingen karakteroversikt',
-  'outcomes.view': 'Velg karakterskala for historiske resultater',
-  'outcomes.letter': 'Bokstavkarakterer',
-  'outcomes.passFail': 'Bestått/ikke bestått',
-  'outcomes.mixed': 'Blandede skalaer',
-  'outcomes.available': 'Historiske resultater er tilgjengelige',
-  'outcomes.noBuckets': 'Ingen vurderte karaktergrupper ble returnert',
-  'outcomes.protected': 'Små tall er personvernskjermet',
-  'outcomes.conflicting': 'Publiserte resultatkilder er motstridende',
-  'outcomes.unknown': 'Resultatfordelingen er ikke fastslått',
-  'outcomes.unavailable': 'Ingen publisert resultatfordeling',
-  'outcomes.failedRate': '{value} % strøk',
-  'outcomes.sample': 'n={value}',
-  'outcomes.chartLabel': 'Historiske resultater fra HK-dir DBH. {summary}',
-  'outcomes.percent': '{label} {value} prosent',
-  'outcomes.pass': 'Bestått',
-  'outcomes.fail': 'Ikke bestått',
-  'detail.aria': 'Emnedetaljer for {code}',
-  'detail.titleUnavailable': 'Emnetittel er utilgjengelig',
-  'detail.loading': 'Samler emnedokumentasjon',
-  'detail.loadingHelp': 'Offisielle emnedetaljer og historiske resultater lastes uavhengig.',
-  'detail.unavailable': 'Emnet er utilgjengelig',
-  'detail.loadFailed': 'Vi kunne ikke laste dette emnet',
-  'detail.partial': 'Delvis resultat',
-  'detail.partialHelp':
-    'Én kilde er utilgjengelig. Emnedetaljer fra andre kilder vises fortsatt, og manglende resultater behandles ikke som null.',
-  'detail.complete': 'Alle konfigurerte kilder svarte.',
-  'detail.credits': 'Studiepoeng',
-  'detail.level': 'Nivå',
-  'detail.language': 'Språk',
-  'detail.availability': 'Tilgjengelighet',
-  'detail.availabilityHelp': 'Når og hvor emnet tilbys.',
-  'detail.termLocation': 'Undervisningssemester og sted',
-  'detail.learn': 'Dette skal du lære',
-  'detail.learnHelp': 'Emneinnhold og forventet læringsutbytte.',
-  'detail.content': 'Innhold',
-  'detail.learningOutcomes': 'Læringsutbytte',
-  'detail.works': 'Slik fungerer emnet',
-  'detail.worksHelp': 'Dokumentasjon om undervisning, samarbeid, oppmøte og deltakelse.',
-  'detail.teachingMethods': 'Undervisningsmetoder',
-  'detail.workForms': 'Arbeidsformer',
-  'detail.collaboration': 'Samarbeid',
-  'detail.attendance': 'Oppmøte',
-  'detail.online': 'Digital deltakelse',
-  'detail.assessment': 'Vurdering og obligatorisk arbeid',
-  'detail.assessmentHelp': 'Hva som teller i karakteren, og hva som må godkjennes først.',
-  'detail.assessmentFact': 'Vurdering',
-  'detail.assessmentWeight': 'Vekting i karakteren',
-  'detail.obligatory': 'Obligatoriske aktiviteter',
-  'detail.approvalGate': 'må godkjennes før vurdering',
-  'detail.requirements': 'Krav',
-  'detail.requirementsHelp': 'Anbefalt bakgrunn og adgangsbegrensninger.',
-  'detail.prerequisites': 'Forkunnskapskrav',
-  'detail.access': 'Adgangsbegrensninger',
-  'detail.inferred': 'Utledet',
-  'detail.conflicting': 'Motstridende',
-  'detail.gradeOutcomes': 'Karakterresultater',
-  'detail.gradeHelp':
-    'Historiske resultater beskriver tidligere kull og forutsier ikke et enkeltresultat.',
-  'detail.examParticipation': 'Eksamensaktivitet',
-  'detail.examParticipationHelp':
-    'Offisielle DBH-tall viser oppmeldinger og resultater. De teller ikke unike studenter.',
-  'detail.examRegistrations': '{count} oppmeldinger',
-  'detail.registered': 'Oppmeldt',
-  'detail.attended': 'Møtt',
-  'detail.passed': 'Bestått',
-  'detail.failed': 'Stryk',
-  'detail.passedAfterRepeat': 'Bestått ved gjentak',
-  'detail.coveredPeriod': 'Tidsperiode',
-  'detail.sampleSize': 'Utvalgsstørrelse',
-  'detail.results': '{count} resultater',
-  'detail.failureRate': 'Strykprosent',
-  'detail.averageGrade': 'Gjennomsnittskarakter',
-  'detail.medianGrade': 'Mediankarakter',
-  'detail.distribution': 'Karakterfordeling',
-  'detail.distributionCaption': 'Historisk karakterfordeling',
-  'detail.grade': 'Karakter',
-  'detail.count': 'Antall',
-  'detail.share': 'Andel',
-  'detail.sources': 'Kilder og ferskhet',
-  'detail.sourcesHelp':
-    'Hvert faktum lenker til kildeobservasjonen eller utledningen brukt i svaret. Testdata merkes uttrykkelig.',
-  'detail.noObservation': 'Ingen observasjonstid',
-  'detail.observed': 'Observert {date}',
-  'detail.noSourcePeriod': 'Ingen kildeperiode',
-  'detail.observedInline': '{period} · observert {date}',
-  'detail.noExternalLink': 'Ingen ekstern kildelenke',
-  'detail.openSource': 'Åpne kilde ↗',
-  'detail.noEvidence': 'Ingen støttende dokumentasjon',
-  'detail.supportingEvidence': 'Støttende dokumentasjon',
-  'detail.viewEvidence': 'Vis dokumentasjon',
-  'detail.viewEvidenceLabel': 'Vis dokumentasjon {id}',
-  'detail.deliveryUnknown': 'Undervisningsform er ukjent',
-  'detail.noneReported': 'Ikke oppgitt.',
-  'offering.academicYear': 'Studieåret {year}',
-  'footer.licensePrefix':
-    'Opphavsrett © bidragsyterne til Course Data Platform. Fri programvare lisensiert under ',
-  'footer.licenseSuffix': '; tilbys uten garanti.',
-  'footer.useful': 'Var dette nyttig? ',
-  'footer.optional': ' — helt valgfritt.',
-  'footer.license':
-    'Opphavsrett © bidragsyterne til Course Data Platform. Fri programvare lisensiert under {license}; tilbys uten garanti.',
-  'footer.licenseName': 'AGPL-3.0-only',
-  'footer.source': 'Vis kildekoden',
-  'footer.tip': 'Støtt prosjektet',
-  'feedback.prompt': 'Var dette til hjelp i avgjørelsen? ',
-  'feedback.action': 'Fortell oss',
-  'feedback.optional': ' — helt valgfritt.',
-  'progress.label': 'Progresjon',
-  'progress.heading': 'Studieprogresjonen din',
-  'progress.description':
-    'Importer en karakterhistorikk-PDF fra denne nettleseren for å gå gjennom fullførte emner. Opplysningene blir på denne enheten og er aldri offisiell dokumentasjon.',
-  'progress.loading': 'Laster studieprogresjonen din',
-  'progress.recoveryHeading': 'Kunne ikke laste studieprogresjonen din',
-  'progress.recoveryDescription':
-    'Den lagrede studieprogresjonen kunne ikke leses. Ingenting er endret.',
-  'progress.recoveryUnavailableHeading': 'Lokal lagring er utilgjengelig',
-  'progress.recoveryUnavailableDescription':
-    'Denne nettleseren kan ikke lagre studieprogresjonen din. Du kan fortsatt gjennomgå en import i dette besøket.',
-  'progress.recoveryReset': 'Tilbakestill studieprogresjon',
-  'progress.persistenceFailed':
-    'Den siste endringen i studieprogresjonen din kunne ikke lagres i denne nettleseren.',
-  'progress.persistenceSaving': 'Lagrer studieprogresjon …',
-  'progress.summaryHeading': 'Sammendrag',
-  'progress.weightedAverage': 'Studiepoengvektet snitt',
-  'progress.noAverage': 'Ingen karakteremner er inkludert',
-  'progress.earnedCredits': 'Oppnådde studiepoeng',
-  'progress.gradedCredits': 'Studiepoeng med karakter',
-  'progress.includedCourses': 'Inkluderte emner',
-  'progress.creditsValue': '{credits} studiepoeng',
-  'progress.courseCountOne': '{count} inkludert emne',
-  'progress.courseCountMany': '{count} inkluderte emner',
-  'progress.calculatorHeading': 'Snittinnstillinger',
-  'progress.calculatorDescription':
-    'Velg hvordan gjentak og stryk skal tas med i det studiepoengvektede snittet.',
-  'progress.retakePolicy': 'Regel for gjentak',
-  'progress.retakeLatest': 'Bruk siste resultat',
-  'progress.retakeBest': 'Bruk beste resultat',
-  'progress.includeF': 'Ta med F-karakterer i snittet',
-  'progress.importHeading': 'Importer karakterhistorikk',
-  'progress.importDescription':
-    'Velg en PDF med karakterhistorikk fra denne enheten. Den leses lokalt og lastes ikke opp eller lagres.',
-  'progress.importChoose': 'Velg PDF',
-  'progress.importDropHint': 'eller slipp én PDF her',
-  'progress.importRequirements': 'Bare PDF · opptil 10 MiB · 1–30 sider',
-  'progress.importParsing': 'Leser {fileName} lokalt …',
-  'progress.importNonFile': 'Velg en fil som skal importeres.',
-  'progress.importOneFile': 'Velg én PDF-fil.',
-  'progress.importPdfOnly': 'Velg en PDF-fil.',
-  'progress.importFailed': 'PDF-en kunne ikke leses som karakterhistorikk.',
-  'progress.importRetry': 'Prøv en annen fil',
-  'progress.reviewHeading': 'Se gjennom importerte resultater',
-  'progress.reviewDescription':
-    'Bekreft de studentførte radene som skal legges til i den lokale studieprogresjonen.',
-  'progress.reviewFile': 'Fil: {fileName}',
-  'progress.reviewInstitution': 'Utstedende institusjon: {institution}',
-  'progress.reviewInstitutionUnknown': 'Fant ikke utstedende institusjon',
-  'progress.reviewWarningsHeading': 'Advarsler for gjennomgang',
-  'progress.reviewSelectAll': 'Velg alle',
-  'progress.reviewSelectNone': 'Velg ingen',
-  'progress.reviewSelection': '{count} valgt',
-  'progress.reviewApprove': 'Legg til valgte resultater',
-  'progress.reviewCancel': 'Avbryt import',
-  'progress.reviewNoRows': 'Fant ingen emneresultater i denne PDF-en.',
-  'progress.reviewNoSelection': 'Velg minst ett resultat som skal legges til.',
-  'progress.importConflict': 'Importen har motstridende resultater for samme emne og semester.',
-  'progress.resultCourse': 'Emne',
-  'progress.resultSemester': 'Semester',
-  'progress.resultGrade': 'Karakter',
-  'progress.resultCredits': 'Studiepoeng',
-  'progress.resultStatedCredits': 'Oppgitte studiepoeng',
-  'progress.resultInclude': 'Ta med',
-  'progress.historyHeading': 'Historikken din',
-  'progress.historyDescription':
-    'Dette er lokale oppføringer du har lagt til. De er ikke offisiell emnedokumentasjon.',
-  'progress.emptyHeading': 'Ingen resultater ennå',
-  'progress.emptyDescription':
-    'Importer en PDF med karakterhistorikk for å regne ut det studiepoengvektede snittet.',
-  'progress.removeResult': 'Fjern {courseCode}',
-  'progress.remove': 'Fjern',
-  'progress.gradePass': 'Bestått',
-  'progress.gradeFail': 'Ikke bestått',
-  'progress.gradeRecognized': 'Godkjent',
-  'progress.retrySave': 'Prøv å lagre på nytt',
-  'progress.previewHeading': 'Kontroller den opprinnelige PDF-en',
-  'progress.previewDescription':
-    'Dokumentet blir i denne nettleseren. Kontroller at dette er riktig utskrift før Emneblikk leser den.',
-  'progress.previewReady': 'Forhåndsvisning av originaldokumentet',
-  'progress.previewParse': 'Les resultater fra denne PDF-en',
-  'progress.previewCancel': 'Avbryt',
-  'progress.reviewSource': 'Se original PDF',
-  'progress.reviewBack': 'Tilbake til importerte resultater',
-  'progress.reviewEdit': 'Rediger importerte rader',
-  'progress.reviewDoneEditing': 'Ferdig med redigering',
-  'progress.reviewDraftChanged':
-    'Kladden er endret. Lagret progresjon endres ikke før godkjenning.',
-  'progress.reviewDraftUnchanged':
-    'Dette er en kladd. Lagret progresjon endres ikke før godkjenning.',
-  'progress.reviewRowError': 'Denne valgte raden må rettes før godkjenning.',
-  'progress.reviewNew': 'Nytt resultat',
-  'progress.reviewUpdate': 'Oppdaterer lagret resultat fra dette semesteret',
-  'progress.reviewUnchanged': 'Allerede lagret med samme verdier',
-  'progress.reviewPrevious': 'Beholdes som et tidligere forsøk',
-  'progress.fieldInstitution': 'Lærested',
-  'progress.fieldCode': 'Emnekode',
-  'progress.fieldName': 'Emnenavn',
-  'progress.fieldYear': 'År',
-  'progress.fieldTerm': 'Semester',
-  'progress.fieldCredits': 'Studiepoeng',
-  'progress.fieldGrade': 'Karakter',
-  'progress.termSpring': 'Vår',
-  'progress.termAutumn': 'Høst',
-  'progress.addCourse': 'Legg til emneresultat',
-  'progress.editCourse': 'Rediger {courseCode}',
-  'progress.editorDescription':
-    'Endringene blir i kladden til du lagrer. Studiepoeng skrives som desimaltall; semester er 1 for vår eller 2 for høst.',
-  'progress.editorUnsaved': 'Kladden har ulagrede endringer',
-  'progress.editorValidation': 'Rett feltene med feil før du lagrer.',
-  'progress.saveCourse': 'Lagre emne',
-  'progress.cancelEdit': 'Avbryt redigering',
-  'progress.discardHeading': 'Forkaste disse endringene?',
-  'progress.discardDescription': 'Fortsett redigeringen for å beholde kladden.',
-  'progress.keepEditing': 'Fortsett redigering',
-  'progress.discardChanges': 'Forkast endringer',
-  'progress.removeCourseHeading': 'Fjerne dette emnet og tidligere forsøk?',
-  'progress.removeCourseDescription': 'Denne emneendringen kan angres i denne økten.',
-  'progress.confirmRemove': 'Fjern emne',
-  'progress.searchLabel': 'Finn et emne i progresjonen din',
-  'progress.searchPlaceholder': 'Emnekode, navn eller lærested',
-  'progress.searchCount': 'Viser {shown} av {total} emner',
-  'progress.searchEmpty': 'Ingen emner samsvarer med søket.',
-  'progress.openCourse': 'Åpne {courseCode} i Emneblikk',
-  'progress.targetHeading': 'På vei mot studiepoengmålet',
-  'progress.targetLabel': 'Studiepoengmål',
-  'progress.targetApply': 'Oppdater mål',
-  'progress.targetRemaining': '{credits} studiepoeng gjenstår.',
-  'progress.targetComplete': 'Du har nådd dette studiepoengmålet.',
-  'progress.targetHelp':
-    'Dette er en studiepoengoversikt. Lærestedet avgjør om emnesammensetningen fullfører en grad.',
-  'progress.distributionHeading': 'Karakterfordeling',
-  'progress.distributionDescription':
-    'Studiepoeng per valgt karakter. Bestått og godkjent gir studiepoeng, men påvirker ikke bokstavsnittet.',
-  'progress.semesterHeading': 'Snittutvikling',
-  'progress.semesterDescription':
-    'Hver rad viser det samlede studiepoengvektede snittet fram til og med semesteret.',
-  'progress.previousHeading': 'Tidligere forsøk',
-  'progress.previousDescription':
-    'Tidligere forsøk beholdes på denne enheten. Regelen for gjentak avgjør hvilket forsøk som inngår i snittet.',
-  'progress.previousCountOne': '1 tidligere forsøk',
-  'progress.previousCountMany': '{count} tidligere forsøk',
-  'progress.receiptsHeading': 'Importhistorikk',
-  'progress.receiptsDescription': 'Godkjente importer registrert på denne enheten.',
-  'progress.receiptsEmpty': 'Ingen godkjente importer ennå.',
-  'progress.receiptSummary':
-    '{courses} resultater · {credits} oppnådde studiepoeng · snitt {average}',
-  'progress.dataHeading': 'Dine lokale data',
-  'progress.dataDescription':
-    'Flytt opplysningene med en versjonert JSON-sikkerhetskopi. PDF-filer og angrehistorikken for økten blir aldri tatt med.',
-  'progress.backupDownload': 'Last ned sikkerhetskopi',
-  'progress.backupDownloaded': 'Sikkerhetskopien er lastet ned.',
-  'progress.backupFailed': 'Kunne ikke laste ned sikkerhetskopien.',
-  'progress.backupRestoreHeading': 'Gjenopprette denne sikkerhetskopien?',
-  'progress.backupRestoreDescription':
-    'Dette erstatter resultater, innstillinger, mål og importhistorikk på denne enheten.',
-  'progress.backupRestore': 'Gjenopprett sikkerhetskopi',
-  'progress.backupRestored': 'Sikkerhetskopien er gjenopprettet.',
-  'progress.clearRequest': 'Slett lokal progresjon',
-  'progress.clearHeading': 'Slette progresjonen fra denne enheten?',
-  'progress.clearDescription':
-    'Resultater, innstillinger, importhistorikk og angrehistorikken for økten blir slettet. Last ned en sikkerhetskopi først hvis du trenger dem.',
-  'progress.clearConfirm': 'Slett lokal progresjon',
-  'progress.confirmCancel': 'Behold opplysningene',
-  'progress.exampleLoad': 'Se eksempelprogresjon',
-  'progress.exampleHeading': 'Erstatte nåværende progresjon med eksempeldata?',
-  'progress.exampleDescription':
-    'Last ned en sikkerhetskopi først hvis du vil beholde opplysningene dine.',
-  'progress.exampleConfirm': 'Last inn eksempel',
-  'progress.calculationHeading': 'Slik beregnes snittet',
-  'progress.calculationFormula': 'Σ (karakterpoeng × studiepoeng) ÷ Σ studiepoeng med karakter',
-  'progress.calculationDescription':
-    'A=5, B=4, C=3, D=2, E=1 og F=0 når stryk tas med. Bestått, ikke bestått og godkjent gir ikke studiepoeng med bokstavkarakter.',
-  'progress.calculationDisclaimer':
-    'Dette er en beskrivende beregning på norsk A–F-skala, ikke et offisielt opptakssnitt eller en amerikansk GPA.',
-  'progress.sessionHeading': 'Endringer i denne økten',
-  'progress.sessionDescription':
-    'Angre og gjør om flytter mellom emneendringer. Beregningsinnstillinger og studiepoengmål beholdes.',
-  'progress.sessionUndo': 'Angre',
-  'progress.sessionRedo': 'Gjør om',
-  'progress.sessionStart': 'Starten av økten',
-  'progress.sessionCurrent': 'Gjeldende',
-  'progress.sessionUndone': 'Angret',
-  'progress.sessionEmpty': 'Ingen emneendringer i denne økten.',
-  'progress.restoreInvalid': 'Den valgte filen er ikke en støttet progresjonssikkerhetskopi.',
-  'progress.fileType': 'PDF-utskrift eller JSON-sikkerhetskopi fra Emneblikk',
-  'progress.statusCourseSaved': 'Emneresultatet er lagret.',
-  'progress.statusImportSaved': 'De importerte resultatene er lagret.',
-  'progress.statusCleared': 'Lokal progresjon er slettet.',
-  'progress.staleDraft':
-    'Progresjonen ble endret etter at denne kladden ble åpnet. Lukk den og start på nytt, slik at ingen nyere endring blir overskrevet.',
-  'progress.targetProgress': '{earned} av {target} studiepoeng oppnådd',
-  'progress.targetProgressLabel': 'Progresjon mot studiepoengmålet',
-  'progress.noTrend': 'Legg til resultater med bokstavkarakter for å se snittutviklingen.',
-  'progress.importSupportedOnly': 'Velg én PDF-utskrift eller JSON-sikkerhetskopi fra Emneblikk.',
-  'progress.importOpening': 'Åpner {fileName} lokalt …',
-  'progress.timelineImport': 'Importerte resultater',
-  'progress.timelineAdd': 'La til et resultat',
-  'progress.timelineEdit': 'Redigerte et resultat',
-  'progress.timelineRemove': 'Fjernet et resultat',
-  'progress.timelineRestore': 'Gjenopprettet en sikkerhetskopi',
-  'progress.timelineCourses': '{count} resultater etter denne endringen',
-  'progress.vocabularyHeading': 'Flere tekstetiketter i karakterutskriften',
-  'progress.vocabularyDescription':
-    'Legg bare til etiketter når karakterutskriften bruker ord importøren ikke kjenner. Innstillingene gjelder den neste PDF-en i denne nettleserfanen.',
-  'progress.vocabularyTerms': 'Semesteretiketter',
-  'progress.vocabularyTermsHelp': 'Én per linje som etikett=1 for vår eller etikett=2 for høst.',
-  'progress.vocabularyGrades': 'Karakteretiketter',
-  'progress.vocabularyGradesHelp': 'Én per linje som etikett=A–F, pass, fail eller recognized.',
-  'progress.vocabularyTotals': 'Etiketter for sum studiepoeng',
-  'progress.vocabularyTotalsHelp': 'Én etikett per linje, for eksempel «ECTS totalt».',
-  'progress.vocabularyInvalid': 'Rett de ekstra tekstetikettene før PDF-en leses.',
-  'progress.editResult': 'Rediger emneresultat',
-} satisfies MessageCatalogue;
+/**
+ * Dynamic catalogues are indexed by this English baseline. The module that
+ * loads a locale only carries values, not message keys, so it cannot make the
+ * production entry chunk retain another language's strings.
+ */
+export const messageKeys = Object.freeze(
+  Object.keys(englishMessages) as Array<MessageKey>,
+) as ReadonlyArray<MessageKey>;
 
-const catalogues: Readonly<Record<Locale, MessageCatalogue>> = { en, nb };
+const messageIndexes: Readonly<Record<MessageKey, number>> = Object.freeze(
+  Object.fromEntries(messageKeys.map((key, index) => [key, index])) as Record<MessageKey, number>,
+);
+
+export const IndexedMessageCatalogueSchema = S.Array(S.String);
+export type IndexedMessageCatalogue = typeof IndexedMessageCatalogueSchema.Type;
+
+const TokenTranslationSchema = S.Struct({
+  token: S.String,
+  message: S.String,
+});
+export const TokenCatalogueSchema = S.Array(TokenTranslationSchema);
+export type TokenCatalogue = typeof TokenCatalogueSchema.Type;
+
+/**
+ * Locale-specific data remains explicit application state. English needs no
+ * payload; the optional payload is the loaded Norwegian catalogue.
+ */
+export const Localization = S.Struct({
+  locale: LocaleSchema,
+  messages: S.optional(IndexedMessageCatalogueSchema),
+  tokens: S.optional(TokenCatalogueSchema),
+});
+export type Localization = typeof Localization.Type;
+
+export const encodeMessageCatalogue = (catalogue: MessageCatalogue): IndexedMessageCatalogue =>
+  messageKeys.map((key) => catalogue[key]);
 
 const interpolationNames = (message: string): ReadonlyArray<string> =>
   [...message.matchAll(/\{([a-z][a-zA-Z0-9]*)\}/g)]
@@ -1271,20 +676,24 @@ const interpolationNames = (message: string): ReadonlyArray<string> =>
     .filter((name): name is string => name !== undefined)
     .sort();
 
-export const validateMessageCatalogues = (): ReadonlyArray<string> => {
+/**
+ * Kept independent of dynamic imports so the validator can load both complete
+ * source catalogues directly without pulling Norwegian strings into the app.
+ */
+export const validateMessageCatalogues = (
+  catalogues: Readonly<Record<Locale, MessageCatalogue>>,
+): ReadonlyArray<string> => {
   const issues: Array<string> = [];
-  const baselineKeys = Object.keys(en) as ReadonlyArray<MessageKey>;
-  const baselineKeySet = new Set(baselineKeys);
 
   for (const locale of supportedLocales) {
-    const catalogue = catalogues[locale] as Readonly<Record<string, string>>;
-    for (const key of baselineKeys) {
+    const catalogue = catalogues[locale];
+    for (const key of messageKeys) {
       const message = catalogue[key];
       if (message === undefined) {
         issues.push(`${locale}: missing message "${key}"`);
         continue;
       }
-      const expected = interpolationNames(en[key]);
+      const expected = interpolationNames(englishMessages[key]);
       const actual = interpolationNames(message);
       if (expected.join('|') !== actual.join('|')) {
         issues.push(
@@ -1293,7 +702,7 @@ export const validateMessageCatalogues = (): ReadonlyArray<string> => {
       }
     }
     for (const key of Object.keys(catalogue)) {
-      if (!baselineKeySet.has(key as MessageKey)) {
+      if (messageIndexes[key as MessageKey] === undefined) {
         issues.push(`${locale}: unknown message "${key}"`);
       }
     }
@@ -1308,58 +717,23 @@ export const localeTag = (locale: Locale): 'en-GB' | 'nb-NO' =>
   locale === 'nb' ? 'nb-NO' : 'en-GB';
 
 export const translate = (
-  locale: Locale,
+  localization: Localization,
   key: MessageKey,
   parameters: Readonly<Record<string, string | number>> = {},
 ): string => {
-  let message: string = catalogues[locale][key] ?? en[key];
+  const localizedMessage =
+    localization.locale === 'nb' ? localization.messages?.[messageIndexes[key]] : undefined;
+  let message = localizedMessage ?? englishMessages[key];
   for (const [name, value] of Object.entries(parameters)) {
     message = message.replaceAll(`{${name}}`, String(value));
   }
   return message;
 };
 
-const tokenCatalogues: Readonly<Record<Locale, Readonly<Record<string, string>>>> = {
-  en: {},
-  nb: {
-    autumn: 'Høst',
-    spring: 'Vår',
-    summer: 'Sommer',
-    'full-year': 'Hele studieåret',
-    bachelor: 'Bachelor',
-    master: 'Master',
-    phd: 'Ph.d.',
-    'continuing-education': 'Etter- og videreutdanning',
-    unknown: 'Ukjent',
-    unavailable: 'Utilgjengelig',
-    suppressed: 'Skjermet',
-    conflicting: 'Motstridende',
-    available: 'Tilgjengelig',
-    failed: 'Mislykket',
-    inference: 'Utledning',
-    fixture: 'Testdata',
-    'source-fact': 'Kildefaktum',
-    'in-person': 'Fysisk',
-    online: 'Digitalt',
-    hybrid: 'Hybrid',
-    lectures: 'Forelesninger',
-    exercises: 'Øvinger',
-    laboratory: 'Laboratorium',
-    seminar: 'Seminar',
-    project: 'Prosjekt',
-    'self-study': 'Selvstudium',
-    other: 'Annet',
-    'written-exam': 'Skriftlig eksamen',
-    'oral-exam': 'Muntlig eksamen',
-    'home-exam': 'Hjemmeeksamen',
-    portfolio: 'Mappevurdering',
-    practical: 'Praktisk',
-    assignment: 'Oppgave',
-  },
-};
-
-export const translateToken = (locale: Locale, value: string): string =>
-  tokenCatalogues[locale][value] ??
+export const translateToken = (localization: Localization, value: string): string =>
+  (localization.locale === 'nb'
+    ? localization.tokens?.find((translation) => translation.token === value)?.message
+    : undefined) ??
   value
     .split('-')
     .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)

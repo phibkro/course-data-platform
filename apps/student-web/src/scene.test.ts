@@ -2,18 +2,20 @@
 import { Scene } from 'foldkit';
 import { test } from 'vitest';
 
-import { fixtureSearchResponse } from './course-client';
+import { fixtureSearchResponse } from './course-client.fixture';
 import { partialCourseInsightFixture } from './course-insight.fixture';
 import {
   CatalogueEmpty,
   CatalogueFailure,
   CataloguePartial,
   DetailFailure,
+  LoadedNorwegianMessages,
   DetailPartial,
   initForHref,
   update,
   view,
 } from './app';
+import { norwegianIndexedMessages, norwegianTokenCatalogue } from './i18n.nb';
 
 const baseModel = () => initForHref('http://course-lens.local/').model;
 
@@ -23,6 +25,23 @@ test('Scene: catalogue loading is announced as a live semantic state', () => {
     Scene.given(baseModel()),
     Scene.expect(Scene.role('status')).toExist(),
     Scene.expect(Scene.text('Loading the NTNU catalogue')).toExist(),
+  );
+});
+
+test('Scene: a loaded locale replaces the English fallback without losing app state', () => {
+  const model = update(
+    initForHref('http://course-lens.local/?lang=nb').model,
+    LoadedNorwegianMessages({
+      messages: norwegianIndexedMessages,
+      tokens: norwegianTokenCatalogue,
+    }),
+  ).model;
+
+  Scene.scene(
+    { update, view },
+    Scene.given(model),
+    Scene.expect(Scene.text('Utforsk emner før du velger.')).toExist(),
+    Scene.expect(Scene.text('Browse courses before you choose.')).toBeAbsent(),
   );
 });
 

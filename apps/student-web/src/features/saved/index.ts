@@ -69,7 +69,7 @@ import {
   stateCardH2Class,
   stateCardPClass,
 } from '../../app-styles';
-import { localeTag, translate, type Locale } from '../../i18n';
+import { localeTag, translate, type Localization } from '../../i18n';
 import { courseOfferingFacts } from '../../course-facts';
 import { icon } from '../../icons';
 import {
@@ -136,7 +136,7 @@ export const savedCoursesPersistenceAlert = (model: Model, h: HtmlBuilder<Messag
       ),
       h.Role('alert'),
     ],
-    [translate(model.locale, 'list.persistFailed')],
+    [translate(model.localization, 'list.persistFailed')],
   );
 };
 
@@ -157,16 +157,16 @@ const savedListActionStatus = (model: Model, h: HtmlBuilder<Message>): Html => {
     const removed = notice._tag === 'SavedActionRemoved' ? notice.courses : [];
     const message =
       notice._tag === 'SavedActionSaved'
-        ? translate(model.locale, 'list.savedStatus', { code: notice.courseCode })
+        ? translate(model.localization, 'list.savedStatus', { code: notice.courseCode })
         : single && removed[0] !== undefined
-          ? translate(model.locale, 'list.removedStatus', { code: removed[0].courseCode })
-          : translate(model.locale, 'list.removedManyStatus', { count: removed.length });
+          ? translate(model.localization, 'list.removedStatus', { code: removed[0].courseCode })
+          : translate(model.localization, 'list.removedManyStatus', { count: removed.length });
     const undoLabel =
       notice._tag === 'SavedActionSaved'
-        ? translate(model.locale, 'list.undoSave', { code: notice.courseCode })
+        ? translate(model.localization, 'list.undoSave', { code: notice.courseCode })
         : single && removed[0] !== undefined
-          ? translate(model.locale, 'list.undoRemove', { code: removed[0].courseCode })
-          : translate(model.locale, 'list.undoRemoveMany', { count: removed.length });
+          ? translate(model.localization, 'list.undoRemove', { code: removed[0].courseCode })
+          : translate(model.localization, 'list.undoRemoveMany', { count: removed.length });
 
     return h.div(
       [
@@ -188,7 +188,7 @@ const savedListActionStatus = (model: Model, h: HtmlBuilder<Message>): Html => {
                 toView: (attributes) =>
                   h.button(
                     [...attributes.button, h.Class(buttonClass), h.AriaLabel(undoLabel)],
-                    [translate(model.locale, 'list.undo')],
+                    [translate(model.localization, 'list.undo')],
                   ),
               },
               h,
@@ -202,7 +202,7 @@ const savedListActionStatus = (model: Model, h: HtmlBuilder<Message>): Html => {
                 toView: (attributes) =>
                   h.button(
                     [...attributes.button, h.Class(buttonClass)],
-                    [translate(model.locale, 'list.dismissStatus')],
+                    [translate(model.localization, 'list.dismissStatus')],
                   ),
               },
               h,
@@ -235,7 +235,11 @@ const savedListActionStatus = (model: Model, h: HtmlBuilder<Message>): Html => {
                   toView: (attributes) =>
                     h.button(
                       [...attributes.button, h.Class(`${buttonClass} min-h-11`)],
-                      [translate(model.locale, 'list.dismissAllStatus', { count: notices.length })],
+                      [
+                        translate(model.localization, 'list.dismissAllStatus', {
+                          count: notices.length,
+                        }),
+                      ],
                     ),
                 },
                 h,
@@ -246,7 +250,7 @@ const savedListActionStatus = (model: Model, h: HtmlBuilder<Message>): Html => {
   );
 };
 
-const listHeader = (locale: Locale, h: HtmlBuilder<Message>): Html => {
+const listHeader = (locale: Localization, h: HtmlBuilder<Message>): Html => {
   return h.header(
     [h.Class('pt-[clamp(1.5rem,4vw,3rem)] pb-2 grid gap-4')],
     [
@@ -297,7 +301,7 @@ const labelDotTone = (color: LabelColor): string =>
     M.exhaustive,
   );
 
-const labelColorName = (color: LabelColor, locale: Locale): string =>
+const labelColorName = (color: LabelColor, locale: Localization): string =>
   M.value(color).pipe(
     M.when('violet', () => translate(locale, 'label.colorViolet')),
     M.when('amber', () => translate(locale, 'label.colorAmber')),
@@ -331,7 +335,7 @@ const labelDot = (color: LabelColor, h: HtmlBuilder<Message>): Html => {
 
 /** The count is visible as a number and named for assistive technology, so the
  *  chip never depends on the digit alone to explain itself. */
-const labelCountBadge = (count: number, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const labelCountBadge = (count: number, locale: Localization, h: HtmlBuilder<Message>): Html => {
   return h.span(
     [h.Class('inline-flex items-center gap-1')],
     [
@@ -384,7 +388,7 @@ const noteFieldClass =
 const systemBadgeClass =
   'inline-flex min-h-7 items-center rounded-full border border-primary/40 bg-primary-container px-2.5 text-xs font-extrabold text-on-primary-container';
 
-const resultGradeLabel = (grade: string, locale: Locale): string => {
+const resultGradeLabel = (grade: string, locale: Localization): string => {
   switch (grade) {
     case 'pass':
       return translate(locale, 'progress.gradePass');
@@ -397,20 +401,24 @@ const resultGradeLabel = (grade: string, locale: Locale): string => {
   }
 };
 
-const resultSummary = (course: StudentCourse, locale: Locale): string | null => {
+const resultSummary = (course: StudentCourse, locale: Localization): string | null => {
   const result = course.resultCourse?.latest;
   if (result === undefined) return null;
   return translate(locale, 'list.resultSummary', {
     grade: resultGradeLabel(result.grade, locale),
     term: translate(locale, result.term === 1 ? 'progress.termSpring' : 'progress.termAutumn'),
     year: result.year,
-    credits: new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(
+    credits: new Intl.NumberFormat(localeTag(locale.locale), { maximumFractionDigits: 2 }).format(
       result.credits,
     ),
   });
 };
 
-const resultEvidence = (course: StudentCourse, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const resultEvidence = (
+  course: StudentCourse,
+  locale: Localization,
+  h: HtmlBuilder<Message>,
+): Html => {
   const summary = resultSummary(course, locale);
   if (summary === null) return h.empty;
   return h.section(
@@ -445,7 +453,7 @@ const savedCourseRow = (
   gradeSignal: CourseGradeSummaryDtoType | null,
   noteDraft: string,
   isSelected: boolean,
-  locale: Locale,
+  locale: Localization,
   outcomeView: OutcomeView,
   density: ListDensity,
   h: HtmlBuilder<Message>,
@@ -731,12 +739,16 @@ const savedCourseRow = (
   );
 };
 
-const courseCountLabel = (count: number, locale: Locale): string =>
+const courseCountLabel = (count: number, locale: Localization): string =>
   count === 1
     ? translate(locale, 'list.courseCountOne')
     : translate(locale, 'list.courseCountMany', { count });
 
-const originFilterLabel = (filter: CourseOriginFilter, count: number, locale: Locale): string =>
+const originFilterLabel = (
+  filter: CourseOriginFilter,
+  count: number,
+  locale: Localization,
+): string =>
   translate(
     locale,
     filter === 'all'
@@ -756,14 +768,14 @@ const originFilterView = (
     [
       h.Class('flex flex-wrap items-center gap-2'),
       h.Role('group'),
-      h.AriaLabel(translate(model.locale, 'list.originFilter')),
+      h.AriaLabel(translate(model.localization, 'list.originFilter')),
     ],
     courseOriginFilters.map((filter) => {
       const selected = model.courseOriginFilter === filter;
       const label = originFilterLabel(
         filter,
         filterStudentCoursesByOrigin(courses, filter).length,
-        model.locale,
+        model.localization,
       );
       return Button.view<Message>(
         {
@@ -792,9 +804,9 @@ const originFilterView = (
 
 const nameList = (
   names: ReadonlyArray<string>,
-  locale: Locale,
+  locale: Localization,
   type: 'conjunction' | 'disjunction',
-): string => new Intl.ListFormat(localeTag(locale), { style: 'long', type }).format(names);
+): string => new Intl.ListFormat(localeTag(locale.locale), { style: 'long', type }).format(names);
 
 const labelsFromIds = (
   state: SavedListState,
@@ -812,7 +824,7 @@ const predicateNames = (
   state: SavedListState,
   labelIds: ReadonlyArray<string>,
   unlabeled: boolean,
-  locale: Locale,
+  locale: Localization,
 ): ReadonlyArray<string> => [
   ...labelsFromIds(state, labelIds).map((label) => label.name),
   ...(unlabeled ? [translate(locale, 'list.filterUnlabeled')] : []),
@@ -823,7 +835,11 @@ const predicateNames = (
  * conjunction and `Any` as a disjunction, so the sentence and the switch can
  * never disagree about what is being shown.
  */
-const labelFilterSummary = (state: SavedListState, filter: LabelFilter, locale: Locale): string => {
+const labelFilterSummary = (
+  state: SavedListState,
+  filter: LabelFilter,
+  locale: Localization,
+): string => {
   const included = predicateNames(state, filter.includeLabelIds, filter.includeUnlabeled, locale);
   const excluded = predicateNames(state, filter.excludeLabelIds, filter.excludeUnlabeled, locale);
   const includedText = nameList(
@@ -864,7 +880,7 @@ const excludeCheckbox = (
   predicate: LabelPredicate,
   name: string,
   dot: Html,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   return Checkbox.view<Message>(
@@ -905,7 +921,7 @@ const excludeCheckbox = (
  * single tap and the bounded composition is still reachable by keyboard.
  */
 const labelFilterView = (model: Model, state: SavedListState, h: HtmlBuilder<Message>): Html => {
-  const locale = model.locale;
+  const locale = model.localization;
   const labels = labelsByName(state);
   if (labels.length === 0) {
     return h.section(
@@ -1048,7 +1064,7 @@ const labelFilterView = (model: Model, state: SavedListState, h: HtmlBuilder<Mes
                       ),
                       h.span(
                         [h.Class('ml-2 font-bold tabular-nums opacity-[0.75]')],
-                        [countFor(option.value).toLocaleString(localeTag(locale))],
+                        [countFor(option.value).toLocaleString(localeTag(locale.locale))],
                       ),
                     ],
                   ),
@@ -1205,7 +1221,7 @@ const labelFilterView = (model: Model, state: SavedListState, h: HtmlBuilder<Mes
 
 const labelDialogAction = (
   courseCodes: ReadonlyArray<string>,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const forSelection = courseCodes.length > 0;
@@ -1321,7 +1337,7 @@ const selectionTrayView = (
   h: HtmlBuilder<Message>,
 ): Html => {
   if (selected.length === 0) return h.empty;
-  const locale = model.locale;
+  const locale = model.localization;
   return h.div(
     [
       h.Class(selectionTrayClass),
@@ -1444,7 +1460,7 @@ const selectionTrayView = (
 
 const recoveryMessage = (
   recovery: Extract<SavedCoursesResult, { readonly _tag: 'SavedCoursesRecovery' }>,
-  locale: Locale,
+  locale: Localization,
 ): string =>
   M.value(recovery.reason).pipe(
     M.when('unavailable', () => translate(locale, 'list.recoveryUnavailable')),
@@ -1464,7 +1480,7 @@ const recoveryMessage = (
  */
 const savedCoursesRecoveryView = (
   recovery: Extract<SavedCoursesResult, { readonly _tag: 'SavedCoursesRecovery' }>,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   return h.section(
@@ -1531,7 +1547,7 @@ const savedCoursesRecoveryView = (
  */
 const listDensityChoice = (
   density: ListDensity,
-  locale: Locale,
+  locale: Localization,
   radioGroup: Model['listDensityRadioGroup'],
   h: HtmlBuilder<Message>,
 ): Html =>
@@ -1601,20 +1617,20 @@ const savedCourseListView = (
     return h.section(
       [h.Class(stateCardBase), h.Role('status')],
       [
-        h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'list.empty')]),
-        h.p([h.Class(stateCardPClass)], [translate(model.locale, 'list.emptyHelp')]),
+        h.h2([h.Class(stateCardH2Class)], [translate(model.localization, 'list.empty')]),
+        h.p([h.Class(stateCardPClass)], [translate(model.localization, 'list.emptyHelp')]),
         h.a(
           [
             h.Href(exploreUrl(model)),
             h.Class(`${backButtonClass} mt-4 inline-flex items-center no-underline`),
           ],
-          [translate(model.locale, 'list.backToExplore')],
+          [translate(model.localization, 'list.backToExplore')],
         ),
       ],
     );
   }
   return h.section(
-    [h.Class('grid gap-4'), h.AriaLabel(translate(model.locale, 'list.heading'))],
+    [h.Class('grid gap-4'), h.AriaLabel(translate(model.localization, 'list.heading'))],
     [
       repaired === 0
         ? h.empty
@@ -1623,7 +1639,7 @@ const savedCourseListView = (
               h.Class('py-4 px-5 rounded-m3-medium bg-warning-container text-on-warning-container'),
               h.Role('status'),
             ],
-            [translate(model.locale, 'list.repaired', { count: repaired })],
+            [translate(model.localization, 'list.repaired', { count: repaired })],
           ),
       (() => {
         const selection = compareSelection(state, model.compareCodes);
@@ -1640,10 +1656,10 @@ const savedCourseListView = (
           model: initCompare(model.compareCodes, model.compareDifferencesOnly),
           view: compareView,
           viewInputs: {
-            locale: model.locale,
+            locale: model.localization,
             courses,
             facts,
-            feedback: feedbackRow(model.locale, h),
+            feedback: feedbackRow(model.localization, h),
           },
           toParentMessage: (message) => GotCompareMessage({ message }),
         });
@@ -1657,14 +1673,14 @@ const savedCourseListView = (
             [h.AriaLive('polite'), h.Class('m-0 text-on-surface-variant text-sm')],
             [
               filterActive
-                ? translate(model.locale, 'list.filteredCount', {
+                ? translate(model.localization, 'list.filteredCount', {
                     shown: courses.length,
                     total: total.length,
                   })
-                : courseCountLabel(total.length, model.locale),
+                : courseCountLabel(total.length, model.localization),
             ],
           ),
-          listDensityChoice(model.listDensity, model.locale, model.listDensityRadioGroup, h),
+          listDensityChoice(model.listDensity, model.localization, model.listDensityRadioGroup, h),
         ],
       ),
       // A collection that matches nothing is a filter outcome, never a failure
@@ -1673,8 +1689,14 @@ const savedCourseListView = (
         ? h.section(
             [h.Class(stateCardBase), h.Role('status')],
             [
-              h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'list.filterEmpty')]),
-              h.p([h.Class(stateCardPClass)], [translate(model.locale, 'list.filterEmptyHelp')]),
+              h.h2(
+                [h.Class(stateCardH2Class)],
+                [translate(model.localization, 'list.filterEmpty')],
+              ),
+              h.p(
+                [h.Class(stateCardPClass)],
+                [translate(model.localization, 'list.filterEmptyHelp')],
+              ),
               Button.view<Message>(
                 {
                   type: 'button',
@@ -1685,7 +1707,7 @@ const savedCourseListView = (
                         ...attributes.button,
                         h.Class(`${compactButtonBase} ${buttonSecondary} mt-4`),
                       ],
-                      [translate(model.locale, 'list.filtersClear')],
+                      [translate(model.localization, 'list.filtersClear')],
                     ),
                 },
                 h,
@@ -1704,7 +1726,7 @@ const savedCourseListView = (
                 savedGradeSignal(model, course.courseCode),
                 course.savedCourse === null ? '' : noteDraftFor(model, course.savedCourse),
                 course.savedCourse !== null && selectedCodes.has(course.courseCode),
-                model.locale,
+                model.localization,
                 model.outcomeView,
                 model.listDensity,
                 h,
@@ -1718,12 +1740,12 @@ const savedCourseListView = (
 const labelErrorMessage = (model: Model): string | null => {
   if (model.labelError === null) return null;
   return M.value(model.labelError).pipe(
-    M.when('empty-name', () => translate(model.locale, 'list.labelEmptyName')),
-    M.when('duplicate-name', () => translate(model.locale, 'list.labelDuplicate')),
+    M.when('empty-name', () => translate(model.localization, 'list.labelEmptyName')),
+    M.when('duplicate-name', () => translate(model.localization, 'list.labelDuplicate')),
     M.when('limit-reached', () =>
-      translate(model.locale, 'list.labelLimit', { count: labelsMaxCount }),
+      translate(model.localization, 'list.labelLimit', { count: labelsMaxCount }),
     ),
-    M.when('unknown-label', () => translate(model.locale, 'list.labelUnknownError')),
+    M.when('unknown-label', () => translate(model.localization, 'list.labelUnknownError')),
     M.exhaustive,
   );
 };
@@ -1738,7 +1760,7 @@ const labelErrorMessage = (model: Model): string | null => {
  * how many.
  */
 export const labelDialogView = (model: Model, h: HtmlBuilder<Message>): Html => {
-  const locale = model.locale;
+  const locale = model.localization;
   const state = savedListState(model.savedCourses);
   const labels = state === null ? [] : labelsByName(state);
   const targets = state === null ? [] : labelTargetIdentities(state, model.labelDialogTarget);
@@ -2146,12 +2168,12 @@ const savedCoursesResultView = (model: Model, h: HtmlBuilder<Message>): Html => 
         [h.Class(stateCardBase), h.Role('status'), h.AriaLive('polite')],
         [
           h.div([h.Class(loadingIndicatorClass), h.AriaHidden(true)], []),
-          h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'list.loading')]),
-          h.p([h.Class(stateCardPClass)], [translate(model.locale, 'list.loadingHelp')]),
+          h.h2([h.Class(stateCardH2Class)], [translate(model.localization, 'list.loading')]),
+          h.p([h.Class(stateCardPClass)], [translate(model.localization, 'list.loadingHelp')]),
         ],
       );
     case 'SavedCoursesRecovery':
-      return savedCoursesRecoveryView(model.savedCourses, model.locale, h);
+      return savedCoursesRecoveryView(model.savedCourses, model.localization, h);
     case 'SavedCoursesReady':
       return savedCourseListView(
         model,
@@ -2165,6 +2187,6 @@ const savedCoursesResultView = (model: Model, h: HtmlBuilder<Message>): Html => 
 export const listView = (model: Model, h: HtmlBuilder<Message>): Html => {
   return h.div(
     [h.Class('grid gap-6')],
-    [lazyListHeader(listHeader, [model.locale, h]), savedCoursesResultView(model, h)],
+    [lazyListHeader(listHeader, [model.localization, h]), savedCoursesResultView(model, h)],
   );
 };

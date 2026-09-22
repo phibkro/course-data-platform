@@ -1,11 +1,8 @@
 import { Effect } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import {
-  fixtureDecisionSignalsResponse,
-  fixtureSearchResponse,
-  makeCourseClient,
-} from './course-client';
+import { makeCourseClient } from './course-client';
+import { fixtureDecisionSignalsResponse, fixtureSearchResponse } from './course-client.fixture';
 
 describe('course client public boundary', () => {
   afterEach(() => {

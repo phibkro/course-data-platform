@@ -4,10 +4,11 @@ import {
   fixtureDecisionSignalsResponse,
   fixtureGradeSummariesResponse,
   fixtureSearchResponse,
-} from '../../course-client';
+} from '../../course-client.fixture';
 import { courseIdentity } from '../../course-identity';
 import { emptySavedList, saveCourse, savedCoursesNewestFirst } from '../../saved-courses';
 import { Message, compareRows, init, update, type CompareCourseFacts } from './index';
+const english = { locale: 'en' } as const;
 
 const identity = (courseCode: string) => {
   const parsed = courseIdentity(courseCode);
@@ -53,7 +54,7 @@ describe('saved-course comparison', () => {
       }),
     );
 
-    const credits = compareRows('en', facts).find((row) => row.label === 'Credits');
+    const credits = compareRows(english, facts).find((row) => row.label === 'Credits');
     expect(credits?.cells.map((cell) => cell.text)).toEqual(['15 credits', '7.5 credits']);
   });
 
@@ -79,7 +80,7 @@ describe('saved-course comparison', () => {
       }),
     );
 
-    const failureRate = compareRows('en', facts).find((row) => row.label === 'Failure rate');
+    const failureRate = compareRows(english, facts).find((row) => row.label === 'Failure rate');
     expect(failureRate?.cells.map((cell) => cell.text).sort()).toEqual(['Not loaded', 'Unknown']);
     expect(failureRate?.cells.every((cell) => !cell.known)).toBe(true);
   });

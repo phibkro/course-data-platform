@@ -13,7 +13,7 @@ import {
   controlGroupClass,
   fieldLabelClass,
 } from '../../app-styles';
-import type { Locale } from '../../i18n';
+import type { Localization } from '../../i18n';
 import {
   CourseDraftFieldsSchema,
   CourseResultSchema,
@@ -248,7 +248,7 @@ export interface Labels {
 }
 
 export interface ViewInputs {
-  readonly locale: Locale;
+  readonly locale: Localization;
   readonly labels: Labels;
 }
 
@@ -409,7 +409,7 @@ export const view = defineView<Model, Message, ViewInputs>((model, { locale, lab
   const saveLabel = isEditing ? labels.saveChanges : labels.addCourse;
 
   return h.section(
-    [h.Class(editorPanelClass), h.Lang(locale), h.AriaLabel(heading)],
+    [h.Class(editorPanelClass), h.Lang(locale.locale), h.AriaLabel(heading)],
     [
       h.header(
         [],

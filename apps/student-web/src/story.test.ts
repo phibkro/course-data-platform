@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { expect, test } from 'vitest';
 
-import { fixtureSearchResponse } from './course-client';
+import { fixtureSearchResponse } from './course-client.fixture';
 import { courseIdentity } from './course-identity';
 import {
   ChangedCampus,

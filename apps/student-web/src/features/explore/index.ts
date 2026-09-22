@@ -69,7 +69,7 @@ import {
   type AssessmentForm,
   type DecisionSignal,
 } from '../../course-facts';
-import { localeTag, translate, translateToken, type Locale } from '../../i18n';
+import { localeTag, translate, translateToken, type Localization } from '../../i18n';
 import { collaborationIconName, icon, termSeasonIconName, type AppIcon } from '../../icons';
 
 const lazyCourseCard = createKeyedLazy();
@@ -80,9 +80,9 @@ export const catalogueView = (model: Model, h: HtmlBuilder<Message>): Html => {
   return h.div(
     [h.Class('grid gap-6')],
     [
-      lazyCatalogueHeader(catalogueHeader, [model.locale, h]),
+      lazyCatalogueHeader(catalogueHeader, [model.localization, h]),
       lazyCatalogueControls(catalogueControlsFromValues, [
-        model.locale,
+        model.localization,
         model.query,
         model.term,
         model.campus,
@@ -99,7 +99,7 @@ export const catalogueView = (model: Model, h: HtmlBuilder<Message>): Html => {
   );
 };
 
-const catalogueHeader = (locale: Locale, h: HtmlBuilder<Message>): Html => {
+const catalogueHeader = (locale: Localization, h: HtmlBuilder<Message>): Html => {
   return h.header(
     [h.Class('pt-[clamp(2rem,5vw,3.5rem)] pb-2')],
     [
@@ -121,7 +121,7 @@ const catalogueHeader = (locale: Locale, h: HtmlBuilder<Message>): Html => {
 };
 
 interface CatalogueControlsState {
-  readonly locale: Locale;
+  readonly localization: Localization;
   readonly query: string;
   readonly term: string;
   readonly campus: Campus;
@@ -134,7 +134,7 @@ interface CatalogueControlsState {
 }
 
 const catalogueControlsFromValues = (
-  locale: Locale,
+  locale: Localization,
   query: string,
   term: string,
   campus: Campus,
@@ -148,7 +148,7 @@ const catalogueControlsFromValues = (
 ): Html =>
   catalogueControls(
     {
-      locale,
+      localization: locale,
       query,
       term,
       campus,
@@ -164,7 +164,7 @@ const catalogueControlsFromValues = (
   );
 
 export const catalogueRefineDialogFromValues = (
-  locale: Locale,
+  locale: Localization,
   query: string,
   term: string,
   campus: Campus,
@@ -179,7 +179,7 @@ export const catalogueRefineDialogFromValues = (
 ): Html =>
   catalogueRefineDialog(
     {
-      locale,
+      localization: locale,
       query,
       term,
       campus,
@@ -218,7 +218,7 @@ const catalogueControls = (
       h.Class(isDialog ? 'grid gap-4' : catalogueControlsFrameClass),
       h.Role('search'),
       h.OnSubmit(SubmittedSearch()),
-      h.AriaLabel(translate(model.locale, 'catalogue.searchRegion')),
+      h.AriaLabel(translate(model.localization, 'catalogue.searchRegion')),
     ],
     [
       h.div(
@@ -228,7 +228,7 @@ const catalogueControls = (
             {
               id: `${idPrefix}course-query`,
               value: model.query,
-              placeholder: translate(model.locale, 'catalogue.searchPlaceholder'),
+              placeholder: translate(model.localization, 'catalogue.searchPlaceholder'),
               onInput: (value) => UpdatedQuery({ value }),
               toView: (attributes) =>
                 h.div(
@@ -236,11 +236,11 @@ const catalogueControls = (
                   [
                     h.label(
                       [...attributes.label, h.Class(fieldLabelClass)],
-                      [translate(model.locale, 'catalogue.searchLabel')],
+                      [translate(model.localization, 'catalogue.searchLabel')],
                     ),
                     h.input([
                       ...attributes.input,
-                      h.Placeholder(translate(model.locale, 'catalogue.searchPlaceholder')),
+                      h.Placeholder(translate(model.localization, 'catalogue.searchPlaceholder')),
                       h.Class(
                         'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base normal-case transition-[border-color,box-shadow] duration-150 ease-in-out focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70',
                       ),
@@ -260,8 +260,8 @@ const catalogueControls = (
                   [...attributes.button, h.Class(buttonPrimary)],
                   [
                     loading
-                      ? translate(model.locale, 'catalogue.searching')
-                      : translate(model.locale, 'catalogue.search'),
+                      ? translate(model.localization, 'catalogue.searching')
+                      : translate(model.localization, 'catalogue.search'),
                   ],
                 ),
             },
@@ -282,27 +282,27 @@ const catalogueControls = (
               selectControl(
                 model.selectFields,
                 'term-refine',
-                translate(model.locale, 'catalogue.term'),
+                translate(model.localization, 'catalogue.term'),
                 model.term,
                 [
                   [
                     '2026-autumn',
-                    formatOfferingPeriod(2026, 'autumn', model.locale),
+                    formatOfferingPeriod(2026, 'autumn', model.localization),
                     termSeasonIconName('autumn'),
                   ],
                   [
                     '2026-spring',
-                    formatOfferingPeriod(2026, 'spring', model.locale),
+                    formatOfferingPeriod(2026, 'spring', model.localization),
                     termSeasonIconName('spring'),
                   ],
                   [
                     '2027-autumn',
-                    formatOfferingPeriod(2027, 'autumn', model.locale),
+                    formatOfferingPeriod(2027, 'autumn', model.localization),
                     termSeasonIconName('autumn'),
                   ],
                   [
                     '2027-spring',
-                    formatOfferingPeriod(2027, 'spring', model.locale),
+                    formatOfferingPeriod(2027, 'spring', model.localization),
                     termSeasonIconName('spring'),
                   ],
                 ],
@@ -312,13 +312,13 @@ const catalogueControls = (
               selectControl(
                 model.selectFields,
                 'campus-refine',
-                translate(model.locale, 'catalogue.campus'),
+                translate(model.localization, 'catalogue.campus'),
                 model.campus,
                 [
-                  ['all', translate(model.locale, 'catalogue.allCampuses')],
-                  ['trondheim', translate(model.locale, 'catalogue.trondheim')],
-                  ['gjovik', translate(model.locale, 'catalogue.gjovik')],
-                  ['alesund', translate(model.locale, 'catalogue.alesund')],
+                  ['all', translate(model.localization, 'catalogue.allCampuses')],
+                  ['trondheim', translate(model.localization, 'catalogue.trondheim')],
+                  ['gjovik', translate(model.localization, 'catalogue.gjovik')],
+                  ['alesund', translate(model.localization, 'catalogue.alesund')],
                 ],
                 { portal: false },
                 h,
@@ -326,13 +326,13 @@ const catalogueControls = (
               selectControl(
                 model.selectFields,
                 'level-refine',
-                translate(model.locale, 'catalogue.level'),
+                translate(model.localization, 'catalogue.level'),
                 model.level,
                 [
-                  ['all', translate(model.locale, 'catalogue.allLevels')],
-                  ['bachelor', translate(model.locale, 'catalogue.bachelor')],
-                  ['master', translate(model.locale, 'catalogue.master')],
-                  ['phd', translate(model.locale, 'catalogue.phd')],
+                  ['all', translate(model.localization, 'catalogue.allLevels')],
+                  ['bachelor', translate(model.localization, 'catalogue.bachelor')],
+                  ['master', translate(model.localization, 'catalogue.master')],
+                  ['phd', translate(model.localization, 'catalogue.phd')],
                 ],
                 { portal: false },
                 h,
@@ -340,14 +340,14 @@ const catalogueControls = (
               selectControl(
                 model.selectFields,
                 'sort-refine',
-                translate(model.locale, 'catalogue.sort'),
+                translate(model.localization, 'catalogue.sort'),
                 model.sort,
                 [
-                  ['relevance', translate(model.locale, 'catalogue.relevance')],
-                  ['title-asc', translate(model.locale, 'catalogue.titleAsc')],
-                  ['title-desc', translate(model.locale, 'catalogue.titleDesc')],
-                  ['code-asc', translate(model.locale, 'catalogue.codeAsc')],
-                  ['code-desc', translate(model.locale, 'catalogue.codeDesc')],
+                  ['relevance', translate(model.localization, 'catalogue.relevance')],
+                  ['title-asc', translate(model.localization, 'catalogue.titleAsc')],
+                  ['title-desc', translate(model.localization, 'catalogue.titleDesc')],
+                  ['code-asc', translate(model.localization, 'catalogue.codeAsc')],
+                  ['code-desc', translate(model.localization, 'catalogue.codeDesc')],
                 ],
                 { portal: false },
                 h,
@@ -357,13 +357,13 @@ const catalogueControls = (
               selectControl(
                 model.selectFields,
                 'campus-inline',
-                translate(model.locale, 'catalogue.campus'),
+                translate(model.localization, 'catalogue.campus'),
                 model.campus,
                 [
-                  ['all', translate(model.locale, 'catalogue.allCampuses')],
-                  ['trondheim', translate(model.locale, 'catalogue.trondheim')],
-                  ['gjovik', translate(model.locale, 'catalogue.gjovik')],
-                  ['alesund', translate(model.locale, 'catalogue.alesund')],
+                  ['all', translate(model.localization, 'catalogue.allCampuses')],
+                  ['trondheim', translate(model.localization, 'catalogue.trondheim')],
+                  ['gjovik', translate(model.localization, 'catalogue.gjovik')],
+                  ['alesund', translate(model.localization, 'catalogue.alesund')],
                 ],
                 {},
                 h,
@@ -376,14 +376,14 @@ const catalogueControls = (
             [
               checkboxControl(
                 `${idPrefix}open-admission`,
-                translate(model.locale, 'catalogue.openAdmission'),
+                translate(model.localization, 'catalogue.openAdmission'),
                 model.openOnly,
                 (isChecked) => ToggledOpen({ isChecked }),
                 h,
               ),
               checkboxControl(
                 `${idPrefix}english`,
-                translate(model.locale, 'catalogue.english'),
+                translate(model.localization, 'catalogue.english'),
                 model.englishOnly,
                 (isChecked) => ToggledEnglish({ isChecked }),
                 h,
@@ -426,10 +426,10 @@ export const catalogueRefineAction = (model: Model, h: HtmlBuilder<Message>): Ht
             [h.Class('[@media(min-width:48rem)_and_(min-height:34rem)]:font-bold')],
             [
               count === 0
-                ? translate(model.locale, 'catalogue.allCourses')
-                : translate(model.locale, 'catalogue.activeRefinements', {
+                ? translate(model.localization, 'catalogue.allCourses')
+                : translate(model.localization, 'catalogue.activeRefinements', {
                     count,
-                    suffix: model.locale === 'en' && count !== 1 ? 's' : '',
+                    suffix: model.localization.locale === 'en' && count !== 1 ? 's' : '',
                   }),
             ],
           ),
@@ -439,7 +439,7 @@ export const catalogueRefineAction = (model: Model, h: HtmlBuilder<Message>): Ht
                 '[@media(min-width:48rem)_and_(min-height:34rem)]:overflow-hidden [@media(min-width:48rem)_and_(min-height:34rem)]:text-on-surface-variant [@media(min-width:48rem)_and_(min-height:34rem)]:text-sm [@media(min-width:48rem)_and_(min-height:34rem)]:text-ellipsis [@media(min-width:48rem)_and_(min-height:34rem)]:whitespace-nowrap',
               ),
             ],
-            [translate(model.locale, 'catalogue.refineHelp')],
+            [translate(model.localization, 'catalogue.refineHelp')],
           ),
         ],
       ),
@@ -457,8 +457,8 @@ export const catalogueRefineAction = (model: Model, h: HtmlBuilder<Message>): Ht
             [],
             [
               count === 0
-                ? translate(model.locale, 'catalogue.refine')
-                : translate(model.locale, 'catalogue.refineCount', { count }),
+                ? translate(model.localization, 'catalogue.refine')
+                : translate(model.localization, 'catalogue.refineCount', { count }),
             ],
           ),
         ],
@@ -512,20 +512,23 @@ const catalogueRefineDialog = (
                         h.div(
                           [],
                           [
-                            h.p([h.Class(eyebrowClass)], [translate(model.locale, 'nav.explore')]),
+                            h.p(
+                              [h.Class(eyebrowClass)],
+                              [translate(model.localization, 'nav.explore')],
+                            ),
                             h.h2(
                               [
                                 ...title,
                                 h.Class('text-[clamp(1.6rem,6vw,2.25rem)] tracking-[-0.035em]'),
                               ],
-                              [translate(model.locale, 'catalogue.refineHeading')],
+                              [translate(model.localization, 'catalogue.refineHeading')],
                             ),
                             h.p(
                               [
                                 ...description,
                                 h.Class('mt-[0.4rem] text-on-surface-variant leading-[1.5]'),
                               ],
-                              [translate(model.locale, 'catalogue.refineDescription')],
+                              [translate(model.localization, 'catalogue.refineDescription')],
                             ),
                           ],
                         ),
@@ -538,7 +541,9 @@ const catalogueRefineDialog = (
                               'grid size-11 flex-none p-[0.7rem] place-items-center border-0 rounded-full bg-surface-container text-on-surface cursor-pointer',
                             ),
                             h.Type('button'),
-                            h.AriaLabel(translate(model.locale, 'catalogue.closeRefinements')),
+                            h.AriaLabel(
+                              translate(model.localization, 'catalogue.closeRefinements'),
+                            ),
                           ],
                           [icon('close', undefined, h)],
                         ),
@@ -561,7 +566,7 @@ const catalogueRefineDialog = (
                             h.Class(`${buttonPrimary} min-w-[min(100%,12rem)]`),
                             h.Type('button'),
                           ],
-                          [translate(model.locale, 'catalogue.viewResults')],
+                          [translate(model.localization, 'catalogue.viewResults')],
                         ),
                       ],
                     ),
@@ -582,26 +587,35 @@ const catalogueResultView = (model: Model, h: HtmlBuilder<Message>): Html => {
         [h.Class(stateCardBase), h.Role('status'), h.AriaLive('polite')],
         [
           h.div([h.Class(loadingIndicatorClass), h.AriaHidden(true)], []),
-          h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'catalogue.loading')]),
-          h.p([h.Class(stateCardPClass)], [translate(model.locale, 'catalogue.loadingHelp')]),
+          h.h2([h.Class(stateCardH2Class)], [translate(model.localization, 'catalogue.loading')]),
+          h.p([h.Class(stateCardPClass)], [translate(model.localization, 'catalogue.loadingHelp')]),
         ],
       );
     case 'CatalogueFailure':
       return h.section(
         [h.Class(stateCardFailure), h.Role('alert')],
         [
-          h.p([h.Class(statusLabelErrorClass)], [translate(model.locale, 'catalogue.unavailable')]),
-          h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'catalogue.loadFailed')]),
+          h.p(
+            [h.Class(statusLabelErrorClass)],
+            [translate(model.localization, 'catalogue.unavailable')],
+          ),
+          h.h2(
+            [h.Class(stateCardH2Class)],
+            [translate(model.localization, 'catalogue.loadFailed')],
+          ),
           h.p([h.Class(stateCardFailurePClass)], [model.catalogue.error]),
-          h.p([h.Class(stateCardFailurePClass)], [translate(model.locale, 'catalogue.retry')]),
+          h.p(
+            [h.Class(stateCardFailurePClass)],
+            [translate(model.localization, 'catalogue.retry')],
+          ),
         ],
       );
     case 'CatalogueEmpty':
       return h.section(
         [h.Class(stateCardBase), h.Role('status')],
         [
-          h.h2([h.Class(stateCardH2Class)], [translate(model.locale, 'catalogue.empty')]),
-          h.p([h.Class(stateCardPClass)], [translate(model.locale, 'catalogue.emptyHelp')]),
+          h.h2([h.Class(stateCardH2Class)], [translate(model.localization, 'catalogue.empty')]),
+          h.p([h.Class(stateCardPClass)], [translate(model.localization, 'catalogue.emptyHelp')]),
         ],
       );
     case 'CataloguePartial':
@@ -623,7 +637,7 @@ const catalogueList = (
   return h.section(
     [
       h.Class('grid gap-4'),
-      h.AriaLabel(translate(model.locale, 'catalogue.results')),
+      h.AriaLabel(translate(model.localization, 'catalogue.results')),
       h.AriaBusy(model.nextPage._tag === 'NextPageLoading'),
     ],
     [
@@ -633,7 +647,7 @@ const catalogueList = (
               h.Class('py-4 px-5 rounded-m3-medium bg-warning-container text-on-warning-container'),
               h.Role('status'),
             ],
-            [translate(model.locale, 'catalogue.partial')],
+            [translate(model.localization, 'catalogue.partial')],
           )
         : h.empty,
       h.header(
@@ -646,11 +660,11 @@ const catalogueList = (
           h.div(
             [],
             [
-              h.h2([], [translate(model.locale, 'catalogue.courses')]),
+              h.h2([], [translate(model.localization, 'catalogue.courses')]),
               h.p(
                 [h.AriaLive('polite'), h.Class('text-on-surface-variant text-sm')],
                 [
-                  translate(model.locale, 'catalogue.showing', {
+                  translate(model.localization, 'catalogue.showing', {
                     shown: shown.length,
                     total: response.meta.total,
                   }),
@@ -660,7 +674,7 @@ const catalogueList = (
           ),
           h.p(
             [h.Class('text-on-surface-variant text-sm')],
-            [translate(model.locale, 'catalogue.official')],
+            [translate(model.localization, 'catalogue.official')],
           ),
         ],
       ),
@@ -672,7 +686,7 @@ const catalogueList = (
             course,
             decisionSignalForCourse(model.decisionSignals, course.code),
             gradeSignalForCourse(model.gradeSignals, course.code),
-            model.locale,
+            model.localization,
             model.outcomeView,
             isCourseSaved(model.savedCourses, course.code),
             savedToggleAvailability(model.savedCourses),
@@ -690,7 +704,7 @@ const catalogueList = (
               h.Role('alert'),
             ],
             [
-              h.strong([], [translate(model.locale, 'catalogue.moreFailed')]),
+              h.strong([], [translate(model.localization, 'catalogue.moreFailed')]),
               h.span([], [` ${model.nextPage.error}`]),
             ],
           )
@@ -709,8 +723,8 @@ const catalogueList = (
                   ],
                   [
                     model.nextPage._tag === 'NextPageLoading'
-                      ? translate(model.locale, 'catalogue.loadingMore')
-                      : translate(model.locale, 'catalogue.showMore'),
+                      ? translate(model.localization, 'catalogue.loadingMore')
+                      : translate(model.localization, 'catalogue.showMore'),
                   ],
                 ),
             },
@@ -718,7 +732,7 @@ const catalogueList = (
           )
         : h.p(
             [h.Class('m-0 text-on-surface-variant text-center')],
-            [translate(model.locale, 'catalogue.end')],
+            [translate(model.localization, 'catalogue.end')],
           ),
     ],
   );
@@ -756,7 +770,7 @@ export const savedCourseToggle = (
   courseCode: string,
   saved: boolean,
   availability: 'ready' | 'loading' | 'paused',
-  locale: Locale,
+  locale: Localization,
   recoveryHref: string,
   tone: SavedToggleTone,
   h: HtmlBuilder<Message>,
@@ -877,7 +891,7 @@ export const savedGradeSignal = (
   return typeof signal === 'string' ? null : signal;
 };
 
-export const courseTitle = (course: CourseSearchItemDtoType, locale: Locale): string =>
+export const courseTitle = (course: CourseSearchItemDtoType, locale: Localization): string =>
   course.title.state === 'known'
     ? course.title.value
     : translate(locale, 'course.titleUnavailable');
@@ -885,7 +899,7 @@ export const courseTitle = (course: CourseSearchItemDtoType, locale: Locale): st
 export const courseIdentityFacts = (
   course: CourseSearchItemDtoType,
   decisionSignal: DecisionSignal,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const { offering, place, term, credits } = courseOfferingFacts(course, decisionSignal, locale);
@@ -934,7 +948,7 @@ const courseCard = (
   course: CourseSearchItemDtoType,
   decisionSignal: DecisionSignal,
   gradeSignal: GradeSignal,
-  locale: Locale,
+  locale: Localization,
   outcomeView: OutcomeView,
   saved: boolean,
   savedAvailability: 'ready' | 'loading' | 'paused',
@@ -1032,12 +1046,12 @@ const assessmentIconName = (form: AssessmentForm): AppIcon =>
     M.exhaustive,
   );
 
-const formatAssessmentWeight = (value: number, locale: Locale): string =>
-  `${new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value)}%`;
+const formatAssessmentWeight = (value: number, locale: Localization): string =>
+  `${new Intl.NumberFormat(localeTag(locale.locale), { maximumFractionDigits: 2 }).format(value)}%`;
 
 export const decisionSignalView = (
   signal: DecisionSignal,
-  locale: Locale,
+  locale: Localization,
   h: HtmlBuilder<Message>,
 ): Html => {
   const stateClass =
@@ -1263,7 +1277,7 @@ const outcomeStateClass =
 
 export const gradeSignalView = (
   signal: GradeSignal,
-  locale: Locale,
+  locale: Localization,
   outcomeView: OutcomeView,
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -1287,7 +1301,7 @@ export const gradeSignalView = (
 
 const gradeOrder = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
 
-const gradeDisplayLabel = (grade: string, locale: Locale): string =>
+const gradeDisplayLabel = (grade: string, locale: Localization): string =>
   M.value(grade).pipe(
     M.when('G', () => translate(locale, 'outcomes.pass')),
     M.when('H', () => translate(locale, 'outcomes.fail')),
@@ -1296,7 +1310,7 @@ const gradeDisplayLabel = (grade: string, locale: Locale): string =>
 
 const distributionStateMessage = (
   distribution: CourseGradeSummaryDtoType['distribution'],
-  locale: Locale,
+  locale: Localization,
 ): string => {
   switch (distribution.state) {
     case 'known':
@@ -1331,7 +1345,7 @@ const normalizeGradeBuckets = (buckets: ReadonlyArray<GradeBucket>): ReadonlyArr
 
 const gradeSummaryView = (
   summary: CourseGradeSummaryDtoType,
-  locale: Locale,
+  locale: Localization,
   requestedView: OutcomeView,
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -1352,7 +1366,7 @@ const gradeSummaryView = (
     const sample =
       summary.sampleSize.state === 'known'
         ? translate(locale, 'outcomes.sample', {
-            value: summary.sampleSize.value.toLocaleString(localeTag(locale)),
+            value: summary.sampleSize.value.toLocaleString(localeTag(locale.locale)),
           })
         : null;
     const failure =
@@ -1411,7 +1425,7 @@ const gradeSummaryView = (
   const sample =
     selectedSampleSize > 0
       ? translate(locale, 'outcomes.sample', {
-          value: selectedSampleSize.toLocaleString(localeTag(locale)),
+          value: selectedSampleSize.toLocaleString(localeTag(locale.locale)),
         })
       : null;
   const metadata = [failure, sample, period].filter((value): value is string => value !== null);
@@ -1631,7 +1645,7 @@ export const selectedCourseView = (model: Model, h: HtmlBuilder<Message>): Html 
               toView: (attributes) =>
                 h.button(
                   [...attributes.button, h.Class(backButtonClass)],
-                  [translate(model.locale, 'course.back')],
+                  [translate(model.localization, 'course.back')],
                 ),
             },
             h,
@@ -1642,7 +1656,7 @@ export const selectedCourseView = (model: Model, h: HtmlBuilder<Message>): Html 
                 selectedCode,
                 isCourseSaved(model.savedCourses, selectedCode),
                 savedToggleAvailability(model.savedCourses),
-                model.locale,
+                model.localization,
                 listUrl(model),
                 'state',
                 h,
@@ -1650,14 +1664,18 @@ export const selectedCourseView = (model: Model, h: HtmlBuilder<Message>): Html 
         ],
       ),
       model.detail._tag === 'DetailSuccess' || model.detail._tag === 'DetailPartial'
-        ? feedbackRow(model.locale, h)
+        ? feedbackRow(model.localization, h)
         : h.empty,
-      detailResultView(model.detail, model.locale, h),
+      detailResultView(model.detail, model.localization, h),
     ],
   );
 };
 
-const detailResultView = (detail: DetailResult, locale: Locale, h: HtmlBuilder<Message>): Html => {
+const detailResultView = (
+  detail: DetailResult,
+  locale: Localization,
+  h: HtmlBuilder<Message>,
+): Html => {
   switch (detail._tag) {
     case 'DetailClosed':
       return h.empty;

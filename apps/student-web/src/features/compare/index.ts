@@ -12,7 +12,7 @@ import type {
 } from '@course-data/course-contracts';
 
 import { buttonSecondary, compactButtonBase } from '../../app-styles';
-import { localeTag, translate, type Locale } from '../../i18n';
+import { localeTag, translate, type Localization } from '../../i18n';
 import type { SavedCourse } from '../../saved-courses';
 import {
   assessmentLabel,
@@ -66,7 +66,7 @@ export interface CompareCourseFacts {
 }
 
 export interface ViewInputs {
-  readonly locale: Locale;
+  readonly locale: Localization;
   readonly courses: ReadonlyArray<SavedCourse>;
   readonly facts: ReadonlyArray<CompareCourseFacts>;
   readonly feedback: Html;
@@ -84,7 +84,7 @@ const compareCell = (text: string, known = true): CompareCell => ({ text, known 
 
 const factCell = <Value>(
   fact: { readonly state: string; readonly value?: Value } | null | undefined,
-  locale: Locale,
+  locale: Localization,
   render: (value: Value) => string,
 ): CompareCell =>
   fact === null || fact === undefined
@@ -99,7 +99,7 @@ interface CompareRow {
 }
 
 export const compareRows = (
-  locale: Locale,
+  locale: Localization,
   facts: ReadonlyArray<CompareCourseFacts>,
 ): ReadonlyArray<CompareRow> => {
   const items = facts.map((fact) => fact.item);
@@ -191,7 +191,9 @@ export const compareRows = (
     row(
       translate(locale, 'compare.sample'),
       grades.map((grade) =>
-        factCell(grade?.sampleSize, locale, (value) => value.toLocaleString(localeTag(locale))),
+        factCell(grade?.sampleSize, locale, (value) =>
+          value.toLocaleString(localeTag(locale.locale)),
+        ),
       ),
     ),
     row(
