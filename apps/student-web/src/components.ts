@@ -35,7 +35,7 @@ export const pageHeader = <Message>(
       h.h1(
         [
           h.Class(
-            'max-w-[22ch] text-[clamp(2rem,5vw,3rem)] font-extrabold tracking-[-0.045em] leading-[1.02]',
+            'max-w-[22ch] text-[clamp(2rem,5vw,3rem)] font-extrabold tracking-[-0.045em] leading-[1.02] [overflow-wrap:anywhere]',
           ),
         ],
         [title],
