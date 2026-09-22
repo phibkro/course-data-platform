@@ -144,7 +144,7 @@ test('GJ-04 Remember and safely return', { tag: '@fixture' }, async ({ page }) =
   await saveCourse(page, 'TDT4136');
 
   await page.getByRole('link', { name: 'Saved' }).first().click();
-  await expect(page.getByRole('heading', { name: 'Your saved courses' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved courses and results' })).toBeVisible();
 
   const saved = savedCourseRow(page, 'TDT4136');
   await saved.getByLabel('Your note').fill('Ask the adviser about the project');
@@ -156,7 +156,9 @@ test('GJ-04 Remember and safely return', { tag: '@fixture' }, async ({ page }) =
   );
 
   await page.getByRole('button', { name: 'Remove TDT4136 from List' }).click();
-  await expect(page.getByText('You have not saved a course yet', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('You have no saved courses or NTNU results yet', { exact: true }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Undo removing TDT4136' }).click();
   await expect(savedCourseRow(page, 'TDT4136').getByLabel('Your note')).toHaveValue(
     'Ask the adviser about the project',
@@ -171,7 +173,7 @@ test('GJ-05 Organize a shortlist', { tag: '@fixture' }, async ({ page }) => {
   }
 
   await page.getByRole('link', { name: 'Saved' }).first().click();
-  await expect(page.getByText('3 saved courses', { exact: true })).toBeVisible();
+  await expect(page.getByText('3 courses', { exact: true })).toBeVisible();
 
   await addLabel(page, 'TDT4136', 'AI');
   await addLabel(page, 'TDT4136', 'Autumn');
@@ -192,7 +194,7 @@ test('GJ-05 Organize a shortlist', { tag: '@fixture' }, async ({ page }) => {
 
   await matchMode.getByRole('radio', { name: /All/ }).click();
   await expect(page).toHaveURL(/(?:\?|&)labelMode=all(?:&|$)/);
-  await expect(page.getByText('Showing 1 of 3 saved courses', { exact: true })).toBeVisible();
+  await expect(page.getByText('Showing 1 of 3 courses', { exact: true })).toBeVisible();
   await expectNoAxeViolations(page);
 
   await page.getByRole('button', { name: 'Clear label filter' }).click();
@@ -200,17 +202,17 @@ test('GJ-05 Organize a shortlist', { tag: '@fixture' }, async ({ page }) => {
 
   await page.getByLabel('Exclude Autumn').click();
   await expect(page).toHaveURL(/(?:\?|&)notLabels=label-/);
-  await expect(page.getByText('Showing 1 of 3 saved courses', { exact: true })).toBeVisible();
+  await expect(page.getByText('Showing 1 of 3 courses', { exact: true })).toBeVisible();
   await page.goBack();
   await expect(page).not.toHaveURL(/notLabels=/);
-  await expect(page.getByText('3 saved courses', { exact: true })).toBeVisible();
+  await expect(page.getByText('3 courses', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: /^Unlabeled/ }).click();
   await expect(page).toHaveURL(/(?:\?|&)unlabeled=1(?:&|$)/);
-  await expect(page.getByText('Showing 1 of 3 saved courses', { exact: true })).toBeVisible();
+  await expect(page.getByText('Showing 1 of 3 courses', { exact: true })).toBeVisible();
   await page.goBack();
   await expect(page).not.toHaveURL(/unlabeled=/);
-  await expect(page.getByText('3 saved courses', { exact: true })).toBeVisible();
+  await expect(page.getByText('3 courses', { exact: true })).toBeVisible();
 });
 
 test('GJ-06 Choose between finalists', { tag: '@fixture' }, async ({ page }) => {
