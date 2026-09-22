@@ -23,7 +23,7 @@ export default Stack(
       policies: [
         {
           effect: 'allow',
-          permissionGroups: ['Workers Scripts Write', 'Secrets Store Write'],
+          permissionGroups: ['Workers Scripts Write'],
           resources: {
             [`com.cloudflare.api.account.${accountId}`]: '*',
           },

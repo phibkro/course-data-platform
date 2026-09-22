@@ -96,57 +96,56 @@ bun run openapi
 
 ## Infrastructure
 
-Alchemy v2 runs from the isolated `infra` workspace. This keeps deployment
-dependencies outside the browser and API workspaces.
-The stack uses the new ID `CourseDecisionProduct` and new resource IDs, so it
-does not adopt, mutate, or destroy the earlier v1-managed resources.
-The production student web is bound declaratively to
-`https://planner.phibkro.org`; Cloudflare manages its Worker custom-domain
-binding and certificate as part of the stack.
-Inspect the two-resource change before a first deployment:
+Alchemy v2 runs from the isolated `infra` workspace and owns production only:
+the course API Worker, its source-cache KV namespace, the student web Worker,
+and the `planner.phibkro.org` custom domain. The production Worker names live
+once in `infra/previews/*.wrangler.json`; the Alchemy composition root imports
+those names.
+
+Inspect and deploy the production stack with:
 
 ```sh
 bun run infra:plan:prod
 bun run deploy:prod
 ```
 
-The unsuffixed `infra:plan` and `deploy` commands target Alchemy's per-user
-development stage. Production is intentionally separate and requires
-Cloudflare authentication. `deploy:prod` refuses to run unless the checkout is
-clean, on `main`, and exactly matches `origin/main`; production releases are
-explicit even though `main` is the canonical production source.
+`deploy:prod` refuses to run unless the checkout is clean, on `main`, and
+exactly matches `origin/main`. There are no unsuffixed Alchemy development
+deploy commands.
 
-PR previews use isolated Alchemy stages rather than a long-lived deployment
-branch. GitHub Actions creates or updates `pr-<number>` when a same-repository
-PR opens or receives a push, comments the public URL on the PR, and destroys
-the stage and comment when the PR closes or merges. Forked PRs never receive
-deployment credentials.
+PR deployments use Cloudflare Worker Previews under the two production Workers.
+They do not create persistent Workers, Alchemy stages, custom domains, or KV
+namespaces. The API Preview is deployed first; the student web Preview is then
+built against its stable Preview URL. GitHub Actions updates `pr-<number>` on
+each same-repository PR push, comments the web URL, and deletes both Previews
+and the comment when the PR closes. Forked PRs never receive deployment
+credentials.
 
 The automation is gated by the `PREVIEW_DEPLOYMENTS_ENABLED` repository
-variable. Provision its least-privilege, account-owned Cloudflare credential
-and enable the workflow once with a dedicated Alchemy admin profile:
+variable. After this workflow version is on the default branch, provision its
+account-owned credential with a Cloudflare administrator token that may create
+account API tokens:
 
 ```sh
-infra/node_modules/.bin/alchemy login --profile admin
 CLOUDFLARE_ACCOUNT_ID=<account-id> \
-  infra/node_modules/.bin/alchemy deploy infra/stacks/github.ts --profile admin --yes
+CLOUDFLARE_API_TOKEN=<token-manager-token> \
+GITHUB_TOKEN="$(gh auth token)" \
+  infra/node_modules/.bin/alchemy deploy infra/stacks/github.ts --yes
 ```
 
-The admin profile must be able to create account API tokens and should only be
-used for this credential stack. The generated CI token can write Worker scripts
-and access the Alchemy Secrets Store, but cannot manage zones or the production
-custom domain. Its value passes directly from Cloudflare state to the encrypted
-GitHub secret and is never printed.
+The stack creates an account-scoped CI token granting only `Workers Scripts
+Write`, stores it and the account ID as repository secrets, and enables the
+workflow. The CI token cannot manage zones or the production custom domain.
 
-For an exceptional manual deployment from a clean, pushed PR branch, run:
+For an exceptional manual Preview from a clean, pushed PR branch, run:
 
 ```sh
 bun run deploy:preview -- 6
 ```
 
-Preview source links point to the exact deployed commit. The production custom
-domain is attached only to the `prod` stage, so previews cannot claim
-`planner.phibkro.org`.
+Preview source links point to the exact deployed commit. Each named Preview has
+a stable URL for the latest push and an immutable URL per deployment. Production
+continues to serve from `planner.phibkro.org`.
 
 ## Architecture
 

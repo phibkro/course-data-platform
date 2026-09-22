@@ -2,88 +2,92 @@ name: PR preview
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, closed]
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
 
 concurrency:
   group: pr-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-env:
-  STAGE: pr-${{ github.event.pull_request.number }}
-
 jobs:
-  deploy:
-    name: Deploy preview
+  preview:
     if: >-
       github.event.action != 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.actor != 'dependabot[bot]' &&
       vars.PREVIEW_DEPLOYMENTS_ENABLED == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
     steps:
-      - name: Check out the exact PR commit
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Validate
-        run: bun run validate
-
-      - name: Deploy isolated preview
-        run: infra/node_modules/.bin/alchemy deploy --stage "$STAGE" infra/alchemy.run.ts --yes
+          fetch-depth: 0
+      - uses: DeterminateSystems/nix-installer-action@v20
+      - run: nix develop --command bun install --frozen-lockfile
+      - run: nix develop --command bun run validate
+      - id: deploy
+        run: nix develop --command bun run deploy:preview -- "${{ github.event.pull_request.number }}"
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          COURSE_PLATFORM_SOURCE_URL: https://github.com/${{ github.repository }}/tree/${{ github.event.pull_request.head.sha }}
-          PULL_REQUEST: ${{ github.event.pull_request.number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - name: Publish Preview URL
+        run: |
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          BODY="$(cat <<EOF
+          <!-- course-lens-preview -->
+          ## Preview ready
+
+          **Open the app:** $WEB_URL
+
+          API: $API_URL
+
+          Built from commit [\`$SHORT_SHA\`]($SOURCE_URL).
+
+          _This comment updates on every push and is removed when the pull request closes._
+          EOF
+          )"
+          COMMENT_ID="$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate --jq '.[] | select(.body | contains("<!-- course-lens-preview -->")) | .id' | tail -n 1)"
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" -f body="$BODY" >/dev/null
+          else
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          fi
+        env:
+          API_URL: ${{ steps.deploy.outputs.api_url }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SOURCE_URL: ${{ steps.deploy.outputs.source_url }}
+          WEB_URL: ${{ steps.deploy.outputs.web_url }}
 
   cleanup:
-    name: Remove preview
     if: >-
+      always() &&
       github.event.action == 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.actor != 'dependabot[bot]' &&
       vars.PREVIEW_DEPLOYMENTS_ENABLED == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
     steps:
-      - name: Check out the trusted base branch
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.base.ref }}
-          persist-credentials: false
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Refuse production cleanup
-        run: test "$STAGE" != "prod"
-
-      - name: Destroy isolated preview
-        run: infra/node_modules/.bin/alchemy destroy --stage "$STAGE" infra/alchemy.run.ts --yes
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@v20
+      - run: nix develop --command bun install --frozen-lockfile
+      - name: Delete Worker Previews
+        run: |
+          apps/course-api/node_modules/.bin/wrangler preview delete --config infra/previews/course-api.wrangler.json --name "$PREVIEW_NAME" --skip-confirmation
+          apps/course-api/node_modules/.bin/wrangler preview delete --config infra/previews/student-web.wrangler.json --name "$PREVIEW_NAME" --skip-confirmation
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PULL_REQUEST: ${{ github.event.pull_request.number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PREVIEW_NAME: pr-${{ github.event.pull_request.number }}
+      - name: Remove Preview comment
+        run: |
+          COMMENT_IDS="$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate --jq '.[] | select(.body | contains("<!-- course-lens-preview -->")) | .id')"
+          while IFS= read -r COMMENT_ID; do
+            [[ -z "$COMMENT_ID" ]] || gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID"
+          done <<< "$COMMENT_IDS"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "coursedecisionproduct-courseapi-prod-ipj2tb7mpltniza3",
+  "main": "../../apps/course-api/src/worker.ts",
+  "compatibility_date": "2026-07-21",
+  "previews": {}
+}
