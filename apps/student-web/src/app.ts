@@ -8,6 +8,7 @@ import { modifyFields } from 'foldkit/struct';
 
 import { Dialog, Listbox, RadioGroup } from '@foldkit/ui';
 import {
+  AccumulatedCourseSearchResponseSchema,
   CourseDecisionSignalsResponseSchema,
   CourseGradeSummariesResponseSchema,
   CourseInsightResponseSchema,
@@ -188,8 +189,8 @@ const SelectFieldModels = S.Struct({
 
 const CatalogueResult = defineTaggedUnion({
   CatalogueInitialLoading: {},
-  CatalogueSuccess: { response: CourseSearchResponseSchema },
-  CataloguePartial: { response: CourseSearchResponseSchema },
+  CatalogueSuccess: { response: AccumulatedCourseSearchResponseSchema },
+  CataloguePartial: { response: AccumulatedCourseSearchResponseSchema },
   CatalogueEmpty: {},
   CatalogueFailure: { error: S.String },
 });

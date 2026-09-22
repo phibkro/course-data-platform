@@ -212,6 +212,8 @@ export const CourseSearchQueryDto = Type.Object({
   english: Type.Optional(Type.Union([Type.Literal('true'), Type.Literal('false')])),
 });
 
+export const CourseSearchPageSize = 20;
+
 export const CourseSearchItemDto = Type.Object({
   courseKey: Type.String({ minLength: 1 }),
   institutionCode: Type.Literal('NTNU'),
@@ -232,13 +234,13 @@ export const CourseSearchItemDto = Type.Object({
 });
 
 export const CourseSearchResponseDto = Type.Object({
-  items: Type.Array(CourseSearchItemDto),
+  items: Type.Array(CourseSearchItemDto, { maxItems: CourseSearchPageSize }),
   sourceStatuses: Type.Array(SourceStatusDto),
   meta: Type.Object({
     count: Type.Integer({ minimum: 0 }),
     total: Type.Integer({ minimum: 0 }),
     page: Type.Integer({ minimum: 1 }),
-    pageSize: Type.Integer({ minimum: 1 }),
+    pageSize: Type.Literal(CourseSearchPageSize),
     hasMore: Type.Boolean(),
     exactMatchCode: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
   }),

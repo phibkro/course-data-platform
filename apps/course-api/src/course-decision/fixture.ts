@@ -12,6 +12,8 @@ import {
 } from './model/course-insight';
 import * as Effect from 'effect/Effect';
 
+import { CourseSearchPageSize } from '@course-data/course-contracts';
+
 import {
   CourseInvalidTermError,
   CourseNotFoundError,
@@ -270,7 +272,7 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
       exactMatchCode: normalizedQuery === 'TDT4136' ? 'TDT4136' : null,
       total: matches ? 1 : 0,
       page,
-      pageSize: 500,
+      pageSize: CourseSearchPageSize as typeof CourseSearchPageSize,
       hasMore: false,
     });
   },

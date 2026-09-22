@@ -1,3 +1,4 @@
+import { CourseSearchPageSize } from '@course-data/course-contracts';
 import type {
   CourseDecisionSignals,
   CourseGradeSummary,
@@ -50,7 +51,7 @@ export interface CourseSearchResult {
   readonly exactMatchCode: string | null;
   readonly total: number;
   readonly page: number;
-  readonly pageSize: number;
+  readonly pageSize: typeof CourseSearchPageSize;
   readonly hasMore: boolean;
 }
 

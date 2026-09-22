@@ -232,6 +232,7 @@
                   ],
                   "properties": {
                     "items": {
+                      "maxItems": 20,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -1488,8 +1489,8 @@
                           "type": "integer"
                         },
                         "pageSize": {
-                          "minimum": 1,
-                          "type": "integer"
+                          "const": 20,
+                          "type": "number"
                         },
                         "hasMore": {
                           "type": "boolean"

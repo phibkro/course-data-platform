@@ -3,6 +3,7 @@ import {
   CourseGradeSummariesResponseDto,
   CourseInsightResponseDto,
   CourseScheduleResponseDto,
+  CourseSearchItemDto,
   CourseSearchResponseDto,
   ProblemDto,
   type CourseDecisionSignalsResponseDtoType,
@@ -12,6 +13,7 @@ import {
   type CourseSearchResponseDtoType,
 } from '@course-data/course-contracts';
 import { Value } from '@sinclair/typebox/value';
+import { Type } from '@sinclair/typebox';
 import { Effect, Schema as S } from 'effect';
 
 export interface CourseClient {
@@ -59,6 +61,14 @@ const isCourseInsightResponse = (input: unknown): input is CourseInsightResponse
 const isCourseSearchResponse = (input: unknown): input is CourseSearchResponse =>
   Value.Check(CourseSearchResponseDto, input);
 
+const AccumulatedCourseSearchResponseDto = Type.Object({
+  ...CourseSearchResponseDto.properties,
+  items: Type.Array(CourseSearchItemDto),
+});
+
+const isAccumulatedCourseSearchResponse = (input: unknown): input is CourseSearchResponse =>
+  Value.Check(AccumulatedCourseSearchResponseDto, input);
+
 const isCourseGradeSummariesResponse = (input: unknown): input is CourseGradeSummariesResponse =>
   Value.Check(CourseGradeSummariesResponseDto, input);
 
@@ -70,6 +80,7 @@ const isCourseScheduleResponse = (input: unknown): input is CourseScheduleRespon
 
 export const CourseInsightResponseSchema = S.declare(isCourseInsightResponse);
 export const CourseSearchResponseSchema = S.declare(isCourseSearchResponse);
+export const AccumulatedCourseSearchResponseSchema = S.declare(isAccumulatedCourseSearchResponse);
 export const CourseGradeSummariesResponseSchema = S.declare(isCourseGradeSummariesResponse);
 export const CourseDecisionSignalsResponseSchema = S.declare(isCourseDecisionSignalsResponse);
 export const CourseScheduleResponseSchema = S.declare(isCourseScheduleResponse);

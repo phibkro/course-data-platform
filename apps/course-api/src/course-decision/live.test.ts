@@ -190,6 +190,55 @@ describe('live course decision service', () => {
     },
   ];
 
+  it('translates bounded response pages across provider page boundaries', async () => {
+    const providerCourses = Array.from({ length: 505 }, (_, index) => ({
+      courseCode: `TST${String(index + 1).padStart(3, '0')}`,
+      courseVersion: '1',
+      courseName: `Test course ${index + 1}`,
+      examOnly: false,
+      hasMultimedia: false,
+      courseUrl: `https://www.ntnu.no/studier/emner/TST${index + 1}/2026`,
+      location: 'Trondheim',
+    }));
+    const requestedProviderPages: number[] = [];
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (_url, init) => {
+          const page = Number(new URLSearchParams(String(init?.body)).get('pageNo'));
+          requestedProviderPages.push(page);
+          const start = (page - 1) * 500;
+          return Response.json({
+            courses: providerCourses.slice(start, start + 500),
+            numFound: providerCourses.length,
+            pageNr: page,
+            pageSize: 500,
+            hasMoreResults: start + 500 < providerCourses.length,
+          });
+        },
+        now: () => new Date('2026-07-24T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(service.search({ page: 26 }));
+
+    expect(requestedProviderPages).toEqual([1, 2]);
+    expect(result.items.map((item) => item.code)).toEqual([
+      'TST501',
+      'TST502',
+      'TST503',
+      'TST504',
+      'TST505',
+    ]);
+    expect(result).toMatchObject({
+      total: 505,
+      page: 26,
+      pageSize: 20,
+      hasMore: false,
+      exactMatchCode: null,
+    });
+  });
   it.each(partialInsightScenarios)(
     'keeps useful insight after $name',
     async ({ failedSources, expected }) => {

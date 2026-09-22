@@ -34,6 +34,8 @@ import {
 import * as Effect from 'effect/Effect';
 import * as Tracer from 'effect/Tracer';
 
+import { CourseSearchPageSize } from '@course-data/course-contracts';
+
 import {
   CourseInvalidTermError,
   CourseNotFoundError,
@@ -510,11 +512,11 @@ export const makeLiveCourseDecisionService = (
       try: async () => {
         const term = resolveTerm(input.term, config);
         const queryString = input.query?.trim() ?? '';
+        const requestedPage = input.page ?? 1;
         const searchQuery = {
           queryString,
           academicYear: term.academicYear,
           season: term.season,
-          page: input.page ?? 1,
           sort: input.sort ?? (queryString.length === 0 ? ('title-asc' as const) : 'relevance'),
           campuses: [...new Set(input.campuses ?? defaultCampuses)].sort(),
           levels: [...new Set(input.levels ?? defaultLevels)].sort(),
@@ -522,24 +524,43 @@ export const makeLiveCourseDecisionService = (
           open: input.open ?? false,
           english: input.english ?? false,
         };
-        const { value: result, observedAt } = await ntnuSearchRequests(
-          JSON.stringify(searchQuery),
-          () => runSource((sourceDeps) => fetchNtnuCourseSearch(sourceDeps, searchQuery)),
-        );
+        const sourcePage = (page: number) => {
+          const query = { ...searchQuery, page };
+          return ntnuSearchRequests(JSON.stringify(query), () =>
+            runSource((sourceDeps) => fetchNtnuCourseSearch(sourceDeps, query)),
+          );
+        };
+        const first = await sourcePage(1);
+        if (first.value.rejected.length > 0 && first.value.accepted.length === 0) {
+          throw new Error(first.value.rejected[0]?.message ?? 'NTNU course search was rejected.');
+        }
+
+        const start = (requestedPage - 1) * CourseSearchPageSize;
+        const providerPage = Math.floor(start / first.value.pageSize) + 1;
+        const selected = providerPage === 1 ? first : await sourcePage(providerPage);
+        const result = selected.value;
         if (result.rejected.length > 0 && result.accepted.length === 0) {
           throw new Error(result.rejected[0]?.message ?? 'NTNU course search was rejected.');
         }
+        const providerOffset = start % first.value.pageSize;
+        const pageItems = result.accepted.slice(
+          providerOffset,
+          providerOffset + CourseSearchPageSize,
+        );
 
         return {
-          items: result.accepted.map(toSearchItem),
+          items: pageItems.map(toSearchItem),
           sourceStatuses: [
-            sourceStatusForSearch(result.accepted[0], observedAt, result.rejected.length),
+            sourceStatusForSearch(result.accepted[0], selected.observedAt, result.rejected.length),
           ],
-          exactMatchCode: result.accepted.find((hit) => hit.exactMatch)?.courseCode ?? null,
-          total: result.total,
-          page: result.page,
-          pageSize: result.pageSize,
-          hasMore: result.hasMore,
+          exactMatchCode:
+            requestedPage === 1
+              ? (first.value.accepted.find((hit) => hit.exactMatch)?.courseCode ?? null)
+              : null,
+          total: first.value.total,
+          page: requestedPage,
+          pageSize: CourseSearchPageSize as typeof CourseSearchPageSize,
+          hasMore: requestedPage * CourseSearchPageSize < first.value.total,
         };
       },
       catch: (cause) =>

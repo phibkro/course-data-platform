@@ -1,3 +1,5 @@
+import { CourseSearchPageSize } from '@course-data/course-contracts';
+
 import { Effect } from 'effect';
 
 import {
@@ -68,7 +70,7 @@ export const fixtureSearchResponse = (page: number): CourseSearchResponse =>
       count: page === 1 ? fixtureCourses.length : 0,
       total: fixtureCourses.length,
       page,
-      pageSize: fixtureCourses.length,
+      pageSize: CourseSearchPageSize,
       hasMore: false,
       exactMatchCode: null,
     },
