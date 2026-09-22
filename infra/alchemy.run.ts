@@ -6,13 +6,6 @@ import * as Output from 'alchemy/Output';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 
-export const CourseApi = Cloudflare.Worker('CourseApi', {
-  main: './apps/course-api/src/worker.ts',
-  compatibility: {
-    date: '2026-07-21',
-  },
-});
-
 export default Stack(
   'CourseDecisionProduct',
   {
@@ -31,9 +24,20 @@ export default Stack(
         : preview === null
           ? undefined
           : `p${preview[1]}.planner.phibkro.org`;
-    const api = yield* CourseApi;
+    const api = yield* Cloudflare.Worker('CourseApi', {
+      ...(stage === 'prod'
+        ? { name: 'coursedecisionproduct-courseapi-prod-ipj2tb7mpltniza3' }
+        : {}),
+      main: './apps/course-api/src/worker.ts',
+      compatibility: {
+        date: '2026-07-21',
+      },
+    });
     const web = yield* Cloudflare.Website.Vite('StudentWeb', {
       rootDir: './apps/student-web',
+      ...(stage === 'prod'
+        ? { name: 'coursedecisionproduct-studentweb-prod-6srvcpqyy5zmd2w2' }
+        : {}),
       ...(webDomain === undefined ? {} : { domain: webDomain }),
       env: {
         VITE_API_URL: api.url.as<string>(),
