@@ -1,18 +1,9 @@
-import type { CourseInsightResponseDtoType } from '@course-data/contracts';
-import { Effect, Match as M, Schema as S } from 'effect';
-import { Command, Runtime } from 'foldkit';
-import type { Document, Html } from 'foldkit/html';
+import type { CourseInsightResponseDtoType } from '@course-data/course-contracts';
+import type { Html } from 'foldkit/html';
 import { html } from 'foldkit/html';
-import { m } from 'foldkit/message';
-import { ts } from 'foldkit/schema';
-import { evo } from 'foldkit/struct';
 
-import { Button, Input } from '@foldkit/ui';
-
-import { courseClient } from './course-client';
 import { localeTag, translate, translateToken, type Locale } from './i18n';
 import { collaborationIconName, icon, termSeasonIconName } from './icons';
-import { desktopNavigation, mobileNavigation } from './navigation';
 
 type CourseInsightResponse = CourseInsightResponseDtoType;
 type CourseInsight = CourseInsightResponse['item'];
@@ -38,176 +29,6 @@ type ProtocolFact<A> =
       readonly evidenceIds: ReadonlyArray<string>;
     };
 
-export const SearchIdle = ts('SearchIdle');
-export const SearchLoading = ts('SearchLoading');
-export const SearchSuccess = ts('SearchSuccess', { response: S.Any });
-export const SearchPartial = ts('SearchPartial', { response: S.Any });
-export const SearchFailure = ts('SearchFailure', { error: S.String });
-
-const SearchResult = S.Union([
-  SearchIdle,
-  SearchLoading,
-  SearchSuccess,
-  SearchPartial,
-  SearchFailure,
-]);
-
-type SearchResult =
-  | ReturnType<typeof SearchIdle>
-  | ReturnType<typeof SearchLoading>
-  | { readonly _tag: 'SearchSuccess'; readonly response: CourseInsightResponse }
-  | { readonly _tag: 'SearchPartial'; readonly response: CourseInsightResponse }
-  | ReturnType<typeof SearchFailure>;
-
-export const Model = S.Struct({
-  query: S.String,
-  result: SearchResult,
-});
-
-type SchemaModel = typeof Model.Type;
-export type Model = Omit<SchemaModel, 'result'> & {
-  readonly result: SearchResult;
-};
-
-export const UpdatedQuery = m('UpdatedQuery', { value: S.String });
-export const SubmittedSearch = m('SubmittedSearch');
-export const SucceededCourseInsight = m('SucceededCourseInsight', {
-  response: S.Any,
-});
-export const FailedCourseInsight = m('FailedCourseInsight', {
-  error: S.String,
-});
-export const SyncedCourseUrl = m('SyncedCourseUrl');
-export const FailedCourseUrlSync = m('FailedCourseUrlSync');
-
-export const Message = S.Union([
-  UpdatedQuery,
-  SubmittedSearch,
-  SucceededCourseInsight,
-  FailedCourseInsight,
-  SyncedCourseUrl,
-  FailedCourseUrlSync,
-]);
-export type Message = typeof Message.Type;
-
-export const FetchCourseInsight = Command.define(
-  'FetchCourseInsight',
-  { courseCode: S.String },
-  SucceededCourseInsight,
-  FailedCourseInsight,
-)(({ courseCode }) =>
-  courseClient.getInsight(courseCode).pipe(
-    Effect.map((response) => SucceededCourseInsight({ response })),
-    Effect.catch((error) => Effect.succeed(FailedCourseInsight({ error: error.message }))),
-  ),
-);
-
-export const SyncCourseUrl = Command.define(
-  'SyncCourseUrl',
-  { courseCode: S.String },
-  SyncedCourseUrl,
-  FailedCourseUrlSync,
-)(({ courseCode }) =>
-  Effect.sync(() => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('course', courseCode);
-    window.history.replaceState(null, '', url);
-    return SyncedCourseUrl();
-  }),
-);
-
-export const update = (
-  model: Model,
-  message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] =>
-  M.value(message).pipe(
-    M.withReturnType<readonly [Model, ReadonlyArray<Command.Command<Message>>]>(),
-    M.tagsExhaustive({
-      UpdatedQuery: ({ value }) => [
-        evo(model, {
-          query: () => value,
-        }),
-        [],
-      ],
-      SubmittedSearch: () => {
-        if (model.result._tag === 'SearchLoading') {
-          return [model, []];
-        }
-
-        const courseCode = model.query.trim().toUpperCase();
-        if (courseCode.length === 0) {
-          return [
-            evo(model, {
-              result: () => SearchFailure({ error: 'Enter an NTNU course code.' }),
-            }),
-            [],
-          ];
-        }
-
-        return [
-          evo(model, {
-            query: () => courseCode,
-            result: () => SearchLoading(),
-          }),
-          [SyncCourseUrl({ courseCode }), FetchCourseInsight({ courseCode })],
-        ];
-      },
-      SucceededCourseInsight: ({ response: unsafeResponse }) => {
-        const response = unsafeResponse as CourseInsightResponse;
-        return [
-          evo(model, {
-            result: () =>
-              response.meta.partial ? SearchPartial({ response }) : SearchSuccess({ response }),
-          }),
-          [],
-        ];
-      },
-      FailedCourseInsight: ({ error }) => [
-        evo(model, {
-          result: () => SearchFailure({ error }),
-        }),
-        [],
-      ],
-      SyncedCourseUrl: () => [model, []],
-      FailedCourseUrlSync: () => [model, []],
-    }),
-  );
-
-export const init: Runtime.ApplicationInit<Model, Message> = () => {
-  const courseCode =
-    typeof window === 'undefined'
-      ? ''
-      : (new URL(window.location.href).searchParams.get('course') ?? '').trim().toUpperCase();
-
-  return [
-    {
-      query: courseCode,
-      result: courseCode.length === 0 ? SearchIdle() : SearchLoading(),
-    },
-    courseCode.length === 0 ? [] : [FetchCourseInsight({ courseCode })],
-  ];
-};
-
-const mainContentClass =
-  'w-[min(100%,76rem)] mx-auto pt-4 px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] [@media(min-width:48rem)_and_(min-height:34rem)]:w-[min(calc(100%-16.5rem),76rem)] [@media(min-width:48rem)_and_(min-height:34rem)]:pt-4 [@media(min-width:48rem)_and_(min-height:34rem)]:px-6 [@media(min-width:48rem)_and_(min-height:34rem)]:pb-20 [@media(min-width:48rem)_and_(min-height:34rem)]:ml-66 [@media(min-width:64rem)]:px-10';
-
-const eyebrowClass = 'mb-2 text-primary text-xs font-extrabold tracking-[0.1em] uppercase';
-
-const fieldLabelClass =
-  'block mt-0 mr-0 mb-[0.4rem] ml-1 text-on-surface-variant text-sm font-semibold';
-
-const fieldInputClass =
-  'w-full min-h-14 px-4 border border-outline rounded-m3-medium outline-0 bg-surface-container-low text-on-surface text-base uppercase transition-[border-color,box-shadow] duration-150 ease-in-out focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_var(--md-sys-color-primary-container)] disabled:opacity-70';
-
-const buttonPrimaryClass =
-  'min-h-14 px-5 border-0 rounded-[1.75rem] bg-primary text-on-primary shadow-m3-1 font-bold cursor-pointer transition-[box-shadow,transform] duration-150 ease-in-out not-data-[disabled]:hover:shadow-m3-2 not-data-[disabled]:hover:-translate-y-px data-[disabled]:cursor-wait data-[disabled]:opacity-[0.65] focus-visible:outline-3 focus-visible:outline-tertiary focus-visible:outline-offset-[3px] [@media(max-width:37rem)]:w-full';
-
-const stateCardClass =
-  'grid min-h-68 place-items-center content-center p-[clamp(2rem,6vw,4rem)] border border-outline-variant rounded-m3-extra-large bg-surface-container-low text-center [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-[clamp(1.4rem,3vw,2rem)] [&_p]:max-w-144 [&_p]:mx-auto [&_p]:my-1 [&_p]:text-on-surface-variant [&_p]:leading-[1.6]';
-
-const stateCardFailureClass =
-  'grid min-h-68 place-items-center content-center p-[clamp(2rem,6vw,4rem)] border border-error rounded-m3-extra-large bg-error-container text-on-error-container text-center [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-[clamp(1.4rem,3vw,2rem)] [&_p]:max-w-144 [&_p]:mx-auto [&_p]:my-1 [&_p]:text-inherit [&_p]:leading-[1.6]';
-
 const decisionSectionClass =
   'p-[clamp(1.25rem,4vw,2.25rem)] border border-outline-variant rounded-m3-large bg-surface-container-low';
 
@@ -228,183 +49,12 @@ const factStateClass =
 const uncertainFactStateClass =
   'inline-flex items-center min-h-[1.7rem] py-[0.2rem] px-[0.65rem] rounded-[1rem] bg-tertiary-container text-on-tertiary-container text-xs font-bold whitespace-nowrap';
 
-export const view = (model: Model): Document => {
-  const h = html<Message>();
-  const loading = model.result._tag === 'SearchLoading';
-
-  return {
-    title:
-      model.result._tag === 'SearchSuccess' || model.result._tag === 'SearchPartial'
-        ? `${model.result.response.item.code} · Course lens`
-        : 'Course lens · NTNU course decisions',
-    body: h.div(
-      [h.Class('min-h-screen')],
-      [
-        desktopNavigation<Message>(),
-        h.main(
-          [h.Class(mainContentClass)],
-          [
-            h.header(
-              [h.Class('py-[clamp(2rem,7vw,5rem)]')],
-              [
-                h.p([h.Class(eyebrowClass)], ['NTNU course decisions']),
-                h.h1(
-                  [
-                    h.Class(
-                      'max-w-[15ch] m-0 text-[clamp(2.25rem,7vw,4.75rem)] font-bold tracking-[-0.055em] leading-[0.99]',
-                    ),
-                  ],
-                  ['Understand a course before you choose it.'],
-                ),
-                h.p(
-                  [
-                    h.Class(
-                      'max-w-172 mt-5 mr-0 mb-8 ml-0 text-on-surface-variant text-[clamp(1rem,2vw,1.15rem)] leading-[1.65]',
-                    ),
-                  ],
-                  [
-                    'Search an exact course code to combine content, work form, assessment, requirements, and outcomes with explicit evidence.',
-                  ],
-                ),
-                searchForm(model.query, loading),
-                h.p(
-                  [
-                    h.Class('mt-[0.65rem] mr-0 mb-0 ml-1 text-on-surface-variant text-sm'),
-                    h.Id('search-hint'),
-                  ],
-                  ['Try a real course: TDT4136'],
-                ),
-              ],
-            ),
-            resultView(model.result),
-          ],
-        ),
-        mobileNavigation<Message>(),
-      ],
-    ),
-  };
-};
-
-const searchForm = (query: string, loading: boolean): Html => {
-  const h = html<Message>();
-  return h.form(
-    [
-      h.Class(
-        'flex items-end gap-3 w-[min(100%,39rem)] [@media(max-width:37rem)]:items-stretch [@media(max-width:37rem)]:flex-col',
-      ),
-      h.Id('explore'),
-      h.OnSubmit(SubmittedSearch()),
-      h.AriaDescribedBy('search-hint'),
-    ],
-    [
-      Input.view<Message>({
-        id: 'course-code',
-        value: query,
-        placeholder: 'TDT4136',
-        onInput: (value) => UpdatedQuery({ value }),
-        isDisabled: loading,
-        toView: (attributes) =>
-          h.div(
-            [h.Class('flex-1')],
-            [
-              h.label([...attributes.label, h.Class(fieldLabelClass)], ['Course code']),
-              h.input([
-                ...attributes.input,
-                h.Class(fieldInputClass),
-                h.Autocomplete('off'),
-                h.InputMode('text'),
-                h.AriaLabel('Course code'),
-              ]),
-            ],
-          ),
-      }),
-      Button.view<Message>({
-        type: 'submit',
-        isDisabled: loading,
-        toView: (attributes) =>
-          h.button(
-            [...attributes.button, h.Class(buttonPrimaryClass)],
-            [loading ? 'Looking up course…' : 'Find course'],
-          ),
-      }),
-    ],
-  );
-};
-
-const resultView = (result: SearchResult): Html => {
-  const h = html<Message>();
-
-  switch (result._tag) {
-    case 'SearchIdle':
-      return h.section(
-        [h.Class(stateCardClass), h.AriaLabel('Search guidance')],
-        [
-          h.div(
-            [
-              h.Class(
-                'grid size-16 place-items-center rounded-[1.25rem] bg-tertiary-container text-on-tertiary-container text-3xl',
-              ),
-              h.AriaHidden(true),
-            ],
-            ['⌕'],
-          ),
-          h.h2([], ['Start with one course']),
-          h.p(
-            [],
-            [
-              'No programme setup or account is needed. Search TDT4136 to inspect the first evidence-backed course view.',
-            ],
-          ),
-        ],
-      );
-    case 'SearchLoading':
-      return h.section(
-        [h.Class(stateCardClass), h.Role('status'), h.AriaLive('polite')],
-        [
-          h.div(
-            [
-              h.Class(
-                'size-12 border-[0.3rem] border-primary-container border-t-primary rounded-full animate-[spin_850ms_linear_infinite] motion-reduce:[animation-duration:1.8s]',
-              ),
-              h.AriaHidden(true),
-            ],
-            [],
-          ),
-          h.h2([], ['Gathering course evidence']),
-          h.p(
-            [],
-            [
-              'Course details and outcome sources are independent. Available information will remain useful if one source fails.',
-            ],
-          ),
-        ],
-      );
-    case 'SearchFailure':
-      return h.section(
-        [h.Class(stateCardFailureClass), h.Role('alert')],
-        [
-          h.p(
-            [h.Class('mb-2 text-error text-xs font-extrabold tracking-[0.1em] uppercase')],
-            ['Lookup failed'],
-          ),
-          h.h2([], ['We could not load that course']),
-          h.p([], [result.error]),
-          h.p([], ['Check the course code and try again.']),
-        ],
-      );
-    case 'SearchPartial':
-      return courseInsightView(result.response, true);
-    case 'SearchSuccess':
-      return courseInsightView(result.response, false);
-  }
-};
-
 export const courseInsightView = (
   response: CourseInsightResponse,
   partial: boolean,
   locale: Locale = 'en',
 ): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   const course = response.item;
   const title =
     course.title.state === 'known'
@@ -571,7 +221,7 @@ const compactFact = <A>(
   format: (value: A) => string,
   locale: Locale,
 ): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   return h.div(
     [
       h.Class(
@@ -595,7 +245,7 @@ const compactFact = <A>(
 };
 
 const decisionSection = (title: string, description: string, facts: ReadonlyArray<Html>): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   return h.section(
     [h.Class(decisionSectionClass)],
     [
@@ -612,7 +262,7 @@ const factView = <A>(
   locale: Locale,
   inferenceEvidenceIds: ReadonlySet<string> = new Set(),
 ): Html => {
-  const h = html<Message>();
+  const h = html<never>();
 
   if (fact.state === 'known') {
     const inferred =
@@ -680,7 +330,7 @@ const factView = <A>(
 };
 
 const gradeSection = (course: CourseInsight, locale: Locale): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   const grades = course.gradeOutcomes;
 
   return h.section(
@@ -750,7 +400,7 @@ const gradeDistribution = (
     : never,
   locale: Locale,
 ): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   return h.div(
     [h.Class('overflow-x-auto')],
     [
@@ -795,7 +445,7 @@ const gradeDistribution = (
 };
 
 const sourceSection = (course: CourseInsight, locale: Locale): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   return h.section(
     [h.Class(decisionSectionClass)],
     [
@@ -896,7 +546,7 @@ const evidenceLinks = (
   locale: Locale,
   contextClass = '',
 ): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   if (evidenceIds.length === 0) {
     return h.span(
       [h.Class(`text-on-surface-variant text-xs italic ${contextClass}`)],
@@ -928,7 +578,7 @@ const offeringList = (
   offerings: CourseInsight['offerings'] extends ProtocolFact<infer A> ? A : never,
   locale: Locale,
 ): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   if (offerings.length === 0) {
     return h.p([], [translate(locale, 'detail.noneReported')]);
   }
@@ -947,7 +597,7 @@ const offeringList = (
       return h.li(
         [h.Class('flex items-start gap-2')],
         [
-          icon<Message>(
+          icon<never>(
             termSeasonIconName(offering.season),
             'mt-0.5 block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
           ),
@@ -962,7 +612,7 @@ const assessmentList = (
   assessment: CourseInsight['assessment'] extends ProtocolFact<infer A> ? A : never,
   locale: Locale,
 ): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   const formatWeight = (value: number): string =>
     new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value);
   return h.ul(
@@ -1002,7 +652,7 @@ const obligatoryActivityList = (
   activities: CourseInsight['obligatoryActivities'] extends ProtocolFact<infer A> ? A : never,
   locale: Locale,
 ): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   if (activities.length === 0) {
     return h.p([], [translate(locale, 'detail.noneReported')]);
   }
@@ -1028,7 +678,7 @@ const obligatoryActivityList = (
 };
 
 const paragraph = (value: string): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   return h.p([], [value]);
 };
 
@@ -1036,7 +686,7 @@ const collaborationPill = (
   collaboration: 'individual' | 'group' | 'mixed',
   locale: Locale,
 ): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   return h.span(
     [
       h.Class(
@@ -1044,7 +694,7 @@ const collaborationPill = (
       ),
     ],
     [
-      icon<Message>(
+      icon<never>(
         collaborationIconName(collaboration),
         'block size-4 flex-none text-primary [&_svg]:block [&_svg]:size-full',
       ),
@@ -1054,7 +704,7 @@ const collaborationPill = (
 };
 
 const chipList = (items: ReadonlyArray<string>): Html => {
-  const h = html<Message>();
+  const h = html<never>();
   return h.ul(
     [
       h.Class(

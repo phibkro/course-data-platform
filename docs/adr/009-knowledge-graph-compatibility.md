@@ -1,6 +1,6 @@
 # ADR-009: Defer the knowledge graph while preserving compatibility
 
-- Status: Accepted
+- Status: Superseded by ADR-012
 - Date: 2026-07-20
 
 ## Context

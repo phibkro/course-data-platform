@@ -45,10 +45,10 @@ const stage = `pr-${prNumber}`;
 const sourceUrl = `https://github.com/phibkro/course-data-platform/tree/${head}`;
 console.log(`Deploying PR #${prNumber} preview from ${branch} at ${head.slice(0, 12)}.`);
 
-const alchemy = resolve(root, 'node_modules/.bin/alchemy');
+const alchemy = resolve(root, 'infra/node_modules/.bin/alchemy');
 const result = spawnSync(
   alchemy,
-  ['deploy', '--stage', stage, 'alchemy.run.ts', ...alchemyArguments],
+  ['deploy', '--stage', stage, 'infra/alchemy.run.ts', ...alchemyArguments],
   {
     cwd: root,
     env: {

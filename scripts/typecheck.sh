@@ -12,24 +12,11 @@ if [[ ! -x "$BINARY" ]]; then
 fi
 
 CONFIGS=(
-  packages/domain/tsconfig.json
-  packages/course-model/tsconfig.json
-  packages/course-service/tsconfig.json
-  packages/application/tsconfig.json
-  packages/study-kernel/tsconfig.json
-  packages/contracts/tsconfig.json
-  packages/database/tsconfig.json
-  packages/source-dbh/tsconfig.json
-  packages/source-grades/tsconfig.json
-  packages/source-ntnu/tsconfig.json
-  packages/source-ntnu-course/tsconfig.json
-  apps/api-worker/tsconfig.json
+  packages/course-contracts/tsconfig.json
   apps/course-api/tsconfig.json
-  apps/ingest-worker/tsconfig.json
   apps/student-web/tsconfig.json
   apps/student-web/tsconfig.e2e.json
-  apps/web/tsconfig.json
-  tsconfig.alchemy.json
+  infra/tsconfig.json
   tsconfig.json
 )
 

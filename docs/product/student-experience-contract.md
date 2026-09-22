@@ -12,7 +12,7 @@ Detailed surface contracts:
 
 ## Purpose
 
-Uni Planner reduces the number of facts and constraints a student must collect
+Course Lens reduces the number of facts and constraints a student must collect
 and reconcile manually. It does not expose the source systems as a generic
 database browser.
 
@@ -86,7 +86,7 @@ Routine facts use stable labeled rows. Pills are reserved for compact,
 multi-valued categories or exceptional signals. Icons supplement visible prose
 and accessible names; they never replace them.
 
-### Uni Planner insight
+### Course Lens insight
 
 Cross-source outcomes and unusual evidence-backed constraints are visually
 distinct from commodity catalogue metadata. Historical outcomes retain the

@@ -141,19 +141,7 @@
               "minimum": 1,
               "maximum": 100,
               "multipleOf": 1,
-              "anyOf": [
-                {
-                  "format": "numeric",
-                  "default": 0,
-                  "type": "string"
-                },
-                {
-                  "minimum": 1,
-                  "maximum": 100,
-                  "multipleOf": 1,
-                  "type": "number"
-                }
-              ]
+              "type": "number"
             }
           },
           {
@@ -807,18 +795,7 @@
                                         "academicYear": {
                                           "minimum": 2000,
                                           "maximum": 2200,
-                                          "anyOf": [
-                                            {
-                                              "format": "integer",
-                                              "default": 0,
-                                              "type": "string"
-                                            },
-                                            {
-                                              "minimum": 2000,
-                                              "maximum": 2200,
-                                              "type": "integer"
-                                            }
-                                          ]
+                                          "type": "integer"
                                         },
                                         "season": {
                                           "anyOf": [
@@ -995,18 +972,7 @@
                                               "academicYear": {
                                                 "minimum": 2000,
                                                 "maximum": 2200,
-                                                "anyOf": [
-                                                  {
-                                                    "format": "integer",
-                                                    "default": 0,
-                                                    "type": "string"
-                                                  },
-                                                  {
-                                                    "minimum": 2000,
-                                                    "maximum": 2200,
-                                                    "type": "integer"
-                                                  }
-                                                ]
+                                                "type": "integer"
                                               },
                                               "season": {
                                                 "anyOf": [
@@ -1591,7 +1557,7 @@
                                   ]
                                 },
                                 "observedAt": {
-                                  "format": "date-time",
+                                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
                                   "type": "string"
                                 },
                                 "excerpt": {
@@ -1648,7 +1614,7 @@
                           "observedAt": {
                             "anyOf": [
                               {
-                                "format": "date-time",
+                                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
                                 "type": "string"
                               },
                               {
@@ -1683,59 +1649,19 @@
                       "properties": {
                         "count": {
                           "minimum": 0,
-                          "anyOf": [
-                            {
-                              "format": "integer",
-                              "default": 0,
-                              "type": "string"
-                            },
-                            {
-                              "minimum": 0,
-                              "type": "integer"
-                            }
-                          ]
+                          "type": "integer"
                         },
                         "total": {
                           "minimum": 0,
-                          "anyOf": [
-                            {
-                              "format": "integer",
-                              "default": 0,
-                              "type": "string"
-                            },
-                            {
-                              "minimum": 0,
-                              "type": "integer"
-                            }
-                          ]
+                          "type": "integer"
                         },
                         "page": {
                           "minimum": 1,
-                          "anyOf": [
-                            {
-                              "format": "integer",
-                              "default": 0,
-                              "type": "string"
-                            },
-                            {
-                              "minimum": 1,
-                              "type": "integer"
-                            }
-                          ]
+                          "type": "integer"
                         },
                         "pageSize": {
                           "minimum": 1,
-                          "anyOf": [
-                            {
-                              "format": "integer",
-                              "default": 0,
-                              "type": "string"
-                            },
-                            {
-                              "minimum": 1,
-                              "type": "integer"
-                            }
-                          ]
+                          "type": "integer"
                         },
                         "hasMore": {
                           "type": "boolean"
@@ -1779,16 +1705,7 @@
                       "type": "string"
                     },
                     "status": {
-                      "anyOf": [
-                        {
-                          "format": "integer",
-                          "default": 0,
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
+                      "type": "integer"
                     },
                     "detail": {
                       "type": "string"
@@ -1822,16 +1739,7 @@
                       "type": "string"
                     },
                     "status": {
-                      "anyOf": [
-                        {
-                          "format": "integer",
-                          "default": 0,
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
+                      "type": "integer"
                     },
                     "detail": {
                       "type": "string"
@@ -5537,7 +5445,7 @@
                               "observedAt": {
                                 "anyOf": [
                                   {
-                                    "format": "date-time",
+                                    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
                                     "type": "string"
                                   },
                                   {
@@ -5617,7 +5525,7 @@
                                   ]
                                 },
                                 "observedAt": {
-                                  "format": "date-time",
+                                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
                                   "type": "string"
                                 },
                                 "excerpt": {
@@ -5656,17 +5564,7 @@
                       "properties": {
                         "count": {
                           "minimum": 0,
-                          "anyOf": [
-                            {
-                              "format": "integer",
-                              "default": 0,
-                              "type": "string"
-                            },
-                            {
-                              "minimum": 0,
-                              "type": "integer"
-                            }
-                          ]
+                          "type": "integer"
                         }
                       }
                     }
@@ -5696,16 +5594,7 @@
                       "type": "string"
                     },
                     "status": {
-                      "anyOf": [
-                        {
-                          "format": "integer",
-                          "default": 0,
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
+                      "type": "integer"
                     },
                     "detail": {
                       "type": "string"
@@ -5739,16 +5628,7 @@
                       "type": "string"
                     },
                     "status": {
-                      "anyOf": [
-                        {
-                          "format": "integer",
-                          "default": 0,
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
+                      "type": "integer"
                     },
                     "detail": {
                       "type": "string"
@@ -5899,34 +5779,12 @@
                                       "fromYear": {
                                         "minimum": 2000,
                                         "maximum": 2200,
-                                        "anyOf": [
-                                          {
-                                            "format": "integer",
-                                            "default": 0,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "minimum": 2000,
-                                            "maximum": 2200,
-                                            "type": "integer"
-                                          }
-                                        ]
+                                        "type": "integer"
                                       },
                                       "toYear": {
                                         "minimum": 2000,
                                         "maximum": 2200,
-                                        "anyOf": [
-                                          {
-                                            "format": "integer",
-                                            "default": 0,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "minimum": 2000,
-                                            "maximum": 2200,
-                                            "type": "integer"
-                                          }
-                                        ]
+                                        "type": "integer"
                                       }
                                     }
                                   },
@@ -6052,34 +5910,12 @@
                                             "fromYear": {
                                               "minimum": 2000,
                                               "maximum": 2200,
-                                              "anyOf": [
-                                                {
-                                                  "format": "integer",
-                                                  "default": 0,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "minimum": 2000,
-                                                  "maximum": 2200,
-                                                  "type": "integer"
-                                                }
-                                              ]
+                                              "type": "integer"
                                             },
                                             "toYear": {
                                               "minimum": 2000,
                                               "maximum": 2200,
-                                              "anyOf": [
-                                                {
-                                                  "format": "integer",
-                                                  "default": 0,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "minimum": 2000,
-                                                  "maximum": 2200,
-                                                  "type": "integer"
-                                                }
-                                              ]
+                                              "type": "integer"
                                             }
                                           }
                                         },
@@ -6121,17 +5957,7 @@
                                   },
                                   "value": {
                                     "minimum": 0,
-                                    "anyOf": [
-                                      {
-                                        "format": "integer",
-                                        "default": 0,
-                                        "type": "string"
-                                      },
-                                      {
-                                        "minimum": 0,
-                                        "type": "integer"
-                                      }
-                                    ]
+                                    "type": "integer"
                                   },
                                   "evidenceIds": {
                                     "minItems": 1,
@@ -6247,17 +6073,7 @@
                                       "properties": {
                                         "value": {
                                           "minimum": 0,
-                                          "anyOf": [
-                                            {
-                                              "format": "integer",
-                                              "default": 0,
-                                              "type": "string"
-                                            },
-                                            {
-                                              "minimum": 0,
-                                              "type": "integer"
-                                            }
-                                          ]
+                                          "type": "integer"
                                         },
                                         "evidenceIds": {
                                           "minItems": 1,
@@ -6311,17 +6127,7 @@
                                         },
                                         "count": {
                                           "minimum": 0,
-                                          "anyOf": [
-                                            {
-                                              "format": "integer",
-                                              "default": 0,
-                                              "type": "string"
-                                            },
-                                            {
-                                              "minimum": 0,
-                                              "type": "integer"
-                                            }
-                                          ]
+                                          "type": "integer"
                                         },
                                         "percentage": {
                                           "minimum": 0,
@@ -6459,17 +6265,7 @@
                                               },
                                               "count": {
                                                 "minimum": 0,
-                                                "anyOf": [
-                                                  {
-                                                    "format": "integer",
-                                                    "default": 0,
-                                                    "type": "string"
-                                                  },
-                                                  {
-                                                    "minimum": 0,
-                                                    "type": "integer"
-                                                  }
-                                                ]
+                                                "type": "integer"
                                               },
                                               "percentage": {
                                                 "minimum": 0,
@@ -6898,7 +6694,7 @@
                                   ]
                                 },
                                 "observedAt": {
-                                  "format": "date-time",
+                                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
                                   "type": "string"
                                 },
                                 "excerpt": {
@@ -6955,7 +6751,7 @@
                           "observedAt": {
                             "anyOf": [
                               {
-                                "format": "date-time",
+                                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
                                 "type": "string"
                               },
                               {
@@ -6987,49 +6783,17 @@
                       "properties": {
                         "count": {
                           "minimum": 0,
-                          "anyOf": [
-                            {
-                              "format": "integer",
-                              "default": 0,
-                              "type": "string"
-                            },
-                            {
-                              "minimum": 0,
-                              "type": "integer"
-                            }
-                          ]
+                          "type": "integer"
                         },
                         "fromYear": {
                           "minimum": 2000,
                           "maximum": 2200,
-                          "anyOf": [
-                            {
-                              "format": "integer",
-                              "default": 0,
-                              "type": "string"
-                            },
-                            {
-                              "minimum": 2000,
-                              "maximum": 2200,
-                              "type": "integer"
-                            }
-                          ]
+                          "type": "integer"
                         },
                         "toYear": {
                           "minimum": 2000,
                           "maximum": 2200,
-                          "anyOf": [
-                            {
-                              "format": "integer",
-                              "default": 0,
-                              "type": "string"
-                            },
-                            {
-                              "minimum": 2000,
-                              "maximum": 2200,
-                              "type": "integer"
-                            }
-                          ]
+                          "type": "integer"
                         }
                       }
                     }
@@ -7059,16 +6823,7 @@
                       "type": "string"
                     },
                     "status": {
-                      "anyOf": [
-                        {
-                          "format": "integer",
-                          "default": 0,
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
+                      "type": "integer"
                     },
                     "detail": {
                       "type": "string"
@@ -7102,16 +6857,7 @@
                       "type": "string"
                     },
                     "status": {
-                      "anyOf": [
-                        {
-                          "format": "integer",
-                          "default": 0,
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
+                      "type": "integer"
                     },
                     "detail": {
                       "type": "string"
@@ -7902,18 +7648,7 @@
                                       "academicYear": {
                                         "minimum": 2000,
                                         "maximum": 2200,
-                                        "anyOf": [
-                                          {
-                                            "format": "integer",
-                                            "default": 0,
-                                            "type": "string"
-                                          },
-                                          {
-                                            "minimum": 2000,
-                                            "maximum": 2200,
-                                            "type": "integer"
-                                          }
-                                        ]
+                                        "type": "integer"
                                       },
                                       "season": {
                                         "anyOf": [
@@ -8090,18 +7825,7 @@
                                             "academicYear": {
                                               "minimum": 2000,
                                               "maximum": 2200,
-                                              "anyOf": [
-                                                {
-                                                  "format": "integer",
-                                                  "default": 0,
-                                                  "type": "string"
-                                                },
-                                                {
-                                                  "minimum": 2000,
-                                                  "maximum": 2200,
-                                                  "type": "integer"
-                                                }
-                                              ]
+                                              "type": "integer"
                                             },
                                             "season": {
                                               "anyOf": [
@@ -12369,34 +12093,12 @@
                                         "fromYear": {
                                           "minimum": 2000,
                                           "maximum": 2200,
-                                          "anyOf": [
-                                            {
-                                              "format": "integer",
-                                              "default": 0,
-                                              "type": "string"
-                                            },
-                                            {
-                                              "minimum": 2000,
-                                              "maximum": 2200,
-                                              "type": "integer"
-                                            }
-                                          ]
+                                          "type": "integer"
                                         },
                                         "toYear": {
                                           "minimum": 2000,
                                           "maximum": 2200,
-                                          "anyOf": [
-                                            {
-                                              "format": "integer",
-                                              "default": 0,
-                                              "type": "string"
-                                            },
-                                            {
-                                              "minimum": 2000,
-                                              "maximum": 2200,
-                                              "type": "integer"
-                                            }
-                                          ]
+                                          "type": "integer"
                                         }
                                       }
                                     },
@@ -12522,34 +12224,12 @@
                                               "fromYear": {
                                                 "minimum": 2000,
                                                 "maximum": 2200,
-                                                "anyOf": [
-                                                  {
-                                                    "format": "integer",
-                                                    "default": 0,
-                                                    "type": "string"
-                                                  },
-                                                  {
-                                                    "minimum": 2000,
-                                                    "maximum": 2200,
-                                                    "type": "integer"
-                                                  }
-                                                ]
+                                                "type": "integer"
                                               },
                                               "toYear": {
                                                 "minimum": 2000,
                                                 "maximum": 2200,
-                                                "anyOf": [
-                                                  {
-                                                    "format": "integer",
-                                                    "default": 0,
-                                                    "type": "string"
-                                                  },
-                                                  {
-                                                    "minimum": 2000,
-                                                    "maximum": 2200,
-                                                    "type": "integer"
-                                                  }
-                                                ]
+                                                "type": "integer"
                                               }
                                             }
                                           },
@@ -12591,17 +12271,7 @@
                                     },
                                     "value": {
                                       "minimum": 0,
-                                      "anyOf": [
-                                        {
-                                          "format": "integer",
-                                          "default": 0,
-                                          "type": "string"
-                                        },
-                                        {
-                                          "minimum": 0,
-                                          "type": "integer"
-                                        }
-                                      ]
+                                      "type": "integer"
                                     },
                                     "evidenceIds": {
                                       "minItems": 1,
@@ -12717,17 +12387,7 @@
                                         "properties": {
                                           "value": {
                                             "minimum": 0,
-                                            "anyOf": [
-                                              {
-                                                "format": "integer",
-                                                "default": 0,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "minimum": 0,
-                                                "type": "integer"
-                                              }
-                                            ]
+                                            "type": "integer"
                                           },
                                           "evidenceIds": {
                                             "minItems": 1,
@@ -12781,17 +12441,7 @@
                                           },
                                           "count": {
                                             "minimum": 0,
-                                            "anyOf": [
-                                              {
-                                                "format": "integer",
-                                                "default": 0,
-                                                "type": "string"
-                                              },
-                                              {
-                                                "minimum": 0,
-                                                "type": "integer"
-                                              }
-                                            ]
+                                            "type": "integer"
                                           },
                                           "percentage": {
                                             "minimum": 0,
@@ -12929,17 +12579,7 @@
                                                 },
                                                 "count": {
                                                   "minimum": 0,
-                                                  "anyOf": [
-                                                    {
-                                                      "format": "integer",
-                                                      "default": 0,
-                                                      "type": "string"
-                                                    },
-                                                    {
-                                                      "minimum": 0,
-                                                      "type": "integer"
-                                                    }
-                                                  ]
+                                                  "type": "integer"
                                                 },
                                                 "percentage": {
                                                   "minimum": 0,
@@ -13469,7 +13109,7 @@
                               "observedAt": {
                                 "anyOf": [
                                   {
-                                    "format": "date-time",
+                                    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
                                     "type": "string"
                                   },
                                   {
@@ -13550,7 +13190,7 @@
                                 ]
                               },
                               "observedAt": {
-                                "format": "date-time",
+                                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
                                 "type": "string"
                               },
                               "excerpt": {
@@ -13617,16 +13257,7 @@
                       "type": "string"
                     },
                     "status": {
-                      "anyOf": [
-                        {
-                          "format": "integer",
-                          "default": 0,
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
+                      "type": "integer"
                     },
                     "detail": {
                       "type": "string"
@@ -13660,16 +13291,7 @@
                       "type": "string"
                     },
                     "status": {
-                      "anyOf": [
-                        {
-                          "format": "integer",
-                          "default": 0,
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
+                      "type": "integer"
                     },
                     "detail": {
                       "type": "string"
@@ -13703,16 +13325,7 @@
                       "type": "string"
                     },
                     "status": {
-                      "anyOf": [
-                        {
-                          "format": "integer",
-                          "default": 0,
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer"
-                        }
-                      ]
+                      "type": "integer"
                     },
                     "detail": {
                       "type": "string"

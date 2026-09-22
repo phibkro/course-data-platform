@@ -37,10 +37,10 @@ if (head !== remoteMain) {
 }
 
 console.log(`Deploying production from main at ${head.slice(0, 12)}.`);
-const alchemy = resolve(root, 'node_modules/.bin/alchemy');
+const alchemy = resolve(root, 'infra/node_modules/.bin/alchemy');
 const result = spawnSync(
   alchemy,
-  ['deploy', '--stage', 'prod', 'alchemy.run.ts', ...process.argv.slice(2)],
+  ['deploy', '--stage', 'prod', 'infra/alchemy.run.ts', ...process.argv.slice(2)],
   {
     cwd: root,
     env: process.env,

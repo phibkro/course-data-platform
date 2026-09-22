@@ -1,4 +1,4 @@
-import { fixtureCourseDecisionService } from '@course-data/course-service/fixture';
+import { fixtureCourseDecisionService } from '../src/course-decision/fixture';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -41,6 +41,6 @@ assessment model or a broader enrichment project.
 4. Record unavailable checks separately from product failures. Commit and
    verify the exact source from a clean worktree; leave operator edits intact.
 
-Commands: `bun run validate`, `bun run build`, and
-`bun run --cwd apps/student-web test:assessment`. On NixOS, select the installed
-browser with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` as in the existing browser suite.
+Commands: `bun run validate`, `bun run build`, and `bun run test:journeys`. On
+NixOS, select the installed browser with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`
+as in the golden journey suite.

@@ -1,0 +1,17 @@
+{
+  "name": "@course-data/course-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "0.34.52"
+  },
+  "devDependencies": {}
+}

@@ -1,6 +1,6 @@
 # ADR-006: Study-planning kernel and product projections
 
-- Status: Accepted
+- Status: Superseded by ADR-012
 - Date: 2026-07-20
 
 ## Context

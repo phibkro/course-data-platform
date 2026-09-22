@@ -38,9 +38,10 @@ Appearance and localization have their own gates:
   literal or a Tailwind palette utility in a component.
 - Interface strings live in the message catalogue. `bun run i18n:check` (part of
   `bun run check`) validates catalogue coverage — add both EN and NB.
-- `bun run test:a11y` drives the real-browser axe journeys. It is a separate CI
-  step, not part of `bun run check`; run it when rendered structure, focus,
-  colour, or responsive behavior changes.
+- `bun run test:journeys` drives the golden browser journeys, including the
+  real-HTTP Inspect seam and axe checkpoints. It is a separate CI step, not part
+  of `bun run check`; run it when rendered structure, focus, colour, responsive
+  behavior, persistence, URL state, or client decoding changes.
 - Preserve keyboard, touch, focus-return, history, and non-visual semantics when
   changing an interaction. Automated checks complement that review; they do not
   replace it.

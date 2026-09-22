@@ -39,8 +39,8 @@ Alchemy v2 initially provisions only resources used by the current workflow.
 
 ## Consequences
 
-- The existing React planner and ingestion system remain available during the
-  walking-skeleton transition but are not expanded.
+- The walking-skeleton transition ended after the course-decision loop shipped.
+  The prior React planner and ingestion implementation was removed.
 - Programme planning, Workbench, authentication, multiple institutions, full
   replication, and speculative infrastructure are deferred.
 - Course facts, evidence, uncertainty, and source-level partial failure become

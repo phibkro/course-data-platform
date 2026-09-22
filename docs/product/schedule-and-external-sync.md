@@ -196,7 +196,7 @@ Tiny coloured rectangles are never the only way to discover a conflict.
 ### Official TP
 
 TP is the authoritative student timetable destination for registered courses
-and manually selected parallel activities. Uni Planner links to the exact
+and manually selected parallel activities. Course Lens links to the exact
 course/period source where possible and states which events it has checked.
 
 Initial integration is outbound:
@@ -210,8 +210,8 @@ supported contract and institutional authorization.
 
 ### ntnu.1024.no
 
-The 1024 planner is a complementary semester timetable and export tool. Uni
-Planner may integrate rather than duplicate its mature calendar presentation.
+The 1024 planner is a complementary semester timetable and export tool. Course
+Lens can integrate rather than duplicate its mature calendar presentation.
 
 Integration stages are:
 
@@ -220,13 +220,13 @@ Integration stages are:
 3. preview an export from a selected List collection or Schedule scenario;
 4. add opt-in two-way reconciliation only with a stable revisioned API.
 
-HTML scraping is not a synchronization contract. If needed, Uni Planner should
+HTML scraping is not a synchronization contract. If needed, Course Lens can
 collaborate upstream on a narrow API.
 
 ## Identifier and privacy model
 
 The current human-entered 1024 name may function as both lookup key and access
-capability. Uni Planner therefore treats it as a secret, never as a safe public
+capability. Course Lens therefore treats it as a secret, never as a safe public
 username and never as a global student identity.
 
 The preferred upstream creation contract atomically returns:
@@ -244,7 +244,7 @@ interface ExternalScheduleCapability {
 - Read and write capabilities are separable and revocable where supported.
 - A human-facing nickname remains local and is not an authorization key.
 - Capability material is never placed in analytics, logs, referrers, or
-  screenshots by Uni Planner.
+  screenshots by Course Lens.
 - Connections are scoped to provider and academic period.
 
 If upstream cannot issue IDs, the fallback generates a high-entropy identifier,
@@ -267,7 +267,7 @@ External-only data 2 deadlines
 Remove             nothing automatically
 ```
 
-- Uni Planner's saved state remains student-owned.
+- Course Lens saved state remains student-owned.
 - External removal never deletes bookmarks, labels, notes, or Degree progress.
 - Imported courses are saved once and may receive the mapped period label.
 - Unknown course mappings remain visible.

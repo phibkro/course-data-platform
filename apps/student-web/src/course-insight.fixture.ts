@@ -1,4 +1,4 @@
-import type { CourseInsightResponseDtoType } from '@course-data/contracts';
+import type { CourseInsightResponseDtoType } from '@course-data/course-contracts';
 
 const observedAt = '2026-07-20T10:00:00.000Z';
 

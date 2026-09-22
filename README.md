@@ -1,4 +1,4 @@
-# Course Decision Product
+# Course Lens
 
 An evidence-backed NTNU course browser for answering the questions students
 actually have before choosing a subject: what it covers, how teaching works,
@@ -13,9 +13,9 @@ and fixture states instead of presenting guesses as facts.
 ## Active slice
 
 ```text
-Foldkit web -> Elysia/OpenAPI -> Effect service
-                              -> NTNU course search/detail
-                              -> grades.no + DBH/HK-dir outcomes
+Foldkit web -> TypeBox HTTP contract -> Elysia transport -> Effect service
+                                                    -> NTNU search/detail
+                                                    -> grades.no + DBH outcomes
 ```
 
 Implemented now:
@@ -40,10 +40,6 @@ Implemented now:
 - a minimal, parallel Alchemy v2 stack containing only the course API and
   student web application.
 
-The earlier programme planner, replication pipeline, D1/R2/Queue stack, and
-Workbench remain in the repository as a legacy platform baseline. They are not
-part of the default development, build, or deployment path.
-
 ## Commands
 
 ```sh
@@ -53,19 +49,20 @@ bun run build
 bun run dev
 ```
 
-Accessibility checks run against the fixture-backed production PWA in real
-Chromium at phone and desktop widths. The Linux Nix development shell pins the
-browser and publishes its executable path to Playwright:
+Golden student journeys run in real Chromium at phone and desktop widths. They
+exercise the fixture-backed PWA plus a deterministic browser-to-HTTP-to-Foldkit
+path, and include keyboard and axe checks. The Linux Nix development shell pins
+the browser and publishes its executable path to Playwright:
 
 ```sh
-nix develop --command bun run test:a11y
+nix develop --command bun run test:journeys
 ```
 
 Outside that shell, provide `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` or install the
 Playwright-managed browser for the current host.
 
-Pull requests and pushes to `main` run both the validation suite and this axe
-browser gate.
+Pull requests and pushes to `main` run both the validation suite and the golden
+journey gate.
 
 The combined development command starts the active product:
 
@@ -84,8 +81,6 @@ If the host shell does not expose Node directly but Nix is available,
 `bun run dev` automatically re-enters the repository development shell. This
 keeps the default onboarding path to one command on the workstation.
 
-Run the previous platform deliberately with `bun run legacy:dev:platform`.
-
 Generate the checked-in public API document with:
 
 ```sh
@@ -94,8 +89,10 @@ bun run openapi
 
 ## Infrastructure
 
-Alchemy v2 uses the new stack ID `CourseDecisionProduct` and new resource IDs,
-so it does not adopt, mutate, or destroy the earlier v1-managed resources.
+Alchemy v2 runs from the isolated `infra` workspace because the current
+Foldkit application and Alchemy require different Effect 4 release candidates.
+The stack uses the new ID `CourseDecisionProduct` and new resource IDs, so it
+does not adopt, mutate, or destroy the earlier v1-managed resources.
 The production student web is bound declaratively to
 `https://planner.phibkro.org`; Cloudflare manages its Worker custom-domain
 binding and certificate as part of the stack.
@@ -123,9 +120,9 @@ variable. Provision its least-privilege, account-owned Cloudflare credential
 and enable the workflow once with a dedicated Alchemy admin profile:
 
 ```sh
-alchemy login --profile admin
+infra/node_modules/.bin/alchemy login --profile admin
 CLOUDFLARE_ACCOUNT_ID=<account-id> \
-  alchemy deploy stacks/github.ts --profile admin --yes
+  infra/node_modules/.bin/alchemy deploy infra/stacks/github.ts --profile admin --yes
 ```
 
 The admin profile must be able to create account API tokens and should only be
@@ -148,10 +145,11 @@ domain is attached only to the `prod` stage, so previews cannot claim
 
 ```text
 untrusted HTTP source
-  -> validated evidence
-  -> course decision model
+  -> validated provider module
+  -> course-decision model
   -> Effect service
   -> Elysia/OpenAPI transport
+  -> neutral TypeBox wire contract
   -> validated Foldkit client
 ```
 
@@ -161,11 +159,10 @@ and `AGENTS.md`.
 
 ## Compiler policy
 
-TypeScript 7.0.2's native Go compiler is the sole checker. Type environments
-are declared per package rather than inherited accidentally through a hoisted
-install.
+TypeScript 7.0.2's native Go compiler is the sole checker. Each runtime
+workspace declares its own type environment.
 
-Bun 1.3.14 is the canonical package manager and command runner. Vite/Rolldown remain responsible for the browser bundle, Vitest remains the test framework, and Wrangler remains responsible for Cloudflare Worker bundling.
+Bun 1.3.14 is the package manager and command runner. Vite builds the browser application. Vitest runs tests. Wrangler builds the Cloudflare Worker.
 
 ## License and support
 

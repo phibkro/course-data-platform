@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the first vertical slices.
+Superseded by ADR-012.
 
 ## Decision
 

@@ -1,6 +1,6 @@
 # ADR-008: Programme context, capability degradation, and optional identity
 
-- Status: Accepted
+- Status: Superseded by ADR-012
 - Date: 2026-07-20
 
 ## Context

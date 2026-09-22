@@ -190,10 +190,11 @@ export const removeSavedCourse = (
 };
 
 /**
- * Restores an exact previously saved course together with the label
- * memberships it carried, for undoing a removal. A course that is already
- * present is left untouched, so restoring is safe to request more than once
- * for the same snapshot.
+ * Restores an exact previously saved course for undoing a removal. Its saved
+ * memberships return when their labels still exist; memberships for labels
+ * deleted after the removal stay deleted, so undo cannot create dangling
+ * references. A course that is already present is left untouched, so restoring
+ * is safe to request more than once for the same snapshot.
  */
 export const restoreSavedCourse = (
   state: SavedListState,
@@ -201,10 +202,24 @@ export const restoreSavedCourse = (
   memberships: ReadonlyArray<LabelMembership>,
 ): SavedListState => {
   if (state.savedCourses.some((existing) => existing.id === course.id)) return state;
+  const knownLabelIds = new Set(state.labels.map((label) => label.id));
+  const restoredMembershipKeys = new Set(
+    state.memberships.map((membership) =>
+      JSON.stringify([membership.savedCourseId, membership.labelId]),
+    ),
+  );
+  const restoredMemberships = memberships.filter((membership) => {
+    if (membership.savedCourseId !== course.id || !knownLabelIds.has(membership.labelId))
+      return false;
+    const key = JSON.stringify([membership.savedCourseId, membership.labelId]);
+    if (restoredMembershipKeys.has(key)) return false;
+    restoredMembershipKeys.add(key);
+    return true;
+  });
   return {
     ...state,
     savedCourses: [...state.savedCourses, course],
-    memberships: [...state.memberships, ...memberships],
+    memberships: [...state.memberships, ...restoredMemberships],
   };
 };
 

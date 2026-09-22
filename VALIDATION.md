@@ -1,114 +1,64 @@
 # Validation report
 
-Validated on 2026-07-23 for the course-decisions-first vertical slice.
+Validated on 2026-09-22 for the consolidated course-decision product.
 
-## Product journey
+This file records verification evidence. [`README.md`](README.md) and
+[`docs/product/course-decision-contract.md`](docs/product/course-decision-contract.md)
+own the product description and intended student tasks.
 
-The active `bun run dev` command was started from a clean shell without a
-database, account, programme, or migration step. On this Nix workstation the
-command automatically entered the repository development shell. Agent Browser
-exercised the student application on desktop and mobile:
+## Student journeys
 
-- the initial page loaded 40 alphabetically sorted rows from 2,825 live NTNU
-  autumn 2026 offerings without requiring a known course code;
-- “Show more courses” expanded the list from 40 to 80 while preserving the
-  source-reported total;
-- search, term, campus, study-level, open-admission, English-language, and sort
-  state were represented in the URL;
-- a code/title search for `TDT4136` automatically switched to NTNU relevance
-  and ranked the exact course first;
-- filtering the search to Trondheim and master level returned 10 courses;
-- open-admission filtering returned 898 courses;
-- a spring 2027 catalogue request returned 2,099 offerings; a direct
-  `PD6020` provider request returned the `/PD6020/2026` course page, whose
-  official detail identifies study year 2026/2027 and teaching start spring
-  2027, confirming the academic-year/season mapping;
-- opening `TDT4136` returned a live NTNU course insight backed by NTNU course
-  search/detail, grades.no, and DBH/HK-dir table 308;
-- the result exposed content, learning outcomes, work forms, assessment,
-  obligatory activities, prerequisites, grade distribution, failure rate,
-  average, median, source status, and evidence;
-- unsupported collaboration, attendance, and online-delivery claims remained
-  explicitly unknown;
-- grades.no and DBH period/sample disagreement rendered as conflicting rather
-  than being silently reconciled;
-- selection preserved the catalogue query, and back/forward navigation
-  restored the corresponding filter state;
-- desktop and 375 px mobile layouts had no horizontal overflow, with the
-  intended sidebar and bottom navigation respectively.
-- the accessibility tree exposed one correctly named checkbox per boolean
-  filter, without hidden-input duplication.
-- keyboard focus reached the custom Foldkit checkbox and Space toggled its
-  `aria-checked` state plus URL-backed filter.
+`bun run test:journeys` exercised seven named journeys in real Chromium:
 
-The first clean run exposed two local-environment defects, both fixed before
-the successful journey: the pinned Workerd build required compatibility date
-`2026-07-21`, and Nix-launched Workerd needed the system CA bundle passed
-explicitly.
+1. `GJ-01` — find a plausible course through search and refinement, then open Inspect with the keyboard;
+2. `GJ-02` — inspect assessment uncertainty through the real local HTTP/API/DTO/client/Foldkit path;
+3. `GJ-03` — continue and save while outcome evidence is unavailable rather than treating it as zero;
+4. `GJ-04` — save, annotate, reload, remove, and undo without an account;
+5. `GJ-05` — label a shortlist and apply Any, All, Exclude, and Unlabeled collection rules;
+6. `GJ-06` — inspect, save two courses, annotate and label one, compare differences, and reload;
+7. `GJ-07` — preserve corrupt or future local state until explicit recovery, then exercise mobile EN/NB rendering.
 
-## Independent launch review
+The run passed **7/7 journeys** in 10.3 seconds. Fixture desktop, mobile, and deterministic real-HTTP projects include keyboard, responsive-overflow, and axe checks at meaningful journey checkpoints. No external provider network is required.
 
-Fable 5 reviewed the validated catalogue commit in an isolated read-only
-worktree and found no P0. Its three P1 honesty checks were closed before the
-final gate:
+## Seam and architecture checks
 
-- spring academic-year semantics were verified live and autumn 2027 was added
-  to keep the term sequence complete;
-- inference-only facts now carry a visible `Inferred` state, and
-  attendance/online keyword scans are limited to assessment and teaching
-  sections;
-- source sections cut at the display limit now end with an explicit
-  “Truncated; continue at source” marker.
+`bun run validate` regenerated OpenAPI and passed formatting, lint, localization, TypeScript 7, Vitest, and the executable architecture boundaries:
 
-## Automated checks
+```text
+Test Files  10 passed (10)
+Tests       76 passed (76)
+Duration    881 ms
+```
 
-The canonical `bun run validate` gate regenerates OpenAPI and runs formatting,
-lint, both TypeScript compilers, and the full Vitest suite. `bun run build`
-performs the Worker dry run and production web build.
+The reduced suite separates four kinds of evidence:
 
-The final gate passed 29 test files / 109 tests. The production build emitted a
-308.89 KiB gzip Worker upload and a 123.72 KiB gzip main browser bundle.
+- constrained `fast-check` properties for fact/evidence states, parser corruption, reconciliation order, partial success, cache coalescing, bounded concurrency, saved-state transitions, collection algebra, URL round trips, and comparison cardinality;
+- captured provider fixtures for NTNU and grade-source language and response semantics;
+- Foldkit transition and semantic Scene tests for loading, empty, partial, failed, persistence, and stale-response behavior;
+- eight architecture invariants for explicit clocks, transport persistence boundaries, semantic colour roles and contrast, active workspaces, and dependency direction.
 
-The suite covers boundary rejection, ordinary-term grade windows, cohort
-thresholds, pass/fail separation, weighted averages, per-field source
-reconciliation, partial upstream failures, evidence integrity, transport
-responses, Foldkit scenes/stories, and student-client error handling.
+Generated properties do not replace captured semantic examples. Browser journeys do not replace provider-boundary qualification.
 
-## Live-source qualification
+The generated saved-state sequences exposed one production defect during this change: undo could restore a membership after its label had been deleted. `restoreSavedCourse` now restores only unique memberships whose labels still exist.
 
-The live journey confirms the currently implemented request and parsing paths
-against all four upstream endpoints. DBH table 308 was additionally queried
-grouped by `Emnekode`, confirming that NTNU versions use the
-`TDT4136-1`-style suffix; the adapter therefore filters `TDT4136-%` so it keeps
-course versions without absorbing longer prefix-matching course codes.
+## Production build
 
-Checked-in source fixtures remain deliberately labelled `fixture` and are not
-presented as captured source facts. Expanding the live golden corpus beyond
-TDT4136 and preserving provider-approved response captures remains a
-pre-public-launch task rather than a hidden claim of this slice.
+`bun run build` passed the TypeScript 7 check and produced both deployable applications:
 
-## Feedback channel
+```text
+course-api Worker dry run: 1397.09 KiB / gzip 264.50 KiB
+student-web JavaScript:     572.02 KiB / gzip 163.34 KiB
+student-web CSS:             69.66 KiB / gzip  12.85 KiB
+```
 
-The decision screens carry one contextual feedback affordance: a link labelled
-"Tell us" beside the question "Did this help your decision?". It appears on the
-course insight screen and on the comparison screen only when the operator sets
-`VITE_FEEDBACK_URL` to a valid HTTPS URL; with no value set, no affordance is
-rendered. The variable works exactly like `VITE_TIP_URL` — see
-`.env.example`.
+Vite reports the existing advisory that the student-web JavaScript chunk exceeds 500 kB before gzip. The warning does not fail the build; no runtime behavior was changed to conceal it.
 
-The operator sets this variable to a channel they actually read. Feedback that
-arrives there is review evidence for this validation ledger: repeat submissions
-and continued decision journeys recorded in the channel are assessed beside
-this file when judging whether the decision-support slice has earned further
-expansion.
+## Current boundary
 
-## Current product boundary
+The verified value loop is:
 
-This release candidate supports broad scanning and narrowing by the factual
-facets available from NTNU's catalogue endpoint, then makes an opened course
-genuinely understandable. Result cards intentionally do not claim credits,
-assessment form, collaboration, remote feasibility, obligatory work, or grade
-risk until richer sources have been loaded. Batch grade signals, progressive
-detail enrichment, and shortlist comparison are the next student-value slices;
-programme planning, authentication, full replication, and multi-institution
-support remain deliberately later.
+```text
+Explore → Inspect attributed evidence → Save / annotate / label locally → Compare
+```
+
+Programme planning, schedule evaluation, authentication, cross-device synchronization, recommendations, persistent named collections, JSON import/export, full offline factual caching, and second-institution support remain outside the shipped product boundary.

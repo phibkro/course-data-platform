@@ -42,7 +42,7 @@ jobs:
         run: bun run validate
 
       - name: Deploy isolated preview
-        run: bunx alchemy deploy --stage "$STAGE" alchemy.run.ts --yes
+        run: infra/node_modules/.bin/alchemy deploy --stage "$STAGE" infra/alchemy.run.ts --yes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -81,7 +81,7 @@ jobs:
         run: test "$STAGE" != "prod"
 
       - name: Destroy isolated preview
-        run: bunx alchemy destroy --stage "$STAGE" alchemy.run.ts --yes
+        run: infra/node_modules/.bin/alchemy destroy --stage "$STAGE" infra/alchemy.run.ts --yes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

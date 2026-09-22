@@ -8,7 +8,7 @@ import {
   type CourseGradeSummariesResponseDtoType,
   type CourseInsightResponseDtoType,
   type CourseSearchResponseDtoType,
-} from '@course-data/contracts';
+} from '@course-data/course-contracts';
 import { Value } from '@sinclair/typebox/value';
 import { Effect, Schema as S } from 'effect';
 

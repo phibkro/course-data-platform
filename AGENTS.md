@@ -17,7 +17,7 @@
 
 ## Product
 
-Uni Planner helps NTNU students discover, understand, save, and compare courses
+Course Lens helps NTNU students discover, understand, save, and compare courses
 using trustworthy evidence. It is anonymous, local-first, and NTNU-only.
 
 The active value loop is `Explore -> Inspect -> List -> Compare`. A vertical
@@ -50,45 +50,30 @@ Programme planning, accounts, cross-device synchronization, additional
 institutions, and full national replication remain later options until the
 course-decision loop demonstrates repeat value.
 
-## Two stacks
+## Architecture
 
-This repository holds the current course-decision product and an older planner
-that predates it. Both layer the same way — `apps -> infrastructure packages ->
-application -> domain` — but they are separate lineages, and the distinction
-decides where new work belongs.
+This repository contains one active product with two runtime applications and
+one shared wire-contract package:
 
-**Current — the course-decision stack.** New product contracts are defined here.
+- `apps/student-web` is the Foldkit browser application. Its feature modules
+  own URL state, explicit remote-data state, and local preferences.
+- `packages/course-contracts` owns neutral TypeBox JSON schemas. It does not
+  import Elysia or server domain modules.
+- `apps/course-api` is the Elysia and Cloudflare application. Internal
+  `course-decision` modules own facts, evidence, uncertainty, orchestration,
+  caching, deadlines, and partial success.
+- `apps/course-api/src/sources` validates provider data before application code
+  consumes it.
+- `infra/alchemy.run.ts` is the infrastructure composition root. The `infra`
+  workspace isolates Alchemy's Effect runtime from the Foldkit application.
 
-- `packages/course-model` owns course facts, evidence, uncertainty, and pure
-  derived classifications.
-- `packages/source-ntnu-course` and `packages/source-grades` validate provider
-  data and map it into the course model.
-- `packages/course-service` coordinates sources, partial success, caching,
-  retries, and timeouts when that complexity is present.
-- `packages/contracts` owns public DTOs and mappings, never database rows.
-- `apps/course-api` is the thin Elysia transport composition root.
-- `apps/student-web` is the Foldkit application. Its model owns URL state,
-  explicit remote-data state, and local preferences.
-- `alchemy.run.ts` is the infrastructure composition root. Only `course-api` and
-  `student-web` are built and deployed.
-
-**Legacy — the planner stack.** `apps/web` (React), `apps/api-worker`,
-`apps/ingest-worker`, `packages/{domain,study-kernel,application,database,
-source-dbh,source-ntnu}`, and `legacy/ntnu-course-search`.
-
-Maintain, do not extend. These are excluded from build and deploy, but lint,
-`check:types`, and `test` still cover them, so breaking them blocks CI. Keep them
-compiling and passing; do not add features to them, do not treat their patterns
-as precedent for new work, and do not delete them in passing.
-
-Two edges cross the two-stack boundary, and both are worth knowing before moving
-code: `packages/contracts` depends on `packages/study-kernel`, and it imports `t`
-from `elysia` — so every application, including the browser SPA, pulls Elysia in
-transitively.
+The browser and API remain separate because they have different runtime and
+trust boundaries. Backend domain, service, and source seams are modules inside
+the API application, not independently published workspace packages.
 
 ## Enduring invariants
 
-Four structural boundaries are enforced rather than described — see
+Structural boundaries are enforced rather than described. See
 `.oxlintrc.json` (domain purity) and
 [`tests/architecture.test.ts`](tests/architecture.test.ts) (ambient clocks, SQL
 in transport, appearance tokens, dependency direction). Read the failure message
@@ -104,8 +89,6 @@ The invariants that judgement still carries:
   as fixture, student-authored, or inference. Derived classifications expose
   their evidence and uncertainty.
 - A source failure does not erase independently available information.
-- Official curriculum, student scenarios, and actual progress are separate
-  objects.
 - Do not pre-provision infrastructure or general frameworks for deferred
   capabilities.
 - Generated artifacts are checked in and must be reproducible.
@@ -122,8 +105,9 @@ The invariants that judgement still carries:
 - Use judgment proportional to the change. Keep a slice small enough to verify
   through its observable behavior, and do not broaden it with unrelated cleanup.
 - The common quality commands are `bun run check`, `bun run test`, and
-  `bun run build`. Read [`docs/agent/verification.md`](docs/agent/verification.md)
-  when preparing a handoff or choosing additional checks.
+  `bun run build`. Student-journey changes also run `bun run test:journeys`.
+  Read [`docs/agent/verification.md`](docs/agent/verification.md) when preparing
+  a handoff or choosing additional checks.
 
 Subsystem guidance is progressively disclosed:
 
@@ -132,7 +116,6 @@ Subsystem guidance is progressively disclosed:
   [`.claude/rules/backend-and-data.md`](.claude/rules/backend-and-data.md)
 - Infrastructure:
   [`.claude/rules/infrastructure.md`](.claude/rules/infrastructure.md)
-- Legacy planner stack: [`.claude/rules/legacy-planner.md`](.claude/rules/legacy-planner.md)
 
 Claude Code loads those rules by path. Other agents should read the relevant file
 before editing that subsystem.

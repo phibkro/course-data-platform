@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-playwright-*/
 .vite/
 .vite-plus/
 .wrangler/

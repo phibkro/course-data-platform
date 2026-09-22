@@ -1,6 +1,6 @@
 import { Runtime, Url } from 'foldkit';
 
-import { ChangedUrl, Message, Model, RequestedUrl, routingInit, update, view } from './main';
+import { ChangedUrl, Message, Model, RequestedUrl, routingInit, update, view } from './app';
 import './styles.css';
 import { initializeThemePreference } from './theme';
 

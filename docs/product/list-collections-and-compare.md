@@ -291,7 +291,7 @@ Saved summaries reuse the order defined in the student experience contract:
 1. identity and current offering;
 2. labels and private note;
 3. decision profile;
-4. Uni Planner outcome evidence;
+4. Course Lens outcome evidence;
 5. freshness or changed-since-saved findings;
 6. Inspect, Compare, Schedule, and remove actions.
 

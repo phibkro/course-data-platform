@@ -9,21 +9,24 @@ import {
   CourseSearchQueryDto,
   CourseSearchResponseDto,
   ProblemDto,
-  toCourseDecisionSignalsDto,
-  toCourseInsightDto,
-  toCourseGradeSummaryDto,
-  toCourseSearchItemDto,
-} from '@course-data/contracts';
-import type {
-  CourseDecisionService,
-  CourseSearchCampus,
-  CourseSearchLevel,
-} from '@course-data/course-service';
+} from '@course-data/course-contracts';
 import { cors } from '@elysiajs/cors';
 import { openapi } from '@elysiajs/openapi';
 import * as Effect from 'effect/Effect';
 import * as Result from 'effect/Result';
 import { Elysia, t } from 'elysia';
+
+import type {
+  CourseDecisionService,
+  CourseSearchCampus,
+  CourseSearchLevel,
+} from './course-decision/service';
+import {
+  toCourseDecisionSignalsDto,
+  toCourseGradeSummaryDto,
+  toCourseInsightDto,
+  toCourseSearchItemDto,
+} from './http/course-dto';
 
 const problem = (
   requestId: string,

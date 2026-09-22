@@ -1,6 +1,6 @@
 # ADR-007: Source replication, caching, and freshness
 
-- Status: Accepted
+- Status: Superseded by ADR-012
 - Date: 2026-07-20
 
 ## Context

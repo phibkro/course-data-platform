@@ -1,12 +1,12 @@
 {
-  "plugins": ["typescript", "react", "vitest"],
+  "plugins": ["typescript", "vitest"],
   "jsPlugins": [
     {
       "name": "foldkit",
       "specifier": "@foldkit/oxlint-plugin"
     }
   ],
-  "ignorePatterns": ["legacy/**", "**/dist/**", "node_modules/**"],
+  "ignorePatterns": ["**/dist/**", "node_modules/**"],
   "rules": {
     "foldkit/command-binding-matches-name": "error",
     "foldkit/command-define-pascal-const": "error",
@@ -36,24 +36,18 @@
     "no-throw-literal": "error",
     "prefer-const": "error",
     "typescript/no-explicit-any": "error",
-    "react/jsx-key": "error",
     "vitest/no-disabled-tests": "error"
   },
   "overrides": [
     {
-      "files": [
-        "packages/course-model/src/**/*.ts",
-        "packages/domain/src/**/*.ts",
-        "packages/study-kernel/src/**/*.ts",
-        "packages/application/src/**/*.ts"
-      ],
+      "files": ["apps/course-api/src/course-decision/model/**/*.ts"],
       "excludeFiles": ["**/*.test.ts", "**/*.test.tsx"],
       "rules": {
         "no-restricted-globals": [
           "error",
           {
             "name": "fetch",
-            "message": "Domain code is deterministic. Take a fetch capability as an explicit dependency (see LiveCourseDecisionDependencies in packages/course-service/src/live.ts)."
+            "message": "Domain code is deterministic. Take a fetch capability as an explicit dependency (see apps/course-api/src/course-decision/live.ts)."
           },
           {
             "name": "XMLHttpRequest",

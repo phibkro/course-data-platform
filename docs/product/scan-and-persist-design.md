@@ -67,7 +67,7 @@ This layer comes from the fast catalogue path and must not wait for enrichment.
 This layer is progressively enriched only for an exact match, a visible card,
 an opened course, or a saved course.
 
-### 3. Uni Planner insight
+### 3. Course Lens insight
 
 Historically observed outcomes are the distinctive cross-source value and
 receive more visual emphasis than commodity catalogue metadata:
@@ -231,8 +231,8 @@ The NTNU projection requires:
 - validity/tombstone state;
 - publication revision.
 
-Database rows remain infrastructure types. Public facts continue through
-`packages/course-model` and `packages/contracts`.
+Database rows remain infrastructure types. Public facts continue through the
+API course model and `packages/course-contracts`.
 
 ## Publication and freshness
 
@@ -394,10 +394,9 @@ Student decision: the same outcome strip remains fast and available during DBH
 outages.
 
 - Add table-308 archive and normalized course-grade projection.
-- Implement the course-outcome D1 adapter behind the course-service repository
-  capability. It may reuse proven revision/publication concepts, but it does
-  not expose planner-era rows or let the old application determine the new
-  public contract.
+- Implement the course-outcome D1 adapter behind a course-decision service
+  capability. It can reuse proven publication concepts, but it does not expose
+  database rows through the public contract.
 - Switch `getGradeSummaries` to a repository capability.
 - Schedule bounded current-period refresh.
 - Return publication revision and freshness.

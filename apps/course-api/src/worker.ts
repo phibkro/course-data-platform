@@ -1,4 +1,4 @@
-import { makeLiveCourseDecisionService } from '@course-data/course-service/live';
+import { makeLiveCourseDecisionService } from './course-decision/live';
 import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker';
 import { Elysia } from 'elysia';
 

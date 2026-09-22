@@ -11,16 +11,11 @@ selected files and the exit status.
 
 ## Contract
 
-- Audit every `test` script in the root manifest's `apps/*` and `packages/*`
-  workspaces. Reuse `scripts/test.ts` for cwd and Node/Nix runtime selection;
-  do not add another runner, dependency, or Vitest configuration.
-- Root-relative package filters include a trailing slash: `source-ntnu/`
-  must not accidentally select `source-ntnu-course/`.
-- Keep existing root-suite behavior and specialized browser commands intact.
+- Audit every `test` script in the active `apps/*` and `packages/*`
+  workspaces. Reuse `scripts/test.ts` for working-directory and Node/Nix
+  runtime selection.
+- Keep the root-suite behavior and specialized browser commands intact.
   This contract concerns advertised unit-test scripts, not browser behavior.
-- Remove `packages/domain`'s advertised test command: it has no direct suite
-  and repository callers do not require that command. This is an explicit
-  absence of a package-local suite, not a skipped or passing test run.
 - Do not enable `passWithNoTests`, fabricate tests, or hide a failing exit.
 - No application/UI changes, migrations, installs, original-checkout edits,
   deployment, or provider calls.

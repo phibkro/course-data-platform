@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   quality:
-    name: Validate and accessibility
+    name: Validate and golden journeys
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -32,5 +32,5 @@ jobs:
       - name: Install Chromium
         run: bun --bun apps/student-web/node_modules/.bin/playwright install --with-deps chromium
 
-      - name: Check browser accessibility
-        run: bun run test:a11y
+      - name: Check golden browser journeys
+        run: bun run test:journeys
