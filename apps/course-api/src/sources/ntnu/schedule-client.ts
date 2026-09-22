@@ -1,4 +1,8 @@
-import { parseNtnuCourseSchedule, type NtnuScheduleParseResult } from './schedule';
+import {
+  parseNtnuCourseSchedule,
+  type NtnuScheduleParseResult,
+  type NtnuScheduleHttpValidator,
+} from './schedule';
 import type { FetchLike } from './search-client';
 
 const SCHEDULE_RESOURCE_URL =
@@ -31,12 +35,18 @@ export const fetchNtnuCourseSchedule = async (
   if (!response.ok) {
     throw new Error(`NTNU course schedule returned HTTP ${response.status}.`);
   }
+  const etag = response.headers.get('etag')?.trim();
+  const httpValidator: NtnuScheduleHttpValidator =
+    etag === undefined || etag === ''
+      ? { state: 'unknown', reason: 'etag-not-published' }
+      : { state: 'known', kind: 'http-etag', value: etag };
   const rawBody = await response.text();
   const contentHash = await deps.sha256Hex(rawBody);
 
   return parseNtnuCourseSchedule(rawBody, {
     retrievedAt: deps.now().toISOString(),
     contentHash,
+    httpValidator,
     requestUrl,
     courseCode: query.courseCode,
     courseVersion: query.courseVersion,

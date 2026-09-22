@@ -1,9 +1,21 @@
 import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 
+export type NtnuScheduleHttpValidator =
+  | {
+      readonly state: 'known';
+      readonly kind: 'http-etag';
+      readonly value: string;
+    }
+  | {
+      readonly state: 'unknown';
+      readonly reason: 'etag-not-published';
+    };
+
 export interface NtnuScheduleCaptureMetadata {
   readonly retrievedAt: string;
   readonly contentHash: string;
+  readonly httpValidator: NtnuScheduleHttpValidator;
   readonly requestUrl: string;
   readonly courseCode: string;
   readonly courseVersion: string;
@@ -19,6 +31,7 @@ export interface NtnuScheduleAttribution {
   readonly retrievedAt: string;
   readonly requestUrl: string;
   readonly contentHash: string;
+  readonly httpValidator: NtnuScheduleHttpValidator;
   readonly evidenceKind: 'source-fact' | 'fixture';
 }
 
@@ -60,14 +73,21 @@ export interface ValidatedNtnuScheduleOccurrence {
 }
 
 export interface NtnuScheduleCoverage {
+  readonly sourceAccess: 'public-unauthenticated-page-resource';
+  readonly automatedReuse: 'unverified-robots-disallowed';
   readonly activityIdentity: 'provider-recorded';
   readonly dateTime: 'dated-occurrences';
-  readonly timezone: 'capture-declared';
+  readonly recurrence: 'expanded-occurrences-only';
+  readonly timezone: 'provider-declared';
   readonly activityType: 'provider-prose';
-  readonly activitySelection: 'unknown';
-  readonly exceptions: 'status-only';
+  readonly activitySelection: 'manual-selection-documented-source-linkage-unknown';
+  readonly exceptions: 'status-field-undocumented';
   readonly campus: 'unknown';
   readonly location: 'rooms-when-published';
+  readonly sourceRevision: 'unavailable';
+  readonly integrity: 'sha256-captured-body';
+  readonly httpValidation: 'etag-when-published-representation-specific';
+  readonly freshness: 'observed-at-only';
 }
 
 export type NtnuScheduleRejectionCode =
@@ -93,10 +113,22 @@ const IsoTimestampSchema = Schema.String.pipe(
 );
 const Sha256Schema = Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-f0-9]{64}$/)));
 const NullableStringSchema = Schema.NullOr(Schema.String);
+const HttpValidatorSchema = Schema.Union([
+  Schema.Struct({
+    state: Schema.Literal('known'),
+    kind: Schema.Literal('http-etag'),
+    value: Schema.NonEmptyString,
+  }),
+  Schema.Struct({
+    state: Schema.Literal('unknown'),
+    reason: Schema.Literal('etag-not-published'),
+  }),
+]);
 
 const CaptureSchema = Schema.Struct({
   retrievedAt: IsoTimestampSchema,
   contentHash: Sha256Schema,
+  httpValidator: HttpValidatorSchema,
   requestUrl: Schema.String.pipe(Schema.check(Schema.isStartsWith('https://www.ntnu.no/'))),
   courseCode: Schema.NonEmptyString,
   courseVersion: Schema.NonEmptyString,
@@ -142,14 +174,21 @@ const ResponseSchema = Schema.Struct({
 });
 
 const coverage: NtnuScheduleCoverage = Object.freeze({
+  sourceAccess: 'public-unauthenticated-page-resource',
+  automatedReuse: 'unverified-robots-disallowed',
   activityIdentity: 'provider-recorded',
   dateTime: 'dated-occurrences',
-  timezone: 'capture-declared',
+  recurrence: 'expanded-occurrences-only',
+  timezone: 'provider-declared',
   activityType: 'provider-prose',
-  activitySelection: 'unknown',
-  exceptions: 'status-only',
+  activitySelection: 'manual-selection-documented-source-linkage-unknown',
+  exceptions: 'status-field-undocumented',
   campus: 'unknown',
   location: 'rooms-when-published',
+  sourceRevision: 'unavailable',
+  integrity: 'sha256-captured-body',
+  httpValidation: 'etag-when-published-representation-specific',
+  freshness: 'observed-at-only',
 });
 
 const decodeInput = (
@@ -287,6 +326,7 @@ export const parseNtnuCourseSchedule = (
       retrievedAt: captured.retrievedAt,
       requestUrl: captured.requestUrl,
       contentHash: captured.contentHash,
+      httpValidator: captured.httpValidator,
       evidenceKind: captured.evidenceKind,
     };
     accepted.push({

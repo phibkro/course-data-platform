@@ -11,6 +11,11 @@ const fixtureUrl = new URL('./fixtures/tdt4136-schedule-2026-autumn.json', impor
 const capture: NtnuScheduleCaptureMetadata = {
   retrievedAt: scheduleSource.capturedAt,
   contentHash: scheduleSource.contentHash.rawBody,
+  httpValidator: {
+    state: 'known',
+    kind: 'http-etag',
+    value: scheduleSource.httpValidator.value,
+  },
   requestUrl: scheduleSource.requestUrl,
   courseCode: 'TDT4136',
   courseVersion: '1',
@@ -44,6 +49,13 @@ describe('NTNU course schedule boundary', () => {
           url: 'http://use.mazemap.com/?v=1&campuses=ntnu&sharepoitype=identifier&sharepoi=380-3088',
         },
       ],
+      attribution: {
+        httpValidator: {
+          state: 'known',
+          kind: 'http-etag',
+          value: '"9365106e"',
+        },
+      },
     });
   });
 
@@ -51,14 +63,21 @@ describe('NTNU course schedule boundary', () => {
     const result = parseNtnuCourseSchedule(scheduleFixture, capture);
 
     expect(result.coverage).toEqual({
+      sourceAccess: 'public-unauthenticated-page-resource',
+      automatedReuse: 'unverified-robots-disallowed',
       activityIdentity: 'provider-recorded',
       dateTime: 'dated-occurrences',
-      timezone: 'capture-declared',
+      recurrence: 'expanded-occurrences-only',
+      timezone: 'provider-declared',
       activityType: 'provider-prose',
-      activitySelection: 'unknown',
-      exceptions: 'status-only',
+      activitySelection: 'manual-selection-documented-source-linkage-unknown',
+      exceptions: 'status-field-undocumented',
       campus: 'unknown',
       location: 'rooms-when-published',
+      sourceRevision: 'unavailable',
+      integrity: 'sha256-captured-body',
+      httpValidation: 'etag-when-published-representation-specific',
+      freshness: 'observed-at-only',
     });
   });
 

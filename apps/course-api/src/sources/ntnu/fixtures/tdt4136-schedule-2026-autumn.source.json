@@ -12,10 +12,15 @@
     "algorithm": "sha-256",
     "rawBody": "5bc525f14a2a97ae65f662742f447fc618a1359653ff893ab96dae8ee03dfbf5"
   },
+  "httpValidator": {
+    "state": "known",
+    "kind": "http-etag",
+    "value": "\"9365106e\""
+  },
   "observedOccurrenceCount": 67,
   "observedStatuses": [
     "active"
   ],
   "isRepresentativeFixture": false,
-  "note": "Live capture from NTNU's public unauthenticated but undocumented Liferay schedules resource. This fixture proves dated provider occurrences and room fields only; it does not prove provider authorization/stability, fixed-versus-alternative activity groups, campus identity, or cancellation/exception semantics."
+  "note": "Live capture from NTNU's public unauthenticated Liferay course-page resource. Its representation-specific HTTP ETag still matched these exact response bytes on 2026-09-22. NTNU's robots.txt disallows automated access to /web and p_p resource URLs, and no reuse license was found. This fixture therefore proves dated occurrences, a response validator, and room fields only; it does not authorize automated reuse or prove a provider revision, fixed-versus-alternative groups, campus identity, or cancellation/exception semantics."
 }
