@@ -3,4 +3,5 @@
   "name": "course-decision-api-dev",
   "main": "src/worker.ts",
   "compatibility_date": "2026-07-21",
+  "previews": {},
 }
