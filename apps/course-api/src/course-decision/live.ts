@@ -32,6 +32,7 @@ import {
   type ValidatedNtnuSearchHit,
 } from '../sources/ntnu';
 import * as Effect from 'effect/Effect';
+import * as Tracer from 'effect/Tracer';
 
 import {
   CourseInvalidTermError,
@@ -52,6 +53,7 @@ export interface LiveCourseDecisionDependencies {
   readonly fetch: (url: string, init?: RequestInit) => Promise<Response>;
   readonly now: () => Date;
   readonly sha256Hex: (input: string) => Promise<string>;
+  readonly tracer?: Tracer.Tracer;
 }
 
 export interface LiveCourseDecisionConfig {
@@ -898,5 +900,47 @@ export const makeLiveCourseDecisionService = (
             }),
     });
 
-  return { search, getInsight, getGradeSummaries, getDecisionSignals, getSchedule };
+  const traced = <Success, Error, Requirements>(
+    name: string,
+    attributes: Record<string, unknown>,
+    effect: Effect.Effect<Success, Error, Requirements>,
+  ): Effect.Effect<Success, Error, Requirements> => {
+    const withSpan = effect.pipe(Effect.withSpan(name, { attributes }));
+    return deps.tracer === undefined
+      ? withSpan
+      : Effect.provideService(withSpan, Tracer.Tracer, deps.tracer);
+  };
+
+  return {
+    search: (input) =>
+      traced('course-decision.search', { 'course.term': input.term ?? 'default' }, search(input)),
+    getInsight: (input) =>
+      traced(
+        'course-decision.insight',
+        { 'course.code': input.courseCode, 'course.term': input.term ?? 'default' },
+        getInsight(input),
+      ),
+    getGradeSummaries: (input) =>
+      traced(
+        'course-decision.grade-summaries',
+        { 'course.count': input.courseCodes.length },
+        getGradeSummaries(input),
+      ),
+    getDecisionSignals: (input) =>
+      traced(
+        'course-decision.decision-signals',
+        { 'course.count': input.courseCodes.length, 'course.term': input.term ?? 'default' },
+        getDecisionSignals(input),
+      ),
+    getSchedule: (input) =>
+      traced(
+        'course-decision.schedule',
+        {
+          'course.count': input.courseCodes.length,
+          'course.term': input.term ?? 'default',
+          'course.week': input.week,
+        },
+        getSchedule(input),
+      ),
+  };
 };

@@ -1,5 +1,5 @@
-import { Effect, Option, Schema as S } from 'effect';
-import { Command, Navigation, Runtime, Update, Url } from 'foldkit';
+import { Effect, Option, Schema as S, Stream } from 'effect';
+import { Command, Navigation, Runtime, Subscription, Update, Url } from 'foldkit';
 import type { Document, Html, HtmlBuilder } from 'foldkit/html';
 import { createLazy } from 'foldkit/html';
 import { defineMessageUnion } from 'foldkit/message';
@@ -2938,6 +2938,46 @@ export const routingInit: Runtime.RoutingApplicationInit<Model, Message> = (url)
     browserListDensity(),
   );
 
+const canRequestMoreCourses = (model: Model): boolean => {
+  const response = catalogueResponse(model.catalogue);
+  return (
+    model.route === 'explore' &&
+    model.selectedCode === null &&
+    response !== null &&
+    model.nextPage._tag !== 'NextPageLoading' &&
+    (model.visibleCount < response.items.length || response.meta.hasMore)
+  );
+};
+
+/**
+ * The catalogue keeps loading while its trailing sentinel is close to the
+ * viewport. The model gate tears the listener down outside Explore and while
+ * a page request is already in flight, so scroll bursts cannot fan out fetches.
+ */
+export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
+  catalogueScroll: entry(
+    { isActive: S.Boolean },
+    {
+      modelToDependencies: (model) => ({ isActive: canRequestMoreCourses(model) }),
+      dependenciesToStream: ({ isActive }) =>
+        Stream.when(
+          Subscription.fromEventFilterMap({
+            target: window,
+            type: 'scroll',
+            options: { passive: true },
+            filterMapEvent: () => {
+              const sentinel = document.getElementById('catalogue-scroll-sentinel');
+              return sentinel !== null &&
+                sentinel.getBoundingClientRect().top <= window.innerHeight * 1.5
+                ? Option.some(RequestedMoreCourses())
+                : Option.none();
+            },
+          }),
+          Effect.succeed(isActive),
+        ),
+    },
+  ),
+}));
 const browserPreferredLocale = (): Locale => {
   if (typeof window === 'undefined') return 'en';
   const stored = localStorage.getItem('course-lens:locale');

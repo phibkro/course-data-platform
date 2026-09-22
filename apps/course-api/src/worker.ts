@@ -1,8 +1,15 @@
-import { makeLiveCourseDecisionService } from './course-decision/live';
+import { env, tracing } from 'cloudflare:workers';
 import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker';
 import { Elysia } from 'elysia';
 
 import { createCourseApi } from './app';
+import { makeCloudflareEffectTracer } from './cloudflare-tracer';
+import { makeLiveCourseDecisionService } from './course-decision/live';
+import { makeCachedSourceFetch, type SourceCacheNamespace } from './source-cache';
+
+interface Env {
+  readonly SOURCE_CACHE?: SourceCacheNamespace;
+}
 
 const sha256Hex = async (input: string): Promise<string> => {
   const bytes = new TextEncoder().encode(input);
@@ -10,11 +17,18 @@ const sha256Hex = async (input: string): Promise<string> => {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
+const sourceCache = (env as Env).SOURCE_CACHE;
+const sourceFetch = makeCachedSourceFetch((url, init) => fetch(url, init), {
+  ...(sourceCache === undefined ? {} : { cache: sourceCache }),
+  sha256Hex,
+  tracing,
+});
 const service = makeLiveCourseDecisionService(
   {
-    fetch: (url, init) => fetch(url, init),
+    fetch: sourceFetch,
     now: () => new Date(),
     sha256Hex,
+    tracer: makeCloudflareEffectTracer(tracing),
   },
   {
     academicYear: 2026,

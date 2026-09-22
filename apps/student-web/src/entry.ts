@@ -1,6 +1,16 @@
 import { Runtime, Url } from 'foldkit';
 
-import { ChangedUrl, Message, Model, RequestedUrl, routingInit, update, view } from './app';
+import {
+  ChangedUrl,
+  Message,
+  Model,
+  RequestedUrl,
+  routingInit,
+  subscriptions,
+  update,
+  view,
+} from './app';
+
 import './styles.css';
 import { initializeThemePreference } from './theme';
 
@@ -11,6 +21,7 @@ const application = Runtime.makeApplication({
   init: routingInit,
   update,
   view,
+  subscriptions,
   routing: {
     onUrlRequest: (request) =>
       request._tag === 'External'

@@ -108,6 +108,8 @@ The always-visible Explore controls are:
 The teaching period is inferred from the current Explore or Planning context and
 shown on results. Its manual override lives in Refine.
 
+Explore loads the next course batch before the student reaches the end. A failed batch keeps an explicit retry action.
+
 Refine presents sections in student-decision order:
 
 1. **Fits my studies** — required, elective, recommended, or permitted after

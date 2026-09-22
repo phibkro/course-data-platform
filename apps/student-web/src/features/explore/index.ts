@@ -692,43 +692,52 @@ const catalogueList = (
       ),
       model.nextPage._tag === 'NextPageFailure'
         ? h.div(
+            [h.Class('grid justify-items-center gap-3')],
             [
-              h.Class(
-                'py-[0.9rem] px-4 border border-error rounded-m3-medium bg-error-container text-on-error-container',
+              h.div(
+                [
+                  h.Class(
+                    'w-full py-[0.9rem] px-4 border border-error rounded-m3-medium bg-error-container text-on-error-container',
+                  ),
+                  h.Role('alert'),
+                ],
+                [
+                  h.strong([], [translate(model.localization, 'catalogue.moreFailed')]),
+                  h.span([], [` ${model.nextPage.error}`]),
+                ],
               ),
-              h.Role('alert'),
-            ],
-            [
-              h.strong([], [translate(model.localization, 'catalogue.moreFailed')]),
-              h.span([], [` ${model.nextPage.error}`]),
+              Button.view<Message>(
+                {
+                  type: 'button',
+                  onClick: RequestedMoreCourses(),
+                  toView: (attributes) =>
+                    h.button(
+                      [...attributes.button, h.Class(`${buttonSecondary} min-w-[min(100%,18rem)]`)],
+                      [translate(model.localization, 'catalogue.showMore')],
+                    ),
+                },
+                h,
+              ),
             ],
           )
-        : h.empty,
-      canRevealLocal || canFetch
-        ? Button.view<Message>(
-            {
-              type: 'button',
-              isDisabled: model.nextPage._tag === 'NextPageLoading',
-              onClick: RequestedMoreCourses(),
-              toView: (attributes) =>
-                h.button(
-                  [
-                    ...attributes.button,
-                    h.Class(`${buttonSecondary} justify-self-center min-w-[min(100%,18rem)]`),
-                  ],
-                  [
-                    model.nextPage._tag === 'NextPageLoading'
-                      ? translate(model.localization, 'catalogue.loadingMore')
-                      : translate(model.localization, 'catalogue.showMore'),
-                  ],
-                ),
-            },
-            h,
-          )
-        : h.p(
-            [h.Class('m-0 text-on-surface-variant text-center')],
-            [translate(model.localization, 'catalogue.end')],
-          ),
+        : canRevealLocal || canFetch
+          ? h.div(
+              [
+                h.Id('catalogue-scroll-sentinel'),
+                h.Class('min-h-px text-center text-sm text-on-surface-variant'),
+                h.Role('status'),
+                h.AriaLive('polite'),
+              ],
+              [
+                model.nextPage._tag === 'NextPageLoading'
+                  ? translate(model.localization, 'catalogue.loadingMore')
+                  : '',
+              ],
+            )
+          : h.p(
+              [h.Class('m-0 text-on-surface-variant text-center')],
+              [translate(model.localization, 'catalogue.end')],
+            ),
     ],
   );
 };

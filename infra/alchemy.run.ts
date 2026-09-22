@@ -24,6 +24,7 @@ export default Stack(
         : preview === null
           ? undefined
           : `p${preview[1]}.planner.phibkro.org`;
+    const sourceCache = yield* Cloudflare.KV.Namespace('SourceCache');
     const api = yield* Cloudflare.Worker('CourseApi', {
       ...(stage === 'prod'
         ? { name: 'coursedecisionproduct-courseapi-prod-ipj2tb7mpltniza3' }
@@ -31,6 +32,24 @@ export default Stack(
       main: './apps/course-api/src/worker.ts',
       compatibility: {
         date: '2026-07-21',
+      },
+      env: {
+        SOURCE_CACHE: sourceCache,
+      },
+      observability: {
+        enabled: true,
+        headSamplingRate: 1,
+        logs: {
+          enabled: true,
+          headSamplingRate: 1,
+          invocationLogs: true,
+          persist: true,
+        },
+        traces: {
+          enabled: true,
+          headSamplingRate: 1,
+          persist: true,
+        },
       },
     });
     const web = yield* Cloudflare.Website.Vite('StudentWeb', {
