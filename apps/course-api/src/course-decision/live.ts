@@ -20,12 +20,15 @@ import {
 } from '../sources/grades';
 import {
   fetchNtnuCourseDetail,
+  fetchNtnuCourseSchedule,
   fetchNtnuCourseSearch,
   mapNtnuDetailToCourseDecisionSignals,
   mapNtnuToCourseInsightFields,
   type NtnuDetailParseResult,
+  type NtnuScheduleParseResult,
   type NtnuSearchParseResult,
   type ValidatedNtnuCourseDetail,
+  type ValidatedNtnuScheduleOccurrence,
   type ValidatedNtnuSearchHit,
 } from '../sources/ntnu';
 import * as Effect from 'effect/Effect';
@@ -36,6 +39,10 @@ import {
   CourseSourcesUnavailableError,
   type CourseDecisionService,
   type CourseInsightInput,
+  type CourseScheduleActivityStream,
+  type CourseScheduleInput,
+  type CourseScheduleItem,
+  type CourseScheduleOccurrence,
   type CourseSearchCampus,
   type CourseSearchInput,
   type CourseSearchLevel,
@@ -231,6 +238,136 @@ const mapConcurrent = async <Input, Output>(
   return results;
 };
 
+const osloDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  day: '2-digit',
+  month: '2-digit',
+  timeZone: 'Europe/Oslo',
+  year: 'numeric',
+});
+
+const osloIsoWeek = (instant: string): number => {
+  let day = 0;
+  let month = 0;
+  let year = 0;
+  for (const part of osloDateFormatter.formatToParts(new Date(instant))) {
+    if (part.type === 'day') day = Number(part.value);
+    if (part.type === 'month') month = Number(part.value);
+    if (part.type === 'year') year = Number(part.value);
+  }
+
+  const localDate = new Date(Date.UTC(year, month - 1, day));
+  const localDayOfWeek = localDate.getUTCDay() || 7;
+  localDate.setUTCDate(localDate.getUTCDate() + 4 - localDayOfWeek);
+  const isoYearStart = new Date(Date.UTC(localDate.getUTCFullYear(), 0, 1));
+  return Math.ceil((localDate.getTime() - isoYearStart.getTime() + 86_400_000) / 604_800_000);
+};
+
+const combineWarnings = (...warnings: ReadonlyArray<string | null>): string | null => {
+  const message = warnings.filter((warning): warning is string => warning !== null).join(' ');
+  return message === '' ? null : message;
+};
+
+const unavailableScheduleItem = (
+  courseCode: string,
+  observedAt: Date | null,
+  warning: string,
+): CourseScheduleItem => ({
+  courseCode,
+  sourceStatus: {
+    provider: 'ntnu-course-schedule',
+    status: 'unavailable',
+    observedAt,
+    warning,
+  },
+  activityStreams: [],
+  occurrences: [],
+});
+
+const failedScheduleItem = (
+  courseCode: string,
+  observedAt: Date | null,
+  warning: string,
+): CourseScheduleItem => ({
+  courseCode,
+  sourceStatus: {
+    provider: 'ntnu-course-schedule',
+    status: 'failed',
+    observedAt,
+    warning,
+  },
+  activityStreams: [],
+  occurrences: [],
+});
+
+const toCourseScheduleOccurrence = (
+  occurrence: ValidatedNtnuScheduleOccurrence,
+): CourseScheduleOccurrence => ({
+  id: occurrence.sourceRecordId,
+  courseCode: occurrence.courseCode,
+  activityCode: occurrence.activityCode,
+  title: occurrence.title,
+  summary: occurrence.summary,
+  status: occurrence.status,
+  startsAt: new Date(occurrence.startsAt),
+  endsAt: new Date(occurrence.endsAt),
+  rooms: occurrence.rooms.map((room) => ({
+    building: room.building,
+    room: room.room,
+    url: room.url,
+  })),
+  evidence: {
+    provider: occurrence.attribution.provider,
+    kind: occurrence.attribution.evidenceKind,
+    sourceRecordId: occurrence.attribution.sourceRecordId,
+    sourceUrl: occurrence.attribution.requestUrl,
+    observedAt: new Date(occurrence.attribution.retrievedAt),
+  },
+});
+
+const toCourseScheduleActivityStreams = (
+  occurrences: ReadonlyArray<ValidatedNtnuScheduleOccurrence>,
+): ReadonlyArray<CourseScheduleActivityStream> => {
+  const streams = new Map<
+    string,
+    {
+      activityCode: string;
+      title: string | null;
+      summary: string | null;
+      titleConflicted: boolean;
+      summaryConflicted: boolean;
+    }
+  >();
+
+  for (const occurrence of occurrences) {
+    const stream = streams.get(occurrence.activityCode);
+    if (stream === undefined) {
+      streams.set(occurrence.activityCode, {
+        activityCode: occurrence.activityCode,
+        title: occurrence.title,
+        summary: occurrence.summary,
+        titleConflicted: false,
+        summaryConflicted: false,
+      });
+      continue;
+    }
+
+    if (occurrence.title !== null) {
+      if (stream.title === null) stream.title = occurrence.title;
+      else if (stream.title !== occurrence.title) stream.titleConflicted = true;
+    }
+    if (occurrence.summary !== null) {
+      if (stream.summary === null) stream.summary = occurrence.summary;
+      else if (stream.summary !== occurrence.summary) stream.summaryConflicted = true;
+    }
+  }
+
+  return Array.from(streams.values(), (stream) => ({
+    activityCode: stream.activityCode,
+    title: stream.titleConflicted ? null : stream.title,
+    summary: stream.summaryConflicted ? null : stream.summary,
+  }));
+};
+
 const toSearchItem = (hit: ValidatedNtnuSearchHit): CourseSearchItem => {
   const evidenceId = `evidence:${hit.sourceRecordId}`;
   const knownCampuses = campuses(hit.location);
@@ -336,6 +473,12 @@ export const makeLiveCourseDecisionService = (
     task: (sourceDeps: LiveCourseDecisionDependencies) => Promise<Output>,
   ) => runWithSourceDeadline(deps, config.sourceRequestTimeoutMs, task);
   const ntnuSearchRequests = makeSourceRequestCache<NtnuSearchParseResult>(
+    config.sourceCacheTtlMs,
+    config.sourceCacheMaxEntriesPerProvider,
+    deps.now,
+    (result) => result.rejected.length === 0,
+  );
+  const ntnuScheduleRequests = makeSourceRequestCache<NtnuScheduleParseResult>(
     config.sourceCacheTtlMs,
     config.sourceCacheMaxEntriesPerProvider,
     deps.now,
@@ -624,5 +767,136 @@ export const makeLiveCourseDecisionService = (
             }),
     });
 
-  return { search, getInsight, getGradeSummaries, getDecisionSignals };
+  const getSchedule = (input: CourseScheduleInput) =>
+    Effect.tryPromise({
+      try: async () => {
+        const term = resolveTerm(input.term, config);
+        const courseCodes = input.courseCodes.map((courseCode) => courseCode.trim().toUpperCase());
+        const items = await mapConcurrent(courseCodes, 4, async (courseCode) => {
+          try {
+            return await runWithSourceDeadline(
+              deps,
+              config.sourceRequestTimeoutMs,
+              async (sourceDeps) => {
+                const searchQuery = {
+                  queryString: courseCode,
+                  academicYear: term.academicYear,
+                  season: term.season,
+                  page: 1,
+                  sort: 'relevance' as const,
+                  campuses: defaultCampuses,
+                  levels: defaultLevels,
+                  continuingEducation: true,
+                  open: false,
+                  english: false,
+                };
+                const { value: searchResult, observedAt: searchObservedAt } =
+                  await ntnuSearchRequests(JSON.stringify(searchQuery), () =>
+                    fetchNtnuCourseSearch(sourceDeps, searchQuery),
+                  );
+                const searchWarning =
+                  searchResult.rejected.length === 0
+                    ? null
+                    : `${searchResult.rejected.length} malformed NTNU catalogue row(s) were excluded.`;
+                if (searchResult.rejected.length > 0 && searchResult.accepted.length === 0) {
+                  return failedScheduleItem(
+                    courseCode,
+                    searchObservedAt,
+                    searchResult.rejected[0]?.message ?? 'NTNU course search was rejected.',
+                  );
+                }
+
+                const hit = searchResult.accepted.find(
+                  (candidate) =>
+                    candidate.exactMatch && candidate.courseCode.toUpperCase() === courseCode,
+                );
+                if (hit === undefined) {
+                  return unavailableScheduleItem(
+                    courseCode,
+                    searchObservedAt,
+                    combineWarnings(
+                      `NTNU course search had no exact hit for ${courseCode}.`,
+                      searchWarning,
+                    ) ?? `NTNU course search had no exact hit for ${courseCode}.`,
+                  );
+                }
+
+                const courseVersion = hit.courseVersion;
+                if (courseVersion === null || courseVersion.trim() === '') {
+                  return unavailableScheduleItem(
+                    courseCode,
+                    new Date(hit.attribution.retrievedAt),
+                    combineWarnings(
+                      `NTNU course search did not publish a version for ${courseCode}.`,
+                      searchWarning,
+                    ) ?? `NTNU course search did not publish a version for ${courseCode}.`,
+                  );
+                }
+
+                const { value: scheduleResult, observedAt: scheduleObservedAt } =
+                  await ntnuScheduleRequests(
+                    JSON.stringify([hit.courseCode, courseVersion, term.academicYear, term.season]),
+                    () =>
+                      fetchNtnuCourseSchedule(sourceDeps, {
+                        courseCode: hit.courseCode,
+                        courseVersion,
+                        academicYear: term.academicYear,
+                        season: term.season,
+                      }),
+                  );
+                const firstOccurrence = scheduleResult.accepted[0];
+                const observedAt =
+                  firstOccurrence === undefined
+                    ? scheduleObservedAt
+                    : new Date(firstOccurrence.attribution.retrievedAt);
+                const warning = combineWarnings(
+                  searchWarning,
+                  scheduleResult.rejected.length === 0
+                    ? null
+                    : `${scheduleResult.rejected.length} malformed NTNU schedule occurrence(s) were excluded.`,
+                );
+                if (scheduleResult.rejected.length > 0 && scheduleResult.accepted.length === 0) {
+                  return failedScheduleItem(
+                    courseCode,
+                    observedAt,
+                    warning ?? 'NTNU schedule response was rejected.',
+                  );
+                }
+
+                return {
+                  courseCode,
+                  sourceStatus: {
+                    provider: 'ntnu-course-schedule' as const,
+                    status: 'available' as const,
+                    observedAt,
+                    warning,
+                  },
+                  activityStreams: toCourseScheduleActivityStreams(scheduleResult.accepted),
+                  occurrences: scheduleResult.accepted
+                    .filter((occurrence) => osloIsoWeek(occurrence.startsAt) === input.week)
+                    .map(toCourseScheduleOccurrence),
+                };
+              },
+            );
+          } catch (cause) {
+            return failedScheduleItem(courseCode, null, errorMessage(cause));
+          }
+        });
+
+        return {
+          items,
+          term: `${term.academicYear}-${term.season}`,
+          week: input.week,
+        };
+      },
+      catch: (cause) =>
+        cause instanceof CourseInvalidTermError
+          ? cause
+          : new CourseSourcesUnavailableError({
+              operation: 'schedule',
+              message: errorMessage(cause),
+            }),
+    });
+
+  return { search, getInsight, getGradeSummaries, getDecisionSignals, getSchedule };
 };

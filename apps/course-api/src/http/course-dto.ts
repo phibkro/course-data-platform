@@ -2,6 +2,7 @@ import type {
   CourseDecisionSignalsDtoType,
   CourseGradeSummaryDtoType,
   CourseInsightDtoType,
+  CourseScheduleResponseDtoType,
   CourseSearchItemDtoType,
 } from '@course-data/course-contracts';
 
@@ -13,6 +14,7 @@ import type {
   Fact,
   Offering,
 } from '../course-decision/model/course-insight';
+import type { CourseScheduleResult } from '../course-decision/service';
 
 type ProtocolFact<A> =
   | {
@@ -138,6 +140,58 @@ export const toCourseDecisionSignalsDto = (
     observedAt: signals.sourceStatus.observedAt?.toISOString() ?? null,
   },
   evidence: signals.evidence.map(mapEvidence),
+});
+
+export const toCourseScheduleResponseDto = (
+  schedule: CourseScheduleResult,
+): CourseScheduleResponseDtoType => ({
+  items: schedule.items.map((item) => ({
+    courseCode: item.courseCode,
+    sourceStatus: {
+      provider: item.sourceStatus.provider,
+      status: item.sourceStatus.status,
+      observedAt: item.sourceStatus.observedAt?.toISOString() ?? null,
+      warning: item.sourceStatus.warning,
+    },
+    activityStreams: item.activityStreams.map((activityStream) => ({
+      activityCode: activityStream.activityCode,
+      title: activityStream.title,
+      summary: activityStream.summary,
+    })),
+    occurrences: item.occurrences.map((occurrence) => ({
+      id: occurrence.id,
+      courseCode: occurrence.courseCode,
+      activityCode: occurrence.activityCode,
+      title: occurrence.title,
+      summary: occurrence.summary,
+      status: occurrence.status,
+      startsAt: occurrence.startsAt.toISOString(),
+      endsAt: occurrence.endsAt.toISOString(),
+      rooms: occurrence.rooms.map((room) => ({
+        building: room.building,
+        room: room.room,
+        url: room.url,
+      })),
+      evidence: {
+        provider: occurrence.evidence.provider,
+        kind: occurrence.evidence.kind,
+        sourceRecordId: occurrence.evidence.sourceRecordId,
+        sourceUrl: occurrence.evidence.sourceUrl,
+        observedAt: occurrence.evidence.observedAt.toISOString(),
+      },
+    })),
+  })),
+  meta: {
+    count: schedule.items.length,
+    term: schedule.term,
+    week: schedule.week,
+    timezone: 'Europe/Oslo',
+    limitations: {
+      activitySelection: 'all-published-activities',
+      activityGrouping: 'unavailable',
+      exceptionSemantics: 'provider-status-unverified',
+    },
+  },
 });
 
 export const toCourseInsightDto = (insight: CourseInsight): CourseInsightDtoType => ({

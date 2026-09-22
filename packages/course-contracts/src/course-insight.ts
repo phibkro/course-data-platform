@@ -165,7 +165,7 @@ const ExamParticipationDto = Type.Object({
   passedAfterRepeat: FactDto(Type.Integer({ minimum: 0 })),
 });
 
-const SourceStatusDto = Type.Object({
+export const SourceStatusDto = Type.Object({
   provider: Type.String({ minLength: 1 }),
   status: Type.Union([
     Type.Literal('available'),
@@ -318,6 +318,74 @@ export const CourseDecisionSignalsResponseDto = Type.Object({
   }),
 });
 
+export const CourseScheduleRequestDto = Type.Object({
+  courseCodes: Type.Array(
+    Type.String({
+      minLength: 2,
+      maxLength: 20,
+      pattern: '^[A-Za-zÆØÅæøå][A-Za-zÆØÅæøå0-9]*[0-9][A-Za-zÆØÅæøå0-9]*(?:-[0-9]+)?$',
+    }),
+    { minItems: 1, maxItems: 12, uniqueItems: true },
+  ),
+  term: Type.String({ pattern: '^[0-9]{4}-(spring|autumn)$' }),
+  week: Type.Integer({ minimum: 1, maximum: 53 }),
+});
+
+export const CourseScheduleEvidenceDto = Type.Object({
+  provider: Type.Literal('ntnu-course-schedule'),
+  kind: Type.Union([Type.Literal('source-fact'), Type.Literal('fixture')]),
+  sourceRecordId: Type.String({ minLength: 1 }),
+  sourceUrl: Type.String({ minLength: 1 }),
+  observedAt: DateTimeStringDto,
+});
+
+export const CourseScheduleActivityStreamDto = Type.Object({
+  activityCode: Type.String({ minLength: 1 }),
+  title: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+  summary: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+});
+
+export const CourseScheduleOccurrenceDto = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  courseCode: Type.String({ minLength: 2, maxLength: 20 }),
+  activityCode: Type.String({ minLength: 1 }),
+  title: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+  summary: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+  status: Type.String({ minLength: 1 }),
+  startsAt: DateTimeStringDto,
+  endsAt: DateTimeStringDto,
+  rooms: Type.Array(
+    Type.Object({
+      building: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+      room: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+      url: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+    }),
+  ),
+  evidence: CourseScheduleEvidenceDto,
+});
+
+export const CourseScheduleItemDto = Type.Object({
+  courseCode: Type.String({ minLength: 2, maxLength: 20 }),
+  sourceStatus: SourceStatusDto,
+  activityStreams: Type.Array(CourseScheduleActivityStreamDto),
+  occurrences: Type.Array(CourseScheduleOccurrenceDto),
+});
+
+export const CourseScheduleResponseDto = Type.Object({
+  items: Type.Array(CourseScheduleItemDto),
+  meta: Type.Object({
+    count: Type.Integer({ minimum: 0 }),
+    term: Type.String({ pattern: '^[0-9]{4}-(spring|autumn)$' }),
+    week: Type.Integer({ minimum: 1, maximum: 53 }),
+    timezone: Type.Literal('Europe/Oslo'),
+    limitations: Type.Object({
+      activitySelection: Type.Literal('all-published-activities'),
+      activityGrouping: Type.Literal('unavailable'),
+      exceptionSemantics: Type.Literal('provider-status-unverified'),
+    }),
+  }),
+});
+
 export const CourseInsightParamsDto = Type.Object({
   courseCode: Type.String({ minLength: 2, maxLength: 20 }),
 });
@@ -372,6 +440,13 @@ export type CourseGradeSummariesResponseDtoType = Static<typeof CourseGradeSumma
 export type CourseDecisionSignalsRequestDtoType = Static<typeof CourseDecisionSignalsRequestDto>;
 export type CourseDecisionSignalsDtoType = Static<typeof CourseDecisionSignalsDto>;
 export type CourseDecisionSignalsResponseDtoType = Static<typeof CourseDecisionSignalsResponseDto>;
+export type SourceStatusDtoType = Static<typeof SourceStatusDto>;
+export type CourseScheduleRequestDtoType = Static<typeof CourseScheduleRequestDto>;
+export type CourseScheduleEvidenceDtoType = Static<typeof CourseScheduleEvidenceDto>;
+export type CourseScheduleActivityStreamDtoType = Static<typeof CourseScheduleActivityStreamDto>;
+export type CourseScheduleOccurrenceDtoType = Static<typeof CourseScheduleOccurrenceDto>;
+export type CourseScheduleItemDtoType = Static<typeof CourseScheduleItemDto>;
+export type CourseScheduleResponseDtoType = Static<typeof CourseScheduleResponseDto>;
 export type CourseInsightParamsDtoType = Static<typeof CourseInsightParamsDto>;
 export type CourseInsightQueryDtoType = Static<typeof CourseInsightQueryDto>;
 export type CourseInsightDtoType = Static<typeof CourseInsightDto>;

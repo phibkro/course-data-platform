@@ -38,6 +38,12 @@ export interface CourseDecisionSignalsInput {
   readonly term?: string;
 }
 
+export interface CourseScheduleInput {
+  readonly courseCodes: ReadonlyArray<string>;
+  readonly term: string;
+  readonly week: number;
+}
+
 export interface CourseSearchResult {
   readonly items: ReadonlyArray<CourseSearchItem>;
   readonly sourceStatuses: ReadonlyArray<SourceStatus>;
@@ -64,6 +70,52 @@ export interface CourseDecisionSignalsResult {
   readonly items: ReadonlyArray<CourseDecisionSignals>;
 }
 
+export interface CourseScheduleEvidence {
+  readonly provider: 'ntnu-course-schedule';
+  readonly kind: 'source-fact' | 'fixture';
+  readonly sourceRecordId: string;
+  readonly sourceUrl: string;
+  readonly observedAt: Date;
+}
+
+export interface CourseScheduleRoom {
+  readonly building: string | null;
+  readonly room: string | null;
+  readonly url: string | null;
+}
+
+export interface CourseScheduleActivityStream {
+  readonly activityCode: string;
+  readonly title: string | null;
+  readonly summary: string | null;
+}
+
+export interface CourseScheduleOccurrence {
+  readonly id: string;
+  readonly courseCode: string;
+  readonly activityCode: string;
+  readonly title: string | null;
+  readonly summary: string | null;
+  readonly status: string;
+  readonly startsAt: Date;
+  readonly endsAt: Date;
+  readonly rooms: ReadonlyArray<CourseScheduleRoom>;
+  readonly evidence: CourseScheduleEvidence;
+}
+
+export interface CourseScheduleItem {
+  readonly courseCode: string;
+  readonly sourceStatus: SourceStatus;
+  readonly activityStreams: ReadonlyArray<CourseScheduleActivityStream>;
+  readonly occurrences: ReadonlyArray<CourseScheduleOccurrence>;
+}
+
+export interface CourseScheduleResult {
+  readonly items: ReadonlyArray<CourseScheduleItem>;
+  readonly term: string;
+  readonly week: number;
+}
+
 export class CourseNotFoundError extends Data.TaggedError('CourseNotFoundError')<{
   readonly courseCode: string;
 }> {}
@@ -71,7 +123,7 @@ export class CourseNotFoundError extends Data.TaggedError('CourseNotFoundError')
 export class CourseSourcesUnavailableError extends Data.TaggedError(
   'CourseSourcesUnavailableError',
 )<{
-  readonly operation: 'search' | 'insight' | 'grade-summaries' | 'decision-signals';
+  readonly operation: 'search' | 'insight' | 'grade-summaries' | 'decision-signals' | 'schedule';
   readonly message: string;
 }> {}
 
@@ -85,6 +137,8 @@ export type CourseInsightError =
   | CourseNotFoundError
   | CourseInvalidTermError
   | CourseSourcesUnavailableError;
+
+export type CourseScheduleError = CourseInvalidTermError | CourseSourcesUnavailableError;
 
 export interface CourseDecisionService {
   readonly search: (
@@ -102,4 +156,7 @@ export interface CourseDecisionService {
     CourseDecisionSignalsResult,
     CourseInvalidTermError | CourseSourcesUnavailableError
   >;
+  readonly getSchedule: (
+    input: CourseScheduleInput,
+  ) => Effect.Effect<CourseScheduleResult, CourseScheduleError>;
 }

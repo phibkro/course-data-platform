@@ -19,6 +19,17 @@ const unavailableSearchService: CourseDecisionService = {
     ),
 };
 
+const unavailableScheduleService: CourseDecisionService = {
+  ...fixtureCourseDecisionService,
+  getSchedule: () =>
+    Effect.fail(
+      new CourseSourcesUnavailableError({
+        operation: 'schedule',
+        message: 'The NTNU schedule source is unavailable.',
+      }),
+    ),
+};
+
 describe('course decision HTTP transport', () => {
   it.each([
     {
@@ -78,6 +89,126 @@ describe('course decision HTTP transport', () => {
     expect(body).toMatchObject(expected);
   });
 
+  it('returns a contract-valid schedule response in the requested order', async () => {
+    const response = await app.handle(
+      new Request('http://localhost/v1/course-schedules', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          courseCodes: ['TDT4136', 'TDT4136-1'],
+          term: '2026-autumn',
+          week: 45,
+        }),
+      }),
+    );
+    const body: unknown = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe(
+      'public, max-age=60, stale-while-revalidate=900',
+    );
+    expect(body).toEqual(
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            courseCode: 'TDT4136',
+            sourceStatus: expect.objectContaining({
+              provider: 'ntnu-course-schedule',
+              status: 'available',
+            }),
+            activityStreams: [
+              expect.objectContaining({
+                activityCode: 'TDT4136-LECTURE-01',
+                title: 'Introduction to search',
+                summary: 'Lecture',
+              }),
+              expect.objectContaining({
+                activityCode: 'TDT4136-EXERCISE-01',
+                title: 'Search exercise',
+                summary: 'Exercise session',
+              }),
+            ],
+            occurrences: expect.arrayContaining([
+              expect.objectContaining({
+                courseCode: 'TDT4136',
+                evidence: expect.objectContaining({
+                  provider: 'ntnu-course-schedule',
+                  kind: 'fixture',
+                }),
+              }),
+            ]),
+          }),
+          expect.objectContaining({
+            courseCode: 'TDT4136-1',
+            sourceStatus: expect.objectContaining({
+              provider: 'ntnu-course-schedule',
+              status: 'unavailable',
+            }),
+            activityStreams: [],
+            occurrences: [],
+          }),
+        ],
+        meta: {
+          count: 2,
+          term: '2026-autumn',
+          week: 45,
+          timezone: 'Europe/Oslo',
+          limitations: {
+            activitySelection: 'all-published-activities',
+            activityGrouping: 'unavailable',
+            exceptionSemantics: 'provider-status-unverified',
+          },
+        },
+      }),
+    );
+  });
+
+  it('keeps a valid fixture schedule available when the selected week has no events', async () => {
+    const response = await app.handle(
+      new Request('http://localhost/v1/course-schedules', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ courseCodes: ['TDT4136'], term: '2026-autumn', week: 44 }),
+      }),
+    );
+    const body: unknown = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      items: [
+        {
+          courseCode: 'TDT4136',
+          sourceStatus: { status: 'available' },
+          occurrences: [],
+          activityStreams: [
+            expect.objectContaining({ activityCode: 'TDT4136-LECTURE-01' }),
+            expect.objectContaining({ activityCode: 'TDT4136-EXERCISE-01' }),
+          ],
+        },
+      ],
+      meta: { week: 44 },
+    });
+  });
+
+  it('returns a contract-valid problem when the schedule operation fails', async () => {
+    const unavailableApp = createCourseApi(unavailableScheduleService, () => 'request-test');
+    const response = await unavailableApp.handle(
+      new Request('http://localhost/v1/course-schedules', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ courseCodes: ['TDT4136'], term: '2026-autumn', week: 45 }),
+      }),
+    );
+    const body: unknown = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      type: 'https://course-data.example/problems/course-schedule-unavailable',
+      status: 503,
+      requestId: 'request-test',
+    });
+  });
+
   it.each([
     {
       name: 'invalid catalogue paging',
@@ -90,6 +221,15 @@ describe('course decision HTTP transport', () => {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ courseCodes: [] }),
+        }),
+    },
+    {
+      name: 'an invalid schedule week',
+      request: () =>
+        new Request('http://localhost/v1/course-schedules', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ courseCodes: ['TDT4136'], term: '2026-autumn', week: 0 }),
         }),
     },
   ])('returns a declared 400 problem for $name', async ({ request }) => {
@@ -150,6 +290,11 @@ describe('course decision HTTP transport', () => {
       },
       {
         path: '/v1/course-grade-summaries',
+        method: 'post',
+        statuses: ['200', '400', '503'],
+      },
+      {
+        path: '/v1/course-schedules',
         method: 'post',
         statuses: ['200', '400', '503'],
       },

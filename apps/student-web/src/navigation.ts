@@ -3,14 +3,14 @@ import type { Html, HtmlBuilder } from 'foldkit/html';
 import { translate, type Localization } from './i18n';
 import { icon, type AppIcon } from './icons';
 
-export type NavigationRoute = 'explore' | 'list' | 'progress' | 'appearance';
+export type NavigationRoute = 'explore' | 'list' | 'schedule' | 'progress' | 'appearance';
 
 export interface NavigationItem {
   readonly id: 'list' | 'schedule' | 'explore' | 'progress' | 'appearance';
   readonly label: string;
   readonly accessibleLabel: string;
   readonly icon: AppIcon;
-  readonly href: string | null;
+  readonly href: string;
   readonly isCurrent: boolean;
   /** 1 is the most important destination. Rank, never a position. */
   readonly priority: number;
@@ -49,14 +49,14 @@ export const bottomBarSeating = <T extends { readonly priority: number }>(
 
 /**
  * The desktop sidebar and mobile bottom bar intentionally consume the same
- * explicit navigation model. A planned destination stays non-interactive until
- * its corresponding product surface exists.
+ * explicit navigation model.
  */
 export const primaryNavigation = (
   locale: Localization,
   route: NavigationRoute,
   exploreHref: string,
   listHref: string,
+  scheduleHref: string,
   progressHref: string,
   appearanceHref: string,
 ): ReadonlyArray<NavigationItem> => [
@@ -74,8 +74,8 @@ export const primaryNavigation = (
     label: translate(locale, 'nav.schedule'),
     accessibleLabel: translate(locale, 'nav.schedule'),
     icon: 'schedule',
-    href: null,
-    isCurrent: false,
+    href: scheduleHref,
+    isCurrent: route === 'schedule',
     priority: 3,
   },
   {
@@ -119,7 +119,6 @@ const desktopItemIcon =
   'grid size-6 flex-none place-items-center leading-none [&_svg]:block [&_svg]:w-full [&_svg]:h-full';
 
 const desktopItem = <Message>(
-  locale: Localization,
   item: NavigationItem,
   collapsed: boolean,
   h: HtmlBuilder<Message>,
@@ -130,34 +129,22 @@ const desktopItem = <Message>(
   ];
   const layoutClass = collapsed ? 'justify-center px-3' : '';
 
-  return item.href === null
-    ? h.span(
-        [
-          h.Class(
-            `${desktopItemBase} ${layoutClass} text-on-surface-variant cursor-not-allowed opacity-[0.52]`,
-          ),
-          h.AriaDisabled(true),
-          h.AriaLabel(translate(locale, 'nav.planned', { label: item.accessibleLabel })),
-          h.Title(translate(locale, 'nav.plannedTitle', { label: item.accessibleLabel })),
-        ],
-        children,
-      )
-    : h.a(
-        [
-          h.Href(item.href),
-          h.Class(
-            `${desktopItemBase} ${layoutClass} ${
-              item.isCurrent
-                ? 'bg-secondary-container text-on-secondary-container'
-                : 'text-on-surface-variant hover:bg-surface-container-high'
-            }`,
-          ),
-          ...(item.isCurrent ? [h.AriaCurrent('page')] : []),
-          h.AriaLabel(item.accessibleLabel),
-          ...(collapsed ? [h.Title(item.accessibleLabel)] : []),
-        ],
-        children,
-      );
+  return h.a(
+    [
+      h.Href(item.href),
+      h.Class(
+        `${desktopItemBase} ${layoutClass} ${
+          item.isCurrent
+            ? 'bg-secondary-container text-on-secondary-container'
+            : 'text-on-surface-variant hover:bg-surface-container-high'
+        }`,
+      ),
+      ...(item.isCurrent ? [h.AriaCurrent('page')] : []),
+      h.AriaLabel(item.accessibleLabel),
+      ...(collapsed ? [h.Title(item.accessibleLabel)] : []),
+    ],
+    children,
+  );
 };
 
 /**
@@ -187,42 +174,26 @@ const mobileItemIcon = (isCurrent: boolean): string =>
   }`;
 
 /**
- * Every destination is a link or a planned placeholder. Appearance used to be
- * a button opening a dialog, which made it the one item rendered from a
- * different element with its own styling — and the one place a stray reset
- * could drift away from its peers. It is a page now, so there is no special
- * case left.
+ * Every destination is one ordinary link. Appearance used to be a button
+ * opening a dialog, which made it the one item rendered from a different
+ * element with its own styling. It is a page now, so there is no special case.
  */
-const mobileItem = <Message>(
-  locale: Localization,
-  item: NavigationItem,
-  h: HtmlBuilder<Message>,
-): Html => {
+const mobileItem = <Message>(item: NavigationItem, h: HtmlBuilder<Message>): Html => {
   const itemClass = mobileItemLayout(item.isCurrent);
   const children = [
     icon<Message>(item.icon, mobileItemIcon(item.isCurrent), h),
     h.span([h.Class('max-w-full truncate')], [item.label]),
   ];
 
-  return item.href === null
-    ? h.span(
-        [
-          h.Class(`${itemClass} cursor-not-allowed opacity-[0.52]`),
-          h.AriaDisabled(true),
-          h.AriaLabel(translate(locale, 'nav.planned', { label: item.accessibleLabel })),
-          h.Title(translate(locale, 'nav.plannedTitle', { label: item.accessibleLabel })),
-        ],
-        children,
-      )
-    : h.a(
-        [
-          h.Href(item.href),
-          h.Class(itemClass),
-          ...(item.isCurrent ? [h.AriaCurrent('page')] : []),
-          h.AriaLabel(item.accessibleLabel),
-        ],
-        children,
-      );
+  return h.a(
+    [
+      h.Href(item.href),
+      h.Class(itemClass),
+      ...(item.isCurrent ? [h.AriaCurrent('page')] : []),
+      h.AriaLabel(item.accessibleLabel),
+    ],
+    children,
+  );
 };
 
 export const desktopNavigation = <Message>(
@@ -231,6 +202,7 @@ export const desktopNavigation = <Message>(
   route: NavigationRoute,
   exploreHref: string,
   listHref: string,
+  scheduleHref: string,
   progressHref: string,
   appearanceHref: string,
   onToggle: Message | undefined,
@@ -242,6 +214,7 @@ export const desktopNavigation = <Message>(
     route,
     exploreHref,
     listHref,
+    scheduleHref,
     progressHref,
     appearanceHref,
   );
@@ -299,7 +272,7 @@ export const desktopNavigation = <Message>(
         [...items]
           .filter((item) => item.id !== 'appearance')
           .sort((left, right) => left.priority - right.priority)
-          .map((item) => desktopItem<Message>(locale, item, collapsed, h)),
+          .map((item) => desktopItem<Message>(item, collapsed, h)),
       ),
       h.div(
         [h.Class(`mt-auto grid gap-4 pt-4 ${collapsed ? '' : 'mx-3'}`)],
@@ -351,6 +324,7 @@ export const mobileNavigation = <Message>(
   route: NavigationRoute,
   exploreHref: string,
   listHref: string,
+  scheduleHref: string,
   progressHref: string,
   appearanceHref: string,
   h: HtmlBuilder<Message>,
@@ -363,7 +337,15 @@ export const mobileNavigation = <Message>(
       h.AriaLabel(translate(locale, 'nav.primary')),
     ],
     bottomBarSeating(
-      primaryNavigation(locale, route, exploreHref, listHref, progressHref, appearanceHref),
-    ).map((item) => mobileItem<Message>(locale, item, h)),
+      primaryNavigation(
+        locale,
+        route,
+        exploreHref,
+        listHref,
+        scheduleHref,
+        progressHref,
+        appearanceHref,
+      ),
+    ).map((item) => mobileItem<Message>(item, h)),
   );
 };

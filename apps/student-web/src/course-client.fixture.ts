@@ -10,10 +10,12 @@ import {
 import {
   parseCourseDecisionSignals,
   parseCourseGradeSummaries,
+  parseCourseSchedule,
   parseCourseSearch,
   type CourseClient,
   type CourseDecisionSignalsResponse,
   type CourseGradeSummariesResponse,
+  type CourseScheduleResponse,
   type CourseSearchResponse,
 } from './course-client';
 import { partialCourseInsightFixture } from './course-insight.fixture';
@@ -216,6 +218,106 @@ export const fixtureDecisionSignalsResponse = (
     meta: { count: courseCodes.length },
   });
 
+export const fixtureScheduleResponse = (
+  courseCodes: ReadonlyArray<string>,
+  term: string,
+  week: number,
+): CourseScheduleResponse =>
+  parseCourseSchedule({
+    items: courseCodes.map((courseCode) => {
+      const normalizedCode = courseCode.trim().toUpperCase();
+      const knownCourse = findFixtureCourse(normalizedCode);
+      const hasPublishedTermActivities = normalizedCode === 'TDT4136' && term === '2026-autumn';
+      const hasWeekFortyFiveEvents = hasPublishedTermActivities && week === 45;
+      return {
+        courseCode: normalizedCode,
+        sourceStatus:
+          knownCourse === undefined
+            ? {
+                provider: 'NTNU schedule fixture',
+                status: 'unavailable' as const,
+                observedAt: null,
+                warning: 'The fixture has no published schedule for this course.',
+              }
+            : {
+                provider: 'NTNU schedule fixture',
+                status: 'available' as const,
+                observedAt: '2026-09-22T08:00:00.000Z',
+                warning: null,
+              },
+        activityStreams: hasPublishedTermActivities
+          ? [
+              {
+                activityCode: 'lecture',
+                title: 'Search and planning',
+                summary: 'Published lecture activity.',
+              },
+              {
+                activityCode: 'exercise',
+                title: 'Constraint satisfaction exercise',
+                summary: null,
+              },
+            ]
+          : [],
+        occurrences: hasWeekFortyFiveEvents
+          ? [
+              {
+                id: 'tdt4136-2026-w45-lecture',
+                courseCode: normalizedCode,
+                activityCode: 'lecture',
+                title: 'Search and planning',
+                summary: 'Published lecture activity.',
+                status: 'published',
+                startsAt: '2026-11-02T09:15:00+01:00',
+                endsAt: '2026-11-02T11:00:00+01:00',
+                rooms: [{ building: 'IT-bygget', room: 'R2', url: null }],
+                evidence: {
+                  provider: 'ntnu-course-schedule',
+                  kind: 'fixture' as const,
+                  sourceRecordId: 'fixture:tdt4136:2026-w45:lecture',
+                  sourceUrl: 'https://www.ntnu.edu/studies/courses/TDT4136',
+                  observedAt: '2026-09-22T08:00:00.000Z',
+                },
+              },
+              {
+                id: 'tdt4136-2026-w45-exercise',
+                courseCode: normalizedCode,
+                activityCode: 'exercise',
+                title: 'Constraint satisfaction exercise',
+                summary: null,
+                status: 'published',
+                startsAt: '2026-11-04T12:15:00+01:00',
+                endsAt: '2026-11-04T14:00:00+01:00',
+                rooms: [{ building: 'IT-bygget', room: 'R5', url: null }],
+                evidence: {
+                  provider: 'ntnu-course-schedule',
+                  kind: 'fixture' as const,
+                  sourceRecordId: 'fixture:tdt4136:2026-w45:exercise',
+                  sourceUrl: 'https://www.ntnu.edu/studies/courses/TDT4136',
+                  observedAt: '2026-09-22T08:00:00.000Z',
+                },
+              },
+            ]
+          : [],
+      };
+    }),
+    meta: {
+      count:
+        term === '2026-autumn' && week === 45
+          ? courseCodes.filter((courseCode) => courseCode.trim().toUpperCase() === 'TDT4136')
+              .length * 2
+          : 0,
+      term,
+      week,
+      timezone: 'Europe/Oslo',
+      limitations: {
+        activitySelection: 'all-published-activities',
+        activityGrouping: 'unavailable',
+        exceptionSemantics: 'provider-status-unverified',
+      },
+    },
+  });
+
 export const makeFixtureCourseClient = (): CourseClient => ({
   search: (request) =>
     Effect.sleep('150 millis').pipe(Effect.as(fixtureSearchResponse(request.page))),
@@ -223,6 +325,8 @@ export const makeFixtureCourseClient = (): CourseClient => ({
     Effect.sleep('100 millis').pipe(Effect.as(fixtureGradeSummariesResponse(courseCodes))),
   getDecisionSignals: (courseCodes) =>
     Effect.sleep('120 millis').pipe(Effect.as(fixtureDecisionSignalsResponse(courseCodes))),
+  getSchedule: (courseCodes, term, week) =>
+    Effect.sleep('120 millis').pipe(Effect.as(fixtureScheduleResponse(courseCodes, term, week))),
   getInsight: (courseCode) => {
     const normalizedCode = courseCode.trim().toUpperCase();
     if (normalizedCode !== 'TDT4136') {

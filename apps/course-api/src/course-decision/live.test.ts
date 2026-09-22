@@ -23,6 +23,50 @@ const searchPayload = {
   pageSize: 500,
   hasMoreResults: false,
 };
+const scheduleSearchPayload = (courseCode: string, courseVersion: string | null) => ({
+  courses: [
+    {
+      courseCode,
+      courseVersion,
+      courseName: `${courseCode} schedule test`,
+      examOnly: false,
+      hasMultimedia: false,
+      courseUrl: `https://www.ntnu.no/studier/emner/${courseCode}/2026`,
+      location: 'Trondheim',
+    },
+  ],
+  numFound: 1,
+  pageNr: 1,
+  pageSize: 500,
+  hasMoreResults: false,
+});
+
+const scheduleOccurrence = (
+  courseCode: string,
+  activityCode: string,
+  startsAt: string,
+  week: number | null,
+) => {
+  const from = Date.parse(startsAt);
+  return {
+    courseCode,
+    activityCode,
+    tpId: `${courseCode}-${activityCode}`,
+    artermin: '2026_HØST',
+    status: 'published',
+    acronym: null,
+    name: null,
+    title: activityCode,
+    summary: null,
+    week,
+    from,
+    to: from + 60 * 60 * 1_000,
+    rooms: [],
+    staff: [],
+    studyProgramKeys: [],
+  };
+};
+
 const detailHtml = `
   <html><body>
     <h1>TDT4136 Introduction to Artificial Intelligence</h1>
@@ -182,6 +226,257 @@ describe('live course decision service', () => {
       assessment: { state: 'unavailable' },
       sourceStatus: { status: 'failed' },
     });
+  });
+
+  it('keeps an available schedule item when its batch neighbour fails', async () => {
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url, init) => {
+          if (url.includes('fetch-courselist-as-json')) {
+            const courseCode =
+              new URLSearchParams(String(init?.body)).get('searchQueryString') ?? 'UNKNOWN';
+            return Response.json(scheduleSearchPayload(courseCode, '1'));
+          }
+          if (url.includes('p_p_resource_id=schedules')) {
+            if (url.includes('TST404')) return new Response('unavailable', { status: 503 });
+            return Response.json({
+              schedules: [
+                scheduleOccurrence('TST200', 'TST200-LECTURE', '2026-11-02T09:15:00.000Z', null),
+              ],
+            });
+          }
+          return new Response('not found', { status: 404 });
+        },
+        now: () => new Date('2026-07-24T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(
+      service.getSchedule({
+        courseCodes: ['TST200', 'TST404'],
+        term: '2026-autumn',
+        week: 45,
+      }),
+    );
+
+    expect(result.items.map((item) => item.courseCode)).toEqual(['TST200', 'TST404']);
+    expect(result.items[0]).toMatchObject({
+      sourceStatus: { status: 'available' },
+      occurrences: [expect.objectContaining({ activityCode: 'TST200-LECTURE' })],
+    });
+    expect(result.items[1]).toMatchObject({
+      sourceStatus: { status: 'failed' },
+      activityStreams: [],
+      occurrences: [],
+    });
+  });
+
+  it('does not default a missing provider course version', async () => {
+    let scheduleRequests = 0;
+    let searchQuery = '';
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url, init) => {
+          if (url.includes('fetch-courselist-as-json')) {
+            searchQuery = new URLSearchParams(String(init?.body)).get('searchQueryString') ?? '';
+            return Response.json(scheduleSearchPayload('TDT4136-1', null));
+          }
+          if (url.includes('p_p_resource_id=schedules')) {
+            scheduleRequests += 1;
+            return Response.json({ schedules: [] });
+          }
+          return new Response('not found', { status: 404 });
+        },
+        now: () => new Date('2026-07-24T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(
+      service.getSchedule({
+        courseCodes: ['tdt4136-1'],
+        term: '2026-autumn',
+        week: 45,
+      }),
+    );
+
+    expect(searchQuery).toBe('TDT4136-1');
+    expect(scheduleRequests).toBe(0);
+    expect(result.items).toMatchObject([
+      {
+        courseCode: 'TDT4136-1',
+        sourceStatus: { status: 'unavailable' },
+        activityStreams: [],
+        occurrences: [],
+      },
+    ]);
+  });
+
+  it('filters by Oslo-local ISO week instead of the nullable provider week', async () => {
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url) => {
+          if (url.includes('fetch-courselist-as-json')) {
+            return Response.json(scheduleSearchPayload('TDT4136', '1'));
+          }
+          if (url.includes('p_p_resource_id=schedules')) {
+            return Response.json({
+              schedules: [
+                scheduleOccurrence('TDT4136', 'LOCAL-WEEK-45', '2026-11-01T23:30:00.000Z', null),
+                scheduleOccurrence(
+                  'TDT4136',
+                  'PROVIDER-WEEK-45-BUT-LOCAL-46',
+                  '2026-11-08T23:30:00.000Z',
+                  45,
+                ),
+                { courseCode: 'TDT4136' },
+              ],
+            });
+          }
+          return new Response('not found', { status: 404 });
+        },
+        now: () => new Date('2026-07-24T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(
+      service.getSchedule({
+        courseCodes: ['TDT4136'],
+        term: '2026-autumn',
+        week: 45,
+      }),
+    );
+
+    expect(result.items[0]).toMatchObject({
+      sourceStatus: {
+        status: 'available',
+        warning: expect.stringContaining('1 malformed NTNU schedule occurrence(s) were excluded.'),
+      },
+    });
+    expect(result.items[0]?.occurrences.map((occurrence) => occurrence.activityCode)).toEqual([
+      'LOCAL-WEEK-45',
+    ]);
+  });
+
+  it('derives full-term activity streams before filtering and resolves labels conservatively', async () => {
+    const service = makeLiveCourseDecisionService(
+      {
+        fetch: async (url) => {
+          if (url.includes('fetch-courselist-as-json')) {
+            return Response.json(scheduleSearchPayload('TDT4136', '1'));
+          }
+          if (url.includes('p_p_resource_id=schedules')) {
+            return Response.json({
+              schedules: [
+                {
+                  ...scheduleOccurrence('TDT4136', 'LECTURE', '2026-11-02T09:15:00.000Z', null),
+                  title: 'Shared title',
+                  summary: 'Shared summary',
+                },
+                {
+                  ...scheduleOccurrence(
+                    'TDT4136',
+                    'OUTSIDE-REQUESTED-WEEK',
+                    '2026-11-09T09:15:00.000Z',
+                    null,
+                  ),
+                  title: 'Other title',
+                  summary: 'Other summary',
+                },
+                {
+                  ...scheduleOccurrence('TDT4136', 'LECTURE', '2026-11-16T09:15:00.000Z', null),
+                  title: 'Shared title',
+                  summary: 'Shared summary',
+                },
+                {
+                  ...scheduleOccurrence(
+                    'TDT4136',
+                    'CONFLICTING-LABELS',
+                    '2026-11-17T09:15:00.000Z',
+                    null,
+                  ),
+                  title: 'First title',
+                  summary: 'First summary',
+                },
+                {
+                  ...scheduleOccurrence(
+                    'TDT4136',
+                    'CONFLICTING-LABELS',
+                    '2026-11-18T09:15:00.000Z',
+                    null,
+                  ),
+                  title: 'Second title',
+                  summary: 'Second summary',
+                },
+                {
+                  ...scheduleOccurrence(
+                    'TDT4136',
+                    'NULL-THEN-KNOWN',
+                    '2026-11-19T09:15:00.000Z',
+                    null,
+                  ),
+                  title: null,
+                  summary: null,
+                },
+                {
+                  ...scheduleOccurrence(
+                    'TDT4136',
+                    'NULL-THEN-KNOWN',
+                    '2026-11-20T09:15:00.000Z',
+                    null,
+                  ),
+                  title: 'Known title',
+                  summary: 'Known summary',
+                },
+              ],
+            });
+          }
+          return new Response('not found', { status: 404 });
+        },
+        now: () => new Date('2026-07-24T12:00:00.000Z'),
+        sha256Hex: async () => '0'.repeat(64),
+      },
+      defaults,
+    );
+
+    const result = await Effect.runPromise(
+      service.getSchedule({
+        courseCodes: ['TDT4136'],
+        term: '2026-autumn',
+        week: 45,
+      }),
+    );
+
+    expect(result.items[0]?.occurrences.map((occurrence) => occurrence.activityCode)).toEqual([
+      'LECTURE',
+    ]);
+    expect(result.items[0]?.activityStreams).toEqual([
+      {
+        activityCode: 'LECTURE',
+        title: 'Shared title',
+        summary: 'Shared summary',
+      },
+      {
+        activityCode: 'OUTSIDE-REQUESTED-WEEK',
+        title: 'Other title',
+        summary: 'Other summary',
+      },
+      {
+        activityCode: 'CONFLICTING-LABELS',
+        title: null,
+        summary: null,
+      },
+      {
+        activityCode: 'NULL-THEN-KNOWN',
+        title: 'Known title',
+        summary: 'Known summary',
+      },
+    ]);
   });
 
   it('coalesces normalized concurrent searches and retains the successful result', async () => {

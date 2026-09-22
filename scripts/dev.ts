@@ -45,7 +45,7 @@ const localWebEnvironment = {
   ...process.env,
   VITE_API_URL: process.env.VITE_API_URL ?? localApiUrl,
   VITE_SOURCE_URL: process.env.VITE_SOURCE_URL ?? 'https://github.com/phibkro/course-data-platform',
-  VITE_USE_FIXTURE: 'false',
+  VITE_USE_FIXTURE: process.env.VITE_USE_FIXTURE ?? 'false',
 };
 if (preview) {
   const build = spawnSync(bun, ['run', 'build'], {

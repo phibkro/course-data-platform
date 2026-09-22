@@ -125,12 +125,25 @@ import {
   update as updateProgress,
   view as progressView,
 } from './features/progress';
+import {
+  Message as ScheduleMessage,
+  Model as ScheduleModel,
+  currentOsloIsoWeek,
+  init as initSchedule,
+  normalizedWeek,
+  parseHiddenActivityKeys,
+  parseScheduleCodes,
+  syncFromUrl as syncScheduleFromUrl,
+  update as updateSchedule,
+  view as scheduleView,
+} from './features/schedule';
 
 const DISPLAY_CHUNK = 20;
 export const DEFAULT_TERM = '2026-autumn';
 export const DEFAULT_SORT: CourseSearchSort = 'relevance';
 const EXPLORE_PATH = '/';
 const LIST_PATH = '/list';
+const SCHEDULE_PATH = '/schedule';
 const PROGRESS_PATH = '/progress';
 const APPEARANCE_PATH = '/appearance';
 const LEGACY_LIST_APPEARANCE_PATH = '/list/appearance';
@@ -388,7 +401,7 @@ const LabelFilterNoticeSchema = S.Struct({
 
 const LabelRejectionSchema = S.Literals(labelRejections);
 
-const RouteSchema = S.Literals(['explore', 'list', 'progress', 'appearance']);
+const RouteSchema = S.Literals(['explore', 'list', 'schedule', 'progress', 'appearance']);
 type Route = typeof RouteSchema.Type;
 
 /**
@@ -406,6 +419,7 @@ export const Model = S.Struct({
   norwegianMessages: NorwegianMessagesState,
   route: RouteSchema,
   progress: ProgressModel,
+  schedule: ScheduleModel,
   savedCourses: SavedCoursesResultSchema,
   savedListActions: S.Array(SavedListNoticeSchema),
   noteDrafts: S.Array(NoteDraftSchema),
@@ -539,6 +553,7 @@ export const Message = defineMessageUnion({
   GotAppearanceMessage: { message: AppearanceMessage },
   GotCompareMessage: { message: CompareMessage },
   GotProgressMessage: { message: ProgressMessage },
+  GotScheduleMessage: { message: ScheduleMessage },
   GotSelectFieldMessage: {
     id: SelectControlIdSchema,
     message: Listbox.Message,
@@ -634,6 +649,7 @@ export const GotRefineDialogMessage = Message.GotRefineDialogMessage;
 export const GotAppearanceMessage = Message.GotAppearanceMessage;
 export const GotCompareMessage = Message.GotCompareMessage;
 export const GotProgressMessage = Message.GotProgressMessage;
+export const GotScheduleMessage = Message.GotScheduleMessage;
 export const GotLabelFilterModeRadioGroupMessage = Message.GotLabelFilterModeRadioGroupMessage;
 export const GotListDensityRadioGroupMessage = Message.GotListDensityRadioGroupMessage;
 export const GotLabelDraftColorRadioGroupMessage = Message.GotLabelDraftColorRadioGroupMessage;
@@ -1183,6 +1199,19 @@ export const normalizedUrl = (
 ): string => {
   const params = new URLSearchParams();
   params.set('lang', model.localization.locale);
+  if (pathname === SCHEDULE_PATH) {
+    // Schedule has its own compact URL state. `term` is still the root model's
+    // value, but it remains explicit so a schedule link cannot silently change
+    // period when the application default moves.
+    params.set('term', model.term);
+    params.set('week', String(model.schedule.week));
+    // An explicit empty value means no courses are selected; it never means all.
+    params.set('courses', model.schedule.selectedCodes.join(','));
+    for (const key of model.schedule.hiddenActivityKeys) {
+      params.append('hideActivity', key);
+    }
+    return `${pathname}?${params.toString()}`;
+  }
   if (model.query.trim().length > 0) params.set('q', model.query.trim());
   if (model.term !== DEFAULT_TERM) params.set('term', model.term);
   if (model.campus !== 'all') params.set('campus', model.campus);
@@ -1231,11 +1260,13 @@ const sameLabelFilter = (left: LabelFilter, right: LabelFilter): boolean =>
 const routePath = (route: Route): string =>
   route === 'list'
     ? LIST_PATH
-    : route === 'progress'
-      ? PROGRESS_PATH
-      : route === 'appearance'
-        ? APPEARANCE_PATH
-        : EXPLORE_PATH;
+    : route === 'schedule'
+      ? SCHEDULE_PATH
+      : route === 'progress'
+        ? PROGRESS_PATH
+        : route === 'appearance'
+          ? APPEARANCE_PATH
+          : EXPLORE_PATH;
 
 /** The shareable URL for the model as it currently stands. */
 const currentUrl = (model: Model, selectedCode: string | null = model.selectedCode): string =>
@@ -1246,6 +1277,8 @@ const appearanceUrl = (model: Model): string => normalizedUrl(model, null, APPEA
 export const listUrl = (model: Model): string => normalizedUrl(model, null, LIST_PATH);
 
 const progressUrl = (model: Model): string => normalizedUrl(model, null, PROGRESS_PATH);
+
+export const scheduleUrl = (model: Model): string => normalizedUrl(model, null, SCHEDULE_PATH);
 
 export const exploreUrl = (model: Model): string => normalizedUrl(model, null, EXPLORE_PATH);
 
@@ -1497,6 +1530,9 @@ interface ParsedLocation {
   readonly route: Route;
   readonly query: string;
   readonly term: string;
+  readonly scheduleWeek: number;
+  readonly scheduleCodes: ReadonlyArray<string>;
+  readonly scheduleHiddenActivityKeys: ReadonlyArray<string>;
   readonly campus: Campus;
   readonly level: Level;
   readonly sort: CourseSearchSort;
@@ -1512,6 +1548,8 @@ const parsePathname = (pathname: string): Route => {
   switch (normalized === '' ? EXPLORE_PATH : normalized) {
     case LIST_PATH:
       return 'list';
+    case SCHEDULE_PATH:
+      return 'schedule';
     case PROGRESS_PATH:
       return 'progress';
     // Appearance was once an overlay over whichever page you were on, so it
@@ -1543,11 +1581,24 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
   const url = new URL(href, 'http://course-lens.local');
   const requestedLocale = url.searchParams.get('lang');
   const path = parsePathname(url.pathname);
+  const term = url.searchParams.get('term') ?? DEFAULT_TERM;
+  const scheduleCodes =
+    path === 'schedule' ? parseScheduleCodes(url.searchParams.get('courses')) : [];
+  const scheduleHiddenActivityKeys =
+    path === 'schedule'
+      ? parseHiddenActivityKeys(url.searchParams.getAll('hideActivity'), scheduleCodes)
+      : [];
   return {
     route: path,
     locale: isLocale(requestedLocale) ? requestedLocale : fallbackLocale,
     query: url.searchParams.get('q') ?? '',
-    term: url.searchParams.get('term') ?? DEFAULT_TERM,
+    term,
+    scheduleWeek:
+      path === 'schedule'
+        ? normalizedWeek(url.searchParams.get('week'), term, currentOsloIsoWeek())
+        : currentOsloIsoWeek(),
+    scheduleCodes,
+    scheduleHiddenActivityKeys,
     campus: oneOf(
       url.searchParams.get('campus') ?? 'all',
       ['all', 'trondheim', 'gjovik', 'alesund'] as const,
@@ -1565,9 +1616,9 @@ const parseLocation = (href: string, fallbackLocale: Locale = 'en'): ParsedLocat
     ),
     openOnly: url.searchParams.get('open') === '1',
     englishOnly: url.searchParams.get('english') === '1',
-    // List and Progress do not own course-detail state.
+    // List, Schedule, and Progress do not own course-detail state.
     selectedCode:
-      path === 'list' || path === 'progress'
+      path === 'list' || path === 'schedule' || path === 'progress'
         ? null
         : url.searchParams.get('course')?.trim().toUpperCase() || null,
     compareCodes: path === 'list' ? parseCompareCodes(url.searchParams.get('compare')) : [],
@@ -1604,6 +1655,65 @@ const forRoute = (model: Model, route: Route): Model =>
         selectionRemovePending: false,
         labelDialogTarget: [],
       };
+
+const scheduleSavedCourses = (result: SavedCoursesResult): ReadonlyArray<SavedCourse> | null =>
+  result._tag === 'SavedCoursesReady' ? result.state.savedCourses : null;
+
+const applyScheduleRouteState = (
+  model: Model,
+  term: string,
+  week: number,
+  selectedCodes: ReadonlyArray<string>,
+  hiddenActivityKeys: ReadonlyArray<string>,
+): UpdateReturn => {
+  const savedCourses = scheduleSavedCourses(model.savedCourses);
+  const scheduled = syncScheduleFromUrl(model.schedule, {
+    term,
+    week,
+    selectedCodes,
+    hiddenActivityKeys,
+    availableCodes: savedCourses?.map((course) => course.courseCode) ?? null,
+  });
+  const nextModel = modifyFields(model, { schedule: () => scheduled.model });
+  const commands = Command.mapMessages(scheduled.commands, (message) =>
+    Message.GotScheduleMessage({ message }),
+  );
+  return scheduled.outMessage === undefined
+    ? { model: nextModel, commands }
+    : {
+        model: nextModel,
+        commands: [
+          ...commands,
+          Navigate({ href: scheduleUrl(nextModel), mode: scheduled.outMessage.mode }),
+        ],
+      };
+};
+
+const updateScheduleFeature = (
+  model: Model,
+  message: ScheduleMessage,
+  toRootMessage: (message: ScheduleMessage) => Message,
+): UpdateReturn => {
+  const scheduled = updateSchedule(model.schedule, message, model.term);
+  if (
+    scheduled.model === model.schedule &&
+    scheduled.commands === undefined &&
+    scheduled.outMessage === undefined
+  ) {
+    return { model };
+  }
+  const nextModel = modifyFields(model, { schedule: () => scheduled.model });
+  const commands = Command.mapMessages(scheduled.commands, toRootMessage);
+  return scheduled.outMessage === undefined
+    ? { model: nextModel, commands }
+    : {
+        model: nextModel,
+        commands: [
+          ...commands,
+          Navigate({ href: scheduleUrl(nextModel), mode: scheduled.outMessage.mode }),
+        ],
+      };
+};
 
 const locationMatchesModel = (location: ParsedLocation, model: Model): boolean =>
   location.query === model.query &&
@@ -1911,6 +2021,41 @@ export const update = (model: Model, message: Message) =>
     }),
     ChangedUrl: ({ href }) => {
       const location = parseLocation(href);
+      if (location.route === 'schedule') {
+        const locationModel = modifyFields(forRoute(model, 'schedule'), {
+          route: () => 'schedule',
+          query: () => location.query,
+          term: () => location.term,
+          campus: () => location.campus,
+          level: () => location.level,
+          sort: () => location.sort,
+          openOnly: () => location.openOnly,
+          englishOnly: () => location.englishOnly,
+          selectedCode: () => null,
+          detail: () => DetailResult.DetailClosed(),
+          labelFilter: () => emptyLabelFilter,
+          compareCodes: () => [],
+          labelFilterNotice: () => null,
+        });
+        const localized = selectLocale(locationModel, location.locale);
+        const scheduled = applyScheduleRouteState(
+          localized.model,
+          location.term,
+          location.scheduleWeek,
+          location.scheduleCodes,
+          location.scheduleHiddenActivityKeys,
+        );
+        return {
+          model: scheduled.model,
+          commands: [
+            ...(localized.commands ?? []),
+            ...(location.locale === model.localization.locale
+              ? []
+              : [PersistLocale({ locale: location.locale })]),
+            ...(scheduled.commands ?? []),
+          ],
+        };
+      }
       const withCanonicalFilter = (result: UpdateReturn): UpdateReturn => {
         const canonicalization = canonicalizeLabelFilter(result.model);
         const signals = requestListCourseSignals(canonicalization.model);
@@ -1923,7 +2068,7 @@ export const update = (model: Model, message: Message) =>
           ],
         };
       };
-      if (!locationMatchesModel(location, model)) {
+      if (!locationMatchesModel(location, model) || model.route === 'schedule') {
         const locationModel = modifyFields(forRoute(model, location.route), {
           route: () => location.route,
           query: () => location.query,
@@ -2227,7 +2372,15 @@ export const update = (model: Model, message: Message) =>
                 repairedEntries: 0,
               }),
           });
-          return requestListCourseSignals(loadedModel);
+          return loadedModel.route === 'schedule'
+            ? applyScheduleRouteState(
+                loadedModel,
+                loadedModel.term,
+                loadedModel.schedule.week,
+                loadedModel.schedule.selectedCodes,
+                loadedModel.schedule.hiddenActivityKeys,
+              )
+            : requestListCourseSignals(loadedModel);
         }
         case 'SavedListLoaded': {
           // A filter recipe can only be judged against a loaded label set, so
@@ -2239,6 +2392,22 @@ export const update = (model: Model, message: Message) =>
                 repairedEntries: load.repairedEntries,
               }),
           });
+          if (loadedModel.route === 'schedule') {
+            const scheduled = applyScheduleRouteState(
+              loadedModel,
+              loadedModel.term,
+              loadedModel.schedule.week,
+              loadedModel.schedule.selectedCodes,
+              loadedModel.schedule.hiddenActivityKeys,
+            );
+            return {
+              model: scheduled.model,
+              commands: [
+                ...(load.repairedEntries === 0 ? [] : [PersistSavedCourses({ state: load.state })]),
+                ...(scheduled.commands ?? []),
+              ],
+            };
+          }
           const canonicalization = canonicalizeLabelFilter(loadedModel);
           const signals = requestListCourseSignals(canonicalization.model);
           return {
@@ -2520,6 +2689,10 @@ export const update = (model: Model, message: Message) =>
     },
     GotCompareMessage: ({ message: compareMessage }) =>
       updateComparison(model, compareMessage, (message) => Message.GotCompareMessage({ message })),
+    GotScheduleMessage: ({ message: scheduleMessage }) =>
+      updateScheduleFeature(model, scheduleMessage, (message) =>
+        Message.GotScheduleMessage({ message }),
+      ),
     RequestedRemoveSelected: () => ({
       model: modifyFields(model, { selectionRemovePending: () => true }),
     }),
@@ -2826,6 +2999,11 @@ export const initForHref = (
     norwegianMessages: NorwegianMessagesIdle(),
     route: location.route,
     progress: progressInit.model,
+    schedule: initSchedule(
+      location.scheduleWeek,
+      location.scheduleCodes,
+      location.scheduleHiddenActivityKeys,
+    ),
     savedCourses: SavedCoursesResultSchema.SavedCoursesLoading(),
     savedListActions: [],
     noteDrafts: [],
@@ -2887,8 +3065,8 @@ export const initForHref = (
     },
   };
   const localized = loadNorwegianMessages(base);
-  const request = searchRequest(localized.model, 1);
-  const key = requestKey(request);
+  const request = location.route === 'schedule' ? null : searchRequest(localized.model, 1);
+  const key = request === null ? '' : requestKey(request);
   const model = modifyFields(localized.model, { activeRequestKey: () => key });
   return {
     model,
@@ -2898,8 +3076,8 @@ export const initForHref = (
       ...Command.mapMessages(progressInit.commands, (message) =>
         Message.GotProgressMessage({ message }),
       ),
-      fetchCommand(request, key, false),
-      ...(location.selectedCode === null
+      ...(request === null ? [] : [fetchCommand(request, key, false)]),
+      ...(request === null || location.selectedCode === null
         ? []
         : [FetchCourseInsight({ courseCode: location.selectedCode, term: location.term })]),
     ],
@@ -2948,6 +3126,7 @@ const browserListDensity = (): ListDensity => {
 
 const documentTitle = (model: Model): string => {
   if (model.route === 'list') return translate(model.localization, 'app.listTitle');
+  if (model.route === 'schedule') return translate(model.localization, 'app.scheduleTitle');
   if (model.route === 'progress') return translate(model.localization, 'app.progressTitle');
   return model.detail._tag === 'DetailSuccess' || model.detail._tag === 'DetailPartial'
     ? `${model.detail.response.item.code} · ${translate(model.localization, 'app.name')}`
@@ -2982,6 +3161,7 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
         model.route,
         exploreUrl(model),
         listUrl(model),
+        scheduleUrl(model),
         progressUrl(model),
         appearanceUrl(model),
         Message.ToggledSidebar(),
@@ -3026,22 +3206,34 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
                     },
                     toParentMessage: (message) => Message.GotAppearanceMessage({ message }),
                   })
-                : model.route === 'progress'
+                : model.route === 'schedule'
                   ? h.submodel({
-                      slotId: 'progress',
-                      model: model.progress,
-                      view: progressView,
+                      slotId: 'schedule',
+                      model: model.schedule,
+                      view: scheduleView,
                       viewInputs: {
                         locale: model.localization,
-                        courseUrl: (courseCode) => normalizedUrl(model, courseCode, EXPLORE_PATH),
+                        term: model.term,
+                        savedCourses: scheduleSavedCourses(model.savedCourses),
                       },
-                      toParentMessage: (message) => Message.GotProgressMessage({ message }),
+                      toParentMessage: (message) => Message.GotScheduleMessage({ message }),
                     })
-                  : model.route === 'list'
-                    ? listView(model, h)
-                    : model.selectedCode === null
-                      ? catalogueView(model, h)
-                      : selectedCourseView(model, h),
+                  : model.route === 'progress'
+                    ? h.submodel({
+                        slotId: 'progress',
+                        model: model.progress,
+                        view: progressView,
+                        viewInputs: {
+                          locale: model.localization,
+                          courseUrl: (courseCode) => normalizedUrl(model, courseCode, EXPLORE_PATH),
+                        },
+                        toParentMessage: (message) => Message.GotProgressMessage({ message }),
+                      })
+                    : model.route === 'list'
+                      ? listView(model, h)
+                      : model.selectedCode === null
+                        ? catalogueView(model, h)
+                        : selectedCourseView(model, h),
             ],
           ),
         ],
@@ -3067,6 +3259,7 @@ const appView = (model: Model, h: HtmlBuilder<Message>): Html =>
         model.route,
         exploreUrl(model),
         listUrl(model),
+        scheduleUrl(model),
         progressUrl(model),
         appearanceUrl(model),
         h,

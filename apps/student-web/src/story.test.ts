@@ -1,11 +1,13 @@
 import fc from 'fast-check';
 import { expect, test } from 'vitest';
 
-import { fixtureSearchResponse } from './course-client.fixture';
+import { fixtureScheduleResponse, fixtureSearchResponse } from './course-client.fixture';
 import { courseIdentity } from './course-identity';
 import {
   ChangedCampus,
   ChangedLabelInclusion,
+  GotScheduleMessage,
+  LoadedSavedCourses,
   RequestedRemoveSavedCourse,
   RequestedSaveCourse,
   RequestedUndoSavedListAction,
@@ -31,6 +33,7 @@ import {
   type LabelFilter,
   type SavedListState,
 } from './saved-courses';
+import { Message as ScheduleMessage } from './features/schedule';
 
 const savedAt = '2026-07-24T12:00:00.000Z';
 
@@ -69,6 +72,82 @@ test('stale catalogue responses cannot overwrite a newer Explore transition', ()
 
   expect(staleResponse.model).toBe(filtered);
   expect(staleResponse.commands ?? []).toEqual([]);
+});
+
+test('Schedule URL state round-trips through saved-course canonicalization and ignores stale responses', () => {
+  const saved = saveCourse(emptySavedList, identity('TDT4136'), savedAt);
+  const initial = initForHref(
+    'http://course-lens.local/schedule?lang=en&term=2026-autumn&week=45&courses=TDT4136,UNKNOWN&hideActivity=TDT4136%3Aexercise&hideActivity=TDT4136%3Aexercise&hideActivity=TDT4136%3Apractice%3Aoptional&hideActivity=NOTSELECTED%3Aignored&hideActivity=UNKNOWN%3Aseminar',
+  ).model;
+  expect(initial.schedule.hiddenActivityKeys).toEqual([
+    'TDT4136:exercise',
+    'TDT4136:practice:optional',
+    'UNKNOWN:seminar',
+  ]);
+  const loaded = update(
+    initial,
+    LoadedSavedCourses({
+      load: { _tag: 'SavedListLoaded', state: saved, repairedEntries: 0 },
+    }),
+  );
+
+  expect(loaded.model.route).toBe('schedule');
+  expect(loaded.model.schedule.selectedCodes).toEqual(['TDT4136']);
+  expect(loaded.model.schedule.hiddenActivityKeys).toEqual([
+    'TDT4136:exercise',
+    'TDT4136:practice:optional',
+  ]);
+  expect(commandNames(loaded.commands ?? [])).toEqual(['FetchSchedule', 'Navigate']);
+  expect(normalizedUrl(loaded.model, null, '/schedule')).toBe(
+    '/schedule?lang=en&term=2026-autumn&week=45&courses=TDT4136&hideActivity=TDT4136%3Aexercise&hideActivity=TDT4136%3Apractice%3Aoptional',
+  );
+
+  const canonical = update(
+    loaded.model,
+    GotScheduleMessage({
+      message: ScheduleMessage.SucceededSchedule({
+        requestKey: loaded.model.schedule.activeRequestKey,
+        response: fixtureScheduleResponse(['TDT4136'], '2026-autumn', 45),
+      }),
+    }),
+  );
+  expect(canonical.model.schedule.hiddenActivityKeys).toEqual(['TDT4136:exercise']);
+  expect(commandNames(canonical.commands ?? [])).toEqual(['Navigate']);
+  expect(canonical.commands?.[0]?.args).toMatchObject({ mode: 'replace' });
+
+  const toggled = update(
+    canonical.model,
+    GotScheduleMessage({
+      message: ScheduleMessage.ToggledActivityVisibility({
+        courseCode: 'TDT4136',
+        activityCode: 'lecture',
+        isVisible: false,
+      }),
+    }),
+  );
+  expect(commandNames(toggled.commands ?? [])).toEqual(['Navigate']);
+  expect(normalizedUrl(toggled.model, null, '/schedule')).toBe(
+    '/schedule?lang=en&term=2026-autumn&week=45&courses=TDT4136&hideActivity=TDT4136%3Aexercise&hideActivity=TDT4136%3Alecture',
+  );
+
+  const moved = update(
+    toggled.model,
+    GotScheduleMessage({
+      message: ScheduleMessage.ChangedWeek({ value: '46' }),
+    }),
+  );
+  const stale = update(
+    moved.model,
+    GotScheduleMessage({
+      message: ScheduleMessage.SucceededSchedule({
+        requestKey: canonical.model.schedule.activeRequestKey,
+        response: fixtureScheduleResponse(['TDT4136'], '2026-autumn', 45),
+      }),
+    }),
+  );
+
+  expect(stale.model).toBe(moved.model);
+  expect(stale.commands ?? []).toEqual([]);
 });
 
 test('saved-list persistence follows explicit save and note commits, never drafts', () => {

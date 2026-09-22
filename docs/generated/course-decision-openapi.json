@@ -40,6 +40,7 @@
                         "gradeSummaries",
                         "decisionSignals",
                         "insight",
+                        "schedule",
                         "openapi",
                         "openapiJson"
                       ],
@@ -57,6 +58,9 @@
                           "type": "string"
                         },
                         "insight": {
+                          "type": "string"
+                        },
+                        "schedule": {
                           "type": "string"
                         },
                         "openapi": {
@@ -5093,6 +5097,472 @@
           }
         },
         "operationId": "postV1Course-decision-signals"
+      }
+    },
+    "/v1/course-schedules": {
+      "post": {
+        "summary": "Get published NTNU course schedule occurrences for one week",
+        "description": "Returns published activities in the requested Oslo-local ISO week with explicit source availability.",
+        "tags": [
+          "Courses"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "courseCodes",
+                  "term",
+                  "week"
+                ],
+                "properties": {
+                  "courseCodes": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 20,
+                      "pattern": "^[A-Za-zÆØÅæøå][A-Za-zÆØÅæøå0-9]*[0-9][A-Za-zÆØÅæøå0-9]*(?:-[0-9]+)?$",
+                      "type": "string"
+                    }
+                  },
+                  "term": {
+                    "pattern": "^[0-9]{4}-(spring|autumn)$",
+                    "type": "string"
+                  },
+                  "week": {
+                    "minimum": 1,
+                    "maximum": 53,
+                    "type": "integer"
+                  }
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "courseCodes",
+                  "term",
+                  "week"
+                ],
+                "properties": {
+                  "courseCodes": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 20,
+                      "pattern": "^[A-Za-zÆØÅæøå][A-Za-zÆØÅæøå0-9]*[0-9][A-Za-zÆØÅæøå0-9]*(?:-[0-9]+)?$",
+                      "type": "string"
+                    }
+                  },
+                  "term": {
+                    "pattern": "^[0-9]{4}-(spring|autumn)$",
+                    "type": "string"
+                  },
+                  "week": {
+                    "minimum": 1,
+                    "maximum": 53,
+                    "type": "integer"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "courseCodes",
+                  "term",
+                  "week"
+                ],
+                "properties": {
+                  "courseCodes": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 20,
+                      "pattern": "^[A-Za-zÆØÅæøå][A-Za-zÆØÅæøå0-9]*[0-9][A-Za-zÆØÅæøå0-9]*(?:-[0-9]+)?$",
+                      "type": "string"
+                    }
+                  },
+                  "term": {
+                    "pattern": "^[0-9]{4}-(spring|autumn)$",
+                    "type": "string"
+                  },
+                  "week": {
+                    "minimum": 1,
+                    "maximum": 53,
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "meta"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "courseCode",
+                          "sourceStatus",
+                          "activityStreams",
+                          "occurrences"
+                        ],
+                        "properties": {
+                          "courseCode": {
+                            "minLength": 2,
+                            "maxLength": 20,
+                            "type": "string"
+                          },
+                          "sourceStatus": {
+                            "type": "object",
+                            "required": [
+                              "provider",
+                              "status",
+                              "observedAt",
+                              "warning"
+                            ],
+                            "properties": {
+                              "provider": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "available",
+                                  "unavailable",
+                                  "failed"
+                                ]
+                              },
+                              "observedAt": {
+                                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "warning": {
+                                "minLength": 1,
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            }
+                          },
+                          "activityStreams": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "activityCode",
+                                "title",
+                                "summary"
+                              ],
+                              "properties": {
+                                "activityCode": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "minLength": 1,
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "summary": {
+                                  "minLength": 1,
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "occurrences": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "courseCode",
+                                "activityCode",
+                                "title",
+                                "summary",
+                                "status",
+                                "startsAt",
+                                "endsAt",
+                                "rooms",
+                                "evidence"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "courseCode": {
+                                  "minLength": 2,
+                                  "maxLength": 20,
+                                  "type": "string"
+                                },
+                                "activityCode": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "minLength": 1,
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "summary": {
+                                  "minLength": 1,
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "status": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "startsAt": {
+                                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
+                                  "type": "string"
+                                },
+                                "endsAt": {
+                                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
+                                  "type": "string"
+                                },
+                                "rooms": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "building",
+                                      "room",
+                                      "url"
+                                    ],
+                                    "properties": {
+                                      "building": {
+                                        "minLength": 1,
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "room": {
+                                        "minLength": 1,
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "url": {
+                                        "minLength": 1,
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      }
+                                    }
+                                  }
+                                },
+                                "evidence": {
+                                  "type": "object",
+                                  "required": [
+                                    "provider",
+                                    "kind",
+                                    "sourceRecordId",
+                                    "sourceUrl",
+                                    "observedAt"
+                                  ],
+                                  "properties": {
+                                    "provider": {
+                                      "const": "ntnu-course-schedule",
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "source-fact",
+                                        "fixture"
+                                      ]
+                                    },
+                                    "sourceRecordId": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "sourceUrl": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "observedAt": {
+                                      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "count",
+                        "term",
+                        "week",
+                        "timezone",
+                        "limitations"
+                      ],
+                      "properties": {
+                        "count": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "term": {
+                          "pattern": "^[0-9]{4}-(spring|autumn)$",
+                          "type": "string"
+                        },
+                        "week": {
+                          "minimum": 1,
+                          "maximum": 53,
+                          "type": "integer"
+                        },
+                        "timezone": {
+                          "const": "Europe/Oslo",
+                          "type": "string"
+                        },
+                        "limitations": {
+                          "type": "object",
+                          "required": [
+                            "activitySelection",
+                            "activityGrouping",
+                            "exceptionSemantics"
+                          ],
+                          "properties": {
+                            "activitySelection": {
+                              "const": "all-published-activities",
+                              "type": "string"
+                            },
+                            "activityGrouping": {
+                              "const": "unavailable",
+                              "type": "string"
+                            },
+                            "exceptionSemantics": {
+                              "const": "provider-status-unverified",
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response for status 400",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Response for status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postV1Course-schedules"
       }
     },
     "/v1/course-grade-summaries": {

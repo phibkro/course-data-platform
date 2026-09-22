@@ -12,7 +12,13 @@ import {
 } from './model/course-insight';
 import * as Effect from 'effect/Effect';
 
-import { CourseInvalidTermError, CourseNotFoundError, type CourseDecisionService } from './service';
+import {
+  CourseInvalidTermError,
+  CourseNotFoundError,
+  type CourseDecisionService,
+  type CourseScheduleActivityStream,
+  type CourseScheduleOccurrence,
+} from './service';
 
 const observedAt = '2026-07-23T10:00:00.000Z';
 const coursePageEvidenceId = 'fixture:ntnu-course-page:TDT4136:2026-spring';
@@ -53,6 +59,66 @@ const examParticipationEvidence = {
   excerpt: 'Fixture exam participation totals from DBH/HK-dir table 905.',
   inferenceRule: null,
 };
+
+const fixtureScheduleSourceUrl =
+  'https://www.ntnu.no/web/studier/emner?p_p_resource_id=schedules&courseCode=TDT4136&year=2026&version=1';
+const fixtureScheduleOccurrences: ReadonlyArray<CourseScheduleOccurrence> = [
+  {
+    id: 'fixture:ntnu-course-schedule:TDT4136:2026-11-03T09:15:00.000Z',
+    courseCode: 'TDT4136',
+    activityCode: 'TDT4136-LECTURE-01',
+    title: 'Introduction to search',
+    summary: 'Lecture',
+    status: 'published',
+    startsAt: new Date('2026-11-03T09:15:00.000Z'),
+    endsAt: new Date('2026-11-03T11:00:00.000Z'),
+    rooms: [
+      {
+        building: 'Gløshaugen',
+        room: 'R7',
+        url: 'https://www.ntnu.no/kart',
+      },
+    ],
+    evidence: {
+      provider: 'ntnu-course-schedule',
+      kind: 'fixture',
+      sourceRecordId: 'fixture:ntnu-course-schedule:TDT4136:2026-11-03T09:15:00.000Z',
+      sourceUrl: fixtureScheduleSourceUrl,
+      observedAt: new Date(observedAt),
+    },
+  },
+  {
+    id: 'fixture:ntnu-course-schedule:TDT4136:2026-11-05T12:15:00.000Z',
+    courseCode: 'TDT4136',
+    activityCode: 'TDT4136-EXERCISE-01',
+    title: 'Search exercise',
+    summary: 'Exercise session',
+    status: 'published',
+    startsAt: new Date('2026-11-05T12:15:00.000Z'),
+    endsAt: new Date('2026-11-05T14:00:00.000Z'),
+    rooms: [
+      {
+        building: 'Gløshaugen',
+        room: 'EL5',
+        url: 'https://www.ntnu.no/kart',
+      },
+    ],
+    evidence: {
+      provider: 'ntnu-course-schedule',
+      kind: 'fixture',
+      sourceRecordId: 'fixture:ntnu-course-schedule:TDT4136:2026-11-05T12:15:00.000Z',
+      sourceUrl: fixtureScheduleSourceUrl,
+      observedAt: new Date(observedAt),
+    },
+  },
+];
+
+const fixtureScheduleActivityStreams: ReadonlyArray<CourseScheduleActivityStream> =
+  fixtureScheduleOccurrences.map(({ activityCode, title, summary }) => ({
+    activityCode,
+    title,
+    summary,
+  }));
 
 const missing = <A>(reason: string): Fact<A> => unknown(reason);
 
@@ -305,6 +371,48 @@ export const fixtureCourseDecisionService: CourseDecisionService = {
               evidence: [],
             }),
       ),
+    });
+  },
+  getSchedule: ({ courseCodes, term, week }) => {
+    if (!/^\d{4}-(spring|autumn)$/.test(term)) {
+      return Effect.fail(
+        new CourseInvalidTermError({
+          term,
+          message: 'Term must use the form YYYY-spring or YYYY-autumn.',
+        }),
+      );
+    }
+
+    const normalizedCodes = courseCodes.map((courseCode) => courseCode.trim().toUpperCase());
+    const missingReason = 'The fixture contains no published schedule for this course and term.';
+    return Effect.succeed({
+      items: normalizedCodes.map((courseCode) =>
+        courseCode === 'TDT4136' && term === '2026-autumn'
+          ? {
+              courseCode,
+              sourceStatus: {
+                provider: 'ntnu-course-schedule' as const,
+                status: 'available' as const,
+                observedAt: new Date(observedAt),
+                warning: 'Fixture evidence; live adapter not connected.',
+              },
+              activityStreams: fixtureScheduleActivityStreams,
+              occurrences: week === 45 ? fixtureScheduleOccurrences : [],
+            }
+          : {
+              courseCode,
+              sourceStatus: {
+                provider: 'ntnu-course-schedule' as const,
+                status: 'unavailable' as const,
+                observedAt: null,
+                warning: missingReason,
+              },
+              activityStreams: [],
+              occurrences: [],
+            },
+      ),
+      term,
+      week,
     });
   },
 };

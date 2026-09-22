@@ -1,11 +1,13 @@
 import {
   CourseDecisionSignalsRequestDto,
   CourseDecisionSignalsResponseDto,
+  CourseGradeSummariesRequestDto,
+  CourseGradeSummariesResponseDto,
   CourseInsightParamsDto,
   CourseInsightQueryDto,
   CourseInsightResponseDto,
-  CourseGradeSummariesRequestDto,
-  CourseGradeSummariesResponseDto,
+  CourseScheduleRequestDto,
+  CourseScheduleResponseDto,
   CourseSearchQueryDto,
   CourseSearchResponseDto,
   ProblemDto,
@@ -25,6 +27,7 @@ import {
   toCourseDecisionSignalsDto,
   toCourseGradeSummaryDto,
   toCourseInsightDto,
+  toCourseScheduleResponseDto,
   toCourseSearchItemDto,
 } from './http/course-dto';
 
@@ -86,6 +89,7 @@ export const createCourseApi = (
           search: '/v1/course-search',
           gradeSummaries: '/v1/course-grade-summaries',
           decisionSignals: '/v1/course-decision-signals',
+          schedule: '/v1/course-schedules',
           insight: '/v1/courses/:courseCode/insight',
           openapi: '/openapi',
           openapiJson: '/openapi/json',
@@ -101,6 +105,7 @@ export const createCourseApi = (
             gradeSummaries: t.String(),
             decisionSignals: t.String(),
             insight: t.String(),
+            schedule: t.String(),
             openapi: t.String(),
             openapiJson: t.String(),
           }),
@@ -243,6 +248,60 @@ export const createCourseApi = (
           summary: 'Enrich visible courses with decision signals',
           description:
             'Returns bounded NTNU course-page assessment, work-form, obligation, collaboration, attendance, and remote-participation signals.',
+          tags: ['Courses'],
+        },
+      },
+    )
+    .post(
+      '/v1/course-schedules',
+      async ({ body, request, set, status }) => {
+        const requestId = request.headers.get('cf-ray') ?? makeRequestId();
+        const result = await Effect.runPromise(
+          Effect.result(
+            service.getSchedule({
+              courseCodes: body.courseCodes,
+              term: body.term,
+              week: body.week,
+            }),
+          ),
+        );
+        set.headers['x-request-id'] = requestId;
+        set.headers['cache-control'] = 'public, max-age=60, stale-while-revalidate=900';
+
+        if (Result.isFailure(result)) {
+          if (result.failure._tag === 'CourseInvalidTermError') {
+            return status(
+              400,
+              problem(
+                requestId,
+                400,
+                'invalid-course-term',
+                'Invalid course term',
+                result.failure.message,
+              ),
+            );
+          }
+          return status(
+            503,
+            problem(
+              requestId,
+              503,
+              'course-schedule-unavailable',
+              'Course schedule unavailable',
+              result.failure.message,
+            ),
+          );
+        }
+
+        return toCourseScheduleResponseDto(result.success);
+      },
+      {
+        body: CourseScheduleRequestDto,
+        response: { 200: CourseScheduleResponseDto, 400: ProblemDto, 503: ProblemDto },
+        detail: {
+          summary: 'Get published NTNU course schedule occurrences for one week',
+          description:
+            'Returns published activities in the requested Oslo-local ISO week with explicit source availability.',
           tags: ['Courses'],
         },
       },

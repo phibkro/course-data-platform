@@ -14,7 +14,7 @@ inferred, conflicting, and fixture states instead of presenting guesses as facts
 
 ```text
 Foldkit web -> TypeBox HTTP contract -> Elysia transport -> Effect service
-                                                    -> NTNU search/detail
+                                                    -> NTNU search/detail/schedule
                                                     -> DBH grades + exam activity
 ```
 
@@ -30,6 +30,8 @@ Implemented now:
   visible or shortlisted courses;
 - a local saved list with labelled collections and comparison of two to four
   courses;
+- a weekly timetable for saved courses, with URL-backed ISO-week selection,
+  dated NTNU activities, source freshness, and named provider limitations;
 - ordinary-term, bounded grade aggregation with pass/fail outcomes kept
   separate from ordinal letter grades;
 - official DBH exam registrations, attendance, pass, failure, and repeat-pass
