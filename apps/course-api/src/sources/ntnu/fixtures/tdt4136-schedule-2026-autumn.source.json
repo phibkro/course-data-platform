@@ -1,0 +1,21 @@
+{
+  "sourceProvider": "ntnu-course-schedule",
+  "requestUrl": "https://www.ntnu.no/web/studier/emner?p_p_id=coursedetailsportlet_WAR_courselistportlet&p_p_lifecycle=2&p_p_state=normal&p_p_mode=view&p_p_cacheability=cacheLevelPage&p_p_resource_id=schedules&_coursedetailsportlet_WAR_courselistportlet_courseCode=TDT4136&year=2026&version=1",
+  "requestMethod": "GET",
+  "courseCode": "TDT4136",
+  "courseVersion": "1",
+  "academicYear": 2026,
+  "season": "autumn",
+  "timezone": "Europe/Oslo",
+  "capturedAt": "2026-09-22T08:45:58.226Z",
+  "contentHash": {
+    "algorithm": "sha-256",
+    "rawBody": "5bc525f14a2a97ae65f662742f447fc618a1359653ff893ab96dae8ee03dfbf5"
+  },
+  "observedOccurrenceCount": 67,
+  "observedStatuses": [
+    "active"
+  ],
+  "isRepresentativeFixture": false,
+  "note": "Live capture from NTNU's public unauthenticated but undocumented Liferay schedules resource. This fixture proves dated provider occurrences and room fields only; it does not prove provider authorization/stability, fixed-versus-alternative activity groups, campus identity, or cancellation/exception semantics."
+}
