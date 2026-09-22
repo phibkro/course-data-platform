@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "build": "WRANGLER_SEND_METRICS=false CI=1 wrangler deploy --dry-run --outdir dist",
+    "build": "WRANGLER_SEND_METRICS=false CI=1 wrangler deploy --dry-run --config ../../infra/previews/course-api.wrangler.json --outdir dist",
     "test": "bun ../../scripts/test.ts apps/course-api/"
   },
   "dependencies": {
