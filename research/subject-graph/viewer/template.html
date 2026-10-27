@@ -184,7 +184,10 @@ const EXAMCOL = ['#2E8B57', '#5FA35A', '#C29A2B', '#D9762B', '#C2412E', '#8A8F8C
 const graph = new graphology.Graph({ multi: false, type: 'undirected' });
 for (const n of N) if (n.subject && placed(n.i)) graph.addNode(String(n.i), { x: n.x, y: -n.y, size: 2.2, label: `${n.id} ${n.label}` });
 const renderer = new Sigma(graph, $('map'), { renderEdgeLabels: false, labelRenderedSizeThreshold: 7, labelDensity: 0.5, labelFont: 'IBM Plex Sans', labelSize: 12, zIndex: true });
-let state = { result: new Set(), order: [], selected: null, programme: null, plan: null };
+let state = { result: new Set(), order: [], selected: null, programme: null, plan: null, hover: null, hoverSet: new Set() };
+const REL = new Set(['overlaps', 'requires', 'recommends', 'similar']);
+function neighbourhood(i) { const s = new Set([i]); for (const e of [...OUT[i], ...IN[i]]) if (REL.has(e.k)) { const j = e.s === i ? e.t : e.s; if (placed(j)) s.add(j); } return s; }
+function desaturate(hex) { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, y = Math.round(0.3 * r + 0.59 * g + 0.11 * b); const bg = parseInt((css('--map') || '#ffffff').slice(1), 16); const mix = (c, k) => Math.round(c * 0.25 + ((bg >> k) & 255) * 0.75); return '#' + [mix(y, 16), mix(y, 8), mix(y, 0)].map(v => v.toString(16).padStart(2, '0')).join(''); }
 function colour(i) {
   const by = $('colorBy').value;
   if (by === 'exam') return EXAMCOL[examRank(i)];
@@ -200,6 +203,10 @@ function applyStyle() {
     if (has && inRes) { r.size = 4.2; r.zIndex = 2; r.forceLabel = state.result.size <= 40; }
     if (sel) { r.size = 7; r.color = css('--hi'); r.forceLabel = true; r.zIndex = 3; }
     if (has && !inRes) { r.label = ''; r.zIndex = 0; }
+    if (state.hover != null) {
+      if (state.hoverSet.has(i)) { r.color = i === state.hover ? css('--hi') : colour(i); r.size = i === state.hover ? 7 : 4.5; r.zIndex = 4; r.forceLabel = state.hoverSet.size <= 40 || i === state.hover; r.label = d.label; }
+      else { r.color = desaturate(r.color.startsWith('#') ? r.color : '#888888'); r.label = ''; r.zIndex = 0; r.forceLabel = false; }
+    }
     return r;
   });
   graph.clearEdges();
@@ -249,6 +256,22 @@ function drawOverlay() {
   }
 }
 renderer.on('afterRender', drawOverlay);
+const hoverEdges = [];
+function setHover(i) {
+  for (const k of hoverEdges.splice(0)) if (graph.hasEdge(k)) graph.dropEdge(k);
+  state.hover = i; state.hoverSet = i == null ? new Set() : neighbourhood(i);
+  if (i != null) for (const e of [...OUT[i], ...IN[i]]) {
+    if (!REL.has(e.k) || !placed(e.s) || !placed(e.t)) continue;
+    const a = String(e.s), b = String(e.t); if (a === b || graph.hasEdge(a, b)) continue;
+    hoverEdges.push(graph.addEdge(a, b, { size: e.k === 'similar' ? 0.8 : 1.6, color: e.k === 'requires' || e.k === 'recommends' ? css('--hi') : e.k === 'overlaps' ? css('--plan') : css('--muted'), zIndex: 5 }));
+  }
+  $('map').style.cursor = i == null ? '' : 'pointer';
+  renderer.refresh();
+}
+renderer.setSetting('zIndex', true);
+renderer.setSetting('edgeReducer', (key, d) => state.hover == null || hoverEdges.includes(key) ? d : { ...d, hidden: true });
+renderer.on('enterNode', ({ node }) => setHover(+node));
+renderer.on('leaveNode', () => setHover(null));
 renderer.on('clickNode', ({ node }) => select(+node));
 renderer.on('clickStage', () => { state.selected = null; applyStyle(); });
 
