@@ -35,13 +35,14 @@ h2 { font-size: 12px; font-family: var(--mono); text-transform: uppercase; lette
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
 .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 10px; cursor: pointer; font-weight: 600; color: var(--muted); }
 .tabs button[aria-selected="true"] { color: var(--fg); border-color: var(--accent); }
-.card { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--field); display: grid; gap: 8px; }
-.step { display: grid; gap: 6px; border-left: 3px solid var(--accent); padding: 8px 8px 8px 10px; background: var(--surface); border-radius: 6px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--field); display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+.card div, .step, .args { min-width: 0; }
+.step { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; border-left: 3px solid var(--accent); padding: 8px 8px 8px 10px; background: var(--surface); border-radius: 6px; }
 .step.nested { border-left-color: var(--plan); }
 .step header { display: flex; gap: 6px; align-items: center; }
 .step header select { flex: 1; min-width: 0; }
 .x { border: 1px solid var(--line); background: none; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; color: var(--muted); flex: none; }
-.args { display: grid; gap: 6px; }
+.args { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .arg { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 6px; align-items: start; font-size: 12.5px; }
 .arg > span { color: var(--muted); font-family: var(--mono); font-size: 11px; padding-top: 5px; }
 .cond { display: grid; grid-template-columns: 112px minmax(0, 1fr) 26px; gap: 4px; align-items: center; }
@@ -258,7 +259,7 @@ function argWidget(type, value, path) {
     case T.kinds: return `<div class="row">${RELKINDS.map(k => `<label><input type="checkbox" data-path='${P(path)}' data-kind="set" value="${k}" ${value.includes(k) ? 'checked' : ''}>${k}</label>`).join('')}</div>`;
     case T.rank: return `<select data-path='${P(path)}'>${['ease', 'pass', 'credits', 'code'].map(k => `<option ${k === value ? 'selected' : ''}>${k}</option>`).join('')}</select>`;
     case T.subjects: return `<div class="row">${value.map((i, k) => `<span class="chip">${esc(N[i].id)}<button type="button" data-del='${P([...path, k])}' aria-label="Remove ${esc(N[i].id)}">×</button></span>`).join('')}<input type="search" list="subjectList" placeholder="Add code…" data-add='${P(path)}' style="width:120px" aria-label="Add subject code"></div>`;
-    case T.conds: return `<div style="display:grid;gap:4px">${value.map((k, j) => condRow(k, [...path, j])).join('')}<button type="button" class="btn ghost" data-addcond='${P(path)}'>+ condition</button></div>`;
+    case T.conds: return `<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:4px">${value.map((k, j) => condRow(k, [...path, j])).join('')}<button type="button" class="btn ghost" data-addcond='${P(path)}'>+ condition</button></div>`;
     case T.pipeline: return pipelineHtml(value, path, true);
   }
   return '';
@@ -277,7 +278,7 @@ function opHtml(table, o, path, removable, planCtx) {
 }
 function pipelineHtml(q, path, nested) {
   const plan = hasPlan(q) || (nested && hasPlan(QUERY));
-  return `<div style="display:grid;gap:6px">${opHtml(SOURCES, q.source, [...path, 'source'], false, plan)}${q.steps.map((s, k) => opHtml(STEPS, s, [...path, 'steps', k], true, plan)).join('')}<select data-addstep='${P([...path, 'steps'])}' aria-label="Add a step"><option value="">+ add step…</option>${Object.entries(STEPS).filter(([, d]) => !d.needsPlan || plan).map(([k, d]) => `<option value="${k}">${esc(d.label)}</option>`).join('')}</select></div>`;
+  return `<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:6px">${opHtml(SOURCES, q.source, [...path, 'source'], false, plan)}${q.steps.map((s, k) => opHtml(STEPS, s, [...path, 'steps', k], true, plan)).join('')}<select data-addstep='${P([...path, 'steps'])}' aria-label="Add a step"><option value="">+ add step…</option>${Object.entries(STEPS).filter(([, d]) => !d.needsPlan || plan).map(([k, d]) => `<option value="${k}">${esc(d.label)}</option>`).join('')}</select></div>`;
 }
 const getAt = (obj, path) => path.reduce((o, k) => o[k], obj);
 const setAt = (obj, path, v) => { getAt(obj, path.slice(0, -1))[path[path.length - 1]] = v; };
@@ -332,6 +333,8 @@ const renderer = new Sigma(graph, $('map'), {
     ],
   },
 });
+// v4 defaults node sizes to graph units; set it after construction (the constructor option did not take effect)
+renderer.setSetting('itemSizesReference', 'screen');
 /* visibility: show / outline / hide per tag */
 const VIS = new Map(); const RANK = { hidden: 0, partial: 1, full: 2 };
 function visOf(i) {
@@ -398,12 +401,15 @@ function drawOverlay() {
   const alpha = Math.max(0, Math.min(1, (renderer.getCamera().ratio - 0.22) / 0.3));
   if (alpha > 0 && !state.active.size) {
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    for (const [t, col] of LENS_COLORS) {
-      const pts = (MEMBERS.get(t) || []).filter(i => graph.hasNode(String(i)) && vis(i) === 'full').map(i => graph.getNodeAttributes(String(i)));
-      if (pts.length < 3) continue;
+    const boxes = [];
+    const items = [...LENS_COLORS].map(([t, col]) => { const pts = (MEMBERS.get(t) || []).filter(i => graph.hasNode(String(i)) && vis(i) === 'full').map(i => graph.getNodeAttributes(String(i))); return { t, col, pts }; }).filter(o => o.pts.length >= 3).sort((a, b) => b.pts.length - a.pts.length);
+    for (const { t, col, pts } of items) {
       const p = renderer.graphToViewport({ x: pts.reduce((s, a) => s + a.x, 0) / pts.length, y: pts.reduce((s, a) => s + a.y, 0) / pts.length });
-      const size = Math.max(12, Math.min(22, 9 + Math.log2(pts.length) * 1.6));
-      g.font = `600 ${size}px "IBM Plex Sans", sans-serif`; g.globalAlpha = alpha; g.lineWidth = 4; g.strokeStyle = 'rgba(7,11,20,.88)';
+      const size = Math.max(12, Math.min(20, 9 + Math.log2(pts.length) * 1.4));
+      g.font = `600 ${size}px "IBM Plex Sans", sans-serif`;
+      const w = g.measureText(N[t].label).width, box = [p.x - w / 2 - 4, p.y - size / 2 - 3, p.x + w / 2 + 4, p.y + size / 2 + 3];
+      if (boxes.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue; // a bigger cluster's label already sits here
+      boxes.push(box); g.globalAlpha = alpha; g.lineWidth = 4; g.strokeStyle = 'rgba(7,11,20,.88)';
       g.strokeText(N[t].label, p.x, p.y); g.fillStyle = col; g.fillText(N[t].label, p.x, p.y);
     }
     g.globalAlpha = 1;
@@ -481,8 +487,16 @@ $('runLayout').addEventListener('click', () => {
   showRelations(null); buildGravity();
   fa2 = new FA2Layout(graph, { getEdgeWeight: 'weight', settings: { barnesHutOptimize: true, gravity: 0.05, scalingRatio: 2, slowDown: 8, edgeWeightInfluence: 1 } });
   fa2.start(); $('layoutStatus').textContent = 'moving…';
-  setTimeout(() => { if (fa2) { fa2.stop(); $('layoutStatus').textContent = 'settled'; drawGas(); } }, 6000);
+  setTimeout(() => { if (fa2) { fa2.stop(); normalise(); $('layoutStatus').textContent = 'settled'; drawGas(); renderer.getCamera().animate({ x: 0.5, y: 0.5, ratio: 1 }, { duration: 400 }); } }, 6000);
 });
+// ForceAtlas2 works at its own scale (repulsion grows the layout by orders of magnitude);
+// bring positions back to the semantic map's scale so labels, gas radius and paths stay comparable.
+function normalise() {
+  const ks = [...BASE.keys()].map(String), xs = ks.map(k => graph.getNodeAttribute(k, 'x')), ys = ks.map(k => graph.getNodeAttribute(k, 'y'));
+  const mean = a => a.reduce((s, v) => s + v, 0) / a.length, sd = (a, m) => Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / a.length) || 1;
+  const mx = mean(xs), my = mean(ys), s = Math.max(sd(xs, mx), sd(ys, my));
+  graph.updateEachNodeAttributes((k, a) => ({ ...a, x: (a.x - mx) / s, y: (a.y - my) / s }));
+}
 $('resetLayout').addEventListener('click', () => {
   if (fa2) { fa2.kill(); fa2 = null; }
   clearGravity(); for (const [i, [x, y]] of BASE) graph.mergeNodeAttributes(String(i), { x, y });
