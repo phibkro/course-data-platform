@@ -48,7 +48,7 @@ textarea#q { width: 100%; min-height: 92px; resize: vertical; font-family: var(-
 .res .n { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .res .p { font-family: var(--mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .mapwrap { position: relative; min-width: 0; min-height: 0; background: var(--map); }
-#map, #overlay { position: absolute; inset: 0; }
+#map, #overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
 #overlay { pointer-events: none; }
 .legend { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: grid; gap: 4px; max-width: 280px; }
 .legend .sw { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
@@ -233,8 +233,10 @@ function planPath(p) {
   return [...by].sort((a, b) => order(a[0]) - order(b[0])).map(([t, ns]) => [t, ns.reduce((s, n) => s + n.x, 0) / ns.length, ns.reduce((s, n) => s + n.y, 0) / ns.length]);
 }
 function drawOverlay() {
-  const cv = $('overlay'), r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
-  cv.width = r.width * dpr; cv.height = r.height * dpr; const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, r.width, r.height);
+  const cv = $('overlay'), r = cv.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const dpr = Math.min(devicePixelRatio || 1, 4096 / Math.max(r.width, r.height), 2);
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, r.width, r.height);
   const paths = [];
   if (state.programme != null && N[state.programme].path) paths.push([N[state.programme].path.map(([k, x, y]) => [`S${k}`, x, y]), css('--accent')]);
   if (state.plan != null) paths.push([planPath(state.plan), css('--plan')]);
