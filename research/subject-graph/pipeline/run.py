@@ -19,8 +19,9 @@ PRIVATE = '--private' in sys.argv
 STAGES = [
     # name, command, code files, input files, output files
     ('ingest', ['pipeline/ingest.py'], ['ingest.py', 'parse_pages.py', 'store.py'], ['@evidence:ntnu-course-page'], ['.cache/courses.json']),
+    ('outcomes', ['pipeline/outcomes.py'], ['outcomes.py', 'store.py'], ['@evidence:dbh-308', '@evidence:dbh-905'], ['.cache/outcomes.json']),
     ('build', ['pipeline/build_graph.py'], ['build_graph.py', 'store.py'], ['.cache/courses.json', '@evidence:ntnu-study-plan'], ['.cache/graph_base.json']),
-    ('enrich', ['pipeline/enrich.py'], ['enrich.py', 'store.py'], ['.cache/graph_base.json', '.cache/courses.json', '.cache/pass_all.json'], ['.cache/graph.json']),
+    ('enrich', ['pipeline/enrich.py'], ['enrich.py', 'store.py'], ['.cache/graph_base.json', '.cache/courses.json', '.cache/outcomes.json'], ['.cache/graph.json']),
     ('export', ['pipeline/export.py'] + (['--private'] if PRIVATE else []), ['export.py', 'store.py'], ['.cache/graph.json'] + (['.cache/personal.json'] if PRIVATE else []), ['data/graph.json']),
     ('viewer', ['viewer/build.py'] + (['--private'] if PRIVATE else []), ['../viewer/build.py', '../viewer/template.html'], ['data/graph.json'] + (['.cache/viewer-data.json'] if PRIVATE else []), []),
 ]
@@ -43,7 +44,7 @@ for name, cmd, code, inputs, outputs in STAGES:
     inp = h(parts)
     prev = store.memo('stage', key)
     if prev and prev[0] == inp and all((ROOT / o).exists() for o in outputs):
-        print(f'{name:7} skipped (inputs unchanged)')
+        print(f'{name:8} skipped (inputs unchanged)')
         continue
     t0 = time.time()
     store.db.close()  # stages open the store themselves
@@ -55,4 +56,4 @@ for name, cmd, code, inputs, outputs in STAGES:
     out = h([file_hash(o) for o in outputs])
     store.record('stage', [(key, inp, out, 'run-v1', '{}')])
     note = [l for l in (r.stdout + r.stderr).splitlines() if l.strip() and 'warn' not in l.lower() and 'Loading weights' not in l][-4:]
-    print(f'{name:7} ran {time.time() - t0:5.1f}s ' + ' | '.join(note))
+    print(f'{name:8} ran {time.time() - t0:5.1f}s ' + ' | '.join(note))

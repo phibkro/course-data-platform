@@ -183,12 +183,14 @@ for (k, comm), words in zip(order, docs):
         edges.append({'s': c, 't': tid, 'kind': 'in_cluster', 'directed': True, 'w': None, 'q': {},
                       'ev': ['graph', 'leidenalg-sim+overlap+prereq-warm-seed7-v2', 0.5]})
 
-# 5. Outcome statistics (grades.no, 2023-25) where collected.
-pass_path = CACHE / 'pass_all.json'
-if pass_path.exists():
-    for code, (sat, passed, years) in json.loads(pass_path.read_text()).items():
-        if code in nodes and sat:
-            nodes[code]['pass'] = [passed, sat]
+# 5. Exam outcomes from DBH tables 308 and 905 (pipeline/outcomes.py), most recent three reported years.
+#    pass = [passed, graded]; pass_range = bounds given DBH's suppressed 0-2 cells; grades = A..F, G, H counts.
+outcomes = json.loads((CACHE / 'outcomes.json').read_text())
+for code, o in outcomes['courses'].items():
+    if code in nodes:
+        nodes[code]['pass'] = [o['passed'], o['graded']]
+        nodes[code]['pass_range'] = o['pass_range']
+        nodes[code]['grades'] = o['grades']
 
 # 6. Set trajectories: per programme, the layout centroid of its members by study period.
 member_period = defaultdict(lambda: defaultdict(list))
@@ -207,7 +209,7 @@ for p, periods in member_period.items():
                         for k, v in sorted(periods.items())]
 
 out = {'meta': {'built': 'from .cache via pipeline/*.py', 'embedding': EMB_MODEL, 'layout': 'umap-cosine-15-0.08-seed7',
-                'clusters': 'leidenalg modularity, warm-started from the previous revision, seed 7, min size 8, c-TF-IDF labels over title+content', 'pass_rates': 'grades.no 2023-25 where collected'},
+                'clusters': 'leidenalg modularity, warm-started from the previous revision, seed 7, min size 8, c-TF-IDF labels over title+content', 'pass_rates': 'DBH tables 308+905 (HK-dir), NTNU, ' + '-'.join(map(str, outcomes['meta']['window']))},
        'nodes': list(nodes.values()), 'edges': edges}
 (ROOT / 'data').mkdir(exist_ok=True)
 (CACHE / 'graph.json').write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')))

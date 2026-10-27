@@ -89,7 +89,37 @@ input[type=number] { width: 72px; }
 .mapctl { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; z-index: 2; max-width: calc(100% - 24px); }
 .mapctl select, .mapctl button, .mapctl label { background: rgba(10, 16, 28, .85); color: var(--space-fg); border: 1px solid #2A3446; border-radius: 8px; padding: 5px 8px; font-size: 12.5px; }
 .mapctl label { display: inline-flex; gap: 6px; align-items: center; }
-.legend { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); background: rgba(10, 16, 28, .85); color: var(--space-fg); border: 1px solid #2A3446; border-radius: 8px; padding: 8px 10px; font-size: 12px; display: grid; gap: 3px; max-width: min(320px, calc(100% - 24px)); max-height: 45%; overflow: auto; z-index: 2; }
+.legend { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); background: rgba(10, 16, 28, .85); color: var(--space-fg); border: 1px solid #2A3446; border-radius: 8px; padding: 8px 10px; font-size: 12px; display: grid; gap: 3px; max-width: min(440px, calc(100% - 24px)); max-height: 40%; overflow: auto; z-index: 2; }
+.mapsearch { position: absolute; left: 12px; top: 12px; z-index: 3; display: grid; gap: 6px; width: min(420px, calc(100% - 350px)); min-width: 240px; }
+@media (max-width: 1100px) { .mapsearch { top: 52px; width: calc(100% - 24px); } }
+.mapsearch input { width: 100%; box-sizing: border-box; background: rgba(10, 16, 28, .92); color: var(--space-fg); border: 1px solid #2A3446; border-radius: 8px; padding: 8px 10px; font: 13px var(--sans); }
+.mapsearch input:focus { outline: 2px solid #6CB8DB; outline-offset: 1px; }
+.ctx { background: rgba(10, 16, 28, .92); color: var(--space-fg); border: 1px solid #2A3446; border-radius: 8px; padding: 7px 9px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.ctx b { font-family: var(--mono); }
+.seg { display: inline-flex; border: 1px solid #2A3446; border-radius: 6px; overflow: hidden; }
+.seg button { background: none; border: 0; color: #9FB0C8; padding: 2px 8px; font-size: 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: #6CB8DB; color: #0B1A22; }
+.ctx .x { background: none; border: 0; color: #9FB0C8; cursor: pointer; text-decoration: underline; padding: 0; font-size: 12px; }
+.legend summary { cursor: pointer; font-weight: 600; }
+.legend .pal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 10px; margin-top: 4px; }
+.legend .pal span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend .key { color: #9FB0C8; line-height: 1.45; border-top: 1px solid #2A3446; padding-top: 4px; margin-top: 2px; }
+.legend .ln { display: inline-block; width: 16px; height: 0; border-top: 2px solid; margin-right: 5px; vertical-align: 3px; }
+.chain { display: grid; gap: 2px; margin: 8px 0 4px; }
+.chain .lvl { font-family: var(--mono); font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+.chain .row { display: flex; flex-wrap: wrap; gap: 4px; }
+.chain .down { color: var(--muted); font-size: 12px; line-height: 1; padding-left: 6px; }
+.cc { font: 600 11.5px var(--mono); border: 1.5px solid var(--line); border-radius: 6px; padding: 2px 6px; background: var(--surface); color: var(--fg); cursor: pointer; }
+.cc.rec { border-style: dashed; }
+.cc.self { background: var(--hi); border-color: var(--hi); color: #fff; cursor: default; }
+.cc.done { background: color-mix(in srgb, var(--plan) 22%, var(--surface)); border-color: var(--plan); }
+.cc.taking { border-color: var(--plan); }
+.cc small { font-weight: 400; color: var(--muted); }
+.chainkey { font-size: 11px; color: var(--muted); }
+.grades { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; align-items: end; height: 54px; margin-top: 6px; }
+.grades div { background: var(--accent); border-radius: 2px 2px 0 0; min-height: 1px; position: relative; }
+.grades div.f { background: var(--hi); }
+.gl { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; font: 10.5px var(--mono); color: var(--muted); text-align: center; }
 .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 .insp h3 { font-size: 16px; margin: 2px 0 0; line-height: 1.25; }
 .kv { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 3px 10px; font-size: 12.5px; margin: 0; }
@@ -109,7 +139,8 @@ input[type=number] { width: 72px; }
   html, body { height: auto; }
   .app { display: flex; flex-direction: column; }
   .pane { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .mapwrap { height: 62vh; order: -1; }
+  .app { height: auto; }
+  .mapwrap { flex: none; height: 62vh; order: -1; }
   .pane.right { max-height: none; }
 }
 </style>
@@ -143,6 +174,15 @@ input[type=number] { width: 72px; }
   </section>
   <section class="mapwrap" aria-label="Subject map">
     <div id="map"></div><canvas id="overlay"></canvas>
+    <div class="mapsearch">
+      <input id="search" type="search" list="subjectList" placeholder="Find a course by code or name  ( / )" aria-label="Find a course by code or name" autocomplete="off">
+      <div class="ctx" id="ctx" hidden aria-live="polite">
+        <span id="ctxText"></span>
+        <span class="seg" role="group" aria-label="Steps out from the course"><button type="button" data-depth="1">1 step</button><button type="button" data-depth="2">2 steps</button><button type="button" data-depth="3">3 steps</button></span>
+        <span class="seg" role="group" aria-label="Relations to follow"><button type="button" data-rel="prereq">builds on</button><button type="button" data-rel="overlaps">overlaps</button><button type="button" data-rel="similar">similar</button></span>
+        <button type="button" class="x" id="ctxClear">clear (Esc)</button>
+      </div>
+    </div>
     <div class="mapctl">
       <select id="lens" aria-label="Colour and gas by"></select>
       <label><input type="checkbox" id="gas" checked> Gas</label>
@@ -150,13 +190,14 @@ input[type=number] { width: 72px; }
     </div>
     <div class="legend" id="legend"></div>
   </section>
-  <section class="pane right insp" aria-label="Inspector" id="insp"><p class="empty">Hover a star to light up its relations. Click it to see its tags and relations, with the evidence behind each.</p></section>
+  <section class="pane right insp" aria-label="Inspector" id="insp"><p class="empty">Find a course above, or click a star. Its prerequisite chain, exam results and relations appear here, with the evidence behind each.</p></section>
 </div>
 
 <script type="application/json" id="data">__DATA__</script>
 <script type="module">
 import Graph from 'https://cdn.jsdelivr.net/npm/graphology@0.26.0/+esm';
 import Sigma from 'https://cdn.jsdelivr.net/npm/sigma@4.0.3/+esm';
+import { extremityArrow } from 'https://cdn.jsdelivr.net/npm/sigma@4.0.3/rendering/+esm';
 import { bindWebGLLayer, createHeatmapProgram } from 'https://cdn.jsdelivr.net/npm/@sigma/layer-webgl@4.0.0/+esm';
 import FA2Layout from 'https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/worker/+esm';
 
@@ -307,16 +348,16 @@ const dl = document.createElement('datalist'); dl.id = 'subjectList'; dl.innerHT
 const PALETTE = ['#FFB547', '#4FD1E8', '#C77DFF', '#7CE38B', '#FF6B8B', '#6E8BFF', '#F5E663', '#FF8F4F', '#5EEAD4', '#E879F9', '#A3E635', '#93C5FD'];
 const graph = new Graph({ type: 'mixed', multi: false });
 const BASE = new Map();
-for (const i of SUBJ) if (placed(i)) { graph.addNode(String(i), { x: N[i].x, y: -N[i].y, size: 2.4, label: `${N[i].id} ${N[i].label}`, color: '#8FA3BF' }); BASE.set(i, [N[i].x, -N[i].y]); }
+for (const i of SUBJ) if (placed(i)) { graph.addNode(String(i), { x: N[i].x, y: -N[i].y, size: 2.4, label: (t => t.length > 46 ? t.slice(0, 45) + '…' : t)(`${N[i].id} ${N[i].label}`), color: '#8FA3BF' }); BASE.set(i, [N[i].x, -N[i].y]); }
 const renderer = new Sigma(graph, $('map'), {
-  customNodeState: { isActive: false, vis: 'full', isResult: false },
+  customNodeState: { isActive: false, vis: 'full', isResult: false, hop: -1, labelOn: false },
   customEdgeState: { isActive: false },
   customGraphState: { hasActive: false, hasResult: false },
-  primitives: { depthLayers: ['gas', 'edges', 'nodes', 'topEdges', 'topNodes', 'activeNodes'] },
+  primitives: { depthLayers: ['gas', 'edges', 'nodes', 'topEdges', 'topNodes', 'activeNodes'], edges: { extremities: [extremityArrow()] } },
   itemSizesReference: 'screen', labelColor: { color: '#DCE6F2' }, labelFont: 'IBM Plex Sans', labelSize: 12, labelDensity: 0.7, labelGridCellSize: 90, labelRenderedSizeThreshold: 7,
   styles: {
     nodes: [
-      { color: { attribute: 'color' }, size: { attribute: 'size' }, label: { attribute: 'label' } },
+      { color: { attribute: 'color' }, size: { attribute: 'size' }, label: { attribute: 'label' }, labelColor: '#DCE6F2' },
       { whenData: 'isTag', then: { visibility: 'hidden' } },
       { when: (a, s) => s.vis === 'hidden', then: { visibility: 'hidden' } },
       { when: (a, s) => s.vis === 'partial', then: { color: '#2E3A50', label: '' } },
@@ -324,11 +365,16 @@ const renderer = new Sigma(graph, $('map'), {
       { when: (a, s, g) => g.hasResult && s.isResult && !g.hasActive && s.vis === 'full', then: { size: 4, depth: 'topNodes' } },
       { when: (a, s, g) => g.hasActive && !s.isActive, then: { color: '#18202F', label: '' } },
       { whenState: 'isActive', then: { depth: 'topNodes', size: 4.5 } },
+      { when: (a, s) => s.hop >= 2, then: { size: 3.4 } },
+      { when: (a, s) => s.hop === 0, then: { size: 8, color: '#FF8A5B', depth: 'activeNodes' } },
+      { when: (a, s, g) => g.hasActive && s.isActive, then: { labelVisibility: 'hidden' } },
+      { whenState: 'labelOn', then: { labelVisibility: 'visible', labelBackgroundColor: 'rgba(7,11,20,.82)', labelBackgroundPadding: 2 } },
       { whenState: 'isHovered', then: { depth: 'activeNodes', labelVisibility: 'visible', size: 7, color: '#FF8A5B' } },
     ],
     edges: [
       { color: { attribute: 'color', defaultValue: '#55657E' }, size: { attribute: 'size', defaultValue: 1 } },
       { whenData: 'hiddenEdge', then: { visibility: 'hidden' } },
+      { whenData: 'arrow', then: { head: 'arrow' } },
       { whenState: 'isActive', then: { depth: 'topEdges' } },
     ],
   },
@@ -366,32 +412,107 @@ function drawGas() {
   renderer.refresh();
 }
 const state = { result: new Set(), order: [], active: new Set(), programme: null, plan: null, selected: null };
+let HOP = new Map();
 function applyStates() {
-  for (const i of SUBJ) if (graph.hasNode(String(i))) renderer.setNodeState(String(i), { vis: vis(i), isResult: state.result.has(i), isActive: state.active.has(i) });
+  for (const i of SUBJ) if (graph.hasNode(String(i))) { const h = HOP.has(i) ? HOP.get(i) : -1; renderer.setNodeState(String(i), { vis: vis(i), isResult: state.result.has(i), isActive: state.active.has(i), hop: h, labelOn: LABELS.has(i) }); }
   renderer.setGraphState({ hasResult: state.result.size > 0 && state.result.size < SUBJ.length, hasActive: state.active.size > 0 });
   renderer.refresh({ skipIndexation: true });
 }
-/* hover: light up relations, dim the rest */
-let relEdges = [];
-function showRelations(i) {
+/* context: search, show context, expand on demand (van Ham & Perer 2009).
+   The selected course's neighbourhood over the chosen relations, up to 3 steps out, capped at 150 courses
+   (Course Browser's cap). Within each step, courses are kept by relevance: prerequisite relations first,
+   then overlaps, then similarity strength. Edges are drawn only inside the context, never for the whole map. */
+const CTX = { depth: 1, rel: { prereq: true, overlaps: true, similar: true } }, CAP = 150;
+const relOn = k => k === 'requires' || k === 'recommends' ? CTX.rel.prereq : !!CTX.rel[k];
+const PRI = { requires: 3, recommends: 2.5, overlaps: 2, similar: 1 };
+const EDGE_STYLE = { requires: ['#FF8A5B', 1.8, true], recommends: ['#F2C08F', 1.1, true], overlaps: ['#C59BF0', 1.4, false], similar: ['#6E7F99', 0.7, false] };
+const SCORE = new Map();
+function context(i, depth) {
+  SCORE.clear(); const hop = new Map([[i, 0]]); let frontier = [i], dropped = 0;
+  for (let d = 1; d <= depth; d++) {
+    const cand = new Map();
+    for (const u of frontier) for (const e of [...OUT[u], ...IN[u]]) {
+      if (!REL.has(e.k) || !relOn(e.k)) continue;
+      const j = e.s === u ? e.t : e.s;
+      if (hop.has(j) || !graph.hasNode(String(j)) || vis(j) === 'hidden') continue;
+      cand.set(j, Math.max(cand.get(j) ?? 0, PRI[e.k] + (e.w ?? 0)));
+    }
+    const ranked = [...cand].sort((a, b) => b[1] - a[1] || a[0] - b[0]), room = Math.max(0, CAP - hop.size);
+    dropped += Math.max(0, ranked.length - room);
+    frontier = ranked.slice(0, room).map(([j]) => j);
+    for (const j of frontier) { hop.set(j, d); SCORE.set(j, cand.get(j)); }
+    if (!frontier.length) break;
+  }
+  return { hop, dropped };
+}
+let relEdges = [], CTXINFO = null;
+function showRelations(i, depth = CTX.depth) {
   for (const k of relEdges) if (graph.hasEdge(k)) graph.dropEdge(k); relEdges = [];
-  state.active = new Set();
-  if (i != null && vis(i) !== 'hidden') {
-    state.active.add(i);
-    for (const e of [...OUT[i], ...IN[i]]) {
-      if (!REL.has(e.k)) continue; const j = e.s === i ? e.t : e.s; if (!graph.hasNode(String(j)) || vis(j) === 'hidden') continue;
-      state.active.add(j);
-      const a = String(e.s), b = String(e.t); if (a === b || graph.hasEdge(a, b) || graph.hasEdge(b, a)) continue;
-      const k = graph.addDirectedEdge(a, b, { color: e.k === 'requires' || e.k === 'recommends' ? '#FF8A5B' : e.k === 'overlaps' ? '#C59BF0' : '#6E7F99', size: e.k === 'similar' ? 0.7 : 1.6 });
-      relEdges.push(k); renderer.setEdgeState(k, { isActive: true });
+  state.active = new Set(); HOP = new Map(); CTXINFO = null;
+  if (i != null && vis(i) !== 'hidden' && graph.hasNode(String(i))) {
+    const { hop, dropped } = context(i, depth); HOP = hop; CTXINFO = { i, depth, n: hop.size - 1, dropped };
+    state.active = new Set(hop.keys());
+    for (const u of hop.keys()) for (const e of OUT[u]) {
+      if (!REL.has(e.k) || !relOn(e.k) || !hop.has(e.t) || e.s === e.t || Math.abs(hop.get(e.s) - hop.get(e.t)) > 1) continue;
+      const [col, size, arrow] = EDGE_STYLE[e.k];
+      // learning order: arrows run from the prerequisite to the course that builds on it
+      const [a, b] = arrow ? [String(e.t), String(e.s)] : [String(e.s), String(e.t)];
+      if (graph.hasEdge(a, b) || graph.hasEdge(b, a)) continue;
+      const k = graph.addDirectedEdge(a, b, { color: col, size, arrow }); relEdges.push(k); renderer.setEdgeState(k, { isActive: true });
+      if (relEdges.length > 900) break;
     }
   }
-  applyStates();
+  placeLabels(); applyStates();
 }
-renderer.on('enterNode', ({ node }) => { $('map').style.cursor = 'pointer'; showRelations(+node); });
+/* labels inside a context: importance-ordered greedy placement in screen space (as in GraphMaps):
+   the focus first, then nearer steps, then more relevant courses; a label that would collide is skipped. */
+let LABELS = new Set();
+function placeLabels() {
+  LABELS = new Set(); if (!HOP.size) return;
+  const r = $('map').getBoundingClientRect(), boxes = [];
+  const order = [...HOP].sort((a, b) => a[1] - b[1] || (SCORE.get(b[0]) ?? 0) - (SCORE.get(a[0]) ?? 0));
+  for (const [i] of order) {
+    if (LABELS.size >= 45) break;
+    const p = renderer.graphToViewport(graph.getNodeAttributes(String(i)));
+    if (p.x < 0 || p.y < 0 || p.x > r.width || p.y > r.height) continue;
+    const w = graph.getNodeAttribute(String(i), 'label').length * 6.4 + 10, box = [p.x + 4, p.y - 9, p.x + 8 + w, p.y + 9];
+    if (boxes.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
+    boxes.push(box, [p.x - 8, p.y - 8, p.x + 8, p.y + 8]); LABELS.add(i);
+  }
+}
+let labelTimer = null;
+renderer.getCamera().on('updated', () => { if (!HOP.size) return; clearTimeout(labelTimer); labelTimer = setTimeout(() => { placeLabels(); applyStates(); }, 120); });
+function renderCtx() {
+  const c = CTXINFO && state.selected != null && CTXINFO.i === state.selected ? CTXINFO : null;
+  $('ctx').hidden = !c;
+  if (!c) return;
+  $('ctxText').innerHTML = `<b>${esc(N[c.i].id)}</b> · ${c.n} related within ${c.depth} step${c.depth > 1 ? 's' : ''}${c.dropped ? ` · ${c.dropped} less related not shown` : ''}`;
+  document.querySelectorAll('[data-depth]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.depth === CTX.depth)));
+  document.querySelectorAll('[data-rel]').forEach(b => b.setAttribute('aria-pressed', String(CTX.rel[b.dataset.rel])));
+}
+renderer.on('enterNode', ({ node }) => { $('map').style.cursor = 'pointer'; showRelations(+node, 1); });
 renderer.on('leaveNode', () => { $('map').style.cursor = ''; showRelations(state.selected); });
 renderer.on('clickNode', ({ node }) => select(+node));
-renderer.on('clickStage', () => { state.selected = null; showRelations(null); });
+renderer.on('clickStage', () => clearSelection());
+function clearSelection() { state.selected = null; showRelations(null); renderCtx(); document.querySelectorAll('.res').forEach(b => b.setAttribute('aria-current', 'false')); }
+$('ctx').addEventListener('click', e => {
+  const d = e.target.closest('[data-depth]'), r = e.target.closest('[data-rel]');
+  if (d) CTX.depth = +d.dataset.depth; else if (r) CTX.rel[r.dataset.rel] = !CTX.rel[r.dataset.rel]; else if (e.target.id === 'ctxClear') return clearSelection(); else return;
+  showRelations(state.selected); renderCtx(); fitTo(new Set(HOP.keys()));
+});
+/* search: the entry point. Exact code first, then code prefix, then name. */
+function findCourse(q) {
+  q = q.trim().toLowerCase(); if (!q) return null;
+  const code = q.split(/\s+/)[0];
+  return SUBJ.find(i => N[i].id.toLowerCase() === code) ?? SUBJ.find(i => N[i].id.toLowerCase().startsWith(code)) ?? SUBJ.find(i => N[i].label.toLowerCase().includes(q)) ?? null;
+}
+function goTo(i) { select(i); fitTo(new Set(HOP.keys()), true); }
+$('search').addEventListener('change', e => { const i = findCourse(e.target.value); if (i != null) goTo(i); });
+$('search').addEventListener('keydown', e => { if (e.key === 'Enter') { const i = findCourse(e.target.value); if (i != null) { goTo(i); e.target.blur(); } } });
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) { e.preventDefault(); $('search').focus(); $('search').select(); }
+  if (e.key === 'Escape' && state.selected != null) clearSelection();
+});
 /* overlay: lens labels at gas centres (fade out as you zoom in) + programme and plan paths */
 function drawOverlay() {
   const cv = $('overlay'), r = cv.getBoundingClientRect(); if (!r.width || !r.height) return;
@@ -435,10 +556,12 @@ function planPath(p) {
 }
 renderer.on('afterRender', drawOverlay);
 function legend() {
-  let html = `<span><b>${esc(NS_LABEL[LENS])}</b>: colour and gas</span>` + [...LENS_COLORS].map(([t, c]) => `<span><span class="sw" style="background:${c}"></span>${esc(N[t].label)}</span>`).join('');
+  const open = $('legend').querySelector('details') ? $('legend').querySelector('details').open : innerWidth > 1100 && innerHeight > 760;
+  let html = `<details ${open ? 'open' : ''}><summary>Key · colour and gas: ${esc(NS_LABEL[LENS])}</summary><div class="pal">` + [...LENS_COLORS].map(([t, c]) => `<span title="${esc(N[t].label)}"><span class="sw" style="background:${c}"></span>${esc(N[t].label)}</span>`).join('') + `</div>`;
   if (tagValues(LENS).length > PALETTE.length) html += `<span style="opacity:.7">+ ${tagValues(LENS).length - PALETTE.length} more shown grey</span>`;
   if (state.programme != null) html += `<span><span class="sw" style="background:#6CB8DB"></span>${esc(N[state.programme].label)}: path by semester</span>`;
   if (state.plan != null) html += `<span><span class="sw" style="background:#C59BF0"></span>${esc(N[state.plan].label)}: path by semester</span>`;
+  html += `<div class="key"><span><span class="ln" style="border-color:#FF8A5B"></span>builds on, arrow from prerequisite to course</span><br><span><span class="ln" style="border-color:#F2C08F"></span>recommended first</span> · <span><span class="ln" style="border-color:#C59BF0"></span>overlapping content</span> · <span><span class="ln" style="border-color:#6E7F99"></span>similar content</span><br>Edges appear only around the hovered or selected course.${state.result.size && state.result.size < SUBJ.length ? ' Larger stars match the query; dim ones do not.' : ''}</div></details>`;
   $('legend').innerHTML = html;
 }
 $('lens').innerHTML = NAMESPACES.map(ns => `<option value="${ns}" ${ns === LENS ? 'selected' : ''}>Colour: ${esc(NS_LABEL[ns])}</option>`).join('');
@@ -515,27 +638,72 @@ function run() {
   } catch (err) { $('status').className = 'status err'; $('status').textContent = err.message; }
   legend(); applyStates(); fitTo(state.result);
 }
-function fitTo(set) {
+function fitTo(set, force) {
   if (!set.size || set.size === SUBJ.length) return;
+  if (set.size === 1 && !force) return;
   const pts = [...set].filter(i => graph.hasNode(String(i))).map(i => renderer.getNodeDisplayData(String(i))).filter(Boolean); if (!pts.length) return;
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y), span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-  renderer.getCamera().animate({ x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2, ratio: Math.max(0.08, Math.min(1, span * 1.3)) }, { duration: 500 });
+  renderer.getCamera().animate({ x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2, ratio: Math.max(0.05, Math.min(1, span * 1.5)) }, { duration: 500 });
+}
+/* prerequisite chain, top to bottom: what a course builds on, the course, what it leads to.
+   A requisite view made "what can I take next" answerable (Arango Moreno et al. 2012: 86.6% vs 13.3%). */
+const PLAN_STATUS = (() => { const m = new Map(); const p = PLANS[0]; if (p) for (const e of OUT[p.i]) { if (['completed', 'credited'].includes(e.k)) m.set(e.t, 'done'); else if (e.k === 'taking' && !m.has(e.t)) m.set(e.t, 'taking'); } return m; })();
+const prereqsOf = i => OUT[i].filter(e => e.k === 'requires' || e.k === 'recommends').map(e => [e.t, e.k]);
+const unlocksOf = i => IN[i].filter(e => e.k === 'requires' || e.k === 'recommends').map(e => [e.s, e.k]);
+function chainLevel(seed, step, depth) {
+  const seen = new Set([seed]); let level = [[seed, 'requires']]; const out = [];
+  for (let d = 1; d <= depth; d++) {
+    const m = new Map();
+    for (const [u] of level) for (const [j, k] of step(u)) if (!seen.has(j) && N[j].subject) { if (m.get(j) !== 'requires') m.set(j, k); }
+    level = [...m].sort((a, b) => (a[1] === 'requires' ? 0 : 1) - (b[1] === 'requires' ? 0 : 1) || N[a[0]].id.localeCompare(N[b[0]].id));
+    for (const [j] of level) seen.add(j);
+    out.push(level);
+  }
+  return out;
+}
+function chainChip(j, k) {
+  const st = PLAN_STATUS.get(j), cls = ['cc', k === 'recommends' ? 'rec' : '', st || ''].join(' ');
+  const hint = `${N[j].label}${k === 'recommends' ? ' (recommended)' : ' (required)'}${st === 'done' ? ', in your plan: done' : st === 'taking' ? ', in your plan: taking' : ''}`;
+  return `<button type="button" class="${cls}" data-sel="${j}" title="${esc(hint)}" aria-label="${esc(N[j].id + ' ' + hint)}">${st === 'done' ? '✓ ' : ''}${esc(N[j].id)}${st === 'taking' ? ' <small>now</small>' : ''}</button>`;
+}
+function chainHtml(i) {
+  const up = chainLevel(i, prereqsOf, 2), down = chainLevel(i, unlocksOf, 2);
+  if (!up.flat().length && !down.flat().length) return `<p class="empty">No prerequisites or follow-on courses are listed on the course pages.</p>`;
+  const row = (lvl, items) => items.length ? `<div class="lvl">${lvl}</div><div class="row">${items.slice(0, 14).map(([j, k]) => chainChip(j, k)).join('')}${items.length > 14 ? `<span class="chainkey">+${items.length - 14} more</span>` : ''}</div><div class="down" aria-hidden="true">↓</div>` : '';
+  const rowDown = (lvl, items) => items.length ? `<div class="down" aria-hidden="true">↓</div><div class="lvl">${lvl}</div><div class="row">${items.slice(0, 14).map(([j, k]) => chainChip(j, k)).join('')}${items.length > 14 ? `<span class="chainkey">+${items.length - 14} more</span>` : ''}</div>` : '';
+  return `<div class="chain">${row('Builds on, 2 steps back', up[1])}${row('Builds on', up[0])}<div class="row"><span class="cc self">${esc(N[i].id)}</span></div>${rowDown('Leads to', down[0])}${rowDown('Leads to, 2 steps on', down[1])}</div>
+    <p class="chainkey">Solid border: required. Dashed: recommended.${PLAN_STATUS.size ? ' ✓ done in your plan; "now" taking this term.' : ''}</p>`;
+}
+const GRADE_NAMES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+const WINDOW = (D.meta.pass_rates || '').match(/(\d{4})-(\d{4})/);
+function outcomeHtml(n) {
+  if (!n.pass) return `<p class="empty">No exam results reported to DBH for ${WINDOW ? `${WINDOW[1]}–${WINDOW[2].slice(2)}` : 'recent years'}.</p>`;
+  const [p, g] = n.pass, [lo, hi] = n.pass_range || [p / g, p / g], pct = x => Math.round(100 * x);
+  const range = hi - lo >= 0.01 ? ` DBH hides counts of 1–2, so the true rate is between ${pct(lo)}% and ${pct(hi)}%.` : '';
+  const gr = (n.grades || []).map((c, k) => [GRADE_NAMES[k], c]).filter(([k, c]) => c || 'ABCDEF'.includes(k));
+  const letters = gr.filter(([k]) => 'ABCDEF'.includes(k)).some(([, c]) => c) ? gr.filter(([k]) => 'ABCDEF'.includes(k)) : gr;
+  const max = Math.max(1, ...letters.map(([, c]) => c));
+  return `<p style="margin:4px 0 0;font-size:12.5px"><b>${pct(p / g)}%</b> passed: ${p.toLocaleString()} of ${g.toLocaleString()} graded.${range}</p>
+    <div class="grades" style="--n:${letters.length}" role="img" aria-label="Grades: ${letters.map(([k, c]) => `${k} ${c}`).join(', ')}">${letters.map(([k, c]) => `<div class="${'FH'.includes(k) ? 'f' : ''}" style="height:${(100 * c / max).toFixed(1)}%" title="${k}: ${c}"></div>`).join('')}</div>
+    <div class="gl" style="--n:${letters.length}">${letters.map(([k]) => `<span>${k}</span>`).join('')}</div>
+    <p class="chainkey" style="margin:4px 0 0">Source: DBH (HK-dir), ${WINDOW ? `${WINDOW[1]}–${WINDOW[2]}` : ''}, all course versions.</p>`;
 }
 function select(i) {
-  state.selected = i; showRelations(i);
+  state.selected = i; showRelations(i); renderCtx();
   const n = N[i], tags = [...(TAGS_OF.get(i) || [])].filter(t => !N[t].id.includes('/')).map(t => N[t]);
   const rels = {}, seen = new Set();
   for (const e of [...OUT[i], ...IN[i]]) { if (TAGK.has(e.k) || e.k === 'part_of') continue; const j = e.s === i ? e.t : e.s; const lbl = e.dir ? (e.s === i ? e.k : `${e.k} (incoming)`) : e.k; if (seen.has(lbl + j)) continue; seen.add(lbl + j); (rels[lbl] = rels[lbl] || []).push({ j, e }); }
-  const pass = n.pass ? `${n.pass[0]} of ${n.pass[1]} passed (${Math.round(100 * n.pass[0] / n.pass[1])}%)` : 'no data';
   $('insp').innerHTML = `<span class="sub">subject</span><h3>${esc(n.label)}</h3>
-    <dl class="kv"><dt>code</dt><dd>${esc(n.id)}</dd><dt>credits</dt><dd>${n.cr ?? '–'}</dd><dt>offered</dt><dd>${(n.years || []).map(y => `${y}/${String(y + 1).slice(2)}`).join(', ') || '–'}</dd><dt>pass 2023–25</dt><dd>${pass}</dd></dl>
+    <dl class="kv"><dt>code</dt><dd>${esc(n.id)}</dd><dt>credits</dt><dd>${n.cr ?? '–'}</dd><dt>offered</dt><dd>${(n.years || []).map(y => `${y}/${String(y + 1).slice(2)}`).join(', ') || '–'}</dd></dl>
     <a href="https://www.ntnu.edu/studies/courses/${encodeURIComponent(n.id)}/2026" target="_blank" rel="noopener">Course page ↗</a>
-    <div class="rel"><h4>Clusters</h4><div class="tagchips">${tags.map(t => `<span>${esc(NS_LABEL[nsOf(t.i)] || nsOf(t.i))} <small>${esc(t.label)}</small></span>`).join('')}</div>
+    <div class="rel"><h4>Prerequisite chain</h4>${chainHtml(i)}
+    <h4>Exam results</h4>${outcomeHtml(n)}
+    <h4>Clusters</h4><div class="tagchips">${tags.map(t => `<span>${esc(NS_LABEL[nsOf(t.i)] || nsOf(t.i))} <small>${esc(t.label)}</small></span>`).join('')}</div>
     ${Object.entries(rels).map(([k, xs]) => `<h4>${esc(k)} · ${xs.length}</h4><ul>${xs.sort((a, b) => (b.e.w || 0) - (a.e.w || 0)).slice(0, 25).map(({ j, e }) => `<li><a href="#" data-sel="${j}">${esc(N[j].id)} ${N[j].subject ? esc(N[j].label) : ''}</a><span class="ev" title="${esc(e.ev.join(' · '))}">${e.w != null ? e.w : ''}${e.q.grade ? ' ' + esc(e.q.grade) : ''} · ${esc(e.ev[1])}</span></li>`).join('')}</ul>`).join('')}</div>`;
   document.querySelectorAll('.res').forEach(b => b.setAttribute('aria-current', String(+b.dataset.sel === i)));
 }
 document.addEventListener('click', e => {
-  const s = e.target.closest('[data-sel]'); if (s) { e.preventDefault(); const i = +s.dataset.sel; select(i); const d = graph.hasNode(String(i)) && renderer.getNodeDisplayData(String(i)); if (d) renderer.getCamera().animate({ x: d.x, y: d.y, ratio: Math.min(renderer.getCamera().ratio, 0.3) }, { duration: 400 }); return; }
+  const s = e.target.closest('[data-sel]'); if (s) { e.preventDefault(); goTo(+s.dataset.sel); return; }
   const ex = e.target.closest('[data-ex]'); if (ex) { QUERY = structuredClone(EXAMPLES[+ex.dataset.ex][1]); renderBuilder(); run(); return; }
   const tab = e.target.closest('[data-tab]'); if (tab) { document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b === tab))); document.querySelectorAll('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== tab.dataset.tab); }
 });

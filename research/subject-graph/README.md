@@ -115,6 +115,13 @@ The crawler follows the calendar:
   `courseVersion` and exam dates) is hashed, and only pages for new or changed entries are fetched. Pages
   older than 60 days are fetched again as a safety net.
 
+Exam outcomes come from DBH (HK-dir), with the same tables the course API uses. One request per table per year
+covers all of NTNU: table 308 for grades, table 905 for registration and attendance. Years at least two calendar
+years back are frozen; recent years are refetched after 30 days; 2026 is not reported yet (HTTP 204, No Content).
+grades.no's counts equal the table 308 sums for all 564 courses both cover, so the pass-rate definition is
+unchanged (graded minus F and H, over graded). Coverage grew from 700 to 5,289 courses (2023 to 2025). DBH reports
+0 for counts of 1 to 2, so each course also gets a pass-rate range; 902 courses have a range wider than 5 points.
+
 Measured on 27 Oct 2026 (21,189 pages, 9,371 subjects, about 123k items per revision):
 
 | Run | Result |
@@ -128,19 +135,39 @@ Measured on 27 Oct 2026 (21,189 pages, 9,371 subjects, about 123k items per revi
 | 2026 list refetched and diffed | 50 list requests, 0 of 4,874 entries changed, 0 pages to fetch |
 
 `.cache/` is not committed. It holds the store (about 21,000 NTNU course pages for study years 2023/24 to
-2026/27, as 405 MB of compressed blobs), study plans, embeddings, grades.no counts and the personal plan.
+2026/27, as 405 MB of compressed blobs), study plans, embeddings, DBH tables and the personal plan.
 `data/graph.json` and `data/revision.json` are reproducible from it.
 
 Run (Python 3.12, `pip install duckdb pandas sentence-transformers umap-learn leidenalg igraph scikit-learn`):
 
 ```sh
 python3 pipeline/crawl.py 2023 2024 2025 2026 [--dry-run]   # network; incremental
+python3 pipeline/dbh.py                                      # network; DBH tables 308 and 905, one request per table per year
 python3 pipeline/run.py [--private]                          # offline; runs only the stages whose inputs changed
 python3 pipeline/simulate_change.py cosmetic|edit|revert     # test harness: synthetic re-fetches of one page
 ```
 
 `pipeline/migrate_cache.py` was a one-off that moved the earlier plain-file cache into the store without
 refetching anything.
+
+## Interface
+
+These changes come from a review of graph interfaces on 27 Oct 2026. Each row says where the idea comes from and
+how strong its evidence is.
+
+| What the viewer does | Borrowed from | Evidence |
+|---|---|---|
+| Search is the entry point: find a course by code or name (`/` focuses it), and the map centres on it | van Ham & Perer 2009, "search, show context, expand on demand" ([PDF](https://aviz.fr/wiki/uploads/Teaching2015/SearchShowContextArticle.pdf)) | case studies |
+| The selected course's context: 1 to 3 steps out over chosen relations (builds on, overlaps, similar), up to 150 courses, kept by relevance. Everything else is dimmed | Obsidian local graph depth ([docs](https://obsidian.md/help/plugins/graph)); Course Browser's 150-node cap ([Arango Moreno et al. 2012](https://webdocs.cs.ualberta.ca/%7Ewfb/publications/J-2012-Moreno.pdf)) | product docs; small study |
+| Prerequisite chain in the inspector, top to bottom: builds on (2 steps), builds on, the course, leads to, leads to (2 steps). Courses in the plan are marked | Course Browser: with a requisite graph, 86.6% of students answered "what can I take next" correctly, against 13.3% with the catalogue (15 students) | shown, small sample |
+| Edges are drawn only inside the hovered or selected context, never for the whole map. Prerequisite edges carry arrows, from prerequisite to course | Cambridge Intelligence on hairballs ([page](https://cambridge-intelligence.com/how-to-fix-hairballs/)) | practitioner advice |
+| Labels inside a context are placed greedily by importance (focus, then step, then relevance) and skipped on collision, on a dark backing | GraphMaps ([arXiv](https://arxiv.org/pdf/1506.06745)) | case studies |
+| A collapsible key that says in words what colour, size, dimming and each edge type mean | Gephi Lite's captions ([docs](https://docs.gephi.org/lite/user-manual/differences-with-gephi)); Cambridge Intelligence on keys and few hues ([page](https://cambridge-intelligence.com/getting-the-perfect-look-and-feel-for-your-network-visualizations/)) | practitioner advice |
+| Exam results as an A to F bar chart with the pass rate as a range where DBH hides counts of 1 to 2 | the repository's own rule: unknown never becomes zero | n/a |
+
+Not done yet, and worth testing with students: a semester strip to brush by term (Cosmograph), an action to compare two
+selected courses, and seeding "next options" from the plan as Litmaps does. Edge bundling is avoided on purpose:
+bundles lose direction, which a prerequisite graph needs ([GraphMaps](https://arxiv.org/pdf/1506.06745)).
 
 ## Query
 
