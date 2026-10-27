@@ -64,7 +64,7 @@ for e in edges:
     if e['kind'] in weights and e['s'] in index and e['t'] in index:
         w = weights[e['kind']] * (e['w'] if e['kind'] == 'similar' else 1.0)
         G.add_edge(e['s'], e['t'], weight=G.get_edge_data(e['s'], e['t'], {'weight': 0})['weight'] + w)
-communities = nx.community.leiden_communities(G, weight='weight', resolution=1.0, seed=7)
+communities = nx.community.leiden_communities(G, weight='weight', resolution=1.0, seed=7, metric='modularity')  # CPM (the default) fragments into tiny groups
 communities = sorted([c for c in communities if len(c) >= 8], key=len, reverse=True)
 
 # Label each community by its most distinctive title words (class-based term frequency).
