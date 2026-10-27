@@ -142,9 +142,13 @@ def walk_plan(node, parent_tag, plan, period):
                  ev=('ntnu-study-plan', 'studyplan-json', 1))
 
 
-for f in sorted((CACHE / 'plans').glob('*.json')):
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from store import Store
+_store = Store()
+for _key, _eid in sorted(_store.latest_evidence('ntnu-study-plan').items()):  # same evidence run.py hashes as input
     try:
-        sp = json.loads(f.read_text())['studyplan']
+        sp = json.loads(_store.get_evidence(_eid))['studyplan']
     except (TypeError, KeyError, json.JSONDecodeError):
         continue
     if not sp:

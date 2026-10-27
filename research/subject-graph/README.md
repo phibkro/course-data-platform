@@ -69,31 +69,78 @@ ADR-009 primitives: provenance, method version and confidence.
 
 ## Pipeline
 
-```text
-.cache/lists, .cache/pages/<year>/*.html  ─ crawl.py, parse_pages.py ─▶ .cache/courses.json
-.cache/plans/*.json  ─┐
-                      ├ build_graph.py ─▶ .cache/graph_base.json
-                      │
-          enrich.py   ─▶ .cache/graph.json   embeddings, similar edges, UMAP layout,
-                                             Leiden communities, pass rates, programme paths
-          export.py   ─▶ data/graph.json     compact, committed, no personal data
-          export.py --private ─▶ .cache/viewer-data.json   adds the personal plan
-          viewer/build.py [--private] ─▶ one self-contained HTML viewer
+Ingestion is content-addressed and incremental, in the style of build systems (Nix, Bazel, Shake, Salsa).
+Each upstream response is stored once under the sha256 of its bytes. Each derived value records the hash of
+what it was made from. A step is skipped when that input hash is unchanged. When a step reruns but its output
+hashes the same, the steps after it are skipped too (early cutoff).
+
+```mermaid
+flowchart LR
+  NTNU[(ntnu.edu)] -->|crawl.py<br/>calendar-aware, list diff| EV[evidence store<br/>sha256 → blob]
+  EV -->|ingest.py<br/>memo per page| C[courses.json]
+  EV -->|study plans| B
+  C --> B[build_graph.py] --> GB[graph_base.json]
+  GB --> E[enrich.py<br/>memo per text,<br/>positions, partitions] --> G[graph.json]
+  G --> X[export.py] --> R{{Merkle revision<br/>+ diff}}
+  X --> D[data/graph.json]
+  D --> V[viewer/build.py]
 ```
 
-`.cache/` is not committed: it holds about 20,000 cached NTNU course pages (study years 2023/24 to 2026/27), study plans,
-embeddings, grades.no counts and the personal plan. `data/graph.json` is reproducible from it.
+| Layer | Keyed by | Reused when |
+|---|---|---|
+| Evidence (`evidence`, `fetches`) | sha256 of the raw response | the same bytes come back: a new fetch row, no new blob |
+| Parse (`artifacts` stage `parse`) | H(evidence id, parser version) | the page and the parser are unchanged |
+| Stage (`artifacts` stage `stage`, in `run.py`) | H(stage code, input files or evidence) | nothing it reads changed |
+| Embedding (`embeddings`) | H(model, text) | the course text is unchanged |
+| Layout (`layout_positions`) | (subject, text hash) | the text is unchanged, or a change was reverted |
+| Partition (`partitions`) | hash of the weighted community graph | the graph is unchanged, or a change was reverted |
+| Revision (`revisions`, `revision_items`) | Merkle root over node and edge hashes | not reused; logged with a parent and a diff |
 
-Run (Python 3.12, `pip install sentence-transformers umap-learn networkx scikit-learn`; networkx ≥ 3.7 for Leiden):
+Steps that are not naturally incremental:
+
+- **UMAP layout.** Subjects whose text is unchanged keep their position. New or changed subjects are placed
+  at the similarity-weighted mean of their five nearest unchanged neighbours. A full re-fit runs on the first
+  run, or when more than 15% of the texts changed.
+- **Leiden communities.** Leiden starts from the previous partition (`leidenalg`, `initial_membership`) and
+  moves only the nodes where modularity improves. Community ids are matched to the previous ids by member
+  overlap, so colours stay put. `COLD=1` recomputes from scratch.
+- **Determinism.** Python randomises string hashes per process, and networkx iterates sets of nodes, so a
+  fixed seed was not enough. Leiden runs on integer node ids, and community labels break ties by word.
+
+The crawler follows the calendar:
+
+- **Frozen years.** Study years before the current one (the year starts in August, Europe/Oslo) are not
+  refetched, unless `--force` is given.
+- **Open years.** The course list is refetched when it is more than 7 days old. Each list entry (with
+  `courseVersion` and exam dates) is hashed, and only pages for new or changed entries are fetched. Pages
+  older than 60 days are fetched again as a safety net.
+
+Measured on 27 Oct 2026 (21,189 pages, 9,371 subjects, about 123k items per revision):
+
+| Run | Result |
+|---|---|
+| Nothing changed | every stage skipped, 0.6 s |
+| Re-fetched page that differs only in an HTML comment | 1 page parsed, cutoff; build, enrich and export skipped |
+| One course description edited | 1 parse, 1 embedding, 1 placement; 48 community memberships moved (1,177 before warm start) |
+| The edit reverted | the earlier Merkle root came back exactly |
+| Every stage forced to rerun | same root (reproducible) |
+| `crawl.py 2023 2024 2025 2026` | 0 requests (frozen years, fresh list) |
+| 2026 list refetched and diffed | 50 list requests, 0 of 4,874 entries changed, 0 pages to fetch |
+
+`.cache/` is not committed. It holds the store (about 21,000 NTNU course pages for study years 2023/24 to
+2026/27, as 405 MB of compressed blobs), study plans, embeddings, grades.no counts and the personal plan.
+`data/graph.json` and `data/revision.json` are reproducible from it.
+
+Run (Python 3.12, `pip install duckdb pandas sentence-transformers umap-learn leidenalg igraph scikit-learn`):
 
 ```sh
-python3 pipeline/crawl.py 2023 2024 2025 2026
-python3 pipeline/parse_pages.py
-python3 pipeline/build_graph.py
-python3 pipeline/enrich.py
-python3 pipeline/export.py [--private]
-python3 viewer/build.py [--private]
+python3 pipeline/crawl.py 2023 2024 2025 2026 [--dry-run]   # network; incremental
+python3 pipeline/run.py [--private]                          # offline; runs only the stages whose inputs changed
+python3 pipeline/simulate_change.py cosmetic|edit|revert     # test harness: synthetic re-fetches of one page
 ```
+
+`pipeline/migrate_cache.py` was a one-off that moved the earlier plain-file cache into the store without
+refetching anything.
 
 ## Query
 

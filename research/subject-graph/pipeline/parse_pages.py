@@ -19,7 +19,10 @@ CODE = r'[A-ZÆØÅ]{2,}[A-Z0-9-]*\d{3,5}[A-Z]?'
 
 
 def text(path):
-    s = path.read_text(errors='ignore')
+    return text_of(path.read_text(errors='ignore'))
+
+
+def text_of(s):
     t = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', s, flags=re.S)
     t = html.unescape(re.sub(r'<[^>]+>', '\n', t))
     t = re.sub(r'[ \t\xa0]+', ' ', t)
@@ -37,8 +40,11 @@ def section(t, label):
 
 
 def parse(path):
-    code, year = path.stem, int(path.parent.name)
-    t = text(path)
+    return parse_text(path.read_text(errors='ignore'), path.stem, int(path.parent.name))
+
+
+def parse_text(html_source, code, year):
+    t = text_of(html_source)
     m = re.search(r'Course - (.*?) - ' + re.escape(code), t)
     if not m:
         return None

@@ -1,0 +1,23 @@
+{
+ "root": "8ff44d39c2be2fb17029e53d268086eb344e3bce370f3331d0437b71d7dccac1",
+ "parent": "f62012da9151afcf75c5a97c9061d26117f9b7398369e3db630acb232c276063",
+ "counts": {
+  "node": 10551,
+  "edge": 145095
+ },
+ "diff_counts": {
+  "edge": {
+   "added": 48,
+   "removed": 48,
+   "changed": 9
+  },
+  "node": {
+   "added": 0,
+   "removed": 0,
+   "changed": 7
+  }
+ },
+ "subjects_changed_or_added": [
+  "TDT4173"
+ ]
+}

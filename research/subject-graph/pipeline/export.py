@@ -1,11 +1,13 @@
 """Write the compact, committed graph (data/graph.json) and, optionally, a private viewer bundle.
 
 Compact format (tables instead of repeated strings):
-  nodes:  [id, kind(0 subject|1 tag), label, attrs]
+  nodes:  [id, kind(0 subject|1 cluster), label, attrs]
   kinds:  [[name, directed], ...]
   ev:     [[source, method, confidence], ...]
   edges:  [s, t, kindIndex, w|null, evIndex, q?]
-The personal plan (.cache/personal.json) is merged only into the private viewer bundle, never into data/.
+The public graph is also published as a Merkle revision (pipeline/store.py); data/revision.json records
+its root, parent and a diff summary. The personal plan (.cache/personal.json) is merged only into the
+private viewer bundle, after publishing, never into data/ or the revision.
 """
 import json
 import sys
@@ -58,6 +60,25 @@ def with_personal(graph):
                                'q': {'note': note}, 'ev': ['student', 'student-authored', 1]})
     return graph
 
+
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from store import Store, h
+
+# A revision is a Merkle root over the hashes of every node and edge in the public graph.
+store = Store()
+items = {'node': {n['id']: h(n) for n in g['nodes']},
+         'edge': {f"{e['s']}|{e['kind']}|{e['t']}": h(e) for e in g['edges']}}
+root, diff = store.publish(items)
+g['meta'] = {**g['meta'], 'revision': root}
+if diff is None:
+    print('revision unchanged', root[:12])
+else:
+    summary = {kind: {k: len(v) for k, v in d.items()} for kind, d in diff.items()}
+    subjects = sorted({k for k in diff.get('node', {}).get('changed', []) + diff.get('node', {}).get('added', []) if ':' not in k})
+    print('new revision', root[:12], json.dumps(summary), ('subjects changed/added: ' + ', '.join(subjects[:15])) if subjects else '')
+    (ROOT / 'data').mkdir(exist_ok=True)
+    (ROOT / 'data/revision.json').write_text(json.dumps({'root': root, 'parent': store.db.execute('select parent from revisions where root = ? order by created_at desc', [root]).fetchall()[0][0], 'counts': {k: len(v) for k, v in items.items()}, 'diff_counts': summary, 'subjects_changed_or_added': subjects}, indent=1))
 
 (ROOT / 'data').mkdir(exist_ok=True)
 public = compact(g)
