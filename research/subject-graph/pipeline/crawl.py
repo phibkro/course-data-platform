@@ -26,22 +26,27 @@ def curl(args):
 
 
 def course_list(year):
+    """The list endpoint pages over an unstable ordering, so one pass misses courses.
+    Repeat full passes until a pass adds nothing new (at most 5)."""
     out = CACHE / 'lists' / f'{year}.json'
     if out.exists():
         return json.loads(out.read_text())
-    courses, page = [], 1
-    while True:
-        d = json.loads(curl(['-X', 'POST', LIST_URL, '--data-urlencode', f'semester={year}',
-                             '--data-urlencode', f'pageNo={page}',
-                             '--data-urlencode', 'courseListPortletId=courselistportlet_WAR_courselistportlet']))
-        new = [c for c in d['courses'] if c['courseCode'] not in {x['courseCode'] for x in courses}]
-        courses += new
-        if not d.get('hasMoreResults') or not new:
+    courses = {}
+    for _ in range(5):
+        before, page = len(courses), 1
+        while True:
+            d = json.loads(curl(['-X', 'POST', LIST_URL, '--data-urlencode', f'semester={year}',
+                                 '--data-urlencode', f'pageNo={page}']))
+            for c in d['courses']:
+                courses.setdefault(c['courseCode'], c)
+            if not d['courses'] or not d.get('hasMoreResults'):
+                break
+            page += 1
+        if len(courses) == before:
             break
-        page += 1
     out.parent.mkdir(exist_ok=True)
-    out.write_text(json.dumps(courses, ensure_ascii=False))
-    return courses
+    out.write_text(json.dumps(list(courses.values()), ensure_ascii=False))
+    return list(courses.values())
 
 
 def fetch(args):

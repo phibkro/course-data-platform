@@ -2,335 +2,548 @@
 <title>NTNU Subject Graph</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
 <style>
-/* Layout: query console (left), the subject map (centre), inspector (right). The map is a semantic layout: nearby subjects teach similar things. */
+/* Layout: builder + filters (left), a dark "deep space" map (centre, always dark: stars on gas), inspector (right).
+   Panels follow the viewer's theme; the map is a deliberate single dark look so the tag gas reads as light. */
 :root {
-  --bg: #F2F4F3; --surface: #FFFFFF; --fg: #17201D; --muted: #5B6863; --line: #D6DDDA;
-  --accent: #1F6B8F; --accent-fg: #FFFFFF; --map: #FBFCFB; --dim: #D9DFDC; --hi: #D2481C; --plan: #7B3FA1;
+  --bg: #F2F4F3; --surface: #FFFFFF; --fg: #17201D; --muted: #5B6863; --line: #D6DDDA; --field: #F7F9F8;
+  --accent: #1F6B8F; --accent-fg: #FFFFFF; --hi: #D2481C; --plan: #7B3FA1;
+  --space: #070B14; --space-fg: #DCE6F2;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace; --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0F1513; --surface: #161E1B; --fg: #E2EAE7; --muted: #95A39E; --line: #26312D;
-  --accent: #6CB8DB; --accent-fg: #0B1A22; --map: #0B110F; --dim: #26302C; --hi: #FF8A5B; --plan: #C59BF0; color-scheme: dark; } }
+  --bg: #0F1513; --surface: #161E1B; --fg: #E2EAE7; --muted: #95A39E; --line: #26312D; --field: #111916;
+  --accent: #6CB8DB; --accent-fg: #0B1A22; --hi: #FF8A5B; --plan: #C59BF0; color-scheme: dark; } }
 :root[data-theme="dark"] {
-  --bg: #0F1513; --surface: #161E1B; --fg: #E2EAE7; --muted: #95A39E; --line: #26312D;
-  --accent: #6CB8DB; --accent-fg: #0B1A22; --map: #0B110F; --dim: #26302C; --hi: #FF8A5B; --plan: #C59BF0; color-scheme: dark; }
+  --bg: #0F1513; --surface: #161E1B; --fg: #E2EAE7; --muted: #95A39E; --line: #26312D; --field: #111916;
+  --accent: #6CB8DB; --accent-fg: #0B1A22; --hi: #FF8A5B; --plan: #C59BF0; color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.45; }
-button, textarea, select { font: inherit; color: inherit; }
-button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 13.5px; line-height: 1.45; }
+button, select, input { font: inherit; color: inherit; }
+button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 a { color: var(--accent); }
-.app { height: 100%; display: grid; grid-template-columns: 360px minmax(0, 1fr) 330px; gap: 0; padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
-.pane { min-width: 0; min-height: 0; overflow: auto; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.app { height: 100%; display: grid; grid-template-columns: 380px minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.pane { min-width: 0; min-height: 0; overflow: auto; background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 .pane.left { border-right: 1px solid var(--line); }
 .pane.right { border-left: 1px solid var(--line); }
-h1 { font-size: 18px; margin: 0; letter-spacing: -.01em; }
-.sub { color: var(--muted); font-size: 12.5px; margin: 0; }
-.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-textarea#q { width: 100%; min-height: 92px; resize: vertical; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.btn { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 14px; cursor: pointer; font-weight: 600; font-size: 13px; }
+[data-panel] { display: flex; flex-direction: column; gap: 10px; }
+[data-panel][hidden] { display: none; }
+h1 { font-size: 17px; margin: 0; }
+h2 { font-size: 12px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; font-weight: 600; }
+.sub { color: var(--muted); font-size: 12px; margin: 2px 0 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 10px; cursor: pointer; font-weight: 600; color: var(--muted); }
+.tabs button[aria-selected="true"] { color: var(--fg); border-color: var(--accent); }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--field); display: grid; gap: 8px; }
+.step { display: grid; gap: 6px; border-left: 3px solid var(--accent); padding: 8px 8px 8px 10px; background: var(--surface); border-radius: 6px; }
+.step.nested { border-left-color: var(--plan); }
+.step header { display: flex; gap: 6px; align-items: center; }
+.step header select { flex: 1; min-width: 0; }
+.x { border: 1px solid var(--line); background: none; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; color: var(--muted); flex: none; }
+.args { display: grid; gap: 6px; }
+.arg { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 6px; align-items: start; font-size: 12.5px; }
+.arg > span { color: var(--muted); font-family: var(--mono); font-size: 11px; padding-top: 5px; }
+.cond { display: grid; grid-template-columns: 112px minmax(0, 1fr) 26px; gap: 4px; align-items: center; }
+.cond > * { min-width: 0; width: 100%; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-width: 0; }
+.row > * { min-width: 0; }
+.row label { display: inline-flex; gap: 4px; align-items: center; font-size: 12.5px; }
+select, input[type=number], input[type=search] { padding: 5px 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-size: 12.5px; max-width: 100%; }
+select { min-width: 0; }
+input[type=number] { width: 72px; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-weight: 600; font-size: 12.5px; }
 .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
-.examples { display: grid; gap: 6px; }
-.examples button { text-align: left; border: 1px dashed var(--line); background: none; border-radius: 8px; padding: 7px 9px; cursor: pointer; font-size: 12.5px; }
-.examples button b { display: block; font-weight: 600; }
-.examples button code { font-family: var(--mono); font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.btn.ghost { border-style: dashed; background: none; justify-self: start; }
+.chip { display: inline-flex; gap: 2px; align-items: center; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 2px 1px 9px; background: var(--surface); font-family: var(--mono); }
+.chip button { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 0 6px; }
+.textform { font-family: var(--mono); font-size: 11px; color: var(--muted); overflow-wrap: anywhere; background: var(--field); border-radius: 6px; padding: 6px 8px; }
 .status { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-.status.err { color: var(--hi); }
-.report { font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--bg); }
-.results { display: grid; gap: 4px; }
-.res { display: grid; grid-template-columns: 78px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; background: none; text-align: left; cursor: pointer; }
-.res:hover, .res[aria-current="true"] { border-color: var(--line); background: var(--bg); }
-.res .c { font-family: var(--mono); font-weight: 600; font-size: 12px; }
-.res .n { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.res .p { font-family: var(--mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.mapwrap { position: relative; min-width: 0; min-height: 0; background: var(--map); }
+.report { font-size: 12.5px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--field); }
+.results { display: grid; gap: 2px; }
+.res { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 5px 8px; border-radius: 6px; border: 1px solid transparent; background: none; text-align: left; cursor: pointer; }
+.res:hover, .res[aria-current="true"] { border-color: var(--line); background: var(--field); }
+.res .c { font-family: var(--mono); font-weight: 600; font-size: 11.5px; }
+.res .n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res .p { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.ns { border: 1px solid var(--line); border-radius: 10px; background: var(--field); }
+.ns > summary { cursor: pointer; padding: 8px 10px; display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.ns > summary small { font-family: var(--mono); color: var(--muted); font-weight: 400; }
+.ns .vals { padding: 0 10px 10px; display: grid; gap: 3px; max-height: 260px; overflow: auto; }
+.val { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: 12.5px; }
+.val .sw { width: 12px; height: 12px; border-radius: 3px; background: var(--line); }
+.val .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.val .cnt { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.tri { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.tri button { border: 0; background: none; padding: 1px 7px; cursor: pointer; font-size: 12px; color: var(--muted); }
+.tri button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.ns .bulk { display: flex; gap: 8px; padding: 0 10px 6px; font-size: 12px; color: var(--muted); }
+.ns .bulk button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-weight: 600; }
+.slider { display: grid; grid-template-columns: 130px minmax(0, 1fr) 30px; gap: 8px; align-items: center; font-size: 12.5px; }
+.slider input { width: 100%; accent-color: var(--accent); }
+.slider b { font-family: var(--mono); font-weight: 500; font-size: 11.5px; text-align: right; }
+.mapwrap { position: relative; min-width: 0; min-height: 0; background: var(--space); overflow: hidden; }
 #map, #overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
 #overlay { pointer-events: none; }
-.legend { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: grid; gap: 4px; max-width: 280px; }
-.legend .sw { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
-.mapctl { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.mapctl select, .mapctl button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 8px; font-size: 12.5px; }
-.insp h2 { font-size: 17px; margin: 2px 0 0; line-height: 1.25; }
-.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
-.kv dt { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+.mapctl { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; z-index: 2; max-width: calc(100% - 24px); }
+.mapctl select, .mapctl button, .mapctl label { background: rgba(10, 16, 28, .85); color: var(--space-fg); border: 1px solid #2A3446; border-radius: 8px; padding: 5px 8px; font-size: 12.5px; }
+.mapctl label { display: inline-flex; gap: 6px; align-items: center; }
+.legend { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); background: rgba(10, 16, 28, .85); color: var(--space-fg); border: 1px solid #2A3446; border-radius: 8px; padding: 8px 10px; font-size: 12px; display: grid; gap: 3px; max-width: min(320px, calc(100% - 24px)); max-height: 45%; overflow: auto; z-index: 2; }
+.legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.insp h3 { font-size: 16px; margin: 2px 0 0; line-height: 1.25; }
+.kv { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 3px 10px; font-size: 12.5px; margin: 0; }
+.kv dt { color: var(--muted); font-family: var(--mono); font-size: 11px; }
 .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-.chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.chip { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; background: none; cursor: pointer; color: var(--fg); }
-.chip small { color: var(--muted); font-family: var(--mono); }
-.rel h3 { font-size: 12px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 10px 0 4px; }
-.rel li { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; font-size: 12.5px; padding: 3px 0; border-bottom: 1px dotted var(--line); }
+.tagchips { display: flex; flex-wrap: wrap; gap: 4px; }
+.tagchips span { font-size: 11.5px; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; }
+.tagchips small { color: var(--muted); font-family: var(--mono); }
+.rel h4 { font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 10px 0 3px; }
 .rel ul { margin: 0; padding: 0; }
-.rel .ev { color: var(--muted); font-family: var(--mono); font-size: 11px; }
-.empty { color: var(--muted); font-size: 13px; }
-details.help summary { cursor: pointer; font-weight: 600; font-size: 13px; }
-details.help table { font-size: 12px; border-collapse: collapse; margin-top: 6px; }
-details.help td { border-top: 1px solid var(--line); padding: 4px 6px 4px 0; vertical-align: top; }
-details.help td:first-child { font-family: var(--mono); white-space: nowrap; }
-@media (max-width: 1100px) { .app { grid-template-columns: 330px minmax(0, 1fr); } .pane.right { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); max-height: 45vh; } }
+.rel li { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; font-size: 12px; padding: 2px 0; border-bottom: 1px dotted var(--line); }
+.rel .ev { color: var(--muted); font-family: var(--mono); font-size: 10.5px; }
+.empty { color: var(--muted); font-size: 12.5px; }
+.err { color: var(--hi); }
+@media (max-width: 1150px) { .app { grid-template-columns: 340px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; } .pane.right { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); max-height: 40vh; } }
 @media (max-width: 760px) {
   html, body { height: auto; }
   .app { display: flex; flex-direction: column; }
   .pane { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .mapwrap { height: 60vh; order: -1; }
+  .mapwrap { height: 62vh; order: -1; }
   .pane.right { max-height: none; }
 }
 </style>
 
 <div class="app">
-  <section class="pane left" aria-label="Query">
-    <div><span class="eyebrow">NTNU · 2026/27 · research spike</span><h1>NTNU Subject Graph</h1>
-      <p class="sub" id="stats"></p></div>
-    <label for="q" class="eyebrow">Query (pipe operators left to right)</label>
-    <textarea id="q" spellcheck="false"></textarea>
-    <div class="row"><button type="button" class="btn primary" id="run">Run</button><span class="status" id="status"></span></div>
-    <div id="report" hidden class="report"></div>
-    <div class="results" id="results"></div>
-    <div><span class="eyebrow">Examples</span><div class="examples" id="examples"></div></div>
-    <details class="help"><summary>Operators</summary><table id="ops"></table></details>
+  <section class="pane left" aria-label="Query and filters">
+    <div><h1>NTNU Subject Graph</h1><p class="sub" id="stats">Loading the map…</p></div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" aria-selected="true" data-tab="query">Query</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="filter">Visibility</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="gravity">Gravity</button>
+    </div>
+    <div data-panel="query">
+      <div class="card" id="builder"></div>
+      <span class="status" id="status"></span>
+      <div class="textform" id="textform" title="The query as text, generated from the builder"></div>
+      <div id="report" class="report" hidden></div>
+      <div class="results" id="results"></div>
+      <h2>Examples</h2>
+      <div class="results" id="examples"></div>
+    </div>
+    <div data-panel="filter" hidden>
+      <p class="sub" style="margin:0">Per cluster: <b>●</b> show, <b>◐</b> outline (shape and relations only: no colour, label or gas), <b>○</b> hide. Within a clustering a subject takes its strongest cluster's state; across clusterings, the weakest.</p>
+      <div id="filters" style="display:grid;gap:8px"></div>
+    </div>
+    <div data-panel="gravity" hidden>
+      <p class="sub" style="margin:0">Each cluster acts as an invisible mass pulling its subjects together. Raise a clustering's gravity, then run the layout. "Similar content" keeps the semantic map's shape.</p>
+      <div id="gravity" style="display:grid;gap:8px"></div>
+      <div class="row"><button type="button" class="btn primary" id="runLayout">Run layout</button><button type="button" class="btn" id="resetLayout">Back to semantic map</button><span class="status" id="layoutStatus"></span></div>
+    </div>
   </section>
   <section class="mapwrap" aria-label="Subject map">
     <div id="map"></div><canvas id="overlay"></canvas>
     <div class="mapctl">
-      <select id="colorBy" aria-label="Colour by"><option value="cluster">Colour: discovered cluster</option><option value="exam">Colour: hardest assessment</option><option value="pass">Colour: pass rate</option></select>
-      <select id="edgeKinds" aria-label="Edges to draw"><option value="requires,overlaps">Edges: prerequisites + overlap</option><option value="similar">Edges: similarity</option><option value="none">Edges: none</option></select>
+      <select id="lens" aria-label="Colour and gas by"></select>
+      <label><input type="checkbox" id="gas" checked> Gas</label>
       <button type="button" id="fit">Fit</button>
     </div>
     <div class="legend" id="legend"></div>
   </section>
-  <section class="pane right insp" aria-label="Inspector" id="insp"><p class="empty">Click a subject on the map or in the results to inspect its tags and relations, with the evidence behind each one.</p></section>
+  <section class="pane right insp" aria-label="Inspector" id="insp"><p class="empty">Hover a star to light up its relations. Click it to see its tags and relations, with the evidence behind each.</p></section>
 </div>
 
 <script type="application/json" id="data">__DATA__</script>
-<script>
-(() => {
-const G = JSON.parse(document.getElementById('data').textContent);
+<script type="module">
+import Graph from 'https://cdn.jsdelivr.net/npm/graphology@0.26.0/+esm';
+import Sigma from 'https://cdn.jsdelivr.net/npm/sigma@4.0.3/+esm';
+import { bindWebGLLayer, createHeatmapProgram } from 'https://cdn.jsdelivr.net/npm/@sigma/layer-webgl@4.0.0/+esm';
+import FA2Layout from 'https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/worker/+esm';
+
+const D = JSON.parse(document.getElementById('data').textContent);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
-/* ---------- graph model: subjects and tags, typed edges ---------- */
-const N = G.nodes.map(([id, k, label, a], i) => ({ i, id, subject: k === 0, label: label || id, ...a }));
+/* ================= model: subjects + tags, typed edges ================= */
+const N = D.nodes.map(([id, k, label, a], i) => ({ i, id, subject: k === 0, label: label || id, ...a }));
 const ID = new Map(N.map(n => [n.id, n.i]));
-const KIND = G.kinds.map(([name, directed]) => ({ name, directed }));
+const KIND = D.kinds.map(([name, directed]) => ({ name, directed }));
 const OUT = N.map(() => []), IN = N.map(() => []);
-for (const [s, t, k, w, ev, q] of G.edges) {
-  const e = { s, t, k: KIND[k].name, dir: KIND[k].directed, w, ev: G.ev[ev], q: q || {} };
-  OUT[s].push(e); IN[t].push(e);
-}
-const kindOf = n => n.subject ? 'subject' : (n.id.split(':')[0]);
-const parentOf = new Map(); for (const n of N) for (const e of OUT[n.i]) if (e.k === 'part_of') parentOf.set(n.i, e.t);
-// all tags at or below a tag (directions, groups below a programme)
-function below(t) { const out = new Set([t]); let grew = true; while (grew) { grew = false; for (const [c, p] of parentOf) if (out.has(p) && !out.has(c)) { out.add(c); grew = true; } } return out; }
-const tagEdges = new Set(['tagged', 'member', 'in_cluster', 'admits']);
-const subjectsWithTag = (tagIds, pred = () => true) => { const s = new Set(); for (const t of tagIds) for (const e of IN[t]) if (tagEdges.has(e.k) && N[e.s].subject && pred(e)) s.add(e.s); return s; };
-const tagsOf = i => OUT[i].filter(e => tagEdges.has(e.k)).map(e => e.t);
-const hasTag = (i, tid) => { const T = typeof tid === 'number' ? below(tid) : tid; return OUT[i].some(e => tagEdges.has(e.k) && T.has(e.t)); };
+for (const [s, t, k, w, ev, q] of D.edges) { const e = { s, t, k: KIND[k].name, dir: KIND[k].directed, w, ev: D.ev[ev], q: q || {} }; OUT[s].push(e); IN[t].push(e); }
+const TAGK = new Set(['in_cluster', 'admits']); // subject -> cluster membership
+const REL = new Set(['overlaps', 'requires', 'recommends', 'similar']);
+const parent = new Map(); for (const n of N) for (const e of OUT[n.i]) if (e.k === 'part_of') parent.set(n.i, e.t);
+const nsOf = t => N[t].id.split(':')[0];
+const topTag = t => { let x = t; while (parent.has(x) && !N[parent.get(x)].id.startsWith('clustering:')) x = parent.get(x); return x; };
 const SUBJ = N.filter(n => n.subject && !n.retired).map(n => n.i);
 const placed = i => N[i].x !== undefined;
-const examRank = i => { const t = tagsOf(i).map(j => N[j].id).find(x => x.startsWith('exam:')); return { 'exam:none': 0, 'exam:home': 1, 'exam:oral': 2, 'exam:part-school': 3, 'exam:school': 4 }[t] ?? 5; };
-const flag = (i, f) => tagsOf(i).some(j => N[j].id === 'flag:' + f);
+const TAGS_OF = new Map(SUBJ.map(i => { const s = new Set(); for (const e of OUT[i]) if (TAGK.has(e.k)) { s.add(e.t); s.add(topTag(e.t)); } return [i, s]; }));
+const has = (i, t) => (TAGS_OF.get(i) || new Set()).has(t);
+const NS_LABEL = Object.fromEntries(N.filter(n => n.id.startsWith('clustering:')).map(n => [n.id.slice(11), n.label]));
+const NAMESPACES = ['taken', 'offered', 'term', 'programme', 'community', 'prefix', 'code-level', 'level', 'exam', 'campus', 'lang', 'access', 'flag'].filter(ns => NS_LABEL[ns]);
+const VALUES = new Map();
+for (const ns of NAMESPACES) { const cnt = new Map(); for (const i of SUBJ) for (const t of TAGS_OF.get(i)) if (nsOf(t) === ns && !N[t].id.includes('/')) cnt.set(t, (cnt.get(t) || 0) + 1); VALUES.set(ns, [...cnt].sort((a, b) => ['community', 'prefix', 'programme', 'campus', 'lang'].includes(ns) ? b[1] - a[1] : N[a[0]].id.localeCompare(N[b[0]].id, 'en', { numeric: true }))); }
+const tagValues = ns => VALUES.get(ns) || [];
+const MEMBERS = new Map(); for (const i of SUBJ) for (const t of TAGS_OF.get(i)) { if (!MEMBERS.has(t)) MEMBERS.set(t, []); MEMBERS.get(t).push(i); }
+const EXAMS = ['exam:none', 'exam:home', 'exam:oral', 'exam:part-school', 'exam:school'].map(t => ID.get(t));
+const examRank = i => { const k = EXAMS.findIndex(t => has(i, t)); return k < 0 ? 5 : k; };
+const flag = (i, f) => has(i, ID.get('flag:' + f));
 const passRate = i => N[i].pass ? N[i].pass[0] / N[i].pass[1] : null;
 const wilson = i => { if (!N[i].pass) return -1; const [p0, n] = N[i].pass, p = p0 / n, z = 1.96; return (p + z*z/(2*n) - z*Math.sqrt((p*(1-p) + z*z/(4*n))/n)) / (1 + z*z/n); };
+const PLANS = N.filter(n => n.id.startsWith('plan:'));
+const planDone = p => new Set(OUT[p].filter(e => ['completed', 'credited', 'taking'].includes(e.k)).map(e => e.t));
+const overlapsAny = (i, done) => [...OUT[i], ...IN[i]].some(e => e.k === 'overlaps' && done.has(e.s === i ? e.t : e.s));
 
-/* ---------- query language: a pipeline of small set operators ---------- */
-function splitTop(s, sep) { const out = []; let d = 0, cur = ''; for (const ch of s) { if (ch === '(') d++; if (ch === ')') d--; if (ch === sep && d === 0) { out.push(cur); cur = ''; } else cur += ch; } if (cur.trim()) out.push(cur); return out.map(x => x.trim()).filter(Boolean); }
-function parseStep(s) { const m = s.match(/^([a-z_]+)\s*(?:\((.*)\))?$/is); if (!m) throw Error(`Cannot read "${s}". Write steps like name(arguments).`); return { op: m[1].toLowerCase(), args: m[2] !== undefined ? splitTop(m[2], ',') : [] }; }
-const findTag = s => { const i = ID.get(s); if (i === undefined || N[i].subject) throw Error(`Unknown tag "${s}". Click a tag in the inspector to see real tag names.`); return i; };
-const planDone = ctx => { if (ctx.plan == null) throw Error('This step needs a personal plan first, e.g. start with plan(philip).'); return new Set(OUT[ctx.plan].filter(e => ['completed', 'credited', 'taking'].includes(e.k)).map(e => e.t)); };
-const OPS = {
-  all: { doc: 'every current subject', run: () => ({ set: new Set(SUBJ) }) },
-  code: { doc: 'code(TDT4100, TDT4120): these subjects', run: (c, a) => ({ set: new Set(a.map(x => { const i = ID.get(x.toUpperCase()); if (i === undefined) throw Error(`No subject ${x}`); return i; })) }) },
-  search: { doc: 'search(text): subjects whose title contains text', run: (c, a) => { const q = a.join(',').toLowerCase(); return { set: new Set(SUBJ.filter(i => N[i].label.toLowerCase().includes(q) || N[i].id.toLowerCase().includes(q))) }; } },
-  tag: { doc: 'tag(exam:none): subjects carrying a tag (or anything below it)', run: (c, a) => ({ set: subjectsWithTag(below(findTag(a[0]))) }) },
-  programme: { doc: 'programme(BIT-2023[, compulsory|elective]): members of a study plan', run: (c, a) => { const t = findTag('programme:' + a[0]); const role = a[1]; return { set: subjectsWithTag(below(t), e => e.k === 'member' && (!role || e.q.role === role)), programme: t }; } },
-  plan: { doc: 'plan(philip): your completed, credited and current subjects', run: (c, a) => { const p = findTag('plan:' + a[0]); const ctx = { plan: p }; return { set: planDone(ctx), plan: p }; } },
-  cluster: { doc: 'cluster(web) or cluster(9): a discovered cluster by number or label word', run: (c, a) => { const q = a[0].toLowerCase(); const t = N.find(n => n.id === 'cluster:' + q) || N.find(n => n.id.startsWith('cluster:') && n.label.toLowerCase().includes(q)); if (!t) throw Error(`No cluster matches "${a[0]}"`); return { set: subjectsWithTag([t.i]) }; } },
-  neighbours: { doc: 'neighbours(overlaps|requires|recommends|similar|*): one step out and in', run: (c, a) => { const k = a[0] || '*'; const s = new Set(); for (const i of c.set) for (const e of [...OUT[i], ...IN[i]]) { if (tagEdges.has(e.k) || e.k === 'part_of') continue; if (k !== '*' && e.k !== k) continue; const j = e.s === i ? e.t : e.s; if (N[j].subject && !c.set.has(j)) s.add(j); } return { set: s }; } },
-  closure: { doc: 'closure(requires, recommends): everything reachable along directed relations', run: (c, a) => { const ks = a.length ? a : ['requires']; const s = new Set(); const st = [...c.set]; while (st.length) { const i = st.pop(); for (const e of OUT[i]) if (ks.includes(e.k) && !s.has(e.t)) { s.add(e.t); st.push(e.t); } } return { set: s }; } },
-  dependents: { doc: 'dependents(requires): everything that (transitively) points here', run: (c, a) => { const k = a[0] || 'requires'; const s = new Set(); const st = [...c.set]; while (st.length) { const i = st.pop(); for (const e of IN[i]) if (e.k === k && !s.has(e.s)) { s.add(e.s); st.push(e.s); } } return { set: s }; } },
-  similar: { doc: 'similar(20): nearest subjects by teaching content (two hops over similarity)', run: (c, a) => { const k = +(a[0] || 20); const score = new Map(); const hop = (from, w0, depth) => { for (const e of [...OUT[from], ...IN[from]]) if (e.k === 'similar') { const j = e.s === from ? e.t : e.s; const w = w0 * e.w; if (c.set.has(j)) continue; if (w > (score.get(j) || 0)) score.set(j, w); if (depth > 1) hop(j, w, depth - 1); } }; for (const i of c.set) hop(i, 1, 2); const order = [...score].sort((x, y) => y[1] - x[1]).slice(0, k).map(x => x[0]); return { set: new Set(order), order, score }; } },
-  frontier: { doc: 'frontier: subjects you can take next (prerequisites met, not taken, no overlap)', run: c => { const done = planDone(c); const s = new Set(); for (const i of SUBJ) { if (done.has(i)) continue; const req = OUT[i].filter(e => e.k === 'requires').map(e => e.t); if (!req.every(j => done.has(j))) continue; if ([...OUT[i], ...IN[i]].some(e => e.k === 'overlaps' && done.has(e.s === i ? e.t : e.s))) continue; s.add(i); } return { set: s }; } },
-  filter: { doc: 'filter(term:spring-2027, !flag:group-work, pass>=0.9, cr=7.5): keep matches', run: (c, a) => { const tests = a.map(cond => { const m = cond.match(/^(pass|cr)\s*(>=|<=|=|>|<)\s*([\d.]+)$/); if (m) { const v = +m[3], f = m[1] === 'pass' ? passRate : i => N[i].cr; const cmp = { '>=': (x, y) => x >= y, '<=': (x, y) => x <= y, '=': (x, y) => x === y, '>': (x, y) => x > y, '<': (x, y) => x < y }[m[2]]; return i => { const x = f(i); return x != null && cmp(x, v); }; } const neg = cond.startsWith('!'); const T = below(findTag(neg ? cond.slice(1) : cond)); return i => hasTag(i, T) !== neg; }); return { set: new Set([...c.set].filter(i => tests.every(t => t(i)))) }; } },
-  nooverlap: { doc: 'nooverlap: drop subjects that overlap your plan', run: c => { const done = planDone(c); return { set: new Set([...c.set].filter(i => ![...OUT[i], ...IN[i]].some(e => e.k === 'overlaps' && done.has(e.s === i ? e.t : e.s)))) }; } },
-  minus: { doc: 'minus(plan(philip)): set difference with another pipeline', run: (c, a) => { const o = evaluate(a.join(','), {}).set; return { set: new Set([...c.set].filter(i => !o.has(i))) }; } },
-  and: { doc: 'and(cluster(web)): intersection with another pipeline', run: (c, a) => { const o = evaluate(a.join(','), {}).set; return { set: new Set([...c.set].filter(i => o.has(i))) }; } },
-  or: { doc: 'or(code(TDT4237)): union with another pipeline', run: (c, a) => { const o = evaluate(a.join(','), {}).set; return { set: new Set([...c.set, ...o]) }; } },
-  compare: { doc: 'compare(programme(BIT-2023, compulsory)): how much of that set this set covers', run: (c, a) => { const r = evaluate(a.join(','), {}); const b = r.set; const both = [...b].filter(i => c.set.has(i)); const cr = xs => xs.reduce((s, i) => s + (N[i].cr || 0), 0); const missing = [...b].filter(i => !c.set.has(i)); return { set: new Set(missing), report: `Covers <b>${both.length} of ${b.size}</b> subjects (${cr(both)} of ${cr([...b])} credits). Showing the <b>${missing.length}</b> not covered.`, programme: r.programme }; } },
-  rank: { doc: 'rank(ease|pass|cr|code): order the result', run: (c, a) => { const key = a[0] || 'ease'; const by = { ease: (x, y) => examRank(x) - examRank(y) || flag(x, 'group-work') - flag(y, 'group-work') || flag(x, 'attendance') - flag(y, 'attendance') || wilson(y) - wilson(x), pass: (x, y) => (passRate(y) ?? -1) - (passRate(x) ?? -1), cr: (x, y) => (N[y].cr || 0) - (N[x].cr || 0), code: (x, y) => N[x].id.localeCompare(N[y].id) }[key]; if (!by) throw Error('rank takes ease, pass, cr or code'); return { order: [...c.set].sort(by) }; } },
-  take: { doc: 'take(25): keep the first n', run: (c, a) => { const n = +(a[0] || 25); const order = (c.order || [...c.set]).slice(0, n); return { set: new Set(order), order }; } },
+/* ================= query: typed operators, built from a form ================= */
+// Every argument has a type; the builder only offers values that exist, so every query it can produce is valid.
+const T = { tag: 'tag', subjects: 'subjects', int: 'int', kind: 'kind', kinds: 'kinds', text: 'text', pipeline: 'pipeline', conds: 'conds', rank: 'rank', programme: 'programme', role: 'role', plan: 'plan' };
+const SOURCES = {
+  all: { label: 'All current subjects', args: [], run: () => ({ set: new Set(SUBJ) }) },
+  plan: { label: 'My plan (taken and current)', args: [['plan', T.plan]], run: ({ plan }) => ({ set: planDone(plan), plan }) },
+  programme: { label: 'Programme members', args: [['programme', T.programme], ['role', T.role]], run: ({ programme, role }) => { const below = new Set([programme]); let grew = true; while (grew) { grew = false; for (const [c, p] of parent) if (below.has(p) && !below.has(c)) { below.add(c); grew = true; } } const s = new Set(); for (const t of below) for (const e of IN[t]) if (e.k === 'in_cluster' && e.q.role && (role === 'any' || e.q.role === role)) s.add(e.s); return { set: s, programme }; } },
+  cluster: { label: 'Subjects in a cluster', args: [['tag', T.tag]], run: ({ tag }) => ({ set: new Set(MEMBERS.get(tag) || []) }) },
+  codes: { label: 'Specific subjects', args: [['subjects', T.subjects]], run: ({ subjects }) => ({ set: new Set(subjects) }) },
+  search: { label: 'Title or code contains', args: [['text', T.text]], run: ({ text }) => { const q = (text || '').trim().toLowerCase(); return { set: new Set(q ? SUBJ.filter(i => N[i].label.toLowerCase().includes(q) || N[i].id.toLowerCase().includes(q)) : []) }; } },
 };
-function evaluate(q, start) {
-  let ctx = { set: new Set(SUBJ), ...start };
-  for (const step of splitTop(q.replace(/\n/g, ' '), '|')) {
-    const { op, args } = parseStep(step);
-    if (!OPS[op]) throw Error(`Unknown step "${op}". Open Operators below for the list.`);
-    const r = OPS[op].run(ctx, args);
-    ctx = { ...ctx, ...r, order: r.order ?? (r.set ? undefined : ctx.order) };
-    if (r.set && !r.order) ctx.order = undefined;
+const STEPS = {
+  filter: { label: 'Keep only', args: [['conds', T.conds]], run: ({ conds }, c) => ({ set: new Set([...c.set].filter(i => conds.every(k => condTest(k)(i)))) }) },
+  frontier: { label: 'Next possible (prereqs met, not taken, no overlap)', needsPlan: true, args: [], run: (_, c) => { const done = planDone(c.plan); return { set: new Set(SUBJ.filter(i => !done.has(i) && OUT[i].filter(e => e.k === 'requires').every(e => done.has(e.t)) && !overlapsAny(i, done))) }; } },
+  nooverlap: { label: 'Drop overlaps with my plan', needsPlan: true, args: [], run: (_, c) => { const done = planDone(c.plan); return { set: new Set([...c.set].filter(i => !overlapsAny(i, done))) }; } },
+  neighbours: { label: 'Neighbours via relation', args: [['kind', T.kind]], run: ({ kind }, c) => { const s = new Set(); for (const i of c.set) for (const e of [...OUT[i], ...IN[i]]) if (e.k === kind) { const j = e.s === i ? e.t : e.s; if (N[j].subject && !c.set.has(j)) s.add(j); } return { set: s }; } },
+  closure: { label: 'Everything it builds on', args: [['kinds', T.kinds]], run: ({ kinds }, c) => { const s = new Set(); const st = [...c.set]; while (st.length) { const i = st.pop(); for (const e of OUT[i]) if (kinds.includes(e.k) && !s.has(e.t)) { s.add(e.t); st.push(e.t); } } return { set: s }; } },
+  dependents: { label: 'Everything that builds on it', args: [['kinds', T.kinds]], run: ({ kinds }, c) => { const s = new Set(); const st = [...c.set]; while (st.length) { const i = st.pop(); for (const e of IN[i]) if (kinds.includes(e.k) && !s.has(e.s)) { s.add(e.s); st.push(e.s); } } return { set: s }; } },
+  similar: { label: 'Most similar subjects', args: [['k', T.int, 20]], run: ({ k }, c) => { const score = new Map(); const hop = (from, w0, d) => { for (const e of [...OUT[from], ...IN[from]]) if (e.k === 'similar') { const j = e.s === from ? e.t : e.s, w = w0 * e.w; if (c.set.has(j)) continue; if (w > (score.get(j) || 0)) score.set(j, w); if (d > 1) hop(j, w, d - 1); } }; for (const i of c.set) hop(i, 1, 2); const order = [...score].sort((x, y) => y[1] - x[1]).slice(0, k).map(x => x[0]); return { set: new Set(order), order }; } },
+  minus: { label: 'Remove another set', args: [['pipeline', T.pipeline]], run: ({ pipeline }, c) => { const o = evaluate(pipeline).set; return { set: new Set([...c.set].filter(i => !o.has(i))) }; } },
+  and: { label: 'Intersect with another set', args: [['pipeline', T.pipeline]], run: ({ pipeline }, c) => { const o = evaluate(pipeline).set; return { set: new Set([...c.set].filter(i => o.has(i))) }; } },
+  or: { label: 'Add another set', args: [['pipeline', T.pipeline]], run: ({ pipeline }, c) => { const o = evaluate(pipeline).set; return { set: new Set([...c.set, ...o]) }; } },
+  compare: { label: 'Coverage of another set', args: [['pipeline', T.pipeline]], run: ({ pipeline }, c) => { const r = evaluate(pipeline), b = r.set; const both = [...b].filter(i => c.set.has(i)), miss = [...b].filter(i => !c.set.has(i)); const cr = xs => xs.reduce((s, i) => s + (N[i].cr || 0), 0); return { set: new Set(miss), report: `Covers <b>${both.length} of ${b.size}</b> subjects (${cr(both)} of ${cr([...b])} credits). Showing the <b>${miss.length}</b> not covered.`, programme: r.programme ?? c.programme }; } },
+  rank: { label: 'Order by', args: [['key', T.rank]], run: ({ key }, c) => { const by = { ease: (x, y) => examRank(x) - examRank(y) || flag(x, 'group-work') - flag(y, 'group-work') || flag(x, 'attendance') - flag(y, 'attendance') || wilson(y) - wilson(x), pass: (x, y) => (passRate(y) ?? -1) - (passRate(x) ?? -1), credits: (x, y) => (N[y].cr || 0) - (N[x].cr || 0), code: (x, y) => N[x].id.localeCompare(N[y].id) }[key]; return { order: [...c.set].sort(by) }; } },
+  take: { label: 'Keep the first', args: [['n', T.int, 25]], run: ({ n }, c) => { const order = (c.order || [...c.set]).slice(0, n); return { set: new Set(order), order }; } },
+};
+const CONDS = { has: 'in cluster', lacks: 'not in cluster', passAtLeast: 'pass rate ≥', credits: 'credits =' };
+const condTest = k => k.type === 'has' ? i => has(i, k.tag) : k.type === 'lacks' ? i => !has(i, k.tag) : k.type === 'passAtLeast' ? i => (passRate(i) ?? -1) >= k.value / 100 : i => N[i].cr === k.value;
+const RELKINDS = ['overlaps', 'requires', 'recommends', 'similar'];
+const PROGRAMMES = N.filter(n => n.id.startsWith('programme:') && IN[n.i].some(e => e.k === 'part_of'));
+function defaultArg(type, dflt) {
+  switch (type) {
+    case T.tag: return EXAMS[0]; case T.subjects: return []; case T.int: return dflt ?? 10;
+    case T.kind: return 'overlaps'; case T.kinds: return ['requires', 'recommends']; case T.text: return '';
+    case T.pipeline: return { source: { op: 'all', args: {} }, steps: [] }; case T.conds: return [{ type: 'has', tag: EXAMS[0] }];
+    case T.rank: return 'ease'; case T.programme: return PROGRAMMES[0]?.i; case T.role: return 'any'; case T.plan: return PLANS[0]?.i;
   }
+}
+const mkOp = (table, op) => ({ op, args: Object.fromEntries(table[op].args.map(([name, type, d]) => [name, defaultArg(type, d)])) });
+function evaluate(q, start = {}) {
+  let ctx = { ...SOURCES[q.source.op].run(q.source.args), ...start };
+  for (const s of q.steps) { const r = STEPS[s.op].run(s.args, ctx); ctx = { ...ctx, ...r, order: r.order ?? (r.set ? undefined : ctx.order) }; }
   return ctx;
 }
+const hasPlan = q => q.source.op === 'plan';
+const argText = (type, v) => type === T.pipeline ? `(${toText(v)})` : type === T.conds ? v.map(k => k.type === 'has' ? N[k.tag].id : k.type === 'lacks' ? '!' + N[k.tag].id : k.type === 'passAtLeast' ? `pass>=${k.value}%` : `cr=${k.value}`).join(', ') : type === T.subjects ? v.map(i => N[i].id).join(', ') : [T.tag, T.programme, T.plan].includes(type) ? N[v]?.id : Array.isArray(v) ? v.join(', ') : String(v);
+const opText = (table, o) => `${o.op}(${table[o.op].args.map(([n, t]) => argText(t, o.args[n])).filter(x => x !== '' && x !== 'any').join(', ')})`;
+const toText = q => [opText(SOURCES, q.source), ...q.steps.map(s => opText(STEPS, s))].join(' | ');
 
-/* ---------- rendering ---------- */
-const isDark = () => document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-function hsl(h, s, l) { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); return '#' + [f(0), f(8), f(4)].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join(''); }
-const PAL = n => hsl((n * 137.508) % 360, 62, isDark() ? 62 : 42);
-const clusterOf = i => { const t = tagsOf(i).find(j => N[j].id.startsWith('cluster:')); return t === undefined ? -1 : +N[t].id.split(':')[1]; };
-const EXAMCOL = ['#2E8B57', '#5FA35A', '#C29A2B', '#D9762B', '#C2412E', '#8A8F8C'];
-const graph = new graphology.Graph({ multi: false, type: 'undirected' });
-for (const n of N) if (n.subject && placed(n.i)) graph.addNode(String(n.i), { x: n.x, y: -n.y, size: 2.2, label: `${n.id} ${n.label}` });
-const renderer = new Sigma(graph, $('map'), { renderEdgeLabels: false, labelRenderedSizeThreshold: 7, labelDensity: 0.5, labelFont: 'IBM Plex Sans', labelSize: 12, zIndex: true });
-let state = { result: new Set(), order: [], selected: null, programme: null, plan: null, hover: null, hoverSet: new Set() };
-const REL = new Set(['overlaps', 'requires', 'recommends', 'similar']);
-function neighbourhood(i) { const s = new Set([i]); for (const e of [...OUT[i], ...IN[i]]) if (REL.has(e.k)) { const j = e.s === i ? e.t : e.s; if (placed(j)) s.add(j); } return s; }
-function desaturate(hex) { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, y = Math.round(0.3 * r + 0.59 * g + 0.11 * b); const bg = parseInt((css('--map') || '#ffffff').slice(1), 16); const mix = (c, k) => Math.round(c * 0.25 + ((bg >> k) & 255) * 0.75); return '#' + [mix(y, 16), mix(y, 8), mix(y, 0)].map(v => v.toString(16).padStart(2, '0')).join(''); }
-function colour(i) {
-  const by = $('colorBy').value;
-  if (by === 'exam') return EXAMCOL[examRank(i)];
-  if (by === 'pass') { const p = passRate(i); if (p == null) return css('--dim'); return hsl(Math.round(Math.max(0, (p - 0.6) / 0.4) * 130), 60, 48); }
-  const c = clusterOf(i); return c < 0 ? css('--dim') : PAL(c);
-}
-function applyStyle() {
-  const has = state.result.size > 0, dim = css('--dim');
-  renderer.setSetting('labelColor', { color: css('--fg') });
-  renderer.setSetting('nodeReducer', (key, d) => {
-    const i = +key, inRes = state.result.has(i), sel = state.selected === i;
-    const r = { ...d, color: has && !inRes ? dim : colour(i) };
-    if (has && inRes) { r.size = 4.2; r.zIndex = 2; r.forceLabel = state.result.size <= 40; }
-    if (sel) { r.size = 7; r.color = css('--hi'); r.forceLabel = true; r.zIndex = 3; }
-    if (has && !inRes) { r.label = ''; r.zIndex = 0; }
-    if (state.hover != null) {
-      if (state.hoverSet.has(i)) { r.color = i === state.hover ? css('--hi') : colour(i); r.size = i === state.hover ? 7 : 4.5; r.zIndex = 4; r.forceLabel = state.hoverSet.size <= 40 || i === state.hover; r.label = d.label; }
-      else { r.color = desaturate(r.color.startsWith('#') ? r.color : '#888888'); r.label = ''; r.zIndex = 0; r.forceLabel = false; }
-    }
-    return r;
-  });
-  graph.clearEdges();
-  const kinds = $('edgeKinds').value.split(','), focus = state.selected != null ? new Set([state.selected]) : state.result;
-  if (kinds[0] !== 'none' && focus.size && focus.size <= 400) {
-    let count = 0;
-    for (const i of focus) for (const e of OUT[i]) {
-      if (!kinds.includes(e.k) || !placed(e.t) || !placed(e.s) || count > 2500) continue;
-      const a = String(e.s), b = String(e.t); if (a === b || graph.hasEdge(a, b)) continue;
-      graph.addEdge(a, b, { size: e.k === 'similar' ? 0.6 : 1, color: e.k === 'requires' ? css('--hi') : e.k === 'overlaps' ? css('--plan') : css('--muted') }); count++;
-    }
-    if (state.selected != null) for (const e of IN[state.selected]) if (kinds.includes(e.k) && placed(e.s) && !graph.hasEdge(String(e.s), String(e.t))) graph.addEdge(String(e.s), String(e.t), { size: 1, color: e.k === 'requires' ? css('--hi') : css('--plan') });
+/* ---------- builder UI ---------- */
+let QUERY;
+const tagOptions = sel => NAMESPACES.map(ns => `<optgroup label="${esc(NS_LABEL[ns])}">${tagValues(ns).map(([t, n]) => `<option value="${t}" ${t === sel ? 'selected' : ''}>${esc(N[t].label)} (${n})</option>`).join('')}</optgroup>`).join('');
+const P = path => esc(JSON.stringify(path));
+function argWidget(type, value, path) {
+  switch (type) {
+    case T.tag: return `<select data-path='${P(path)}' data-kind="num">${tagOptions(value)}</select>`;
+    case T.programme: return `<select data-path='${P(path)}' data-kind="num">${PROGRAMMES.map(n => `<option value="${n.i}" ${n.i === value ? 'selected' : ''}>${esc(n.label)}</option>`).join('')}</select>`;
+    case T.role: return `<select data-path='${P(path)}'>${['any', 'compulsory', 'elective'].map(r => `<option ${r === value ? 'selected' : ''}>${r}</option>`).join('')}</select>`;
+    case T.plan: return `<select data-path='${P(path)}' data-kind="num">${PLANS.map(n => `<option value="${n.i}" ${n.i === value ? 'selected' : ''}>${esc(n.label)}</option>`).join('')}</select>`;
+    case T.int: return `<input type="number" min="1" max="500" value="${value}" data-path='${P(path)}' data-kind="num" aria-label="Number">`;
+    case T.text: return `<input type="search" value="${esc(value)}" data-path='${P(path)}' placeholder="e.g. security" aria-label="Text">`;
+    case T.kind: return `<select data-path='${P(path)}'>${RELKINDS.map(k => `<option ${k === value ? 'selected' : ''}>${k}</option>`).join('')}</select>`;
+    case T.kinds: return `<div class="row">${RELKINDS.map(k => `<label><input type="checkbox" data-path='${P(path)}' data-kind="set" value="${k}" ${value.includes(k) ? 'checked' : ''}>${k}</label>`).join('')}</div>`;
+    case T.rank: return `<select data-path='${P(path)}'>${['ease', 'pass', 'credits', 'code'].map(k => `<option ${k === value ? 'selected' : ''}>${k}</option>`).join('')}</select>`;
+    case T.subjects: return `<div class="row">${value.map((i, k) => `<span class="chip">${esc(N[i].id)}<button type="button" data-del='${P([...path, k])}' aria-label="Remove ${esc(N[i].id)}">×</button></span>`).join('')}<input type="search" list="subjectList" placeholder="Add code…" data-add='${P(path)}' style="width:120px" aria-label="Add subject code"></div>`;
+    case T.conds: return `<div style="display:grid;gap:4px">${value.map((k, j) => condRow(k, [...path, j])).join('')}<button type="button" class="btn ghost" data-addcond='${P(path)}'>+ condition</button></div>`;
+    case T.pipeline: return pipelineHtml(value, path, true);
   }
-  renderer.refresh(); legend();
+  return '';
 }
-function legend() {
-  const by = $('colorBy').value; let html = '';
-  if (by === 'exam') html = ['No exam', 'Home exam', 'Oral', 'Part school exam', 'School exam', 'Unknown'].map((l, k) => `<span><span class="sw" style="background:${EXAMCOL[k]}"></span>${l}</span>`).join('');
-  else if (by === 'pass') html = '<span><span class="sw" style="background:hsl(0 60% 48%)"></span>≤ 60% passed</span><span><span class="sw" style="background:hsl(130 60% 48%)"></span>100% passed</span><span><span class="sw" style="background:var(--dim)"></span>no data</span>';
-  else html = '<span>Colour = discovered cluster. Nearby = similar teaching content.</span>';
-  if (state.programme != null) html += `<span><span class="sw" style="background:var(--accent)"></span>${esc(N[state.programme].label)}: path by semester</span>`;
-  if (state.plan != null) html += `<span><span class="sw" style="background:var(--plan)"></span>${esc(N[state.plan].label)}: path by semester</span>`;
-  html += `<span><span class="sw" style="background:var(--hi)"></span>prerequisite</span>`;
-  $('legend').innerHTML = html;
+function condRow(k, path) {
+  const typeSel = `<select data-path='${P([...path, 'type'])}' data-reset="cond" aria-label="Condition type">${Object.entries(CONDS).map(([t, l]) => `<option value="${t}" ${t === k.type ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const val = k.type === 'has' || k.type === 'lacks' ? `<select data-path='${P([...path, 'tag'])}' data-kind="num" aria-label="Tag">${tagOptions(k.tag)}</select>`
+    : k.type === 'passAtLeast' ? `<span class="row" style="flex-wrap:nowrap"><input type="number" min="0" max="100" value="${k.value}" data-path='${P([...path, 'value'])}' data-kind="num" aria-label="Percent">%</span>`
+    : `<select data-path='${P([...path, 'value'])}' data-kind="num" aria-label="Credits">${[2.5, 5, 7.5, 10, 15, 30].map(v => `<option value="${v}" ${v === k.value ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+  return `<div class="cond">${typeSel}${val}<button type="button" class="x" data-del='${P(path)}' aria-label="Remove condition">×</button></div>`;
 }
-/* trajectories: programme centroid per period, plan centroid per term, drawn over the map */
-function planPath(p) {
-  const by = new Map();
-  for (const e of OUT[p]) if (['completed', 'taking'].includes(e.k) && placed(e.t)) { const t = e.q.term; if (!by.has(t)) by.set(t, []); by.get(t).push(N[e.t]); }
-  const order = t => { const [y, s] = t.split(' '); return +y * 3 + ({ spring: 0, summer: 1, autumn: 2 }[s] ?? 0); };
-  return [...by].sort((a, b) => order(a[0]) - order(b[0])).map(([t, ns]) => [t, ns.reduce((s, n) => s + n.x, 0) / ns.length, ns.reduce((s, n) => s + n.y, 0) / ns.length]);
+function opHtml(table, o, path, removable, planCtx) {
+  const opts = Object.entries(table).map(([k, d]) => `<option value="${k}" ${k === o.op ? 'selected' : ''} ${(d.needsPlan && !planCtx) || (k === 'plan' && !PLANS.length) ? 'disabled' : ''}>${esc(d.label)}${d.needsPlan && !planCtx ? ' (needs “My plan” as source)' : ''}</option>`).join('');
+  const args = table[o.op].args.map(([n, t]) => `<div class="arg"><span>${esc(n)}</span>${argWidget(t, o.args[n], [...path, 'args', n])}</div>`).join('');
+  return `<div class="step ${path.length > 2 ? 'nested' : ''}"><header><select data-op='${P(path)}' data-table="${table === SOURCES ? 'S' : 'P'}" aria-label="${table === SOURCES ? 'Start from' : 'Step'}">${opts}</select>${removable ? `<button type="button" class="x" data-del='${P(path)}' aria-label="Remove step">×</button>` : ''}</header>${args ? `<div class="args">${args}</div>` : ''}</div>`;
 }
-function drawOverlay() {
-  const cv = $('overlay'), r = cv.getBoundingClientRect();
-  if (!r.width || !r.height) return;
-  const dpr = Math.min(devicePixelRatio || 1, 4096 / Math.max(r.width, r.height), 2);
-  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, r.width, r.height);
-  const paths = [];
-  if (state.programme != null && N[state.programme].path) paths.push([N[state.programme].path.map(([k, x, y]) => [`S${k}`, x, y]), css('--accent')]);
-  if (state.plan != null) paths.push([planPath(state.plan), css('--plan')]);
-  for (const [pts, col] of paths) {
-    if (pts.length < 2) continue;
-    const vp = pts.map(([l, x, y]) => [l, renderer.graphToViewport({ x, y: -y })]);
-    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 3; g.globalAlpha = 0.9; g.beginPath();
-    vp.forEach(([, p], k) => k ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.stroke();
-    vp.forEach(([l, p], k) => { g.beginPath(); g.arc(p.x, p.y, k === vp.length - 1 ? 6 : 4, 0, 7); g.fill(); g.font = '600 11px IBM Plex Mono, monospace'; g.fillText(l, p.x + 7, p.y - 6); });
+function pipelineHtml(q, path, nested) {
+  const plan = hasPlan(q) || (nested && hasPlan(QUERY));
+  return `<div style="display:grid;gap:6px">${opHtml(SOURCES, q.source, [...path, 'source'], false, plan)}${q.steps.map((s, k) => opHtml(STEPS, s, [...path, 'steps', k], true, plan)).join('')}<select data-addstep='${P([...path, 'steps'])}' aria-label="Add a step"><option value="">+ add step…</option>${Object.entries(STEPS).filter(([, d]) => !d.needsPlan || plan).map(([k, d]) => `<option value="${k}">${esc(d.label)}</option>`).join('')}</select></div>`;
+}
+const getAt = (obj, path) => path.reduce((o, k) => o[k], obj);
+const setAt = (obj, path, v) => { getAt(obj, path.slice(0, -1))[path[path.length - 1]] = v; };
+const prune = (q, plan) => { q.steps = q.steps.filter(s => !STEPS[s.op].needsPlan || plan); for (const s of q.steps) for (const [n, t] of STEPS[s.op].args) if (t === T.pipeline) prune(s.args[n], plan || hasPlan(s.args[n])); };
+function renderBuilder() { $('builder').innerHTML = pipelineHtml(QUERY, [], false); $('textform').textContent = toText(QUERY); }
+$('builder').addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.op) setAt(QUERY, JSON.parse(el.dataset.op), mkOp(el.dataset.table === 'S' ? SOURCES : STEPS, el.value));
+  else if (el.dataset.addstep !== undefined) { if (!el.value) return; getAt(QUERY, JSON.parse(el.dataset.addstep)).push(mkOp(STEPS, el.value)); }
+  else if (el.dataset.add) { const i = ID.get(el.value.trim().toUpperCase()); if (i === undefined || !N[i].subject) { el.setCustomValidity('Pick a subject code from the list'); el.reportValidity(); return; } const arr = getAt(QUERY, JSON.parse(el.dataset.add)); if (!arr.includes(i)) arr.push(i); }
+  else if (el.dataset.path) {
+    const path = JSON.parse(el.dataset.path);
+    if (el.dataset.kind === 'set') { const arr = getAt(QUERY, path); const k = arr.indexOf(el.value); if (el.checked && k < 0) arr.push(el.value); if (!el.checked && k >= 0) arr.splice(k, 1); }
+    else if (el.dataset.reset === 'cond') setAt(QUERY, path.slice(0, -1), el.value === 'has' || el.value === 'lacks' ? { type: el.value, tag: EXAMS[0] } : el.value === 'passAtLeast' ? { type: el.value, value: 90 } : { type: el.value, value: 7.5 });
+    else { let v = el.dataset.kind === 'num' ? +el.value : el.value; if (el.type === 'number') v = Math.max(+el.min || 0, Math.min(+el.max || 1e9, Math.round(+el.value || 0))); setAt(QUERY, path, v); }
   }
+  prune(QUERY, hasPlan(QUERY)); renderBuilder(); run();
+});
+$('builder').addEventListener('click', e => {
+  const del = e.target.closest('[data-del]'); if (del) { const path = JSON.parse(del.dataset.del); getAt(QUERY, path.slice(0, -1)).splice(path[path.length - 1], 1); renderBuilder(); run(); return; }
+  const ac = e.target.closest('[data-addcond]'); if (ac) { getAt(QUERY, JSON.parse(ac.dataset.addcond)).push({ type: 'has', tag: EXAMS[0] }); renderBuilder(); run(); }
+});
+const dl = document.createElement('datalist'); dl.id = 'subjectList'; dl.innerHTML = SUBJ.map(i => `<option value="${esc(N[i].id)}">${esc(N[i].label)}</option>`).join(''); document.body.appendChild(dl);
+
+/* ================= map: sigma v4 ================= */
+const PALETTE = ['#FFB547', '#4FD1E8', '#C77DFF', '#7CE38B', '#FF6B8B', '#6E8BFF', '#F5E663', '#FF8F4F', '#5EEAD4', '#E879F9', '#A3E635', '#93C5FD'];
+const graph = new Graph({ type: 'mixed', multi: false });
+const BASE = new Map();
+for (const i of SUBJ) if (placed(i)) { graph.addNode(String(i), { x: N[i].x, y: -N[i].y, size: 2.4, label: `${N[i].id} ${N[i].label}`, color: '#8FA3BF' }); BASE.set(i, [N[i].x, -N[i].y]); }
+const renderer = new Sigma(graph, $('map'), {
+  customNodeState: { isActive: false, vis: 'full', isResult: false },
+  customEdgeState: { isActive: false },
+  customGraphState: { hasActive: false, hasResult: false },
+  primitives: { depthLayers: ['gas', 'edges', 'nodes', 'topEdges', 'topNodes', 'activeNodes'] },
+  itemSizesReference: 'screen', labelColor: { color: '#DCE6F2' }, labelFont: 'IBM Plex Sans', labelSize: 12, labelDensity: 0.7, labelGridCellSize: 90, labelRenderedSizeThreshold: 7,
+  styles: {
+    nodes: [
+      { color: { attribute: 'color' }, size: { attribute: 'size' }, label: { attribute: 'label' } },
+      { whenData: 'isTag', then: { visibility: 'hidden' } },
+      { when: (a, s) => s.vis === 'hidden', then: { visibility: 'hidden' } },
+      { when: (a, s) => s.vis === 'partial', then: { color: '#2E3A50', label: '' } },
+      { when: (a, s, g) => g.hasResult && !s.isResult && !g.hasActive, then: { color: '#222C3F', label: '' } },
+      { when: (a, s, g) => g.hasResult && s.isResult && !g.hasActive && s.vis === 'full', then: { size: 4, depth: 'topNodes' } },
+      { when: (a, s, g) => g.hasActive && !s.isActive, then: { color: '#18202F', label: '' } },
+      { whenState: 'isActive', then: { depth: 'topNodes', size: 4.5 } },
+      { whenState: 'isHovered', then: { depth: 'activeNodes', labelVisibility: 'visible', size: 7, color: '#FF8A5B' } },
+    ],
+    edges: [
+      { color: { attribute: 'color', defaultValue: '#55657E' }, size: { attribute: 'size', defaultValue: 1 } },
+      { whenData: 'hiddenEdge', then: { visibility: 'hidden' } },
+      { whenState: 'isActive', then: { depth: 'topEdges' } },
+    ],
+  },
+});
+/* visibility: show / outline / hide per tag */
+const VIS = new Map(); const RANK = { hidden: 0, partial: 1, full: 2 };
+function visOf(i) {
+  if (!VIS.size) return 'full';
+  const best = new Map();
+  for (const t of TAGS_OF.get(i)) { const ns = nsOf(t); if (!NAMESPACES.includes(ns) || N[t].id.includes('/')) continue; best.set(ns, Math.max(best.get(ns) ?? -1, RANK[VIS.get(t) || 'full'])); }
+  let worst = 2; for (const v of best.values()) worst = Math.min(worst, v);
+  return ['hidden', 'partial', 'full'][worst];
 }
-renderer.on('afterRender', drawOverlay);
-const hoverEdges = [];
-function setHover(i) {
-  for (const k of hoverEdges.splice(0)) if (graph.hasEdge(k)) graph.dropEdge(k);
-  state.hover = i; state.hoverSet = i == null ? new Set() : neighbourhood(i);
-  if (i != null) for (const e of [...OUT[i], ...IN[i]]) {
-    if (!REL.has(e.k) || !placed(e.s) || !placed(e.t)) continue;
-    const a = String(e.s), b = String(e.t); if (a === b || graph.hasEdge(a, b)) continue;
-    hoverEdges.push(graph.addEdge(a, b, { size: e.k === 'similar' ? 0.8 : 1.6, color: e.k === 'requires' || e.k === 'recommends' ? css('--hi') : e.k === 'overlaps' ? css('--plan') : css('--muted'), zIndex: 5 }));
+let VISCACHE = new Map(); const vis = i => VISCACHE.get(i) || 'full';
+const recomputeVis = () => { VISCACHE = new Map(SUBJ.map(i => [i, visOf(i)])); };
+/* colour lens + gas */
+let LENS = 'community', LENS_COLORS = new Map();
+function setLens(ns) {
+  LENS = ns; LENS_COLORS = new Map();
+  tagValues(ns).slice(0, PALETTE.length).forEach(([t], k) => LENS_COLORS.set(t, PALETTE[k]));
+  for (const i of SUBJ) if (graph.hasNode(String(i))) { let col = '#5B6B84'; for (const t of TAGS_OF.get(i)) if (LENS_COLORS.has(t)) { col = LENS_COLORS.get(t); break; } graph.setNodeAttribute(String(i), 'color', col); }
+  drawGas(); legend(); renderFilters();
+}
+let gasLayers = [];
+function drawGas() {
+  for (const off of gasLayers) off(); gasLayers = [];
+  if ($('gas').checked) for (const [t, col] of LENS_COLORS) {
+    const members = (MEMBERS.get(t) || []).filter(i => graph.hasNode(String(i)) && vis(i) === 'full').map(String);
+    if (members.length < 3) continue;
+    const prog = createHeatmapProgram(members, { radius: 34, zoomToRadiusRatioFunction: r => Math.sqrt(r), colorStops: [{ value: 0, color: col + '00' }, { value: 0.12, color: col + '14' }, { value: 0.45, color: col + '3A' }, { value: 1, color: col + '70' }] });
+    gasLayers.push(bindWebGLLayer('gas', renderer, prog, 'gas-' + t));
   }
-  $('map').style.cursor = i == null ? '' : 'pointer';
   renderer.refresh();
 }
-renderer.setSetting('zIndex', true);
-renderer.setSetting('edgeReducer', (key, d) => state.hover == null || hoverEdges.includes(key) ? d : { ...d, hidden: true });
-renderer.on('enterNode', ({ node }) => setHover(+node));
-renderer.on('leaveNode', () => setHover(null));
-renderer.on('clickNode', ({ node }) => select(+node));
-renderer.on('clickStage', () => { state.selected = null; applyStyle(); });
-
-function select(i) {
-  state.selected = i; applyStyle();
-  const n = N[i];
-  if (placed(i)) renderer.getCamera().animate({ ...renderer.getNodeDisplayData(String(i)), ratio: Math.min(renderer.getCamera().ratio, 0.35) }, { duration: 400 });
-  const tags = OUT[i].filter(e => tagEdges.has(e.k)).map(e => ({ t: N[e.t], e }));
-  const rels = {}, seenRel = new Set(); for (const e of [...OUT[i], ...IN[i]]) { if (tagEdges.has(e.k) || e.k === 'part_of') continue; const j = e.s === i ? e.t : e.s; const rk = e.k + '|' + j + '|' + (e.dir ? e.s : ''); if (seenRel.has(rk)) continue; seenRel.add(rk); const dirLabel = e.dir ? (e.s === i ? e.k : `${e.k} (incoming)`) : e.k; (rels[dirLabel] = rels[dirLabel] || []).push({ j, e }); }
-  const pass = n.pass ? `${n.pass[0]} of ${n.pass[1]} passed (${Math.round(100 * n.pass[0] / n.pass[1])}%)` : 'no data';
-  $('insp').innerHTML = `<span class="eyebrow">${esc(kindOf(n))}</span><h2>${esc(n.label)}</h2>
-    <dl class="kv"><dt>id</dt><dd>${esc(n.id)}</dd>${n.subject ? `<dt>credits</dt><dd>${n.cr ?? '–'}</dd><dt>pass 2023–25</dt><dd>${pass}</dd>` : ''}${n.retired ? '<dt>status</dt><dd>retired code, known only through overlaps</dd>' : ''}</dl>
-    ${n.subject ? `<div class="links"><a href="https://www.ntnu.edu/studies/courses/${encodeURIComponent(n.id)}/2026" target="_blank" rel="noopener">Course page ↗</a></div>` : ''}
-    <div class="rel"><h3>Tags</h3><div class="chips">${tags.map(({ t, e }) => `<button type="button" class="chip" data-q="tag(${esc(t.id)})" title="${esc(e.ev.join(' · '))}">${esc(t.id.split(':')[0])} <small>${esc(t.label)}${e.q.role ? ' · ' + esc(e.q.role) : ''}${e.q.period ? ' · S' + e.q.period : ''}</small></button>`).join('') || '<span class="empty">none</span>'}</div>
-    ${Object.entries(rels).map(([k, xs]) => `<h3>${esc(k)} · ${xs.length}</h3><ul>${xs.sort((a, b) => (b.e.w || 0) - (a.e.w || 0)).slice(0, 30).map(({ j, e }) => `<li><a href="#" data-sel="${j}">${esc(N[j].id)} ${esc(N[j].subject ? N[j].label : N[j].label)}</a><span class="ev" title="${esc(e.ev.join(' · '))}">${e.w != null ? e.w : ''}${e.q.grade ? ' ' + esc(e.q.grade) : ''} · ${esc(e.ev[1])}</span></li>`).join('')}</ul>`).join('')}</div>`;
-  document.querySelectorAll('.res').forEach(b => b.setAttribute('aria-current', String(+b.dataset.sel === i)));
+const state = { result: new Set(), order: [], active: new Set(), programme: null, plan: null, selected: null };
+function applyStates() {
+  for (const i of SUBJ) if (graph.hasNode(String(i))) renderer.setNodeState(String(i), { vis: vis(i), isResult: state.result.has(i), isActive: state.active.has(i) });
+  renderer.setGraphState({ hasResult: state.result.size > 0 && state.result.size < SUBJ.length, hasActive: state.active.size > 0 });
+  renderer.refresh({ skipIndexation: true });
 }
+/* hover: light up relations, dim the rest */
+let relEdges = [];
+function showRelations(i) {
+  for (const k of relEdges) if (graph.hasEdge(k)) graph.dropEdge(k); relEdges = [];
+  state.active = new Set();
+  if (i != null && vis(i) !== 'hidden') {
+    state.active.add(i);
+    for (const e of [...OUT[i], ...IN[i]]) {
+      if (!REL.has(e.k)) continue; const j = e.s === i ? e.t : e.s; if (!graph.hasNode(String(j)) || vis(j) === 'hidden') continue;
+      state.active.add(j);
+      const a = String(e.s), b = String(e.t); if (a === b || graph.hasEdge(a, b) || graph.hasEdge(b, a)) continue;
+      const k = graph.addDirectedEdge(a, b, { color: e.k === 'requires' || e.k === 'recommends' ? '#FF8A5B' : e.k === 'overlaps' ? '#C59BF0' : '#6E7F99', size: e.k === 'similar' ? 0.7 : 1.6 });
+      relEdges.push(k); renderer.setEdgeState(k, { isActive: true });
+    }
+  }
+  applyStates();
+}
+renderer.on('enterNode', ({ node }) => { $('map').style.cursor = 'pointer'; showRelations(+node); });
+renderer.on('leaveNode', () => { $('map').style.cursor = ''; showRelations(state.selected); });
+renderer.on('clickNode', ({ node }) => select(+node));
+renderer.on('clickStage', () => { state.selected = null; showRelations(null); });
+/* overlay: lens labels at gas centres (fade out as you zoom in) + programme and plan paths */
+function drawOverlay() {
+  const cv = $('overlay'), r = cv.getBoundingClientRect(); if (!r.width || !r.height) return;
+  const dpr = Math.min(devicePixelRatio || 1, 4096 / Math.max(r.width, r.height), 2);
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, r.width, r.height);
+  const alpha = Math.max(0, Math.min(1, (renderer.getCamera().ratio - 0.22) / 0.3));
+  if (alpha > 0 && !state.active.size) {
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const [t, col] of LENS_COLORS) {
+      const pts = (MEMBERS.get(t) || []).filter(i => graph.hasNode(String(i)) && vis(i) === 'full').map(i => graph.getNodeAttributes(String(i)));
+      if (pts.length < 3) continue;
+      const p = renderer.graphToViewport({ x: pts.reduce((s, a) => s + a.x, 0) / pts.length, y: pts.reduce((s, a) => s + a.y, 0) / pts.length });
+      const size = Math.max(12, Math.min(22, 9 + Math.log2(pts.length) * 1.6));
+      g.font = `600 ${size}px "IBM Plex Sans", sans-serif`; g.globalAlpha = alpha; g.lineWidth = 4; g.strokeStyle = 'rgba(7,11,20,.88)';
+      g.strokeText(N[t].label, p.x, p.y); g.fillStyle = col; g.fillText(N[t].label, p.x, p.y);
+    }
+    g.globalAlpha = 1;
+  }
+  const paths = [];
+  if (state.programme != null && N[state.programme].path) paths.push([N[state.programme].path.map(([k, x, y]) => [`S${k}`, x, -y]), '#6CB8DB']);
+  if (state.plan != null) paths.push([planPath(state.plan), '#C59BF0']);
+  g.textAlign = 'left';
+  for (const [pts, col] of paths) {
+    if (pts.length < 2) continue;
+    const vp = pts.map(([l, x, y]) => [l, renderer.graphToViewport({ x, y })]);
+    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 2.5; g.globalAlpha = .9; g.beginPath();
+    vp.forEach(([, p], k) => k ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.stroke();
+    vp.forEach(([l, p], k) => { g.beginPath(); g.arc(p.x, p.y, k === vp.length - 1 ? 5.5 : 3.5, 0, 7); g.fill(); g.font = '600 11px "IBM Plex Mono", monospace'; g.fillText(l, p.x + 7, p.y - 6); });
+    g.globalAlpha = 1;
+  }
+}
+function planPath(p) {
+  const by = new Map();
+  for (const e of OUT[p]) if (['completed', 'taking'].includes(e.k) && graph.hasNode(String(e.t))) { const t = e.q.term; if (!by.has(t)) by.set(t, []); by.get(t).push(graph.getNodeAttributes(String(e.t))); }
+  const ord = t => { const [y, s] = t.split(' '); return +y * 3 + ({ spring: 0, summer: 1, autumn: 2 }[s] ?? 0); };
+  return [...by].sort((a, b) => ord(a[0]) - ord(b[0])).map(([t, ns]) => { const [y, s] = t.split(' '); return [`${s[0].toUpperCase()}${y.slice(2)}`, ns.reduce((v, n) => v + n.x, 0) / ns.length, ns.reduce((v, n) => v + n.y, 0) / ns.length]; });
+}
+renderer.on('afterRender', drawOverlay);
+function legend() {
+  let html = `<span><b>${esc(NS_LABEL[LENS])}</b>: colour and gas</span>` + [...LENS_COLORS].map(([t, c]) => `<span><span class="sw" style="background:${c}"></span>${esc(N[t].label)}</span>`).join('');
+  if (tagValues(LENS).length > PALETTE.length) html += `<span style="opacity:.7">+ ${tagValues(LENS).length - PALETTE.length} more shown grey</span>`;
+  if (state.programme != null) html += `<span><span class="sw" style="background:#6CB8DB"></span>${esc(N[state.programme].label)}: path by semester</span>`;
+  if (state.plan != null) html += `<span><span class="sw" style="background:#C59BF0"></span>${esc(N[state.plan].label)}: path by semester</span>`;
+  $('legend').innerHTML = html;
+}
+$('lens').innerHTML = NAMESPACES.map(ns => `<option value="${ns}" ${ns === LENS ? 'selected' : ''}>Colour: ${esc(NS_LABEL[ns])}</option>`).join('');
+$('lens').addEventListener('change', e => setLens(e.target.value));
+$('gas').addEventListener('change', drawGas);
+$('fit').addEventListener('click', () => renderer.getCamera().animate({ x: 0.5, y: 0.5, ratio: 1 }, { duration: 400 }));
+/* visibility panel */
+function renderFilters() {
+  const openNs = new Set([...$('filters').querySelectorAll('details[open]')].map(d => d.dataset.ns));
+  $('filters').innerHTML = NAMESPACES.map(ns => {
+    const vals = tagValues(ns); const changed = vals.filter(([t]) => VIS.has(t)).length;
+    return `<details class="ns" data-ns="${ns}" ${openNs.has(ns) ? 'open' : ''}><summary><span>${esc(NS_LABEL[ns])}</span><small>${vals.length} clusters${changed ? ` · ${changed} changed` : ''}</small></summary>
+      <div class="bulk"><span>all:</span><button type="button" data-bulk="${ns}" data-v="full">show</button><button type="button" data-bulk="${ns}" data-v="partial">outline</button><button type="button" data-bulk="${ns}" data-v="hidden">hide</button></div>
+      <div class="vals">${vals.map(([t, n]) => { const v = VIS.get(t) || 'full'; return `<div class="val"><span class="sw" style="${LENS_COLORS.has(t) ? `background:${LENS_COLORS.get(t)}` : ''}"></span><span class="lbl" title="${esc(N[t].id)}">${esc(N[t].label)}</span><span class="cnt">${n}</span><span class="tri" role="group" aria-label="Visibility of ${esc(N[t].label)}">${[['full', '●', 'show'], ['partial', '◐', 'outline'], ['hidden', '○', 'hide']].map(([k, s, l]) => `<button type="button" data-tag="${t}" data-v="${k}" aria-pressed="${v === k}" title="${l}" aria-label="${l}">${s}</button>`).join('')}</span></div>`; }).join('')}</div></details>`;
+  }).join('');
+}
+$('filters').addEventListener('click', e => {
+  const b = e.target.closest('[data-tag]'), bulk = e.target.closest('[data-bulk]');
+  if (b) { const t = +b.dataset.tag; b.dataset.v === 'full' ? VIS.delete(t) : VIS.set(t, b.dataset.v); }
+  else if (bulk) for (const [t] of tagValues(bulk.dataset.bulk)) bulk.dataset.v === 'full' ? VIS.delete(t) : VIS.set(t, bulk.dataset.v);
+  else return;
+  recomputeVis(); renderFilters(); applyStates(); drawGas();
+});
+/* gravity: tags as invisible masses, ForceAtlas2 in a worker */
+const GRAV = Object.fromEntries(['similarity', ...NAMESPACES].map(ns => [ns, ns === 'similarity' ? 1 : 0]));
+function renderGravity() { $('gravity').innerHTML = Object.keys(GRAV).map(ns => `<label class="slider"><span>${ns === 'similarity' ? 'Similar content' : esc(NS_LABEL[ns])}</span><input type="range" min="0" max="5" step="0.5" value="${GRAV[ns]}" data-grav="${ns}"><b>${GRAV[ns]}</b></label>`).join(''); }
+$('gravity').addEventListener('input', e => { const ns = e.target.dataset.grav; if (!ns) return; GRAV[ns] = +e.target.value; e.target.nextElementSibling.textContent = GRAV[ns]; });
+let fa2 = null, gravityItems = [];
+function clearGravity() { for (const k of gravityItems) { if (graph.hasEdge(k)) graph.dropEdge(k); else if (graph.hasNode(k)) graph.dropNode(k); } gravityItems = []; }
+function buildGravity() {
+  clearGravity();
+  for (const ns of NAMESPACES) {
+    if (!GRAV[ns]) continue;
+    for (const [t] of tagValues(ns)) {
+      const members = (MEMBERS.get(t) || []).filter(i => graph.hasNode(String(i)) && vis(i) !== 'hidden'); if (members.length < 2) continue;
+      const id = 'tag-' + t; let cx = 0, cy = 0; for (const i of members) { const a = graph.getNodeAttributes(String(i)); cx += a.x / members.length; cy += a.y / members.length; }
+      graph.addNode(id, { x: cx, y: cy, size: 1, isTag: true, label: '' }); gravityItems.push(id);
+      const w = GRAV[ns] * 4 / Math.sqrt(members.length);
+      for (const i of members) gravityItems.push(graph.addEdge(String(i), id, { weight: w, hiddenEdge: true }));
+    }
+  }
+  if (GRAV.similarity) for (const i of SUBJ) for (const e of OUT[i]) if (e.k === 'similar' && graph.hasNode(String(e.s)) && graph.hasNode(String(e.t)) && !graph.hasEdge(String(e.s), String(e.t)) && !graph.hasEdge(String(e.t), String(e.s))) gravityItems.push(graph.addEdge(String(e.s), String(e.t), { weight: GRAV.similarity * e.w, hiddenEdge: true }));
+}
+$('runLayout').addEventListener('click', () => {
+  if (fa2) { fa2.kill(); fa2 = null; }
+  showRelations(null); buildGravity();
+  fa2 = new FA2Layout(graph, { getEdgeWeight: 'weight', settings: { barnesHutOptimize: true, gravity: 0.05, scalingRatio: 2, slowDown: 8, edgeWeightInfluence: 1 } });
+  fa2.start(); $('layoutStatus').textContent = 'moving…';
+  setTimeout(() => { if (fa2) { fa2.stop(); $('layoutStatus').textContent = 'settled'; drawGas(); } }, 6000);
+});
+$('resetLayout').addEventListener('click', () => {
+  if (fa2) { fa2.kill(); fa2 = null; }
+  clearGravity(); for (const [i, [x, y]] of BASE) graph.mergeNodeAttributes(String(i), { x, y });
+  $('layoutStatus').textContent = ''; drawGas();
+});
+/* results + inspector */
 function run() {
-  const q = $('q').value.trim(); if (!q) return;
+  const t0 = performance.now();
   try {
-    const t0 = performance.now(); const r = evaluate(q, {});
+    const r = evaluate(QUERY);
     state.result = r.set; state.order = r.order || [...r.set].sort((a, b) => N[a].id.localeCompare(N[b].id));
-    state.programme = r.programme ?? null; state.plan = r.plan ?? null; state.selected = null;
+    state.programme = r.programme ?? null; state.plan = r.plan ?? null;
     $('status').className = 'status'; $('status').textContent = `${r.set.size} subjects · ${(performance.now() - t0).toFixed(0)} ms`;
     $('report').hidden = !r.report; $('report').innerHTML = r.report || '';
-    $('results').innerHTML = state.order.slice(0, 200).map(i => `<button type="button" class="res" data-sel="${i}"><span class="c">${esc(N[i].id)}</span><span class="n" title="${esc(N[i].label)}">${esc(N[i].label)}</span><span class="p">${N[i].pass ? Math.round(100 * passRate(i)) + '%' : ''}${placed(i) ? '' : ' ·'}</span></button>`).join('') + (state.order.length > 200 ? `<p class="empty">${state.order.length - 200} more not listed.</p>` : '');
-    applyStyle(); fitTo(r.set);
+    $('results').innerHTML = state.order.slice(0, 150).map(i => `<button type="button" class="res" data-sel="${i}"><span class="c">${esc(N[i].id)}</span><span class="n" title="${esc(N[i].label)}">${esc(N[i].label)}</span><span class="p">${N[i].pass ? Math.round(100 * passRate(i)) + '%' : ''}</span></button>`).join('') + (state.order.length > 150 ? `<p class="empty">${state.order.length - 150} more not listed.</p>` : '');
   } catch (err) { $('status').className = 'status err'; $('status').textContent = err.message; }
+  legend(); applyStates(); fitTo(state.result);
 }
 function fitTo(set) {
-  const pts = [...set].filter(placed).map(i => renderer.getNodeDisplayData(String(i))).filter(Boolean);
-  if (!pts.length) return;
-  const xs = pts.map(p => p.x), ys = pts.map(p => p.y), cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-  const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-  renderer.getCamera().animate({ x: cx, y: cy, ratio: Math.max(0.08, Math.min(1, span * 1.3)) }, { duration: 500 });
+  if (!set.size || set.size === SUBJ.length) return;
+  const pts = [...set].filter(i => graph.hasNode(String(i))).map(i => renderer.getNodeDisplayData(String(i))).filter(Boolean); if (!pts.length) return;
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y), span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  renderer.getCamera().animate({ x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2, ratio: Math.max(0.08, Math.min(1, span * 1.3)) }, { duration: 500 });
 }
-const EXAMPLES = [
-  ['What can I take next spring, easiest first?', 'plan(philip) | frontier | filter(term:spring-2027, access:open, cr=7.5) | filter(!exam:school, !flag:group-work, !flag:attendance, !level:Doctoral degree level) | rank(ease) | take(30)'],
-  ['How much of BIT 2023 compulsory have I covered?', 'plan(philip) | compare(programme(BIT-2023, compulsory))'],
-  ['What Machine Learning builds on that I have not taken', 'code(TDT4173) | closure(requires, recommends) | minus(plan(philip))'],
-  ['Courses like Digital Platforms, open next spring', 'code(TDT4257) | similar(40) | filter(term:spring-2027, access:open) | rank(pass)'],
-  ['Lineage: everything that overlaps OOP', 'code(TDT4100) | neighbours(overlaps)'],
-  ['The web/software cluster minus what I have done', 'cluster(web) | minus(plan(philip)) | rank(pass) | take(40)'],
-  ['Where does the Programming bachelor go?', 'programme(BPROG-2023)'],
-];
-$('examples').innerHTML = EXAMPLES.map(([t, q], k) => `<button type="button" data-ex="${k}"><b>${esc(t)}</b><code>${esc(q)}</code></button>`).join('');
-$('ops').innerHTML = Object.entries(OPS).map(([k, o]) => `<tr><td>${k}</td><td>${esc(o.doc)}</td></tr>`).join('');
-const subj = N.filter(n => n.subject && !n.retired).length, tags = N.filter(n => !n.subject).length;
-$('stats').textContent = `${subj.toLocaleString()} subjects · ${tags} tags · ${G.edges.length.toLocaleString()} typed edges · ${N.filter(n => n.subject && placed(n.i)).length.toLocaleString()} on the map`;
+function select(i) {
+  state.selected = i; showRelations(i);
+  const n = N[i], tags = [...(TAGS_OF.get(i) || [])].filter(t => !N[t].id.includes('/')).map(t => N[t]);
+  const rels = {}, seen = new Set();
+  for (const e of [...OUT[i], ...IN[i]]) { if (TAGK.has(e.k) || e.k === 'part_of') continue; const j = e.s === i ? e.t : e.s; const lbl = e.dir ? (e.s === i ? e.k : `${e.k} (incoming)`) : e.k; if (seen.has(lbl + j)) continue; seen.add(lbl + j); (rels[lbl] = rels[lbl] || []).push({ j, e }); }
+  const pass = n.pass ? `${n.pass[0]} of ${n.pass[1]} passed (${Math.round(100 * n.pass[0] / n.pass[1])}%)` : 'no data';
+  $('insp').innerHTML = `<span class="sub">subject</span><h3>${esc(n.label)}</h3>
+    <dl class="kv"><dt>code</dt><dd>${esc(n.id)}</dd><dt>credits</dt><dd>${n.cr ?? '–'}</dd><dt>offered</dt><dd>${(n.years || []).map(y => `${y}/${String(y + 1).slice(2)}`).join(', ') || '–'}</dd><dt>pass 2023–25</dt><dd>${pass}</dd></dl>
+    <a href="https://www.ntnu.edu/studies/courses/${encodeURIComponent(n.id)}/2026" target="_blank" rel="noopener">Course page ↗</a>
+    <div class="rel"><h4>Clusters</h4><div class="tagchips">${tags.map(t => `<span>${esc(NS_LABEL[nsOf(t.i)] || nsOf(t.i))} <small>${esc(t.label)}</small></span>`).join('')}</div>
+    ${Object.entries(rels).map(([k, xs]) => `<h4>${esc(k)} · ${xs.length}</h4><ul>${xs.sort((a, b) => (b.e.w || 0) - (a.e.w || 0)).slice(0, 25).map(({ j, e }) => `<li><a href="#" data-sel="${j}">${esc(N[j].id)} ${N[j].subject ? esc(N[j].label) : ''}</a><span class="ev" title="${esc(e.ev.join(' · '))}">${e.w != null ? e.w : ''}${e.q.grade ? ' ' + esc(e.q.grade) : ''} · ${esc(e.ev[1])}</span></li>`).join('')}</ul>`).join('')}</div>`;
+  document.querySelectorAll('.res').forEach(b => b.setAttribute('aria-current', String(+b.dataset.sel === i)));
+}
 document.addEventListener('click', e => {
-  const ex = e.target.closest('[data-ex]'); if (ex) { $('q').value = EXAMPLES[+ex.dataset.ex][1]; run(); return; }
-  const s = e.target.closest('[data-sel]'); if (s) { e.preventDefault(); select(+s.dataset.sel); return; }
-  const q = e.target.closest('[data-q]'); if (q) { $('q').value = q.dataset.q; run(); }
+  const s = e.target.closest('[data-sel]'); if (s) { e.preventDefault(); const i = +s.dataset.sel; select(i); const d = graph.hasNode(String(i)) && renderer.getNodeDisplayData(String(i)); if (d) renderer.getCamera().animate({ x: d.x, y: d.y, ratio: Math.min(renderer.getCamera().ratio, 0.3) }, { duration: 400 }); return; }
+  const ex = e.target.closest('[data-ex]'); if (ex) { QUERY = structuredClone(EXAMPLES[+ex.dataset.ex][1]); renderBuilder(); run(); return; }
+  const tab = e.target.closest('[data-tab]'); if (tab) { document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b === tab))); document.querySelectorAll('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== tab.dataset.tab); }
 });
-$('run').addEventListener('click', run);
-$('q').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) run(); });
-$('colorBy').addEventListener('change', applyStyle); $('edgeKinds').addEventListener('change', applyStyle);
-$('fit').addEventListener('click', () => renderer.getCamera().animate({ x: 0.5, y: 0.5, ratio: 1 }, { duration: 400 }));
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyStyle);
-$('q').value = EXAMPLES[0][1]; run();
-})();
+/* examples, written as typed queries (they go through the same builder) */
+const tg = id => ID.get(id);
+const plan0 = PLANS[0]?.i;
+const spring27 = tg('term:spring-2027');
+const EXAMPLES = [
+  plan0 != null && ['What can I take next spring, easiest first?', { source: { op: 'plan', args: { plan: plan0 } }, steps: [
+    { op: 'frontier', args: {} },
+    { op: 'filter', args: { conds: [spring27 !== undefined && { type: 'has', tag: spring27 }, { type: 'has', tag: tg('access:open') }, { type: 'credits', value: 7.5 }, { type: 'lacks', tag: tg('exam:school') }, { type: 'lacks', tag: tg('flag:group-work') }, { type: 'lacks', tag: tg('flag:attendance') }].filter(Boolean) } },
+    { op: 'rank', args: { key: 'ease' } }, { op: 'take', args: { n: 30 } }] }],
+  plan0 != null && tg('programme:BIT-2023') !== undefined && ['How much of BIT 2023 compulsory have I covered?', { source: { op: 'plan', args: { plan: plan0 } }, steps: [{ op: 'compare', args: { pipeline: { source: { op: 'programme', args: { programme: tg('programme:BIT-2023'), role: 'compulsory' } }, steps: [] } } }] }],
+  plan0 != null && tg('TDT4173') !== undefined && ['What Machine Learning builds on that I have not taken', { source: { op: 'codes', args: { subjects: [tg('TDT4173')] } }, steps: [{ op: 'closure', args: { kinds: ['requires', 'recommends'] } }, { op: 'minus', args: { pipeline: { source: { op: 'plan', args: { plan: plan0 } }, steps: [] } } }] }],
+  tg('TDT4257') !== undefined && ['Subjects like Digital Platforms', { source: { op: 'codes', args: { subjects: [tg('TDT4257')] } }, steps: [{ op: 'similar', args: { k: 30 } }, { op: 'rank', args: { key: 'pass' } }] }],
+  tg('TDT4100') !== undefined && ['Lineage: everything that overlaps OOP', { source: { op: 'codes', args: { subjects: [tg('TDT4100')] } }, steps: [{ op: 'neighbours', args: { kind: 'overlaps' } }] }],
+  tg('programme:BPROG-2023') !== undefined && ['Where does the Programming bachelor go?', { source: { op: 'programme', args: { programme: tg('programme:BPROG-2023'), role: 'any' } }, steps: [] }],
+].filter(Boolean).filter(([, q]) => !/null|undefined/.test(JSON.stringify(q)));
+$('examples').innerHTML = EXAMPLES.map(([t], k) => `<button type="button" class="res" data-ex="${k}" style="grid-template-columns:1fr"><span class="n" style="white-space:normal">${esc(t)}</span></button>`).join('');
+/* boot */
+$('stats').textContent = `${SUBJ.length.toLocaleString()} subjects · ${N.filter(n => !n.subject).length} clusters (invisible) · ${D.edges.length.toLocaleString()} typed edges`;
+QUERY = EXAMPLES.length ? structuredClone(EXAMPLES[0][1]) : { source: { op: 'all', args: {} }, steps: [] };
+recomputeVis(); renderGravity(); setLens('community'); renderBuilder(); run();
+window.__sg = { renderer, graph, evaluate, toText, get query() { return QUERY; } };
 </script>

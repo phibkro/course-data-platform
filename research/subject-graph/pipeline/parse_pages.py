@@ -1,4 +1,4 @@
-"""Parse cached NTNU course pages (.cache/pages/CODE.html) into one JSON record per course.
+"""Parse cached NTNU course pages (.cache/pages/<year>/CODE.html) into one JSON record per course and study year.
 
 Deterministic: section text is taken by heading from the page's fixed template.
 Output: .cache/courses.json
@@ -37,12 +37,12 @@ def section(t, label):
 
 
 def parse(path):
-    code = path.stem
+    code, year = path.stem, int(path.parent.name)
     t = text(path)
     m = re.search(r'Course - (.*?) - ' + re.escape(code), t)
     if not m:
         return None
-    d = {'code': code, 'name': m.group(1).strip()}
+    d = {'code': code, 'year': year, 'name': m.group(1).strip()}
     d['credits'] = field(t, 'Credits', ['Level'])
     d['level'] = field(t, 'Level', ['Course start'])
     d['start'] = field(t, 'Course start', ['Duration'])
@@ -68,7 +68,7 @@ def parse(path):
 
 
 if __name__ == '__main__':
-    records = [r for p in sorted(PAGES.glob('*.html')) if (r := parse(p))]
+    records = [r for p in sorted(PAGES.glob('*/*.html')) if (r := parse(p))]
     (ROOT / '.cache/courses.json').write_text(json.dumps(records, ensure_ascii=False))
-    print(len(records), 'courses parsed;', sum(bool(r['outcomes']) for r in records), 'with learning outcomes;',
+    print(len(records), 'course-years parsed;', len({r['code'] for r in records}), 'distinct codes;', sum(bool(r['outcomes']) for r in records), 'with learning outcomes;',
           sum(len(r['reductions']) for r in records), 'credit reductions', file=sys.stderr)

@@ -36,12 +36,20 @@ def compact(graph):
 def with_personal(graph):
     p = json.loads((ROOT / '.cache/personal.json').read_text())
     graph = {**graph, 'nodes': list(graph['nodes']), 'edges': list(graph['edges'])}
-    graph['nodes'].append({'id': 'kind:plan', 'kind': 'tag', 'ns': 'kind', 'label': 'Personal plan'})
-    graph['nodes'].append({'id': p['id'], 'kind': 'tag', 'ns': 'plan', 'label': p['label']})
-    graph['edges'].append({'s': p['id'], 't': 'kind:plan', 'kind': 'part_of', 'directed': True, 'w': None, 'q': {}, 'ev': ['structure', 'derived', 1]})
+    graph['nodes'].append({'id': 'clustering:plan', 'kind': 'cluster', 'ns': 'clustering', 'label': 'Personal plan'})
+    graph['nodes'].append({'id': p['id'], 'kind': 'cluster', 'ns': 'plan', 'label': p['label']})
+    graph['edges'].append({'s': p['id'], 't': 'clustering:plan', 'kind': 'part_of', 'directed': True, 'w': None, 'q': {}, 'ev': ['structure', 'derived', 1]})
     for code, term, grade in p['completed']:
         graph['edges'].append({'s': p['id'], 't': code, 'kind': 'completed', 'directed': True, 'w': None,
                                'q': {'term': term, 'grade': grade}, 'ev': ['transcript', 'student-authored', 1]})
+    # Each semester the student took courses becomes a cluster, so it can colour, filter and pull its courses together.
+    graph['nodes'].append({'id': 'clustering:taken', 'kind': 'cluster', 'ns': 'clustering', 'label': 'Semester taken (personal)'})
+    for code, term, *_ in p['completed'] + [[c, t] for c, t in p['current']]:
+        tid = 'taken:' + term.replace(' ', '-')
+        if not any(n['id'] == tid for n in graph['nodes']):
+            graph['nodes'].append({'id': tid, 'kind': 'cluster', 'ns': 'taken', 'label': term.title()})
+            graph['edges'].append({'s': tid, 't': 'clustering:taken', 'kind': 'part_of', 'directed': True, 'w': None, 'q': {}, 'ev': ['structure', 'derived', 1]})
+        graph['edges'].append({'s': code, 't': tid, 'kind': 'in_cluster', 'directed': True, 'w': None, 'q': {}, 'ev': ['transcript', 'student-authored', 1]})
     for code, term in p['current']:
         graph['edges'].append({'s': p['id'], 't': code, 'kind': 'taking', 'directed': True, 'w': None,
                                'q': {'term': term}, 'ev': ['student', 'student-authored', 1]})

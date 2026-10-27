@@ -1,7 +1,9 @@
 """Build the subject/tag graph from parsed courses and study plans.
 
-Model (see ../README.md):
-  node  = subject | tag            tags carry metadata (programme, level, campus, exam type, ...)
+Model (see ../README.md), in graph-theory / graphology / sigma.js terms:
+  node     = subject (a vertex) | cluster (a named group of subjects: a programme, a semester, a code prefix ...)
+  clustering = a family of clusters, e.g. "Teaching term"; a subject may sit in several clusters of one
+             clustering, so a clustering is a cover rather than a partition
   edge  = {s, t, kind, directed, w, q, ev}
           kind     relation name
           directed true for asymmetric relations
@@ -20,16 +22,24 @@ CACHE = ROOT / '.cache'
 CODE = re.compile(r'\b([A-ZÆØÅ]{2,}[A-Z]*\d{3,5}[A-Z]?)\b')
 PAGE = 'ntnu-course-page-2026'
 
-courses = json.loads((CACHE / 'courses.json').read_text())
-known = {c['code'] for c in courses}
-nodes, edges, tag_ids = {}, [], set()
+records = json.loads((CACHE / 'courses.json').read_text())
+by_code = {}
+for r in records:
+    by_code.setdefault(r['code'], []).append(r)
+# One subject per code. Stable facts come from the newest study year; year-bound facts become year tags.
+courses = [max(rs, key=lambda r: r['year']) | {'years': sorted({r['year'] for r in rs if not r.get('not_offered')}),
+                                               'terms': sorted({t for r in rs for t in re.findall(r'(?:Autumn|Spring|Summer) \d{4}', r.get('start') or '')})}
+           for rs in by_code.values()]
+known = set(by_code)
+CODE_PARTS = re.compile(r'^([A-ZÆØÅ]+)(\d)(\d*)([A-Z]?)$')
+nodes, edges, cluster_ids = {}, [], set()
 
 
-def tag(ns, value, label=None, parent=None):
+def cluster(ns, value, label=None, parent=None):
     tid = f'{ns}:{value}'
-    if tid not in tag_ids:
-        tag_ids.add(tid)
-        nodes[tid] = {'id': tid, 'kind': 'tag', 'ns': ns, 'label': label or value}
+    if tid not in cluster_ids:
+        cluster_ids.add(tid)
+        nodes[tid] = {'id': tid, 'kind': 'cluster', 'ns': ns, 'label': label or value}
         if parent:
             edges.append({'s': tid, 't': parent, 'kind': 'part_of', 'directed': True, 'w': None, 'q': {}, 'ev': ['structure', 'derived', 1]})
     return tid
@@ -63,32 +73,41 @@ def exam_kind(c):
 
 
 for ns, label in [('level', 'Level'), ('campus', 'Campus'), ('lang', 'Language'), ('exam', 'Hardest assessment'),
-                  ('term', 'Teaching term'), ('programme', 'Programme'), ('flag', 'Flag'), ('access', 'Admission')]:
-    tag('kind', ns, label)
+                  ('term', 'Teaching term'), ('offered', 'Offered in study year'), ('prefix', 'Code prefix'),
+                  ('code-level', 'Code level (first digit)'), ('programme', 'Programme'), ('flag', 'Flag'), ('access', 'Admission')]:
+    cluster('clustering', ns, label)
 
 for c in courses:
     code = c['code']
-    nodes[code] = {'id': code, 'kind': 'subject', 'label': c['name'], 'cr': num(c['credits'])}
-    if c.get('level'): edge(code, tag('level', c['level'], parent='kind:level'), 'tagged', True)
+    PAGE = f"ntnu-course-page-{c['year']}"
+    nodes[code] = {'id': code, 'kind': 'subject', 'label': c['name'], 'cr': num(c['credits']), 'years': c['years']}
+    for y in c['years']:
+        edge(code, cluster('offered', str(y), f'{y}/{(y + 1) % 100:02d}', 'clustering:offered'), 'in_cluster', True, ev=(f'ntnu-course-list-{y}', 'listed', 1))
+    m = CODE_PARTS.match(code)
+    if m:
+        edge(code, cluster('prefix', m.group(1), parent='clustering:prefix'), 'in_cluster', True, ev=('course-code', 'code-pattern-v1', 1))
+        edge(code, cluster('code-level', m.group(2), f'{m.group(2)}xxx', 'clustering:code-level'), 'in_cluster', True, ev=('course-code', 'code-pattern-v1', 0.7))
+    if c.get('level'): edge(code, cluster('level', c['level'], parent='clustering:level'), 'in_cluster', True)
     for loc in re.split(r'\s+and\s+|,\s*', c.get('location') or ''):
-        if loc: edge(code, tag('campus', loc.strip(), parent='kind:campus'), 'tagged', True)
+        if loc: edge(code, cluster('campus', loc.strip(), parent='clustering:campus'), 'in_cluster', True)
     for lang in re.split(r',\s*|\s+and\s+', c.get('language') or ''):
-        if lang: edge(code, tag('lang', lang.strip(), parent='kind:lang'), 'tagged', True)
-    edge(code, tag('exam', exam_kind(c), parent='kind:exam'), 'tagged', True, ev=(PAGE, 'exam-block-rules-v1', 0.8))
-    for term in re.findall(r'(Autumn|Spring|Summer) (\d{4})', c.get('start') or ''):
-        edge(code, tag('term', f'{term[0].lower()}-{term[1]}', f'{term[0]} {term[1]}', 'kind:term'), 'tagged', True)
+        if lang: edge(code, cluster('lang', lang.strip(), parent='clustering:lang'), 'in_cluster', True)
+    edge(code, cluster('exam', exam_kind(c), parent='clustering:exam'), 'in_cluster', True, ev=(PAGE, 'exam-block-rules-v1', 0.8))
+    for term in c['terms']:
+        season, y = term.split()
+        edge(code, cluster('term', f'{season.lower()}-{y}', term, 'clustering:term'), 'in_cluster', True)
     if c.get('restricted'):
-        edge(code, tag('access', 'restricted', 'Programme admission required', 'kind:access'), 'tagged', True)
+        edge(code, cluster('access', 'restricted', 'Programme admission required', 'clustering:access'), 'in_cluster', True)
         for p in c.get('admission_programmes') or []:
-            edge(code, tag('programme', p, parent='kind:programme'), 'admits', True, ev=(PAGE, 'admission-section', 1))
+            edge(code, cluster('programme', p, parent='clustering:programme'), 'admits', True, ev=(PAGE, 'admission-section', 1))
     else:
-        edge(code, tag('access', 'open', 'Open to all programmes', 'kind:access'), 'tagged', True)
+        edge(code, cluster('access', 'open', 'Open to all programmes', 'clustering:access'), 'in_cluster', True)
     txt = ' '.join(filter(None, [c.get('assessment'), c.get('methods'), c.get('compulsory'), c.get('further')]))
     for flag, pat in [('group-work', r'\bgroups?\b|\bteams?\b'),
                       ('attendance', r'attendance|compulsory (participation|presence)|mandatory (participation|attendance)|\d+\s?% (participation|attendance)'),
                       ('online', r'online|self-study|recorded|webinar|digital teaching')]:
         if re.search(pat, txt, re.I):
-            edge(code, tag('flag', flag, parent='kind:flag'), 'tagged', True, ev=(PAGE, f'keyword-{flag}-v1', 0.6))
+            edge(code, cluster('flag', flag, parent='clustering:flag'), 'in_cluster', True, ev=(PAGE, f'keyword-{flag}-v1', 0.6))
     seen = set()
     for r in c.get('reductions') or []:
         other = r['code']
@@ -109,16 +128,16 @@ CHOICE = {'O': 'compulsory', 'V': 'elective', 'VA': 'elective', 'VB': 'elective'
 def walk_plan(node, parent_tag, plan, period):
     for wp in node.get('studyWaypoints') or []:
         for d in wp.get('studyDirections') or []:
-            dt = tag('direction', f"{plan}/{d['code']}", d['name'], parent_tag)
+            dt = cluster('direction', f"{plan}/{d['code']}", d['name'], parent_tag)
             walk_plan(d, dt, plan, period)
     for g in node.get('courseGroups') or []:
-        gt = tag('group', f"{plan}/{g['code']}", g['name'], parent_tag)
+        gt = cluster('group', f"{plan}/{g['code']}", g['name'], parent_tag)
         for course in g.get('courses') or []:
             cc = course['code']
             if cc not in nodes:
                 nodes[cc] = {'id': cc, 'kind': 'subject', 'label': course.get('name') or cc, 'cr': num(course.get('credit'))}
             choice = (course.get('studyChoice') or {}).get('code')
-            edge(cc, gt, 'member', True, q={'role': CHOICE.get(choice, choice or 'unknown'),
+            edge(cc, gt, 'in_cluster', True, q={'role': CHOICE.get(choice, choice or 'unknown'),
                  'choice': (course.get('studyChoice') or {}).get('name'), 'period': int(period)},
                  ev=('ntnu-study-plan', 'studyplan-json', 1))
 
@@ -131,7 +150,7 @@ for f in sorted((CACHE / 'plans').glob('*.json')):
     if not sp:
         continue
     plan = f"{sp['code']}-{sp['year']}"
-    pt = tag('programme', plan, f"{sp['name']} ({sp['year']})", 'kind:programme')
+    pt = cluster('programme', plan, f"{sp['name']} ({sp['year']})", 'clustering:programme')
     for period in sp['studyPeriods']:
         walk_plan(period.get('direction') or {}, pt, plan, period['periodNumber'])
 
